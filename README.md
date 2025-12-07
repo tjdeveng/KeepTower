@@ -7,6 +7,10 @@
 
 A secure, modern password manager built with C++23 and GTK4.
 
+## Platform Support
+
+**Linux only** - Currently supports Ubuntu 24.04+ and Fedora 39+. Windows and macOS are not supported at this time.
+
 ## Features
 
 - **Strong Encryption**: AES-256-GCM with authenticated encryption
