@@ -78,7 +78,18 @@ if doxygen.found()
   message('Run "ninja doxygen" or "meson compile -C build doxygen" to generate API documentation')
 else
   message('Doxygen not found, API documentation disabled')
-endif# Summary
+endif
+
+# Post-install scripts for desktop integration
+gnome = import('gnome')
+
+gnome.post_install(
+  glib_compile_schemas: true,
+  gtk_update_icon_cache: true,
+  update_desktop_database: true,
+)
+
+# Summary
 summary({
   'prefix': get_option('prefix'),
   'bindir': get_option('bindir'),
