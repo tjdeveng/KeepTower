@@ -338,10 +338,10 @@ dialog->set_default_size(UI::DIALOG_WIDTH, UI::DIALOG_HEIGHT);
 bool is_vault_open() const { return m_vault_open; }
 
 // But missing in:
-thetower::AccountRecord* get_account(size_t index);
+keeptower::AccountRecord* get_account(size_t index);
 // Should be:
-const thetower::AccountRecord* get_account(size_t index) const;
-thetower::AccountRecord* get_account_mutable(size_t index);
+const keeptower::AccountRecord* get_account(size_t index) const;
+keeptower::AccountRecord* get_account_mutable(size_t index);
 ```
 
 ---

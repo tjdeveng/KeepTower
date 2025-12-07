@@ -16,7 +16,7 @@ class VaultManagerTest : public ::testing::Test {
 protected:
     void SetUp() override {
         // Create temporary directory for test vaults
-        test_dir = fs::temp_directory_path() / "thetower_tests";
+        test_dir = fs::temp_directory_path() / "keeptower_tests";
         fs::create_directories(test_dir);
         test_vault_path = (test_dir / "test_vault.vault").string();
         vault_manager = std::make_unique<VaultManager>();
