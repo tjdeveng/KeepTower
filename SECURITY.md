@@ -18,6 +18,15 @@ KeepTower implements multiple layers of security to protect your sensitive data:
 - **Random Salt**: Unique 32-byte salt per vault
 - **Random IV**: Unique 12-byte initialization vector per encryption operation
 
+### Error Correction
+- **Reed-Solomon FEC**: Optional forward error correction for vault files
+  - CCSDS RS(255,223) standard encoding
+  - Configurable redundancy levels (5-50%)
+  - Automatic corruption detection and recovery
+  - Protection against bit rot, disk errors, and partial file damage
+  - Disabled by default for backward compatibility
+  - Can be enabled in Preferences for new vaults
+
 ### Memory Protection
 - **Secure Clearing**: All sensitive data cleared with `OPENSSL_cleanse()`
 - **Memory Locking**: Sensitive buffers locked with `mlock()` to prevent swap exposure

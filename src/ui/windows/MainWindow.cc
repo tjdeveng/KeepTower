@@ -4,6 +4,7 @@
 #include "MainWindow.h"
 #include "../dialogs/CreatePasswordDialog.h"
 #include "../dialogs/PasswordDialog.h"
+#include "../dialogs/PreferencesDialog.h"
 #include "../../core/VaultError.h"
 #include "config.h"
 #include "record.pb.h"
@@ -20,6 +21,7 @@ MainWindow::MainWindow()
       m_save_button("_Save", true),
       m_close_button("_Close Vault", true),
       m_add_account_button("_Add Account", true),
+      m_preferences_button("_Preferences", true),
       m_search_box(Gtk::Orientation::HORIZONTAL, 6),
       m_search_label("Search:"),
       m_paned(Gtk::Orientation::HORIZONTAL),
@@ -41,6 +43,13 @@ MainWindow::MainWindow()
     set_title(PROJECT_NAME);
     set_default_size(1000, 700);
 
+    // Load Reed-Solomon settings from GSettings and apply to VaultManager
+    auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
+    bool use_rs = settings->get_boolean("use-reed-solomon");
+    int rs_redundancy = settings->get_int("rs-redundancy-percent");
+    m_vault_manager->set_reed_solomon_enabled(use_rs);
+    m_vault_manager->set_rs_redundancy_percent(rs_redundancy);
+
     // Setup the main container
     set_child(m_main_box);
 
@@ -50,6 +59,7 @@ MainWindow::MainWindow()
     m_toolbar_box.append(m_open_button);
     m_toolbar_box.append(m_save_button);
     m_toolbar_box.append(m_add_account_button);
+    m_toolbar_box.append(m_preferences_button);
 
     // Add spacer to push close button to the right
     auto spacer = Gtk::make_managed<Gtk::Box>();
@@ -147,6 +157,7 @@ MainWindow::MainWindow()
     m_open_button.set_icon_name("document-open");
     m_save_button.set_icon_name("document-save");
     m_add_account_button.set_icon_name("list-add");
+    m_preferences_button.set_icon_name("preferences-system");
     m_close_button.set_icon_name("window-close");
     m_show_password_button.set_icon_name("view-reveal-symbolic");
     m_copy_password_button.set_icon_name("edit-copy");
@@ -166,6 +177,9 @@ MainWindow::MainWindow()
     );
     m_add_account_button.signal_clicked().connect(
         sigc::mem_fun(*this, &MainWindow::on_add_account)
+    );
+    m_preferences_button.signal_clicked().connect(
+        sigc::mem_fun(*this, &MainWindow::on_preferences)
     );
     m_show_password_button.signal_clicked().connect(
         sigc::mem_fun(*this, &MainWindow::on_toggle_password_visibility)
@@ -213,6 +227,9 @@ void MainWindow::on_new_vault() {
     filter_all->set_name("All files");
     filter_all->add_pattern("*");
     dialog->add_filter(filter_all);
+
+    // Set vault filter as default
+    dialog->set_filter(filter);
 
     dialog->set_current_name("Untitled.vault");
 
@@ -275,6 +292,9 @@ void MainWindow::on_open_vault() {
     filter_all->set_name("All files");
     filter_all->add_pattern("*");
     dialog->add_filter(filter_all);
+
+    // Set vault filter as default
+    dialog->set_filter(filter);
 
     dialog->signal_response().connect([this, dialog](int response) {
         if (response == Gtk::ResponseType::OK) {
@@ -772,4 +792,9 @@ bool MainWindow::prompt_save_if_modified() {
         // User cancelled
         return false;
     }
+}
+
+void MainWindow::on_preferences() {
+    auto dialog = std::make_unique<PreferencesDialog>(*this);
+    dialog->show();
 }

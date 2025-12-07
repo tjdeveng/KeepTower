@@ -31,7 +31,11 @@ EVPCipherContext::~EVPCipherContext() {
 
 // VaultManager implementation
 VaultManager::VaultManager()
-    : m_vault_open(false), m_modified(false), m_pbkdf2_iterations(DEFAULT_PBKDF2_ITERATIONS) {
+    : m_vault_open(false),
+      m_modified(false),
+      m_use_reed_solomon(false),
+      m_rs_redundancy_percent(10),
+      m_pbkdf2_iterations(DEFAULT_PBKDF2_ITERATIONS) {
 }
 
 VaultManager::~VaultManager() {
@@ -90,7 +94,8 @@ bool VaultManager::open_vault(const std::string& path, const Glib::ustring& pass
     }
 
     // Parse vault file format:
-    // [SALT_LENGTH bytes: salt][IV_LENGTH bytes: iv][remaining: encrypted data]
+    // Legacy format: [SALT_LENGTH bytes: salt][IV_LENGTH bytes: iv][remaining: encrypted data]
+    // RS format:     [SALT_LENGTH bytes: salt][IV_LENGTH bytes: iv][1 byte: flags][1 byte: rs_redundancy][remaining: RS-encoded encrypted data]
     if (file_data.size() < SALT_LENGTH + IV_LENGTH) {
         std::cerr << "Vault file is corrupted or invalid" << std::endl;
         return false;
@@ -103,11 +108,72 @@ bool VaultManager::open_vault(const std::string& path, const Glib::ustring& pass
     std::vector<uint8_t> iv(file_data.begin() + SALT_LENGTH,
                            file_data.begin() + SALT_LENGTH + IV_LENGTH);
 
-    // Extract encrypted data
-    std::vector<uint8_t> ciphertext(file_data.begin() + SALT_LENGTH + IV_LENGTH,
-                                   file_data.end());
+    // Check for Reed-Solomon encoding
+    size_t ciphertext_offset = SALT_LENGTH + IV_LENGTH;
+    std::vector<uint8_t> ciphertext;
 
-    // Derive key from password
+    // Check if there's room for flags byte and RS metadata
+    if (file_data.size() > SALT_LENGTH + IV_LENGTH + 6) {  // flags(1) + redundancy(1) + original_size(4)
+        uint8_t flags = file_data[SALT_LENGTH + IV_LENGTH];
+
+        // Check if RS flag is set AND redundancy is valid (5-50%)
+        // This helps avoid false positives on legacy vaults
+        if (flags & FLAG_RS_ENABLED) {
+            uint8_t rs_redundancy = file_data[SALT_LENGTH + IV_LENGTH + 1];
+
+            // Validate redundancy is in acceptable range before treating as RS-encoded
+            if (rs_redundancy >= 5 && rs_redundancy <= 50) {
+                ciphertext_offset += 2;  // Skip flags and redundancy bytes
+
+                // Extract original size (4 bytes, big-endian)
+                uint32_t original_size =
+                    (static_cast<uint32_t>(file_data[ciphertext_offset]) << 24) |
+                    (static_cast<uint32_t>(file_data[ciphertext_offset + 1]) << 16) |
+                    (static_cast<uint32_t>(file_data[ciphertext_offset + 2]) << 8) |
+                    static_cast<uint32_t>(file_data[ciphertext_offset + 3]);
+                ciphertext_offset += 4;
+
+                // Extract RS-encoded data
+                std::vector<uint8_t> encoded_data(file_data.begin() + ciphertext_offset,
+                                                 file_data.end());
+
+                // Create ReedSolomon instance if needed
+                if (!m_reed_solomon || m_rs_redundancy_percent != rs_redundancy) {
+                    m_reed_solomon = std::make_unique<ReedSolomon>(rs_redundancy);
+                }
+
+                // Decode with Reed-Solomon
+                ReedSolomon::EncodedData encoded_struct{
+                    .data = encoded_data,
+                    .original_size = original_size,
+                    .redundancy_percent = rs_redundancy,
+                    .block_size = 0,  // Not needed for decode
+                    .num_data_blocks = 0,  // Not needed for decode
+                    .num_parity_blocks = 0  // Not needed for decode
+                };
+                auto decode_result = m_reed_solomon->decode(encoded_struct);
+                if (!decode_result) {
+                    KeepTower::Log::error("Reed-Solomon decoding failed: {}",
+                                         ReedSolomon::error_to_string(decode_result.error()));
+                    std::cerr << "Failed to decode Reed-Solomon data (file may be too corrupted)" << std::endl;
+                    return false;
+                }
+
+                ciphertext = std::move(decode_result.value());
+                KeepTower::Log::info("Vault decoded with Reed-Solomon ({}% redundancy, {} -> {} bytes)",
+                                    rs_redundancy, encoded_data.size(), ciphertext.size());
+            } else {
+                // Invalid redundancy - treat as legacy format
+                ciphertext.assign(file_data.begin() + ciphertext_offset, file_data.end());
+            }
+        } else {
+            // No RS encoding, extract normal ciphertext
+            ciphertext.assign(file_data.begin() + ciphertext_offset, file_data.end());
+        }
+    } else {
+        // Legacy format without flags
+        ciphertext.assign(file_data.begin() + ciphertext_offset, file_data.end());
+    }    // Derive key from password
     m_encryption_key.resize(KEY_LENGTH);
     if (!derive_key(password, m_salt, m_encryption_key)) {
         return false;
@@ -164,11 +230,47 @@ bool VaultManager::save_vault() {
         return false;
     }
 
-    // Build vault file: [salt][iv][ciphertext]
+    // Build vault file
     std::vector<uint8_t> file_data;
     file_data.insert(file_data.end(), m_salt.begin(), m_salt.end());
     file_data.insert(file_data.end(), iv.begin(), iv.end());
-    file_data.insert(file_data.end(), ciphertext.begin(), ciphertext.end());
+
+    // Apply Reed-Solomon encoding if enabled
+    if (m_use_reed_solomon) {
+        // Ensure ReedSolomon instance exists
+        if (!m_reed_solomon) {
+            m_reed_solomon = std::make_unique<ReedSolomon>(m_rs_redundancy_percent);
+        }
+
+        // Encode the ciphertext with Reed-Solomon
+        auto encode_result = m_reed_solomon->encode(ciphertext);
+        if (!encode_result) {
+            KeepTower::Log::error("Reed-Solomon encoding failed: {}",
+                                 ReedSolomon::error_to_string(encode_result.error()));
+            return false;
+        }
+
+        // Write format: [salt][iv][flags][rs_redundancy][original_size(4 bytes)][encoded_ciphertext]
+        uint8_t flags = FLAG_RS_ENABLED;
+        file_data.push_back(flags);
+        file_data.push_back(m_rs_redundancy_percent);
+
+        // Store original ciphertext size (4 bytes, big-endian)
+        uint32_t original_size = ciphertext.size();
+        file_data.push_back((original_size >> 24) & 0xFF);
+        file_data.push_back((original_size >> 16) & 0xFF);
+        file_data.push_back((original_size >> 8) & 0xFF);
+        file_data.push_back(original_size & 0xFF);
+
+        const auto& encoded = encode_result.value();
+        file_data.insert(file_data.end(), encoded.data.begin(), encoded.data.end());
+
+        KeepTower::Log::info("Vault saved with Reed-Solomon encoding ({}% redundancy, {} -> {} bytes)",
+                            m_rs_redundancy_percent, ciphertext.size(), encoded.data.size());
+    } else {
+        // Original format: [salt][iv][ciphertext]
+        file_data.insert(file_data.end(), ciphertext.begin(), ciphertext.end());
+    }
 
     // Create backup before saving (non-fatal if it fails)
     auto backup_result = create_backup(m_current_vault_path);
@@ -595,4 +697,15 @@ KeepTower::VaultResult<> VaultManager::restore_from_backup(std::string_view path
         KeepTower::Log::error("Failed to restore backup: {}", e.what());
         return std::unexpected(VaultError::FileReadFailed);
     }
+}
+
+bool VaultManager::set_rs_redundancy_percent(uint8_t percent) {
+    if (percent < 5 || percent > 50) {
+        return false;
+    }
+    m_rs_redundancy_percent = percent;
+    if (m_reed_solomon) {
+        m_reed_solomon = std::make_unique<ReedSolomon>(m_rs_redundancy_percent);
+    }
+    return true;
 }

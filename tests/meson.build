@@ -34,12 +34,14 @@ vault_manager_test = executable(
     'vault_manager_test',
     'test_vault_manager.cc',
     '../src/core/VaultManager.cc',
+    '../src/core/ReedSolomon.cc',
     proto_gen,
     dependencies: [
         gtest_dep,
         protobuf_dep,
         openssl_dep,
-        giomm_dep
+        giomm_dep,
+        libcorrect_dep
     ],
     include_directories: test_inc
 )
@@ -60,11 +62,13 @@ security_features_test = executable(
     'test_security_features',
     'test_security_features.cc',
     '../src/core/VaultManager.cc',
+    '../src/core/ReedSolomon.cc',
     proto_gen,
     dependencies: [
         protobuf_dep,
         openssl_dep,
-        giomm_dep
+        giomm_dep,
+        libcorrect_dep
     ],
     include_directories: test_inc
 )
@@ -91,8 +95,26 @@ reed_solomon_test = executable(
     include_directories: test_inc
 )
 
+# Vault Reed-Solomon integration tests
+vault_reed_solomon_test = executable(
+    'vault_reed_solomon_test',
+    'test_vault_reed_solomon.cc',
+    '../src/core/VaultManager.cc',
+    '../src/core/ReedSolomon.cc',
+    proto_gen,
+    dependencies: [
+        gtest_dep,
+        protobuf_dep,
+        openssl_dep,
+        giomm_dep,
+        libcorrect_dep
+    ],
+    include_directories: test_inc
+)
+
 # Register all tests
 test('VaultManager Tests', vault_manager_test)
 test('Password Validation Tests', password_validation_test, timeout: 30)
 test('Input Validation Tests', input_validation_test)
 test('Reed-Solomon Tests', reed_solomon_test)
+test('Vault Reed-Solomon Integration', vault_reed_solomon_test)

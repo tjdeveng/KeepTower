@@ -145,9 +145,10 @@ ReedSolomon::decode(const EncodedData& encoded) {
         return std::unexpected(Error::INVALID_DATA);
     }
 
-    const size_t RS_BLOCK_SIZE = encoded.block_size;
+    // Use RS(255, 223) configuration
+    const size_t RS_BLOCK_SIZE = 255;
     const size_t RS_DATA_SIZE = 223;
-    const size_t RS_PARITY_SIZE = RS_BLOCK_SIZE - RS_DATA_SIZE;
+    const size_t RS_PARITY_SIZE = RS_BLOCK_SIZE - RS_DATA_SIZE;  // 32 parity bytes
 
     // Create RS decoder
     correct_reed_solomon* rs = correct_reed_solomon_create(
@@ -161,11 +162,14 @@ ReedSolomon::decode(const EncodedData& encoded) {
         return std::unexpected(Error::LIBCORRECT_ERROR);
     }
 
+    // Calculate number of blocks from data size
+    uint32_t num_blocks = encoded.data.size() / RS_BLOCK_SIZE;
+
     // Allocate output buffer
-    std::vector<uint8_t> decoded_data(encoded.num_data_blocks * RS_DATA_SIZE);
+    std::vector<uint8_t> decoded_data(num_blocks * RS_DATA_SIZE);
 
     // Decode each block
-    for (uint32_t i = 0; i < encoded.num_data_blocks; ++i) {
+    for (uint32_t i = 0; i < num_blocks; ++i) {
         const uint8_t* encoded_block = encoded.data.data() + (i * RS_BLOCK_SIZE);
         uint8_t* decoded_block = decoded_data.data() + (i * RS_DATA_SIZE);
 

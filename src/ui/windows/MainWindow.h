@@ -71,6 +71,7 @@ protected:
     void on_save_vault();     ///< Save current vault
     void on_close_vault();    ///< Close current vault
     void on_add_account();    ///< Add new account
+    void on_preferences();    ///< Show preferences dialog
     void on_copy_password();  ///< Copy password to clipboard
     void on_toggle_password_visibility();  ///< Show/hide password
     void on_search_changed(); ///< Filter accounts by search
@@ -96,6 +97,7 @@ protected:
     Gtk::Button m_save_button;
     Gtk::Button m_close_button;
     Gtk::Button m_add_account_button;
+    Gtk::Button m_preferences_button;
 
     Gtk::Separator m_separator;
 

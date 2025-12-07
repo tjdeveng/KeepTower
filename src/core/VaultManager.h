@@ -21,6 +21,7 @@
 #include <glibmm.h>
 #include "record.pb.h"
 #include "VaultError.h"
+#include "ReedSolomon.h"
 
 // Forward declarations for OpenSSL types
 typedef struct evp_cipher_ctx_st EVP_CIPHER_CTX;
@@ -230,6 +231,33 @@ public:
     std::string get_current_vault_path() const { return m_current_vault_path; }
     bool is_modified() const { return m_modified; }
 
+    // Reed-Solomon error correction
+
+    /**
+     * @brief Enable or disable Reed-Solomon error correction for future saves
+     * @param enable true to enable RS encoding, false to disable
+     */
+    void set_reed_solomon_enabled(bool enable) { m_use_reed_solomon = enable; }
+
+    /**
+     * @brief Check if Reed-Solomon encoding is enabled
+     * @return true if RS will be used on next save
+     */
+    bool is_reed_solomon_enabled() const { return m_use_reed_solomon; }
+
+    /**
+     * @brief Set RS redundancy percentage for future saves
+     * @param percent Redundancy level (5-50%)
+     * @return true if valid, false if out of range
+     */
+    bool set_rs_redundancy_percent(uint8_t percent);
+
+    /**
+     * @brief Get current RS redundancy percentage setting
+     * @return Redundancy percentage (5-50%)
+     */
+    uint8_t get_rs_redundancy_percent() const { return m_rs_redundancy_percent; }
+
 private:
     // Cryptographic operations
     bool derive_key(const Glib::ustring& password,
@@ -271,12 +299,20 @@ private:
     std::vector<uint8_t> m_salt;
     bool m_memory_locked;  // Track if sensitive memory is locked
 
+    // Reed-Solomon error correction
+    std::unique_ptr<ReedSolomon> m_reed_solomon;
+    bool m_use_reed_solomon;
+    uint8_t m_rs_redundancy_percent;
+
     // In-memory vault data (protobuf)
     keeptower::VaultData m_vault_data;
 
     // Vault file format constants
     static constexpr uint32_t VAULT_MAGIC = 0x4B505457;  // "KPTW" (KeepTower)
     static constexpr uint32_t VAULT_VERSION = 1;
+
+    // Vault flags
+    static constexpr uint8_t FLAG_RS_ENABLED = 0x01;  // Reed-Solomon error correction enabled
 
     // Constants for encryption (AES-256-GCM with PBKDF2)
     static constexpr size_t SALT_LENGTH = 32;

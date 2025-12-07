@@ -11,6 +11,10 @@ A secure, modern password manager built with C++23 and GTK4.
 
 - **Strong Encryption**: AES-256-GCM with authenticated encryption
 - **Secure Key Derivation**: PBKDF2-SHA256 with 100,000 iterations (configurable)
+- **Error Correction**: Reed-Solomon forward error correction (FEC) for vault files
+  - Configurable redundancy levels (5-50%)
+  - Automatic corruption detection and recovery
+  - Based on CCSDS RS(255,223) standard
 - **Memory Protection**: Sensitive data secured with mlock() and OPENSSL_cleanse()
 - **Atomic Operations**: Atomic file writes with automatic backups
 - **Modern C++23**: Uses std::span, std::expected, RAII throughout
@@ -24,7 +28,8 @@ A secure, modern password manager built with C++23 and GTK4.
 - Clipboard auto-clear (30 seconds)
 - File permissions restricted to owner only
 - Backward-compatible vault format with versioning
-- Comprehensive unit test suite (27 tests)
+- Reed-Solomon error correction protects against bit rot and corruption
+- Comprehensive unit test suite (103 tests)
 
 ## Building
 
@@ -34,6 +39,7 @@ A secure, modern password manager built with C++23 and GTK4.
 - GTKmm 4.0 (>= 4.10)
 - OpenSSL (>= 1.1.0)
 - Protocol Buffers (>= 3.0)
+- libcorrect (for Reed-Solomon error correction)
 - Meson build system
 - GTest (for tests)
 
@@ -72,6 +78,18 @@ meson install -C build
 keeptower
 ```
 
+### Configuring Reed-Solomon Error Correction
+
+1. Click the **Preferences** button in the toolbar
+2. Enable **"Enable error correction for new vaults"**
+3. Adjust the **Redundancy Level** slider (5-50%)
+   - Higher values provide more protection but increase file size
+   - 10% is recommended for most users
+   - 20-30% for critical data
+4. Click **OK** to save
+
+New vaults created after enabling Reed-Solomon will automatically include error correction. Existing vaults are not modified.
+
 ## Documentation
 
 - **README.md** - This file
@@ -105,6 +123,7 @@ KeepTower uses the following open source libraries:
 - **OpenSSL**: Apache License 2.0
 - **Protocol Buffers**: BSD 3-Clause License
 - **Google Test**: BSD 3-Clause License
+- **libcorrect**: BSD 3-Clause License
 
 ## Contributing
 
