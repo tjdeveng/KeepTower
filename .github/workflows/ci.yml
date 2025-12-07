@@ -39,7 +39,8 @@ jobs:
           graphviz \
           cmake \
           git \
-          gettext
+          gettext \
+          desktop-file-utils
 
     - name: Build and install libcorrect
       if: runner.os == 'Linux'
@@ -93,7 +94,8 @@ jobs:
           clang-tidy \
           cmake \
           git \
-          gettext
+          gettext \
+          desktop-file-utils
 
     - name: Build and install libcorrect
       run: |
