@@ -79,13 +79,14 @@ protected:
     void on_account_selected(const Gtk::TreeModel::Path& path, Gtk::TreeViewColumn* column);  ///< Double-click handler
 
     // Helper methods
-    void save_current_account();
+    bool save_current_account();  ///< Returns false if validation fails
     void update_account_list();
     void filter_accounts(const Glib::ustring& search_text);
     void clear_account_details();
     void display_account_details(int index);
     void show_error_dialog(const Glib::ustring& message);
     bool validate_field_length(const Glib::ustring& field_name, const Glib::ustring& value, int max_length);
+    bool validate_email_format(const Glib::ustring& email);
     bool prompt_save_if_modified();  ///< Prompt to save if vault modified, return false if user cancels
 
     // Member widgets
@@ -159,6 +160,7 @@ protected:
 
     // State
     bool m_vault_open;
+    bool m_updating_selection;  // Prevent recursive selection change handling
     Glib::ustring m_current_vault_path;
     int m_selected_account_index;
     std::vector<int> m_filtered_indices;  // Indices matching current search

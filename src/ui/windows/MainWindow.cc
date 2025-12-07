@@ -36,6 +36,7 @@ MainWindow::MainWindow()
       m_notes_label("Notes:"),
       m_status_label("No vault open"),
       m_vault_open(false),
+      m_updating_selection(false),
       m_selected_account_index(-1),
       m_vault_manager(std::make_unique<VaultManager>()) {
 
@@ -495,6 +496,11 @@ void MainWindow::on_search_changed() {
 }
 
 void MainWindow::on_selection_changed() {
+    // Prevent recursive calls when we're programmatically updating selection
+    if (m_updating_selection) {
+        return;
+    }
+
     auto selection = m_account_tree_view.get_selection();
     if (!selection) {
         return;
@@ -506,7 +512,21 @@ void MainWindow::on_selection_changed() {
 
         // Only save if we're switching to a different account
         if (new_index != m_selected_account_index) {
-            save_current_account();
+            if (!save_current_account()) {
+                // Validation failed, revert to previous selection without triggering display update
+                m_updating_selection = true;
+                auto prev_iter = m_account_list_store->children().begin();
+                while (prev_iter != m_account_list_store->children().end()) {
+                    if ((*prev_iter)[m_columns.m_col_index] == m_selected_account_index) {
+                        selection->select(prev_iter);
+                        m_updating_selection = false;
+                        return;
+                    }
+                    ++prev_iter;
+                }
+                m_updating_selection = false;
+                return;
+            }
         }
 
         display_account_details(new_index);
@@ -520,7 +540,10 @@ void MainWindow::on_account_selected(const Gtk::TreeModel::Path& path, Gtk::Tree
 
         // Only save if we're switching to a different account
         if (new_index != m_selected_account_index) {
-            save_current_account();
+            if (!save_current_account()) {
+                // Validation failed, stay on current account
+                return;
+            }
         }
 
         display_account_details(new_index);
@@ -629,10 +652,10 @@ void MainWindow::display_account_details(int index) {
     m_copy_password_button.set_sensitive(true);
 }
 
-void MainWindow::save_current_account() {
+bool MainWindow::save_current_account() {
     // Only save if we have a valid account selected
     if (m_selected_account_index < 0 || !m_vault_open) {
-        return;
+        return true;  // Nothing to save, allow continue
     }
 
     // Validate the index is within bounds
@@ -640,38 +663,45 @@ void MainWindow::save_current_account() {
     if (m_selected_account_index >= static_cast<int>(accounts.size())) {
         g_warning("Invalid account index %d (total accounts: %zu)",
                   m_selected_account_index, accounts.size());
-        return;
+        return true;  // Invalid state, but don't block navigation
     }
 
     // Validate field lengths before saving
     if (!validate_field_length("Account Name", m_account_name_entry.get_text(), UI::MAX_ACCOUNT_NAME_LENGTH)) {
-        return;
+        return false;
     }
     if (!validate_field_length("Username", m_user_name_entry.get_text(), UI::MAX_USERNAME_LENGTH)) {
-        return;
+        return false;
     }
     if (!validate_field_length("Password", m_password_entry.get_text(), UI::MAX_PASSWORD_LENGTH)) {
-        return;
+        return false;
     }
-    if (!validate_field_length("Email", m_email_entry.get_text(), UI::MAX_EMAIL_LENGTH)) {
-        return;
+
+    // Validate email format if not empty
+    auto email_text = m_email_entry.get_text();
+    if (!email_text.empty() && !validate_email_format(email_text)) {
+        return false;
+    }
+
+    if (!validate_field_length("Email", email_text, UI::MAX_EMAIL_LENGTH)) {
+        return false;
     }
     if (!validate_field_length("Website", m_website_entry.get_text(), UI::MAX_WEBSITE_LENGTH)) {
-        return;
+        return false;
     }
 
     // Validate notes length
     auto buffer = m_notes_view.get_buffer();
     auto notes_text = buffer->get_text();
     if (!validate_field_length("Notes", notes_text, UI::MAX_NOTES_LENGTH)) {
-        return;
+        return false;
     }
 
     // Get the current account from VaultManager
     auto* account = m_vault_manager->get_account_mutable(m_selected_account_index);
     if (!account) {
         g_warning("Failed to get account at index %d", m_selected_account_index);
-        return;
+        return true;  // Allow navigation even if account not found
     }
 
     // Store the old account name to detect if it changed
@@ -701,6 +731,8 @@ void MainWindow::save_current_account() {
             ++iter;
         }
     }
+
+    return true;  // Save successful
 }
 
 bool MainWindow::validate_field_length(const Glib::ustring& field_name, const Glib::ustring& value, int max_length) {
@@ -720,11 +752,53 @@ bool MainWindow::validate_field_length(const Glib::ustring& field_name, const Gl
     return true;
 }
 
+bool MainWindow::validate_email_format(const Glib::ustring& email) {
+    // Strict email validation pattern
+    // Requires: localpart@domain.tld
+    // - Local part: alphanumeric, dots, hyphens, underscores, plus signs
+    // - Domain: must have at least one dot
+    // - TLD: at least 2 characters
+    static const std::regex email_pattern(
+        R"(^[a-zA-Z0-9._+-]+@[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})*$)",
+        std::regex::optimize
+    );
+
+    try {
+        if (!std::regex_match(email.raw(), email_pattern)) {
+            show_error_dialog(
+                "Invalid email format.\n\n"
+                "Email must be in the format: user@domain.ext\n\n"
+                "Examples:\n"
+                "  • john@example.com\n"
+                "  • jane.doe@company.co.uk\n"
+                "  • user+tag@mail.example.org"
+            );
+            return false;
+        }
+    } catch (const std::regex_error& e) {
+        g_warning("Email validation regex error: %s", e.what());
+        return false;
+    }
+
+    return true;
+}
+
 void MainWindow::show_error_dialog(const Glib::ustring& message) {
-    auto dialog = Gtk::MessageDialog(*this, "Validation Error", false, Gtk::MessageType::ERROR, Gtk::ButtonsType::OK, true);
-    dialog.set_secondary_text(message);
-    dialog.set_modal(true);
-    dialog.show();
+    auto* dialog = new Gtk::MessageDialog(*this, "Validation Error", false, Gtk::MessageType::ERROR, Gtk::ButtonsType::OK, true);
+    dialog->set_secondary_text(message);
+    dialog->set_modal(true);
+    dialog->set_hide_on_close(true);
+
+    // Delete dialog when closed
+    dialog->signal_response().connect([dialog](int) {
+        dialog->hide();
+    });
+
+    dialog->signal_hide().connect([dialog]() {
+        delete dialog;
+    });
+
+    dialog->show();
 }
 
 bool MainWindow::prompt_save_if_modified() {
