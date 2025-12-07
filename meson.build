@@ -20,11 +20,19 @@ gtkmm_dep = dependency('gtkmm-4.0', version: '>= 4.10')
 protobuf_dep = dependency('protobuf', version: '>= 3.0')
 openssl_dep = dependency('openssl', version: '>= 1.1.0')
 
+# Find libcorrect using compiler find_library
+cc = meson.get_compiler('cpp')
+libcorrect_lib = cc.find_library('correct', required: true)
+libcorrect_dep = declare_dependency(
+  dependencies: libcorrect_lib
+)
+
 # Common dependencies
 common_deps = [
   gtkmm_dep,
   protobuf_dep,
   openssl_dep,
+  libcorrect_dep,
 ]
 
 # Configuration data

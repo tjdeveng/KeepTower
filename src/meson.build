@@ -38,6 +38,7 @@ sources = files(
   'ui/dialogs/PasswordDialog.cc',
   'ui/dialogs/CreatePasswordDialog.cc',
   'core/VaultManager.cc',
+  'core/ReedSolomon.cc',
   # Add more source files as you create them
 )
 

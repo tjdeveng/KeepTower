@@ -79,7 +79,20 @@ input_validation_test = executable(
     include_directories: test_inc
 )
 
+# Reed-Solomon tests
+reed_solomon_test = executable(
+    'reed_solomon_test',
+    'test_reed_solomon.cc',
+    '../src/core/ReedSolomon.cc',
+    dependencies: [
+        gtest_dep,
+        libcorrect_dep
+    ],
+    include_directories: test_inc
+)
+
 # Register all tests
 test('VaultManager Tests', vault_manager_test)
 test('Password Validation Tests', password_validation_test, timeout: 30)
 test('Input Validation Tests', input_validation_test)
+test('Reed-Solomon Tests', reed_solomon_test)
