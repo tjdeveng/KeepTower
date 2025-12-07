@@ -53,7 +53,6 @@ src_inc = include_directories(
   'ui',
   'ui/windows',
   'ui/dialogs',
-  'ui/widgets',
   'core',
   'utils',
 )
