@@ -44,8 +44,8 @@ If you discover a security vulnerability in KeepTower, please report it privatel
 ### Reporting Process
 
 1. **Contact**: Email security details to the project maintainer
-   - **Email**: [Your security contact email - to be added]
-   - **PGP Key**: [Optional: Your PGP key fingerprint]
+   - **Email**: security@tjdeveng.com
+   - **GitHub**: Create a private security advisory at https://github.com/tjdeveng/keeptower/security/advisories
 
 2. **Information to Include**:
    - Type of vulnerability
