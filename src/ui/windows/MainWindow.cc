@@ -49,8 +49,14 @@ MainWindow::MainWindow()
     m_toolbar_box.append(m_new_button);
     m_toolbar_box.append(m_open_button);
     m_toolbar_box.append(m_save_button);
-    m_toolbar_box.append(m_close_button);
     m_toolbar_box.append(m_add_account_button);
+
+    // Add spacer to push close button to the right
+    auto spacer = Gtk::make_managed<Gtk::Box>();
+    spacer->set_hexpand(true);
+    m_toolbar_box.append(*spacer);
+
+    m_toolbar_box.append(m_close_button);
 
     m_main_box.append(m_toolbar_box);
     m_main_box.append(m_separator);
@@ -140,8 +146,8 @@ MainWindow::MainWindow()
     m_new_button.set_icon_name("document-new");
     m_open_button.set_icon_name("document-open");
     m_save_button.set_icon_name("document-save");
-    m_close_button.set_icon_name("document-close");
     m_add_account_button.set_icon_name("list-add");
+    m_close_button.set_icon_name("window-close");
     m_show_password_button.set_icon_name("view-reveal-symbolic");
     m_copy_password_button.set_icon_name("edit-copy");
 
