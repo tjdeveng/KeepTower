@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2025 tjdeveng
+#
+# Build options for KeepTower
+
+option('tests',
+  type: 'boolean',
+  value: true,
+  description: 'Build and run tests'
+)
+
+option('documentation',
+  type: 'boolean',
+  value: false,
+  description: 'Build documentation'
+)

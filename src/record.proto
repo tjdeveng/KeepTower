@@ -1,0 +1,51 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2025 tjdeveng
+
+syntax = "proto3";
+
+package keeptower;
+
+// Account credential record
+message AccountRecord {
+  // Unique identifier for the record
+  string id = 1;
+
+  // Timestamp when the record was created (Unix epoch time)
+  int64 created_at = 2;
+
+  // Timestamp when the record was last modified
+  int64 modified_at = 3;
+
+  // Account information
+  string account_name = 4;
+  string user_name = 5;
+  string password = 6;
+  string email = 7;
+  string website = 8;
+  string notes = 9;  // Max 1000 characters (enforced in application)
+}
+
+// Container for multiple account records
+message VaultData {
+  // List of account records
+  repeated AccountRecord accounts = 1;
+
+  // Vault metadata
+  int32 version = 2;
+  int64 last_modified = 3;
+}
+
+// Encryption metadata (stored in vault file header)
+message EncryptionInfo {
+  // Encryption algorithm used
+  string algorithm = 1;
+
+  // Initialization vector
+  bytes iv = 2;
+
+  // Salt for key derivation
+  bytes salt = 3;
+
+  // Key derivation iterations
+  int32 iterations = 4;
+}

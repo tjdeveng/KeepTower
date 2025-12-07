@@ -1,0 +1,56 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2025 tjdeveng
+
+# Build directories
+build/
+builddir/
+_build/
+
+# Meson generated files
+compile_commands.json
+
+# Test vault files
+*.vault
+*.vault.backup
+*.vault.tmp
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Compiled object files
+*.o
+*.lo
+*.so
+*.so.*
+*.a
+*.la
+*.lai
+
+# Executables
+keeptower
+*_test
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# Log files
+*.log
+
+# Package manager
+.flatpak-builder/
+
+# Core dumps (not src/core directory!)
+core.*
+vgcore.*
+
+# Temporary files
+*.tmp
+.*.tmp

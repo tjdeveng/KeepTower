@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>@APPLICATION_ID@</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>KeepTower</name>
+  <summary>Encrypted Vault Manager</summary>
+
+  <description>
+    <p>
+      KeepTower is a secure vault manager that allows you to create and manage
+      multiple encrypted vaults for storing sensitive data. Each vault is protected
+      with a strong password and uses AES-256-GCM encryption.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Create multiple encrypted vaults</li>
+      <li>NIST-compliant password requirements</li>
+      <li>AES-256-GCM encryption with PBKDF2 key derivation</li>
+      <li>Modern GTK4 interface</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">@APPLICATION_ID@.desktop</launchable>
+
+  <developer id="com.example">
+    <name>tjdeveng</name>
+  </developer>
+
+  <url type="homepage">https://github.com/yourusername/keeptower</url>
+  <url type="bugtracker">https://github.com/yourusername/keeptower/issues</url>
+
+  <content_rating type="oars-1.1" />
+
+  <releases>
+    <release version="0.1.0" date="2025-12-06">
+      <description>
+        <p>Initial release</p>
+      </description>
+    </release>
+  </releases>
+</component>

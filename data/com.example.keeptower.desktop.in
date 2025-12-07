@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=KeepTower
+GenericName=Encrypted Vault Manager
+Comment=Manage encrypted data vaults
+Exec=keeptower
+Icon=@APPLICATION_ID@
+Terminal=false
+Categories=Utility;Security;
+Keywords=encryption;vault;password;security;
+StartupNotify=true

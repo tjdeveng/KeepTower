@@ -1,0 +1,698 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2025 tjdeveng
+
+#include "MainWindow.h"
+#include "../dialogs/CreatePasswordDialog.h"
+#include "../dialogs/PasswordDialog.h"
+#include "../../core/VaultError.h"
+#include "config.h"
+#include "record.pb.h"
+#include <regex>
+#include <algorithm>
+#include <ctime>
+#include <format>
+
+MainWindow::MainWindow()
+    : m_main_box(Gtk::Orientation::VERTICAL, 0),
+      m_toolbar_box(Gtk::Orientation::HORIZONTAL, 6),
+      m_new_button("_New Vault", true),
+      m_open_button("_Open Vault", true),
+      m_save_button("_Save", true),
+      m_close_button("_Close Vault", true),
+      m_add_account_button("_Add Account", true),
+      m_search_box(Gtk::Orientation::HORIZONTAL, 6),
+      m_search_label("Search:"),
+      m_paned(Gtk::Orientation::HORIZONTAL),
+      m_details_box(Gtk::Orientation::VERTICAL, 12),
+      m_account_name_label("Account Name:"),
+      m_user_name_label("User Name:"),
+      m_password_label("Password:"),
+      m_show_password_button(""),
+      m_copy_password_button("Copy"),
+      m_email_label("Email:"),
+      m_website_label("Website:"),
+      m_notes_label("Notes:"),
+      m_status_label("No vault open"),
+      m_vault_open(false),
+      m_selected_account_index(-1),
+      m_vault_manager(std::make_unique<VaultManager>()) {
+
+    // Set window properties
+    set_title(PROJECT_NAME);
+    set_default_size(1000, 700);
+
+    // Setup the main container
+    set_child(m_main_box);
+
+    // Setup toolbar
+    m_toolbar_box.set_margin(6);
+    m_toolbar_box.append(m_new_button);
+    m_toolbar_box.append(m_open_button);
+    m_toolbar_box.append(m_save_button);
+    m_toolbar_box.append(m_close_button);
+    m_toolbar_box.append(m_add_account_button);
+
+    m_main_box.append(m_toolbar_box);
+    m_main_box.append(m_separator);
+
+    // Setup search box
+    m_search_box.set_margin(6);
+    m_search_label.set_margin_end(6);
+    m_search_entry.set_hexpand(true);
+    m_search_entry.set_placeholder_text("Search accounts...");
+    m_search_box.append(m_search_label);
+    m_search_box.append(m_search_entry);
+    m_main_box.append(m_search_box);
+
+    // Setup split pane
+    m_paned.set_vexpand(true);
+    m_paned.set_position(UI::ACCOUNT_LIST_WIDTH);  // Left panel width
+
+    // Setup account list (left side)
+    m_account_list_store = Gtk::ListStore::create(m_columns);
+    m_account_tree_view.set_model(m_account_list_store);
+
+    m_account_tree_view.append_column("Account", m_columns.m_col_account_name);
+    m_account_tree_view.append_column("Username", m_columns.m_col_user_name);
+
+    m_list_scrolled.set_policy(Gtk::PolicyType::AUTOMATIC, Gtk::PolicyType::AUTOMATIC);
+    m_list_scrolled.set_child(m_account_tree_view);
+    m_paned.set_start_child(m_list_scrolled);
+
+    // Setup account details (right side)
+    m_details_box.set_margin(12);
+
+    m_account_name_label.set_xalign(0.0);
+    m_account_name_entry.set_margin_bottom(12);
+
+    m_user_name_label.set_xalign(0.0);
+    m_user_name_entry.set_margin_bottom(12);
+
+    m_password_label.set_xalign(0.0);
+    Gtk::Box* password_box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 6);
+    m_password_entry.set_hexpand(true);
+    m_password_entry.set_visibility(false);
+    password_box->append(m_password_entry);
+    password_box->append(m_show_password_button);
+    password_box->append(m_copy_password_button);
+
+    m_email_label.set_xalign(0.0);
+    m_email_entry.set_margin_bottom(12);
+
+    m_website_label.set_xalign(0.0);
+    m_website_entry.set_margin_bottom(12);
+
+    m_notes_label.set_xalign(0.0);
+    m_notes_scrolled.set_policy(Gtk::PolicyType::AUTOMATIC, Gtk::PolicyType::AUTOMATIC);
+    m_notes_scrolled.set_min_content_height(150);
+    m_notes_scrolled.set_child(m_notes_view);
+
+    m_details_box.append(m_account_name_label);
+    m_details_box.append(m_account_name_entry);
+    m_details_box.append(m_user_name_label);
+    m_details_box.append(m_user_name_entry);
+    m_details_box.append(m_password_label);
+    m_details_box.append(*password_box);
+    m_details_box.append(m_email_label);
+    m_details_box.append(m_email_entry);
+    m_details_box.append(m_website_label);
+    m_details_box.append(m_website_entry);
+    m_details_box.append(m_notes_label);
+    m_details_box.append(m_notes_scrolled);
+
+    m_details_scrolled.set_policy(Gtk::PolicyType::AUTOMATIC, Gtk::PolicyType::AUTOMATIC);
+    m_details_scrolled.set_child(m_details_box);
+    m_paned.set_end_child(m_details_scrolled);
+
+    m_main_box.append(m_paned);
+
+    // Setup status bar
+    m_status_label.set_margin(6);
+    m_status_label.set_xalign(0.0);
+    m_main_box.append(m_status_label);
+
+    // Configure buttons
+    m_save_button.set_sensitive(false);
+    m_close_button.set_sensitive(false);
+    m_add_account_button.set_sensitive(false);
+
+    // Set button icons
+    m_new_button.set_icon_name("document-new");
+    m_open_button.set_icon_name("document-open");
+    m_save_button.set_icon_name("document-save");
+    m_close_button.set_icon_name("window-close");
+    m_add_account_button.set_icon_name("list-add");
+    m_show_password_button.set_icon_name("view-reveal-symbolic");
+    m_copy_password_button.set_icon_name("edit-copy");
+
+    // Connect signals
+    m_new_button.signal_clicked().connect(
+        sigc::mem_fun(*this, &MainWindow::on_new_vault)
+    );
+    m_open_button.signal_clicked().connect(
+        sigc::mem_fun(*this, &MainWindow::on_open_vault)
+    );
+    m_save_button.signal_clicked().connect(
+        sigc::mem_fun(*this, &MainWindow::on_save_vault)
+    );
+    m_close_button.signal_clicked().connect(
+        sigc::mem_fun(*this, &MainWindow::on_close_vault)
+    );
+    m_add_account_button.signal_clicked().connect(
+        sigc::mem_fun(*this, &MainWindow::on_add_account)
+    );
+    m_show_password_button.signal_clicked().connect(
+        sigc::mem_fun(*this, &MainWindow::on_toggle_password_visibility)
+    );
+    m_copy_password_button.signal_clicked().connect(
+        sigc::mem_fun(*this, &MainWindow::on_copy_password)
+    );
+    m_search_entry.signal_changed().connect(
+        sigc::mem_fun(*this, &MainWindow::on_search_changed)
+    );
+
+    // Connect to selection changed signal to handle account switching
+    m_account_tree_view.get_selection()->signal_changed().connect(
+        sigc::mem_fun(*this, &MainWindow::on_selection_changed)
+    );
+
+    // Initially disable search and details
+    m_search_entry.set_sensitive(false);
+    clear_account_details();
+}
+
+MainWindow::~MainWindow() {
+    // Clear clipboard if password was copied
+    if (m_clipboard_timeout.connected()) {
+        m_clipboard_timeout.disconnect();
+        get_clipboard()->set_text("");
+    }
+}
+
+void MainWindow::on_new_vault() {
+    // Show file save dialog to choose location for new vault
+    auto dialog = Gtk::make_managed<Gtk::FileChooserDialog>(*this, "Create New Vault",
+                                         Gtk::FileChooser::Action::SAVE);
+    dialog->set_modal(true);
+    dialog->add_button("_Cancel", Gtk::ResponseType::CANCEL);
+    dialog->add_button("_Create", Gtk::ResponseType::OK);
+
+    // Add file filter
+    auto filter = Gtk::FileFilter::create();
+    filter->set_name("Vault files");
+    filter->add_pattern("*.vault");
+    dialog->add_filter(filter);
+
+    auto filter_all = Gtk::FileFilter::create();
+    filter_all->set_name("All files");
+    filter_all->add_pattern("*");
+    dialog->add_filter(filter_all);
+
+    dialog->set_current_name("Untitled.vault");
+
+    dialog->signal_response().connect([this, dialog](int response) {
+        if (response == Gtk::ResponseType::OK) {
+            // Show password creation dialog
+            auto pwd_dialog = Gtk::make_managed<CreatePasswordDialog>(*this);
+            Glib::ustring vault_path = dialog->get_file()->get_path();
+
+            pwd_dialog->signal_response().connect([this, pwd_dialog, vault_path](int pwd_response) {
+                if (pwd_response == Gtk::ResponseType::OK) {
+                    Glib::ustring password = pwd_dialog->get_password();
+
+                    // Create encrypted vault file with password
+                    auto result = m_vault_manager->create_vault(vault_path.raw(), password);
+                    if (result) {
+                        m_current_vault_path = vault_path;
+                        m_vault_open = true;
+                        m_save_button.set_sensitive(true);
+                        m_close_button.set_sensitive(true);
+                        m_add_account_button.set_sensitive(true);
+                        m_search_entry.set_sensitive(true);
+
+                        update_account_list();
+                        clear_account_details();
+                    } else {
+                        auto error_msg = std::string("Failed to create vault");
+                        auto error_dialog = Gtk::make_managed<Gtk::MessageDialog>(*this, error_msg,
+                            false, Gtk::MessageType::ERROR, Gtk::ButtonsType::OK, true);
+                        error_dialog->signal_response().connect([=](int) {
+                            error_dialog->hide();
+                        });
+                        error_dialog->show();
+                    }
+                }
+                pwd_dialog->hide();
+            });
+            pwd_dialog->show();
+        }
+        dialog->hide();
+    });
+
+    dialog->show();
+}
+
+void MainWindow::on_open_vault() {
+    auto dialog = Gtk::make_managed<Gtk::FileChooserDialog>(*this, "Open Vault",
+                                         Gtk::FileChooser::Action::OPEN);
+    dialog->set_modal(true);
+    dialog->add_button("_Cancel", Gtk::ResponseType::CANCEL);
+    dialog->add_button("_Open", Gtk::ResponseType::OK);
+
+    // Add file filter
+    auto filter = Gtk::FileFilter::create();
+    filter->set_name("Vault files");
+    filter->add_pattern("*.vault");
+    dialog->add_filter(filter);
+
+    auto filter_all = Gtk::FileFilter::create();
+    filter_all->set_name("All files");
+    filter_all->add_pattern("*");
+    dialog->add_filter(filter_all);
+
+    dialog->signal_response().connect([this, dialog](int response) {
+        if (response == Gtk::ResponseType::OK) {
+            Glib::ustring vault_path = dialog->get_file()->get_path();
+
+            // Show password dialog to decrypt vault
+            auto pwd_dialog = Gtk::make_managed<PasswordDialog>(*this);
+            pwd_dialog->signal_response().connect([this, pwd_dialog, vault_path](int pwd_response) {
+                if (pwd_response == Gtk::ResponseType::OK) {
+                    Glib::ustring password = pwd_dialog->get_password();
+
+                    auto result = m_vault_manager->open_vault(vault_path.raw(), password);
+                    if (result) {
+                        m_current_vault_path = vault_path;
+                        m_vault_open = true;
+                        m_save_button.set_sensitive(true);
+                        m_close_button.set_sensitive(true);
+                        m_add_account_button.set_sensitive(true);
+                        m_search_entry.set_sensitive(true);
+
+                        update_account_list();
+                    } else {
+                        auto error_msg = std::string("Failed to open vault");
+                        auto error_dialog = Gtk::make_managed<Gtk::MessageDialog>(*this, error_msg,
+                            false, Gtk::MessageType::ERROR, Gtk::ButtonsType::OK, true);
+                        error_dialog->signal_response().connect([=](int) {
+                            error_dialog->hide();
+                        });
+                        error_dialog->show();
+                    }
+                }
+                pwd_dialog->hide();
+            });
+            pwd_dialog->show();
+        }
+        dialog->hide();
+    });
+
+    dialog->show();
+}
+
+void MainWindow::on_save_vault() {
+    if (!m_vault_open) {
+        return;
+    }
+
+    // Save current account details before saving vault
+    save_current_account();
+
+    auto result = m_vault_manager->save_vault();
+    if (result) {
+        m_status_label.set_text("Vault saved: " + m_current_vault_path);
+    } else {
+        auto error_msg = std::string("Failed to save vault");
+        m_status_label.set_text(error_msg);
+    }
+}
+
+void MainWindow::on_close_vault() {
+    if (!m_vault_open) {
+        return;
+    }
+
+    // Clear clipboard if password was copied
+    if (m_clipboard_timeout.connected()) {
+        m_clipboard_timeout.disconnect();
+        get_clipboard()->set_text("");
+    }
+
+    // Save the current account before closing
+    save_current_account();
+
+    // TODO: Prompt to save if modified
+    auto result = m_vault_manager->close_vault();
+    if (!result) {
+        auto error_msg = std::string("Error closing vault");
+        m_status_label.set_text(error_msg);
+        return;
+    }
+
+    m_vault_open = false;
+    m_current_vault_path.clear();
+    m_save_button.set_sensitive(false);
+    m_close_button.set_sensitive(false);
+    m_add_account_button.set_sensitive(false);
+    m_search_entry.set_sensitive(false);
+    m_search_entry.set_text("");
+    m_account_list_store->clear();
+    clear_account_details();
+    m_status_label.set_text("No vault open");
+}
+
+void MainWindow::on_add_account() {
+    if (!m_vault_open) {
+        m_status_label.set_text("Please open or create a vault first");
+        return;
+    }
+
+    // Save the current account before creating a new one
+    save_current_account();
+
+    // Create new account record with current timestamp
+    keeptower::AccountRecord new_account;
+    new_account.set_id(std::to_string(std::time(nullptr)));  // Use timestamp as unique ID string
+    new_account.set_created_at(std::time(nullptr));
+    new_account.set_modified_at(std::time(nullptr));
+    new_account.set_account_name("New Account");
+    new_account.set_user_name("");
+    new_account.set_password("");
+    new_account.set_email("");
+    new_account.set_website("");
+    new_account.set_notes("");
+
+    // Add to vault manager
+    auto result = m_vault_manager->add_account(new_account);
+    if (!result) {
+        auto error_msg = std::string("Failed to add account");
+        m_status_label.set_text(error_msg);
+        return;
+    }
+
+    // Update the display
+    update_account_list();
+
+    // Select the newly added account (it will be at the end)
+    auto accounts = m_vault_manager->get_all_accounts();
+    int new_index = accounts.size() - 1;
+
+    // Find the row in the tree view and select it
+    auto children = m_account_list_store->children();
+    for (auto iter = children.begin(); iter != children.end(); ++iter) {
+        int stored_index = (*iter)[m_columns.m_col_index];
+        if (stored_index == new_index) {
+            // Select the row - this will trigger on_account_selected which will call display_account_details
+            m_account_tree_view.get_selection()->select(iter);
+
+            // Give the selection event time to process, then focus the name field
+            Glib::signal_idle().connect_once([this]() {
+                m_account_name_entry.grab_focus();
+                m_account_name_entry.select_region(0, -1);
+            });
+
+            m_status_label.set_text("New account added - please enter details");
+            break;
+        }
+    }
+}void MainWindow::on_copy_password() {
+    Glib::ustring password = m_password_entry.get_text();
+
+    if (password.empty()) {
+        m_status_label.set_text("No password to copy");
+        return;
+    }
+
+    // Get the clipboard and set text
+    auto clipboard = get_clipboard();
+    clipboard->set_text(password);
+
+    m_status_label.set_text("Password copied to clipboard (will clear in 30s)");
+
+    // Cancel previous timeout if exists
+    if (m_clipboard_timeout.connected()) {
+        m_clipboard_timeout.disconnect();
+    }
+
+    // Schedule clipboard clear after 30 seconds
+    m_clipboard_timeout = Glib::signal_timeout().connect(
+        [clipboard, this]() {
+            clipboard->set_text("");
+            m_status_label.set_text("Clipboard cleared for security");
+            return false;  // Don't repeat
+        },
+        UI::CLIPBOARD_CLEAR_TIMEOUT_MS
+    );
+}
+
+void MainWindow::on_toggle_password_visibility() {
+    bool current_visibility = m_password_entry.get_visibility();
+    m_password_entry.set_visibility(!current_visibility);
+
+    // Update icon based on visibility state
+    if (current_visibility) {
+        // Now hidden, show "reveal" icon
+        m_show_password_button.set_icon_name("view-reveal-symbolic");
+    } else {
+        // Now visible, show "conceal" icon
+        m_show_password_button.set_icon_name("view-conceal-symbolic");
+    }
+}
+
+void MainWindow::on_search_changed() {
+    Glib::ustring search_text = m_search_entry.get_text();
+    filter_accounts(search_text);
+}
+
+void MainWindow::on_selection_changed() {
+    auto selection = m_account_tree_view.get_selection();
+    if (!selection) {
+        return;
+    }
+
+    auto iter = selection->get_selected();
+    if (iter) {
+        int new_index = (*iter)[m_columns.m_col_index];
+
+        // Only save if we're switching to a different account
+        if (new_index != m_selected_account_index) {
+            save_current_account();
+        }
+
+        display_account_details(new_index);
+    }
+}
+
+void MainWindow::on_account_selected(const Gtk::TreeModel::Path& path, Gtk::TreeViewColumn* /* column */) {
+    auto iter = m_account_list_store->get_iter(path);
+    if (iter) {
+        int new_index = (*iter)[m_columns.m_col_index];
+
+        // Only save if we're switching to a different account
+        if (new_index != m_selected_account_index) {
+            save_current_account();
+        }
+
+        display_account_details(new_index);
+    }
+}
+
+void MainWindow::update_account_list() {
+    m_account_list_store->clear();
+    m_filtered_indices.clear();
+
+    auto accounts = m_vault_manager->get_all_accounts();
+
+    for (size_t i = 0; i < accounts.size(); i++) {
+        auto row = *(m_account_list_store->append());
+        row[m_columns.m_col_account_name] = accounts[i].account_name();
+        row[m_columns.m_col_user_name] = accounts[i].user_name();
+        row[m_columns.m_col_index] = i;
+    }
+
+    m_status_label.set_text("Vault opened: " + m_current_vault_path +
+                           " (" + std::to_string(accounts.size()) + " accounts)");
+}
+
+void MainWindow::filter_accounts(const Glib::ustring& search_text) {
+    m_account_list_store->clear();
+    m_filtered_indices.clear();
+
+    if (search_text.empty()) {
+        // Show all accounts
+        update_account_list();
+        return;
+    }
+
+    // Create case-insensitive regex pattern for filtering
+    try {
+        std::string pattern = ".*" + search_text.lowercase().raw() + ".*";
+        std::regex search_regex(pattern, std::regex::icase);
+
+        auto accounts = m_vault_manager->get_all_accounts();
+
+        for (size_t i = 0; i < accounts.size(); i++) {
+            const auto& account = accounts[i];
+
+            if (std::regex_search(account.account_name(), search_regex) ||
+                std::regex_search(account.user_name(), search_regex) ||
+                std::regex_search(account.email(), search_regex) ||
+                std::regex_search(account.website(), search_regex)) {
+
+                auto row = *(m_account_list_store->append());
+                row[m_columns.m_col_account_name] = account.account_name();
+                row[m_columns.m_col_user_name] = account.user_name();
+                row[m_columns.m_col_index] = i;
+                m_filtered_indices.push_back(i);
+            }
+        }
+
+    } catch (const std::regex_error& e) {
+        g_print("Regex error: %s\n", e.what());
+    }
+}
+
+void MainWindow::clear_account_details() {
+    m_account_name_entry.set_text("");
+    m_user_name_entry.set_text("");
+    m_password_entry.set_text("");
+    m_email_entry.set_text("");
+    m_website_entry.set_text("");
+    m_notes_view.get_buffer()->set_text("");
+
+    m_account_name_entry.set_sensitive(false);
+    m_user_name_entry.set_sensitive(false);
+    m_password_entry.set_sensitive(false);
+    m_email_entry.set_sensitive(false);
+    m_website_entry.set_sensitive(false);
+    m_notes_view.set_sensitive(false);
+    m_show_password_button.set_sensitive(false);
+    m_copy_password_button.set_sensitive(false);
+
+    m_selected_account_index = -1;
+}
+
+void MainWindow::display_account_details(int index) {
+    m_selected_account_index = index;
+
+    // Load account from VaultManager
+    auto* account = m_vault_manager->get_account(index);
+    if (!account) {
+        return;
+    }
+
+    m_account_name_entry.set_text(account->account_name());
+    m_user_name_entry.set_text(account->user_name());
+    m_password_entry.set_text(account->password());
+    m_email_entry.set_text(account->email());
+    m_website_entry.set_text(account->website());
+    m_notes_view.get_buffer()->set_text(account->notes());
+
+    // Enable fields for editing
+    m_account_name_entry.set_sensitive(true);
+    m_user_name_entry.set_sensitive(true);
+    m_password_entry.set_sensitive(true);
+    m_email_entry.set_sensitive(true);
+    m_website_entry.set_sensitive(true);
+    m_notes_view.set_sensitive(true);
+    m_show_password_button.set_sensitive(true);
+    m_copy_password_button.set_sensitive(true);
+}
+
+void MainWindow::save_current_account() {
+    // Only save if we have a valid account selected
+    if (m_selected_account_index < 0 || !m_vault_open) {
+        return;
+    }
+
+    // Validate the index is within bounds
+    auto accounts = m_vault_manager->get_all_accounts();
+    if (m_selected_account_index >= static_cast<int>(accounts.size())) {
+        g_warning("Invalid account index %d (total accounts: %zu)",
+                  m_selected_account_index, accounts.size());
+        return;
+    }
+
+    // Validate field lengths before saving
+    if (!validate_field_length("Account Name", m_account_name_entry.get_text(), UI::MAX_ACCOUNT_NAME_LENGTH)) {
+        return;
+    }
+    if (!validate_field_length("Username", m_user_name_entry.get_text(), UI::MAX_USERNAME_LENGTH)) {
+        return;
+    }
+    if (!validate_field_length("Password", m_password_entry.get_text(), UI::MAX_PASSWORD_LENGTH)) {
+        return;
+    }
+    if (!validate_field_length("Email", m_email_entry.get_text(), UI::MAX_EMAIL_LENGTH)) {
+        return;
+    }
+    if (!validate_field_length("Website", m_website_entry.get_text(), UI::MAX_WEBSITE_LENGTH)) {
+        return;
+    }
+
+    // Validate notes length
+    auto buffer = m_notes_view.get_buffer();
+    auto notes_text = buffer->get_text();
+    if (!validate_field_length("Notes", notes_text, UI::MAX_NOTES_LENGTH)) {
+        return;
+    }
+
+    // Get the current account from VaultManager
+    auto* account = m_vault_manager->get_account_mutable(m_selected_account_index);
+    if (!account) {
+        g_warning("Failed to get account at index %d", m_selected_account_index);
+        return;
+    }
+
+    // Store the old account name to detect if it changed
+    std::string old_name = account->account_name();
+
+    // Update the account with current field values
+    account->set_account_name(m_account_name_entry.get_text().raw());
+    account->set_user_name(m_user_name_entry.get_text().raw());
+    account->set_password(m_password_entry.get_text().raw());
+    account->set_email(m_email_entry.get_text().raw());
+    account->set_website(m_website_entry.get_text().raw());
+    account->set_notes(notes_text.raw());
+
+    // Update modification timestamp
+    account->set_modified_at(std::time(nullptr));
+
+    // Only refresh the list if the account name changed
+    if (old_name != account->account_name()) {
+        // Find and update just this account's row in the list
+        auto iter = m_account_list_store->children().begin();
+        while (iter != m_account_list_store->children().end()) {
+            if ((*iter)[m_columns.m_col_index] == m_selected_account_index) {
+                (*iter)[m_columns.m_col_account_name] = account->account_name();
+                (*iter)[m_columns.m_col_user_name] = account->user_name();
+                break;
+            }
+            ++iter;
+        }
+    }
+}
+
+bool MainWindow::validate_field_length(const Glib::ustring& field_name, const Glib::ustring& value, int max_length) {
+    int current_length = value.length();
+
+    if (current_length > max_length) {
+        Glib::ustring message = Glib::ustring::sprintf(
+            "%s exceeds maximum length.\n\nCurrent: %d characters\nMaximum: %d characters\n\nPlease shorten the field before saving.",
+            field_name,
+            current_length,
+            max_length
+        );
+        show_error_dialog(message);
+        return false;
+    }
+
+    return true;
+}
+
+void MainWindow::show_error_dialog(const Glib::ustring& message) {
+    auto dialog = Gtk::MessageDialog(*this, "Validation Error", false, Gtk::MessageType::ERROR, Gtk::ButtonsType::OK, true);
+    dialog.set_secondary_text(message);
+    dialog.set_modal(true);
+    dialog.show();
+}
