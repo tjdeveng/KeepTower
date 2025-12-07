@@ -38,7 +38,8 @@ jobs:
           doxygen \
           graphviz \
           cmake \
-          git
+          git \
+          gettext
 
     - name: Build and install libcorrect
       if: runner.os == 'Linux'
@@ -91,7 +92,8 @@ jobs:
           cppcheck \
           clang-tidy \
           cmake \
-          git
+          git \
+          gettext
 
     - name: Build and install libcorrect
       run: |

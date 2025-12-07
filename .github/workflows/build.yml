@@ -36,7 +36,8 @@ jobs:
           libssl-dev \
           libgtest-dev \
           cmake \
-          git
+          git \
+          gettext
 
         # Build and install libcorrect from source
         git clone https://github.com/quiet/libcorrect.git /tmp/libcorrect
@@ -115,7 +116,8 @@ jobs:
           wget \
           file \
           cmake \
-          git
+          git \
+          gettext
 
     - name: Build and install libcorrect
       run: |

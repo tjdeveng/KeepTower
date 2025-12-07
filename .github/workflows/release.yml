@@ -90,7 +90,8 @@ jobs:
           graphviz \
           cmake \
           git \
-          wget
+          wget \
+          gettext
 
     - name: Build and install libcorrect
       run: |
