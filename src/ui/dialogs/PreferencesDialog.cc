@@ -19,7 +19,15 @@ PreferencesDialog::PreferencesDialog(Gtk::Window& parent)
       m_redundancy_box(Gtk::Orientation::HORIZONTAL, 6),
       m_redundancy_label("Redundancy level:"),
       m_redundancy_suffix("%"),
-      m_redundancy_help("Higher values provide more protection but increase file size.\nCan recover up to half the redundancy percentage in corruption.") {
+      m_redundancy_help("Higher values provide more protection but increase file size.\nCan recover up to half the redundancy percentage in corruption."),
+      m_backup_box(Gtk::Orientation::VERTICAL, 6),
+      m_backup_title("<b>Automatic Backups</b>"),
+      m_backup_description("Create timestamped backups when saving vaults to protect against accidental data loss"),
+      m_backup_enabled_check("Enable automatic backups"),
+      m_backup_count_box(Gtk::Orientation::HORIZONTAL, 6),
+      m_backup_count_label("Keep up to:"),
+      m_backup_count_suffix(" backups"),
+      m_backup_help("Older backups are automatically deleted when this limit is exceeded.\nBackups are named with timestamps for easy identification.") {
 
     set_default_size(DEFAULT_WIDTH, DEFAULT_HEIGHT);
 
@@ -37,6 +45,9 @@ PreferencesDialog::PreferencesDialog(Gtk::Window& parent)
     // Connect signals
     m_rs_enabled_check.signal_toggled().connect(
         sigc::mem_fun(*this, &PreferencesDialog::on_rs_enabled_toggled));
+
+    m_backup_enabled_check.signal_toggled().connect(
+        sigc::mem_fun(*this, &PreferencesDialog::on_backup_enabled_toggled));
 
     signal_response().connect(
         sigc::mem_fun(*this, &PreferencesDialog::on_response));
@@ -125,6 +136,54 @@ void PreferencesDialog::setup_ui() {
 
     m_content_box.append(m_rs_box);
 
+    // Add separator before backup section
+    auto* separator2 = Gtk::make_managed<Gtk::Separator>(Gtk::Orientation::HORIZONTAL);
+    separator2->set_margin_top(12);
+    separator2->set_margin_bottom(12);
+    m_content_box.append(*separator2);
+
+    // Backup section
+    m_backup_title.set_use_markup(true);
+    m_backup_title.set_halign(Gtk::Align::START);
+    m_backup_box.append(m_backup_title);
+
+    m_backup_description.set_wrap(true);
+    m_backup_description.set_max_width_chars(60);
+    m_backup_description.set_halign(Gtk::Align::START);
+    m_backup_description.add_css_class("dim-label");
+    m_backup_box.append(m_backup_description);
+
+    m_backup_box.append(m_backup_enabled_check);
+
+    // Backup count controls
+    m_backup_count_label.set_halign(Gtk::Align::START);
+    m_backup_count_box.append(m_backup_count_label);
+
+    auto backup_adjustment = Gtk::Adjustment::create(
+        static_cast<double>(DEFAULT_BACKUP_COUNT),
+        static_cast<double>(MIN_BACKUP_COUNT),
+        static_cast<double>(MAX_BACKUP_COUNT),
+        1.0, 5.0, 0.0
+    );
+    m_backup_count_spin.set_adjustment(backup_adjustment);
+    m_backup_count_spin.set_digits(0);
+    m_backup_count_spin.set_value(DEFAULT_BACKUP_COUNT);
+    m_backup_count_box.append(m_backup_count_spin);
+
+    m_backup_count_suffix.set_halign(Gtk::Align::START);
+    m_backup_count_box.append(m_backup_count_suffix);
+
+    m_backup_count_box.set_halign(Gtk::Align::START);
+    m_backup_box.append(m_backup_count_box);
+
+    m_backup_help.set_wrap(true);
+    m_backup_help.set_max_width_chars(60);
+    m_backup_help.set_halign(Gtk::Align::START);
+    m_backup_help.add_css_class("dim-label");
+    m_backup_box.append(m_backup_help);
+
+    m_content_box.append(m_backup_box);
+
     // Add content to dialog
     get_content_area()->append(m_content_box);
 
@@ -162,6 +221,22 @@ void PreferencesDialog::load_settings() {
     m_redundancy_spin.set_sensitive(rs_enabled);
     m_redundancy_suffix.set_sensitive(rs_enabled);
     m_redundancy_help.set_sensitive(rs_enabled);
+
+    // Load backup settings
+    bool backup_enabled = m_settings->get_boolean("backup-enabled");
+    int backup_count = m_settings->get_int("backup-count");
+
+    // Validate and clamp backup count
+    backup_count = std::clamp(backup_count, MIN_BACKUP_COUNT, MAX_BACKUP_COUNT);
+
+    m_backup_enabled_check.set_active(backup_enabled);
+    m_backup_count_spin.set_value(backup_count);
+
+    // Update sensitivity
+    m_backup_count_label.set_sensitive(backup_enabled);
+    m_backup_count_spin.set_sensitive(backup_enabled);
+    m_backup_count_suffix.set_sensitive(backup_enabled);
+    m_backup_help.set_sensitive(backup_enabled);
 }
 
 void PreferencesDialog::save_settings() {
@@ -191,6 +266,17 @@ void PreferencesDialog::save_settings() {
 
     m_settings->set_boolean("use-reed-solomon", rs_enabled);
     m_settings->set_int("rs-redundancy-percent", rs_redundancy);
+
+    // Save backup settings
+    const bool backup_enabled = m_backup_enabled_check.get_active();
+    const int backup_count = std::clamp(
+        static_cast<int>(m_backup_count_spin.get_value()),
+        MIN_BACKUP_COUNT,
+        MAX_BACKUP_COUNT
+    );
+
+    m_settings->set_boolean("backup-enabled", backup_enabled);
+    m_settings->set_int("backup-count", backup_count);
 }
 
 void PreferencesDialog::apply_color_scheme(const Glib::ustring& scheme) {
@@ -228,6 +314,15 @@ void PreferencesDialog::on_rs_enabled_toggled() noexcept {
     m_redundancy_spin.set_sensitive(enabled);
     m_redundancy_suffix.set_sensitive(enabled);
     m_redundancy_help.set_sensitive(enabled);
+}
+
+void PreferencesDialog::on_backup_enabled_toggled() noexcept {
+    const bool enabled = m_backup_enabled_check.get_active();
+
+    m_backup_count_label.set_sensitive(enabled);
+    m_backup_count_spin.set_sensitive(enabled);
+    m_backup_count_suffix.set_sensitive(enabled);
+    m_backup_help.set_sensitive(enabled);
 }
 
 void PreferencesDialog::on_response(int response_id) noexcept {

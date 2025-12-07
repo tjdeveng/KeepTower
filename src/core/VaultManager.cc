@@ -10,6 +10,8 @@
 #include <sstream>
 #include <iostream>
 #include <filesystem>
+#include <chrono>
+#include <iomanip>
 
 #ifdef __linux__
 #include <sys/mman.h>  // For mlock/munlock
@@ -35,6 +37,8 @@ VaultManager::VaultManager()
       m_modified(false),
       m_use_reed_solomon(false),
       m_rs_redundancy_percent(10),
+      m_backup_enabled(true),
+      m_backup_count(5),
       m_pbkdf2_iterations(DEFAULT_PBKDF2_ITERATIONS) {
 }
 
@@ -273,9 +277,14 @@ bool VaultManager::save_vault() {
     }
 
     // Create backup before saving (non-fatal if it fails)
-    auto backup_result = create_backup(m_current_vault_path);
-    if (!backup_result) {
-        KeepTower::Log::warning("Failed to create backup: {}", static_cast<int>(backup_result.error()));
+    if (m_backup_enabled) {
+        auto backup_result = create_backup(m_current_vault_path);
+        if (!backup_result) {
+            KeepTower::Log::warning("Failed to create backup: {}", static_cast<int>(backup_result.error()));
+        } else {
+            // Cleanup old backups after successful creation
+            cleanup_old_backups(m_current_vault_path, m_backup_count);
+        }
     }
 
     if (!write_vault_file(m_current_vault_path, file_data)) {
@@ -663,15 +672,28 @@ void VaultManager::unlock_memory(std::vector<uint8_t>& data) {
 KeepTower::VaultResult<> VaultManager::create_backup(std::string_view path) {
     namespace fs = std::filesystem;
     std::string path_str(path);
-    std::string backup_path = path_str + ".backup";
 
     try {
-        if (fs::exists(path_str)) {
-            fs::copy_file(path_str, backup_path, fs::copy_options::overwrite_existing);
-            KeepTower::Log::info("Created backup: {}", backup_path);
-            return {};
+        if (!fs::exists(path_str)) {
+            return {};  // No file to backup
         }
-        return {};  // No file to backup
+
+        // Generate timestamp: YYYYmmdd_HHMMSS_milliseconds
+        auto now = std::chrono::system_clock::now();
+        auto time = std::chrono::system_clock::to_time_t(now);
+        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+            now.time_since_epoch()) % 1000;
+        std::ostringstream timestamp;
+        timestamp << std::put_time(std::localtime(&time), "%Y%m%d_%H%M%S")
+                  << "_" << std::setfill('0') << std::setw(3) << ms.count();
+
+        // Create timestamped backup path
+        std::string backup_path = path_str + ".backup." + timestamp.str();
+
+        fs::copy_file(path_str, backup_path, fs::copy_options::overwrite_existing);
+        KeepTower::Log::info("Created backup: {}", backup_path);
+
+        return {};
     } catch (const fs::filesystem_error& e) {
         KeepTower::Log::warning("Failed to create backup: {}", e.what());
         // Don't fail the operation if backup fails
@@ -682,21 +704,88 @@ KeepTower::VaultResult<> VaultManager::create_backup(std::string_view path) {
 KeepTower::VaultResult<> VaultManager::restore_from_backup(std::string_view path) {
     namespace fs = std::filesystem;
     std::string path_str(path);
-    std::string backup_path = path_str + ".backup";
+
+    // Get all backups and restore from the most recent
+    auto backups = list_backups(path);
 
     try {
-        if (fs::exists(backup_path)) {
-            fs::copy_file(backup_path, path_str, fs::copy_options::overwrite_existing);
-            KeepTower::Log::info("Restored from backup: {}", backup_path);
-            return {};
-        } else {
-            KeepTower::Log::error("Backup file not found: {}", backup_path);
+        if (backups.empty()) {
+            // Try legacy .backup format for backwards compatibility
+            std::string legacy_backup = path_str + ".backup";
+            if (fs::exists(legacy_backup)) {
+                fs::copy_file(legacy_backup, path_str, fs::copy_options::overwrite_existing);
+                KeepTower::Log::info("Restored from legacy backup: {}", legacy_backup);
+                return {};
+            }
+            KeepTower::Log::error("No backup files found for: {}", path_str);
             return std::unexpected(VaultError::FileNotFound);
         }
+
+        // Backups are sorted newest first, so restore from [0]
+        const std::string& backup_path = backups[0];
+        fs::copy_file(backup_path, path_str, fs::copy_options::overwrite_existing);
+        KeepTower::Log::info("Restored from backup: {}", backup_path);
+        return {};
     } catch (const fs::filesystem_error& e) {
         KeepTower::Log::error("Failed to restore backup: {}", e.what());
         return std::unexpected(VaultError::FileReadFailed);
     }
+}
+
+void VaultManager::cleanup_old_backups(std::string_view path, int max_backups) {
+    namespace fs = std::filesystem;
+
+    if (max_backups < 1) [[unlikely]] {
+        return;
+    }
+
+    auto backups = list_backups(path);
+
+    // Delete oldest backups (backups are sorted newest first)
+    for (size_t i = static_cast<size_t>(max_backups); i < backups.size(); ++i) {
+        try {
+            fs::remove(backups[i]);
+            KeepTower::Log::info("Deleted old backup: {}", backups[i]);
+        } catch (const fs::filesystem_error& e) {
+            KeepTower::Log::warning("Failed to delete backup {}: {}", backups[i], e.what());
+        }
+    }
+}
+
+std::vector<std::string> VaultManager::list_backups(std::string_view path) {
+    namespace fs = std::filesystem;
+    std::vector<std::string> backups;
+    std::string path_str(path);
+    std::string backup_prefix = path_str + ".backup.";
+
+    try {
+        fs::path vault_path(path_str);
+        fs::path parent_dir = vault_path.parent_path();
+
+        if (!fs::exists(parent_dir)) {
+            return backups;
+        }
+
+        // Find all backup files matching pattern
+        for (const auto& entry : fs::directory_iterator(parent_dir)) {
+            if (!entry.is_regular_file()) {
+                continue;
+            }
+
+            std::string filename = entry.path().string();
+            if (filename.starts_with(backup_prefix)) {
+                backups.push_back(filename);
+            }
+        }
+
+        // Sort by filename (timestamp is in filename), newest first
+        std::sort(backups.begin(), backups.end(), std::greater<std::string>());
+
+    } catch (const fs::filesystem_error& e) {
+        KeepTower::Log::warning("Failed to list backups: {}", e.what());
+    }
+
+    return backups;
 }
 
 bool VaultManager::set_rs_redundancy_percent(uint8_t percent) {
@@ -707,5 +796,13 @@ bool VaultManager::set_rs_redundancy_percent(uint8_t percent) {
     if (m_reed_solomon) {
         m_reed_solomon = std::make_unique<ReedSolomon>(m_rs_redundancy_percent);
     }
+    return true;
+}
+
+bool VaultManager::set_backup_count(int count) {
+    if (count < 1 || count > 50) [[unlikely]] {
+        return false;
+    }
+    m_backup_count = count;
     return true;
 }

@@ -258,6 +258,33 @@ public:
      */
     uint8_t get_rs_redundancy_percent() const { return m_rs_redundancy_percent; }
 
+    // Backup configuration
+
+    /**
+     * @brief Enable or disable automatic timestamped backups
+     * @param enable true to enable backups, false to disable
+     */
+    void set_backup_enabled(bool enable) { m_backup_enabled = enable; }
+
+    /**
+     * @brief Check if automatic backups are enabled
+     * @return true if backups are enabled
+     */
+    bool is_backup_enabled() const { return m_backup_enabled; }
+
+    /**
+     * @brief Set maximum number of backups to maintain
+     * @param count Maximum backup count (1-50)
+     * @return true if valid, false if out of range
+     */
+    bool set_backup_count(int count);
+
+    /**
+     * @brief Get maximum number of backups to maintain
+     * @return Maximum backup count
+     */
+    int get_backup_count() const { return m_backup_count; }
+
 private:
     // Cryptographic operations
     bool derive_key(const Glib::ustring& password,
@@ -290,6 +317,8 @@ private:
     // Backup management
     KeepTower::VaultResult<> create_backup(std::string_view path);
     KeepTower::VaultResult<> restore_from_backup(std::string_view path);
+    void cleanup_old_backups(std::string_view path, int max_backups);
+    std::vector<std::string> list_backups(std::string_view path);
 
     // State
     bool m_vault_open;
@@ -303,6 +332,10 @@ private:
     std::unique_ptr<ReedSolomon> m_reed_solomon;
     bool m_use_reed_solomon;
     uint8_t m_rs_redundancy_percent;
+
+    // Backup configuration
+    bool m_backup_enabled;
+    int m_backup_count;
 
     // In-memory vault data (protobuf)
     keeptower::VaultData m_vault_data;

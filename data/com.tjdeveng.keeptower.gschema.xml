@@ -43,5 +43,18 @@
       <summary>Color scheme preference</summary>
       <description>Application appearance: 'default' follows system preference, 'light' forces light mode, 'dark' forces dark mode.</description>
     </key>
+
+    <key name="backup-enabled" type="b">
+      <default>true</default>
+      <summary>Enable automatic backups</summary>
+      <description>Create timestamped backup files when saving vaults. Provides protection against accidental data loss.</description>
+    </key>
+
+    <key name="backup-count" type="i">
+      <default>5</default>
+      <range min="1" max="50"/>
+      <summary>Number of backups to maintain</summary>
+      <description>Maximum number of timestamped backups to keep (1-50). Older backups are automatically deleted when this limit is exceeded.</description>
+    </key>
   </schema>
 </schemalist>

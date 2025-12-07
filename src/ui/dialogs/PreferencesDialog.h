@@ -30,6 +30,7 @@ private:
     void save_settings();
     void apply_color_scheme(const Glib::ustring& scheme);
     void on_rs_enabled_toggled() noexcept;
+    void on_backup_enabled_toggled() noexcept;
     void on_color_scheme_changed() noexcept;
     void on_response(int response_id) noexcept;
 
@@ -37,8 +38,11 @@ private:
     static constexpr int MIN_REDUNDANCY = 5;
     static constexpr int MAX_REDUNDANCY = 50;
     static constexpr int DEFAULT_REDUNDANCY = 10;
+    static constexpr int MIN_BACKUP_COUNT = 1;
+    static constexpr int MAX_BACKUP_COUNT = 50;
+    static constexpr int DEFAULT_BACKUP_COUNT = 5;
     static constexpr int DEFAULT_WIDTH = 500;
-    static constexpr int DEFAULT_HEIGHT = 300;
+    static constexpr int DEFAULT_HEIGHT = 350;
 
     // Settings
     Glib::RefPtr<Gio::Settings> m_settings;
@@ -64,6 +68,17 @@ private:
     Gtk::SpinButton m_redundancy_spin;
     Gtk::Label m_redundancy_suffix;
     Gtk::Label m_redundancy_help;
+
+    // Backup section
+    Gtk::Box m_backup_box;
+    Gtk::Label m_backup_title;
+    Gtk::Label m_backup_description;
+    Gtk::CheckButton m_backup_enabled_check;
+    Gtk::Box m_backup_count_box;
+    Gtk::Label m_backup_count_label;
+    Gtk::SpinButton m_backup_count_spin;
+    Gtk::Label m_backup_count_suffix;
+    Gtk::Label m_backup_help;
 };
 
 #endif // PREFERENCESDIALOG_H

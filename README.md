@@ -15,8 +15,13 @@ A secure, modern password manager built with C++23 and GTK4.
   - Configurable redundancy levels (5-50%)
   - Automatic corruption detection and recovery
   - Based on CCSDS RS(255,223) standard
+- **Timestamped Backups**: Automatic backup creation with configurable retention
+  - Keep 1-50 timestamped backups
+  - Automatic cleanup of oldest backups
+  - Protection against accidental data loss
 - **Memory Protection**: Sensitive data secured with mlock() and OPENSSL_cleanse()
 - **Atomic Operations**: Atomic file writes with automatic backups
+- **Appearance Preferences**: Light, dark, or system default color schemes
 - **Modern C++23**: Uses std::span, std::expected, RAII throughout
 - **GTK4 Interface**: Native GNOME desktop integration
 - **Input Validation**: Field length limits enforced on all inputs
@@ -78,17 +83,31 @@ meson install -C build
 keeptower
 ```
 
-### Configuring Reed-Solomon Error Correction
+### Configuring Preferences
 
-1. Click the **Preferences** button in the toolbar
-2. Enable **"Enable error correction for new vaults"**
-3. Adjust the **Redundancy Level** slider (5-50%)
+Open **Preferences** from the toolbar to configure:
+
+#### Appearance
+- **Color Scheme**: Choose between System Default, Light, or Dark mode
+- Changes apply immediately with live preview
+
+#### Reed-Solomon Error Correction
+1. Enable **"Enable error correction for new vaults"**
+2. Adjust the **Redundancy Level** slider (5-50%)
    - Higher values provide more protection but increase file size
    - 10% is recommended for most users
    - 20-30% for critical data
-4. Click **OK** to save
+3. New vaults created after enabling will include error correction
 
-New vaults created after enabling Reed-Solomon will automatically include error correction. Existing vaults are not modified.
+#### Automatic Backups
+1. Enable **"Enable automatic backups"** (enabled by default)
+2. Set **"Keep up to"** number of backups (1-50, default 5)
+   - Older backups are automatically deleted when limit is exceeded
+   - Backup files are named with timestamps: `vault.vault.backup.20251207_183045_123`
+   - Provides protection against accidental data loss
+3. Each save operation creates a new timestamped backup
+
+Click **Apply** to save all preference changes.
 
 ## Documentation
 

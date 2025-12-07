@@ -67,6 +67,12 @@ MainWindow::MainWindow()
     m_vault_manager->set_reed_solomon_enabled(use_rs);
     m_vault_manager->set_rs_redundancy_percent(rs_redundancy);
 
+    // Load backup settings and apply to VaultManager
+    bool backup_enabled = settings->get_boolean("backup-enabled");
+    int backup_count = settings->get_int("backup-count");
+    m_vault_manager->set_backup_enabled(backup_enabled);
+    m_vault_manager->set_backup_count(backup_count);
+
     // Setup the main container
     set_child(m_main_box);
 
