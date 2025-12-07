@@ -10,9 +10,13 @@
 class PasswordValidationTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        // Initialize GTK application for testing
+        // Initialize GTK application for testing (handle headless environments)
         if (!Gtk::Application::get_default()) {
-            app = Gtk::Application::create("com.keeptower.test");
+            try {
+                app = Gtk::Application::create("com.keeptower.test");
+            } catch (...) {
+                // GTK initialization can fail in headless CI - not needed for these tests
+            }
         }
     }
 
@@ -311,8 +315,16 @@ TEST_F(PasswordValidationTest, EdgeCase_RepeatingCharacters) {
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
 
-    // Initialize GTK
-    Gtk::Application::create("com.keeptower.test");
+    // Initialize GTK (handle headless environments)
+    try {
+        // Set offscreen backend for headless CI environments
+        g_setenv("GDK_BACKEND", "broadway", FALSE);
+        Gtk::Application::create("com.keeptower.test");
+    } catch (...) {
+        // GTK initialization failed (headless environment)
+        // Tests don't actually need GTK, so continue anyway
+        std::cerr << "Warning: GTK initialization failed (headless environment?)" << std::endl;
+    }
 
     return RUN_ALL_TESTS();
 }
