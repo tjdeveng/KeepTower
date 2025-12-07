@@ -194,7 +194,7 @@ $ cd build && ./tests/vault_manager_test
 ### Compilation: ✅ CLEAN
 ```bash
 $ meson compile -C build
-ninja: Entering directory `/home/tjdev/Projects/TheTower/build'
+ninja: Entering directory `/home/tjdev/Projects/KeepTower/build'
 ninja: no work to do.
 ```
 - Zero warnings
