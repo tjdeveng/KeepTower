@@ -41,12 +41,20 @@ A secure, modern password manager built with C++23 and GTK4.
 ### Dependencies
 
 - C++23 compatible compiler (GCC 13+ or Clang 16+)
-- GTKmm 4.0 (>= 4.10)
+- GTKmm 4.0 (>= 4.10) - Available in Ubuntu 24.04+, Fedora 39+
 - OpenSSL (>= 1.1.0)
 - Protocol Buffers (>= 3.0)
 - libcorrect (for Reed-Solomon error correction)
+  - Fedora: `dnf install libcorrect-devel`
+  - Ubuntu: Build from source (see CI workflows for instructions)
 - Meson build system
 - GTest (for tests)
+
+### Supported Platforms
+
+- Ubuntu 24.04 LTS or newer
+- Fedora 39 or newer
+- Other Linux distributions with GTKmm 4.0+ available
 
 ### Compile
 

@@ -67,7 +67,7 @@ jobs:
 
     strategy:
       matrix:
-        artifact: [ubuntu-22.04, ubuntu-24.04, fedora-39, appimage, source]
+        artifact: [ubuntu-24.04, fedora-39, appimage, source]
 
     steps:
     - name: Checkout code
