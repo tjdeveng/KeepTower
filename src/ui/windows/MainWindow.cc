@@ -140,7 +140,7 @@ MainWindow::MainWindow()
     m_new_button.set_icon_name("document-new");
     m_open_button.set_icon_name("document-open");
     m_save_button.set_icon_name("document-save");
-    m_close_button.set_icon_name("window-close");
+    m_close_button.set_icon_name("document-close");
     m_add_account_button.set_icon_name("list-add");
     m_show_password_button.set_icon_name("view-reveal-symbolic");
     m_copy_password_button.set_icon_name("edit-copy");
