@@ -89,7 +89,19 @@ jobs:
           protobuf-compiler \
           libssl-dev \
           cppcheck \
-          clang-tidy
+          clang-tidy \
+          cmake \
+          git
+
+    - name: Build and install libcorrect
+      run: |
+        git clone https://github.com/quiet/libcorrect.git /tmp/libcorrect
+        cd /tmp/libcorrect
+        mkdir build && cd build
+        cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr ..
+        make -j$(nproc)
+        sudo make install
+        sudo ldconfig
 
     - name: Configure build
       run: meson setup build
