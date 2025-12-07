@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: 2025 tjdeveng
 
 #include "PreferencesDialog.h"
+#include <stdexcept>
 
 PreferencesDialog::PreferencesDialog(Gtk::Window& parent)
     : Gtk::Dialog("Preferences", parent, true),
@@ -15,10 +16,15 @@ PreferencesDialog::PreferencesDialog(Gtk::Window& parent)
       m_redundancy_suffix("%"),
       m_redundancy_help("Higher values provide more protection but increase file size.\nCan recover up to half the redundancy percentage in corruption.") {
 
-    set_default_size(500, 300);
+    set_default_size(DEFAULT_WIDTH, DEFAULT_HEIGHT);
 
-    // Load settings
-    m_settings = Gio::Settings::create("com.tjdeveng.keeptower");
+    // Load settings with error handling
+    try {
+        m_settings = Gio::Settings::create("com.tjdeveng.keeptower");
+    } catch (const Glib::Error& e) {
+        // Fatal: cannot continue without settings
+        throw std::runtime_error("Failed to load settings: " + std::string(e.what()));
+    }
 
     setup_ui();
     load_settings();
@@ -56,10 +62,16 @@ void PreferencesDialog::setup_ui() {
     m_redundancy_label.set_halign(Gtk::Align::START);
     m_redundancy_box.append(m_redundancy_label);
 
-    auto adjustment = Gtk::Adjustment::create(10.0, 5.0, 50.0, 1.0, 5.0, 0.0);
+    // Use constexpr constants for bounds checking
+    auto adjustment = Gtk::Adjustment::create(
+        static_cast<double>(DEFAULT_REDUNDANCY),
+        static_cast<double>(MIN_REDUNDANCY),
+        static_cast<double>(MAX_REDUNDANCY),
+        1.0, 5.0, 0.0
+    );
     m_redundancy_spin.set_adjustment(adjustment);
     m_redundancy_spin.set_digits(0);
-    m_redundancy_spin.set_value(10);
+    m_redundancy_spin.set_value(DEFAULT_REDUNDANCY);
     m_redundancy_box.append(m_redundancy_spin);
 
     m_redundancy_suffix.set_halign(Gtk::Align::START);
@@ -77,12 +89,19 @@ void PreferencesDialog::setup_ui() {
     m_content_box.append(m_rs_box);
 
     // Add content to dialog
-    set_child(m_content_box);
+    get_content_area()->append(m_content_box);
 }
 
 void PreferencesDialog::load_settings() {
+    if (!m_settings) [[unlikely]] {
+        return; // Defensive: should never happen
+    }
+
     bool rs_enabled = m_settings->get_boolean("use-reed-solomon");
     int rs_redundancy = m_settings->get_int("rs-redundancy-percent");
+
+    // Validate and clamp redundancy value for security
+    rs_redundancy = std::clamp(rs_redundancy, MIN_REDUNDANCY, MAX_REDUNDANCY);
 
     m_rs_enabled_check.set_active(rs_enabled);
     m_redundancy_spin.set_value(rs_redundancy);
@@ -95,15 +114,23 @@ void PreferencesDialog::load_settings() {
 }
 
 void PreferencesDialog::save_settings() {
-    bool rs_enabled = m_rs_enabled_check.get_active();
-    int rs_redundancy = static_cast<int>(m_redundancy_spin.get_value());
+    if (!m_settings) [[unlikely]] {
+        return; // Defensive: should never happen
+    }
+
+    const bool rs_enabled = m_rs_enabled_check.get_active();
+    const int rs_redundancy = std::clamp(
+        static_cast<int>(m_redundancy_spin.get_value()),
+        MIN_REDUNDANCY,
+        MAX_REDUNDANCY
+    );
 
     m_settings->set_boolean("use-reed-solomon", rs_enabled);
     m_settings->set_int("rs-redundancy-percent", rs_redundancy);
 }
 
-void PreferencesDialog::on_rs_enabled_toggled() {
-    bool enabled = m_rs_enabled_check.get_active();
+void PreferencesDialog::on_rs_enabled_toggled() noexcept {
+    const bool enabled = m_rs_enabled_check.get_active();
 
     m_redundancy_label.set_sensitive(enabled);
     m_redundancy_spin.set_sensitive(enabled);
@@ -111,7 +138,7 @@ void PreferencesDialog::on_rs_enabled_toggled() {
     m_redundancy_help.set_sensitive(enabled);
 }
 
-void PreferencesDialog::on_response(int response_id) {
+void PreferencesDialog::on_response(int response_id) noexcept {
     if (response_id == Gtk::ResponseType::OK) {
         save_settings();
     }

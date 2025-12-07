@@ -795,6 +795,15 @@ bool MainWindow::prompt_save_if_modified() {
 }
 
 void MainWindow::on_preferences() {
+    // Use unique_ptr for automatic cleanup
     auto dialog = std::make_unique<PreferencesDialog>(*this);
-    dialog->show();
+    dialog->set_hide_on_close(true);
+
+    // Transfer ownership to lambda for proper RAII cleanup
+    auto* dialog_ptr = dialog.release();
+    dialog_ptr->signal_hide().connect([dialog_ptr]() noexcept {
+        delete dialog_ptr;
+    });
+
+    dialog_ptr->show();
 }
