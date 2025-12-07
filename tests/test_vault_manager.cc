@@ -20,8 +20,9 @@ protected:
         fs::create_directories(test_dir);
         test_vault_path = (test_dir / "test_vault.vault").string();
         vault_manager = std::make_unique<VaultManager>();
-        // Disable backups for testing to avoid environment-specific issues
+        // Disable backups and Reed-Solomon for testing to avoid environment-specific issues
         vault_manager->set_backup_enabled(false);
+        vault_manager->set_reed_solomon_enabled(false);
     }
 
     void TearDown() override {

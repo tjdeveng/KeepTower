@@ -315,15 +315,15 @@ TEST_F(PasswordValidationTest, EdgeCase_RepeatingCharacters) {
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
 
-    // Initialize GTK (handle headless environments)
-    try {
-        // Set offscreen backend for headless CI environments
-        g_setenv("GDK_BACKEND", "broadway", FALSE);
-        Gtk::Application::create("com.keeptower.test");
-    } catch (...) {
-        // GTK initialization failed (headless environment)
-        // Tests don't actually need GTK, so continue anyway
-        std::cerr << "Warning: GTK initialization failed (headless environment?)" << std::endl;
+    // Skip GTK initialization in headless environments
+    // Password validation tests don't actually need the GTK UI
+    const char* display = g_getenv("DISPLAY");
+    if (display && display[0] != '\0') {
+        try {
+            Gtk::Application::create("com.keeptower.test");
+        } catch (...) {
+            // GTK initialization failed but not fatal for these tests
+        }
     }
 
     return RUN_ALL_TESTS();
