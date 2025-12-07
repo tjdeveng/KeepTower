@@ -87,7 +87,20 @@ jobs:
           libssl-dev \
           libgtest-dev \
           doxygen \
-          graphviz
+          graphviz \
+          cmake \
+          git \
+          wget
+
+    - name: Build and install libcorrect
+      run: |
+        git clone https://github.com/quiet/libcorrect.git /tmp/libcorrect
+        cd /tmp/libcorrect
+        mkdir build && cd build
+        cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr ..
+        make -j$(nproc)
+        sudo make install
+        sudo ldconfig
 
     - name: Build binary for ${{ matrix.artifact }}
       if: matrix.artifact != 'source' && matrix.artifact != 'appimage'
