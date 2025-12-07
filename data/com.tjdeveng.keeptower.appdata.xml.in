@@ -23,12 +23,12 @@
 
   <launchable type="desktop-id">@APPLICATION_ID@.desktop</launchable>
 
-  <developer id="com.example">
+  <developer id="com.tjdeveng">
     <name>tjdeveng</name>
   </developer>
 
-  <url type="homepage">https://github.com/yourusername/keeptower</url>
-  <url type="bugtracker">https://github.com/yourusername/keeptower/issues</url>
+  <url type="homepage">https://github.com/tjdeveng/keeptower</url>
+  <url type="bugtracker">https://github.com/tjdeveng/keeptower/issues</url>
 
   <content_rating type="oars-1.1" />
 

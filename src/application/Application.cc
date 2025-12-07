@@ -7,7 +7,7 @@
 #include "../config.h"
 
 Application::Application()
-    : Gtk::Application("com.example.keeptower", Gio::Application::Flags::DEFAULT_FLAGS) {
+    : Gtk::Application("com.tjdeveng.keeptower", Gio::Application::Flags::DEFAULT_FLAGS) {
 }
 
 Glib::RefPtr<Application> Application::create() {

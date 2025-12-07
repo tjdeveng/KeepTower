@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <gresources>
-  <gresource prefix="/com/example/keeptower">
+  <gresource prefix="/com/tjdeveng/keeptower">
     <!-- UI files will go here -->
     <!-- <file compressed="true">ui/main-window.ui</file> -->
 

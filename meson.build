@@ -13,7 +13,7 @@ project('keeptower', 'cpp',
 
 # Project information
 project_name = 'keeptower'
-application_id = 'com.example.keeptower'
+application_id = 'com.tjdeveng.keeptower'
 
 # Dependencies
 gtkmm_dep = dependency('gtkmm-4.0', version: '>= 4.10')

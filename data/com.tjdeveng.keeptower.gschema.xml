@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
-  <schema id="com.example.keeptower" path="/com/example/keeptower/">
+  <schema id="com.tjdeveng.keeptower" path="/com/tjdeveng/keeptower/">
     <key name="window-width" type="i">
       <default>800</default>
       <summary>Window width</summary>
