@@ -63,6 +63,11 @@ protected:
         outfile.close();
     }
 
+    // Helper to configure VaultManager for testing (disables backups)
+    void configure_for_testing(VaultManager& manager) {
+        manager.set_backup_enabled(false);
+    }
+
     std::string test_dir;
     std::string test_vault_path;
     Glib::ustring test_password;
@@ -70,6 +75,7 @@ protected:
 
 TEST_F(VaultReedSolomonTest, SaveWithRS_CreatesValidVault) {
     VaultManager manager;
+    configure_for_testing(manager);
 
     // Enable RS with 10% redundancy
     manager.set_reed_solomon_enabled(true);
@@ -94,6 +100,7 @@ TEST_F(VaultReedSolomonTest, SaveWithRS_CreatesValidVault) {
 
     // Create another vault without RS for comparison
     VaultManager manager2;
+    configure_for_testing(manager2);
     std::string test_vault_no_rs = test_dir + "/test_no_rs.vault";
     ASSERT_TRUE(manager2.create_vault(test_vault_no_rs, test_password));
     auto account3 = createAccount("Example", "user@example.com");
@@ -111,6 +118,7 @@ TEST_F(VaultReedSolomonTest, SaveWithRS_CreatesValidVault) {
 
 TEST_F(VaultReedSolomonTest, OpenRSVault_WithNoCorruption_Success) {
     VaultManager manager;
+    configure_for_testing(manager);
 
     // Create and save RS vault
     manager.set_reed_solomon_enabled(true);
@@ -123,6 +131,7 @@ TEST_F(VaultReedSolomonTest, OpenRSVault_WithNoCorruption_Success) {
 
     // Open the vault
     VaultManager manager2;
+    configure_for_testing(manager2);
     ASSERT_TRUE(manager2.open_vault(test_vault_path, test_password));
 
     // Verify data
@@ -135,6 +144,7 @@ TEST_F(VaultReedSolomonTest, OpenRSVault_WithNoCorruption_Success) {
 
 TEST_F(VaultReedSolomonTest, OpenRSVault_WithMinorCorruption_Recovers) {
     VaultManager manager;
+    configure_for_testing(manager);
 
     // Create RS vault with 20% redundancy (can recover ~10% corruption)
     manager.set_reed_solomon_enabled(true);
@@ -153,6 +163,7 @@ TEST_F(VaultReedSolomonTest, OpenRSVault_WithMinorCorruption_Recovers) {
 
     // Should still open successfully with RS recovery
     VaultManager manager2;
+    configure_for_testing(manager2);
     ASSERT_TRUE(manager2.open_vault(test_vault_path, test_password));
 
     // Verify data is intact
@@ -168,6 +179,7 @@ TEST_F(VaultReedSolomonTest, OpenRSVault_WithMinorCorruption_Recovers) {
 
 TEST_F(VaultReedSolomonTest, OpenRSVault_WithSevereCorruption_Fails) {
     VaultManager manager;
+    configure_for_testing(manager);
 
     // Create RS vault with 10% redundancy (can recover ~5% corruption)
     manager.set_reed_solomon_enabled(true);
@@ -187,11 +199,13 @@ TEST_F(VaultReedSolomonTest, OpenRSVault_WithSevereCorruption_Fails) {
 
     // Should fail to open
     VaultManager manager2;
+    configure_for_testing(manager2);
     EXPECT_FALSE(manager2.open_vault(test_vault_path, test_password));
 }
 
 TEST_F(VaultReedSolomonTest, DisableRS_SavesWithoutEncoding) {
     VaultManager manager;
+    configure_for_testing(manager);
 
     // Create vault with RS disabled
     manager.set_reed_solomon_enabled(false);
@@ -218,6 +232,7 @@ TEST_F(VaultReedSolomonTest, DisableRS_SavesWithoutEncoding) {
 
 TEST_F(VaultReedSolomonTest, ChangeRedundancyLevel_Works) {
     VaultManager manager;
+    configure_for_testing(manager);
 
     // Test different redundancy levels
     for (uint8_t redundancy : {5, 10, 20, 30, 50}) {
@@ -235,6 +250,7 @@ TEST_F(VaultReedSolomonTest, ChangeRedundancyLevel_Works) {
 
         // Verify can open
         VaultManager manager2;
+        configure_for_testing(manager2);
         ASSERT_TRUE(manager2.open_vault(vault_path, test_password));
         EXPECT_EQ(manager2.get_account_count(), 1);
         ASSERT_TRUE(manager2.close_vault());
@@ -243,6 +259,7 @@ TEST_F(VaultReedSolomonTest, ChangeRedundancyLevel_Works) {
 
 TEST_F(VaultReedSolomonTest, InvalidRedundancy_Rejected) {
     VaultManager manager;
+    configure_for_testing(manager);
 
     // Too low
     EXPECT_FALSE(manager.set_rs_redundancy_percent(0));
@@ -259,6 +276,7 @@ TEST_F(VaultReedSolomonTest, InvalidRedundancy_Rejected) {
 
 TEST_F(VaultReedSolomonTest, LegacyVault_OpensWithoutRS) {
     VaultManager manager;
+    configure_for_testing(manager);
 
     // Create legacy vault (no RS)
     manager.set_reed_solomon_enabled(false);
@@ -270,6 +288,7 @@ TEST_F(VaultReedSolomonTest, LegacyVault_OpensWithoutRS) {
 
     // Open with RS-enabled manager (should auto-detect legacy format)
     VaultManager manager2;
+    configure_for_testing(manager2);
     manager2.set_reed_solomon_enabled(true);  // Preference for NEW vaults
     ASSERT_TRUE(manager2.open_vault(test_vault_path, test_password));
 

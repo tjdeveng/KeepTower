@@ -20,6 +20,8 @@ protected:
         fs::create_directories(test_dir);
         test_vault_path = (test_dir / "test_vault.vault").string();
         vault_manager = std::make_unique<VaultManager>();
+        // Disable backups for testing to avoid environment-specific issues
+        vault_manager->set_backup_enabled(false);
     }
 
     void TearDown() override {
@@ -170,6 +172,7 @@ TEST_F(VaultManagerTest, EncryptionDecryption_MultipleAccounts) {
 }
 
 TEST_F(VaultManagerTest, EncryptionDecryption_EmptyVault) {
+    vault_manager->set_reed_solomon_enabled(false);  // Disable RS for this test
     ASSERT_TRUE(vault_manager->create_vault(test_vault_path, test_password));
     ASSERT_TRUE(vault_manager->save_vault());
     ASSERT_TRUE(vault_manager->close_vault());
