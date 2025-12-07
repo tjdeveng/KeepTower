@@ -1,5 +1,10 @@
 # KeepTower Password Manager
 
+[![CI](https://github.com/yourusername/keeptower/workflows/CI/badge.svg)](https://github.com/yourusername/keeptower/actions/workflows/ci.yml)
+[![Build](https://github.com/yourusername/keeptower/workflows/Build/badge.svg)](https://github.com/yourusername/keeptower/actions/workflows/build.yml)
+[![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-0.1.0--beta-orange.svg)](CHANGELOG.md)
+
 A secure, modern password manager built with C++23 and GTK4.
 
 ## Features

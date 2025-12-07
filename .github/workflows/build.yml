@@ -1,0 +1,153 @@
+name: Build
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    name: Build on ${{ matrix.distro }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        distro: [ubuntu-22.04, ubuntu-24.04, fedora-39]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Build on Ubuntu
+      if: startsWith(matrix.distro, 'ubuntu')
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          meson \
+          ninja-build \
+          pkg-config \
+          libgtkmm-4.0-dev \
+          libprotobuf-dev \
+          protobuf-compiler \
+          libssl-dev \
+          libgtest-dev
+
+        meson setup build --buildtype=release --prefix=/usr
+        meson compile -C build
+
+        # Create tarball
+        mkdir -p dist
+        cp build/src/keeptower dist/
+        tar -czf keeptower-${{ matrix.distro }}-x86_64.tar.gz -C dist keeptower
+
+    - name: Build on Fedora
+      if: matrix.distro == 'fedora-39'
+      uses: uraimo/run-on-arch-action@v2
+      with:
+        arch: none
+        distro: fedora_latest
+        dockerRunArgs: |
+          --volume "${PWD}:/workspace"
+        install: |
+          dnf install -y \
+            gcc-c++ \
+            meson \
+            ninja-build \
+            pkg-config \
+            gtkmm4.0-devel \
+            protobuf-devel \
+            openssl-devel \
+            gtest-devel
+        run: |
+          cd /workspace
+          meson setup build --buildtype=release --prefix=/usr
+          meson compile -C build
+
+          mkdir -p dist
+          cp build/src/keeptower dist/
+          tar -czf keeptower-fedora-39-x86_64.tar.gz -C dist keeptower
+
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: keeptower-${{ matrix.distro }}
+        path: keeptower-*.tar.gz
+        retention-days: 14
+
+  build-appimage:
+    name: Build AppImage
+    runs-on: ubuntu-20.04
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          meson \
+          ninja-build \
+          pkg-config \
+          libgtkmm-4.0-dev \
+          libprotobuf-dev \
+          protobuf-compiler \
+          libssl-dev \
+          libgtest-dev \
+          wget \
+          file
+
+    - name: Build application
+      run: |
+        meson setup build --buildtype=release --prefix=/usr
+        meson compile -C build
+        DESTDIR=$PWD/AppDir meson install -C build
+
+    - name: Download linuxdeploy
+      run: |
+        wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+        chmod +x linuxdeploy-x86_64.AppImage
+
+    - name: Create AppImage
+      run: |
+        ./linuxdeploy-x86_64.AppImage \
+          --appdir AppDir \
+          --executable AppDir/usr/bin/keeptower \
+          --desktop-file AppDir/usr/share/applications/com.example.keeptower.desktop \
+          --icon-file AppDir/usr/share/icons/hicolor/scalable/apps/com.example.keeptower.svg \
+          --output appimage
+
+    - name: Rename AppImage
+      run: |
+        mv KeepTower*.AppImage keeptower-x86_64.AppImage || true
+        ls -lh *.AppImage
+
+    - name: Upload AppImage
+      uses: actions/upload-artifact@v4
+      with:
+        name: keeptower-AppImage
+        path: keeptower-*.AppImage
+        retention-days: 30
+
+  test-install:
+    name: Test Installation
+    runs-on: ubuntu-latest
+    needs: build-linux
+
+    steps:
+    - name: Download build artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: keeptower-ubuntu-22.04
+
+    - name: Extract and test
+      run: |
+        tar -xzf keeptower-*.tar.gz
+        file keeptower
+        ldd keeptower || true
+        echo "Build artifact verified"

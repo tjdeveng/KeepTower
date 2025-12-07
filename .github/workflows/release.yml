@@ -1,0 +1,191 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., v0.1.0)'
+        required: true
+        type: string
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.get_version.outputs.version }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      fetch-depth: 0
+
+    - name: Get version
+      id: get_version
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          VERSION="${{ github.event.inputs.version }}"
+        else
+          VERSION=${GITHUB_REF#refs/tags/}
+        fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Version: $VERSION"
+
+    - name: Generate changelog
+      id: changelog
+      run: |
+        if [ -f CHANGELOG.md ]; then
+          # Extract changelog for this version
+          awk '/^## \[${{ steps.get_version.outputs.version }}/ {flag=1; next} /^## \[/ {flag=0} flag' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "See CHANGELOG.md for details" > release-notes.md
+          fi
+        else
+          echo "Release ${{ steps.get_version.outputs.version }}" > release-notes.md
+        fi
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.get_version.outputs.version }}
+        release_name: KeepTower ${{ steps.get_version.outputs.version }}
+        body_path: release-notes.md
+        draft: false
+        prerelease: ${{ contains(steps.get_version.outputs.version, 'beta') || contains(steps.get_version.outputs.version, 'alpha') || contains(steps.get_version.outputs.version, 'rc') }}
+
+  build-release-artifacts:
+    name: Build ${{ matrix.artifact }}
+    needs: create-release
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        artifact: [ubuntu-22.04, ubuntu-24.04, fedora-39, appimage, source]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          meson \
+          ninja-build \
+          pkg-config \
+          libgtkmm-4.0-dev \
+          libprotobuf-dev \
+          protobuf-compiler \
+          libssl-dev \
+          libgtest-dev \
+          doxygen \
+          graphviz
+
+    - name: Build binary for ${{ matrix.artifact }}
+      if: matrix.artifact != 'source' && matrix.artifact != 'appimage'
+      run: |
+        meson setup build --buildtype=release --prefix=/usr
+        meson compile -C build
+        meson test -C build
+
+        mkdir -p dist/keeptower-${{ needs.create-release.outputs.version }}-${{ matrix.artifact }}-x86_64
+        cp build/src/keeptower dist/keeptower-${{ needs.create-release.outputs.version }}-${{ matrix.artifact }}-x86_64/
+        cp README.md LICENSE CHANGELOG.md dist/keeptower-${{ needs.create-release.outputs.version }}-${{ matrix.artifact }}-x86_64/
+
+        cd dist
+        tar -czf keeptower-${{ needs.create-release.outputs.version }}-${{ matrix.artifact }}-x86_64.tar.gz \
+          keeptower-${{ needs.create-release.outputs.version }}-${{ matrix.artifact }}-x86_64/
+        cd ..
+
+    - name: Build AppImage
+      if: matrix.artifact == 'appimage'
+      run: |
+        meson setup build --buildtype=release --prefix=/usr
+        meson compile -C build
+        DESTDIR=$PWD/AppDir meson install -C build
+
+        wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+        chmod +x linuxdeploy-x86_64.AppImage
+
+        ./linuxdeploy-x86_64.AppImage \
+          --appdir AppDir \
+          --executable AppDir/usr/bin/keeptower \
+          --desktop-file AppDir/usr/share/applications/com.example.keeptower.desktop \
+          --icon-file AppDir/usr/share/icons/hicolor/scalable/apps/com.example.keeptower.svg \
+          --output appimage
+
+        mv KeepTower*.AppImage keeptower-${{ needs.create-release.outputs.version }}-x86_64.AppImage || \
+        mv keeptower*.AppImage keeptower-${{ needs.create-release.outputs.version }}-x86_64.AppImage
+
+    - name: Create source tarball
+      if: matrix.artifact == 'source'
+      run: |
+        git archive --format=tar.gz \
+          --prefix=keeptower-${{ needs.create-release.outputs.version }}/ \
+          HEAD > keeptower-${{ needs.create-release.outputs.version }}-source.tar.gz
+
+    - name: Generate checksums
+      run: |
+        sha256sum keeptower-* > checksums-${{ matrix.artifact }}.txt
+        cat checksums-${{ matrix.artifact }}.txt
+
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: ./keeptower-${{ needs.create-release.outputs.version }}-${{ matrix.artifact == 'source' && 'source' || matrix.artifact == 'appimage' && 'x86_64' || format('{0}-x86_64', matrix.artifact) }}.${{ matrix.artifact == 'appimage' && 'AppImage' || 'tar.gz' }}
+        asset_name: keeptower-${{ needs.create-release.outputs.version }}-${{ matrix.artifact == 'source' && 'source' || matrix.artifact == 'appimage' && 'x86_64' || format('{0}-x86_64', matrix.artifact) }}.${{ matrix.artifact == 'appimage' && 'AppImage' || 'tar.gz' }}
+        asset_content_type: application/${{ matrix.artifact == 'appimage' && 'octet-stream' || 'gzip' }}
+
+    - name: Upload Checksums
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: ./checksums-${{ matrix.artifact }}.txt
+        asset_name: checksums-${{ matrix.artifact }}.txt
+        asset_content_type: text/plain
+
+  build-documentation:
+    name: Build and Deploy Documentation
+    needs: create-release
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Doxygen
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y doxygen graphviz
+
+    - name: Generate documentation
+      run: doxygen Doxyfile
+
+    - name: Package documentation
+      run: |
+        cd docs/api
+        tar -czf ../../keeptower-${{ needs.create-release.outputs.version }}-docs.tar.gz html/
+        cd ../..
+
+    - name: Upload Documentation Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: ./keeptower-${{ needs.create-release.outputs.version }}-docs.tar.gz
+        asset_name: keeptower-${{ needs.create-release.outputs.version }}-docs.tar.gz
+        asset_content_type: application/gzip
