@@ -341,7 +341,11 @@ void MainWindow::on_close_vault() {
     // Save the current account before closing
     save_current_account();
 
-    // TODO: Prompt to save if modified
+    // Prompt to save if modified
+    if (!prompt_save_if_modified()) {
+        return;  // User cancelled
+    }
+
     auto result = m_vault_manager->close_vault();
     if (!result) {
         auto error_msg = std::string("Error closing vault");
@@ -695,4 +699,71 @@ void MainWindow::show_error_dialog(const Glib::ustring& message) {
     dialog.set_secondary_text(message);
     dialog.set_modal(true);
     dialog.show();
+}
+
+bool MainWindow::prompt_save_if_modified() {
+    // Check if vault has unsaved changes
+    if (!m_vault_manager->is_modified()) {
+        return true;  // No changes, proceed
+    }
+
+    // Create a custom dialog
+    auto dialog = Gtk::make_managed<Gtk::Dialog>();
+    dialog->set_transient_for(*this);
+    dialog->set_modal(true);
+    dialog->set_title("Save Changes?");
+
+    // Add buttons
+    dialog->add_button("Cancel", Gtk::ResponseType::CANCEL);
+    dialog->add_button("Don't Save", Gtk::ResponseType::NO);
+    dialog->add_button("Save", Gtk::ResponseType::YES);
+    dialog->set_default_response(Gtk::ResponseType::YES);
+
+    // Add content
+    auto content_box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 12);
+    content_box->set_margin(20);
+
+    auto primary_label = Gtk::make_managed<Gtk::Label>();
+    primary_label->set_markup("<b>Save changes to vault?</b>");
+    primary_label->set_xalign(0.0);
+
+    auto secondary_label = Gtk::make_managed<Gtk::Label>(
+        "Your vault has unsaved changes. Do you want to save them before closing?"
+    );
+    secondary_label->set_xalign(0.0);
+    secondary_label->set_wrap(true);
+
+    content_box->append(*primary_label);
+    content_box->append(*secondary_label);
+
+    dialog->get_content_area()->append(*content_box);
+
+    // Use a flag to track the response
+    int response = Gtk::ResponseType::CANCEL;
+    bool dialog_done = false;
+
+    dialog->signal_response().connect([&](int response_id) {
+        response = response_id;
+        dialog_done = true;
+        dialog->hide();
+    });
+
+    dialog->show();
+
+    // Process events until dialog is closed
+    while (!dialog_done) {
+        g_main_context_iteration(nullptr, TRUE);
+    }
+
+    if (response == Gtk::ResponseType::YES) {
+        // User chose to save
+        on_save_vault();
+        return true;
+    } else if (response == Gtk::ResponseType::NO) {
+        // User chose not to save
+        return true;
+    } else {
+        // User cancelled
+        return false;
+    }
 }

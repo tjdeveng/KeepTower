@@ -85,6 +85,7 @@ protected:
     void display_account_details(int index);
     void show_error_dialog(const Glib::ustring& message);
     bool validate_field_length(const Glib::ustring& field_name, const Glib::ustring& value, int max_length);
+    bool prompt_save_if_modified();  ///< Prompt to save if vault modified, return false if user cancels
 
     // Member widgets
     Gtk::Box m_main_box;
