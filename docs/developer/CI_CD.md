@@ -145,14 +145,12 @@ cppcheck performs static analysis checking for:
 
 ## Badge Status
 
-Add these badges to README.md:
+Status badges are already configured in README.md:
 
 ```markdown
-[![CI](https://github.com/USERNAME/keeptower/workflows/CI/badge.svg)](https://github.com/USERNAME/keeptower/actions/workflows/ci.yml)
-[![Build](https://github.com/USERNAME/keeptower/workflows/Build/badge.svg)](https://github.com/USERNAME/keeptower/actions/workflows/build.yml)
+[![CI](https://github.com/tjdeveng/KeepTower/workflows/CI/badge.svg)](https://github.com/tjdeveng/KeepTower/actions/workflows/ci.yml)
+[![Build](https://github.com/tjdeveng/KeepTower/workflows/Build/badge.svg)](https://github.com/tjdeveng/KeepTower/actions/workflows/build.yml)
 ```
-
-Replace `USERNAME` with your GitHub username.
 
 ## Troubleshooting
 
