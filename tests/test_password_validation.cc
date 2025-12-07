@@ -10,17 +10,8 @@
 class PasswordValidationTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        // Initialize GTK application for testing (handle headless environments)
-        if (!Gtk::Application::get_default()) {
-            try {
-                app = Gtk::Application::create("com.keeptower.test");
-            } catch (...) {
-                // GTK initialization can fail in headless CI - not needed for these tests
-            }
-        }
+        // No GTK initialization needed - these are pure logic tests
     }
-
-    Glib::RefPtr<Gtk::Application> app;
 };
 
 // Helper function to test password validation logic
@@ -314,17 +305,6 @@ TEST_F(PasswordValidationTest, EdgeCase_RepeatingCharacters) {
 
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
-
-    // Skip GTK initialization in headless environments
-    // Password validation tests don't actually need the GTK UI
-    const char* display = g_getenv("DISPLAY");
-    if (display && display[0] != '\0') {
-        try {
-            Gtk::Application::create("com.keeptower.test");
-        } catch (...) {
-            // GTK initialization failed but not fatal for these tests
-        }
-    }
-
+    // Password validation tests are pure logic - no GTK needed
     return RUN_ALL_TESTS();
 }
