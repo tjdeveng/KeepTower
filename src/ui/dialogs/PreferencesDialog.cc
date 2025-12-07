@@ -7,6 +7,11 @@
 PreferencesDialog::PreferencesDialog(Gtk::Window& parent)
     : Gtk::Dialog("Preferences", parent, true),
       m_content_box(Gtk::Orientation::VERTICAL, 12),
+      m_appearance_box(Gtk::Orientation::VERTICAL, 6),
+      m_appearance_title("<b>Appearance</b>"),
+      m_appearance_description("Choose how KeepTower looks"),
+      m_color_scheme_box(Gtk::Orientation::HORIZONTAL, 6),
+      m_color_scheme_label("Color scheme:"),
       m_rs_box(Gtk::Orientation::VERTICAL, 6),
       m_rs_title("<b>Reed-Solomon Error Correction</b>"),
       m_rs_description("Protect vault files from corruption on unreliable storage media (USB drives, SD cards, etc.)"),
@@ -44,6 +49,38 @@ void PreferencesDialog::setup_ui() {
 
     // Configure content box
     m_content_box.set_margin(18);
+
+    // Appearance section
+    m_appearance_title.set_use_markup(true);
+    m_appearance_title.set_halign(Gtk::Align::START);
+    m_appearance_box.append(m_appearance_title);
+
+    m_appearance_description.set_wrap(true);
+    m_appearance_description.set_max_width_chars(60);
+    m_appearance_description.set_halign(Gtk::Align::START);
+    m_appearance_description.add_css_class("dim-label");
+    m_appearance_box.append(m_appearance_description);
+
+    // Color scheme dropdown
+    m_color_scheme_label.set_halign(Gtk::Align::START);
+    m_color_scheme_box.append(m_color_scheme_label);
+
+    // Create string list for dropdown
+    auto color_schemes = Gtk::StringList::create({"System Default", "Light", "Dark"});
+    m_color_scheme_dropdown.set_model(color_schemes);
+    m_color_scheme_dropdown.set_selected(0);
+    m_color_scheme_box.append(m_color_scheme_dropdown);
+
+    m_color_scheme_box.set_halign(Gtk::Align::START);
+    m_appearance_box.append(m_color_scheme_box);
+
+    m_content_box.append(m_appearance_box);
+
+    // Add separator between sections
+    auto* separator = Gtk::make_managed<Gtk::Separator>(Gtk::Orientation::HORIZONTAL);
+    separator->set_margin_top(12);
+    separator->set_margin_bottom(12);
+    m_content_box.append(*separator);
 
     // Reed-Solomon section
     m_rs_title.set_use_markup(true);
@@ -90,11 +127,25 @@ void PreferencesDialog::setup_ui() {
 
     // Add content to dialog
     get_content_area()->append(m_content_box);
+
+    // Connect color scheme signal after UI is set up
+    m_color_scheme_dropdown.property_selected().signal_changed().connect(
+        sigc::mem_fun(*this, &PreferencesDialog::on_color_scheme_changed));
 }
 
 void PreferencesDialog::load_settings() {
     if (!m_settings) [[unlikely]] {
         return; // Defensive: should never happen
+    }
+
+    // Load color scheme
+    Glib::ustring color_scheme = m_settings->get_string("color-scheme");
+    if (color_scheme == "light") {
+        m_color_scheme_dropdown.set_selected(1);
+    } else if (color_scheme == "dark") {
+        m_color_scheme_dropdown.set_selected(2);
+    } else {
+        m_color_scheme_dropdown.set_selected(0);  // default
     }
 
     bool rs_enabled = m_settings->get_boolean("use-reed-solomon");
@@ -118,6 +169,19 @@ void PreferencesDialog::save_settings() {
         return; // Defensive: should never happen
     }
 
+    // Save color scheme
+    guint selected = m_color_scheme_dropdown.get_selected();
+    Glib::ustring scheme;
+    if (selected == 1) {
+        scheme = "light";
+    } else if (selected == 2) {
+        scheme = "dark";
+    } else {
+        scheme = "default";
+    }
+    m_settings->set_string("color-scheme", scheme);
+    apply_color_scheme(scheme);
+
     const bool rs_enabled = m_rs_enabled_check.get_active();
     const int rs_redundancy = std::clamp(
         static_cast<int>(m_redundancy_spin.get_value()),
@@ -127,6 +191,34 @@ void PreferencesDialog::save_settings() {
 
     m_settings->set_boolean("use-reed-solomon", rs_enabled);
     m_settings->set_int("rs-redundancy-percent", rs_redundancy);
+}
+
+void PreferencesDialog::apply_color_scheme(const Glib::ustring& scheme) {
+    auto settings = Gtk::Settings::get_default();
+    if (!settings) [[unlikely]] {
+        return;
+    }
+
+    if (scheme == "light") {
+        settings->property_gtk_application_prefer_dark_theme() = false;
+    } else if (scheme == "dark") {
+        settings->property_gtk_application_prefer_dark_theme() = true;
+    } else {
+        // Default: follow system preference (reset to system default)
+        settings->reset_property("gtk-application-prefer-dark-theme");
+    }
+}
+
+void PreferencesDialog::on_color_scheme_changed() noexcept {
+    // Preview the color scheme change immediately
+    guint selected = m_color_scheme_dropdown.get_selected();
+    if (selected == 1) {
+        apply_color_scheme("light");
+    } else if (selected == 2) {
+        apply_color_scheme("dark");
+    } else {
+        apply_color_scheme("default");
+    }
 }
 
 void PreferencesDialog::on_rs_enabled_toggled() noexcept {

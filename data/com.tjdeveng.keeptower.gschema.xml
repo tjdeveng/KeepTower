@@ -37,5 +37,11 @@
       <summary>Reed-Solomon redundancy percentage</summary>
       <description>Percentage of redundancy for error correction (5-50%). Higher values provide better corruption recovery but increase file size.</description>
     </key>
+
+    <key name="color-scheme" type="s">
+      <default>'default'</default>
+      <summary>Color scheme preference</summary>
+      <description>Application appearance: 'default' follows system preference, 'light' forces light mode, 'dark' forces dark mode.</description>
+    </key>
   </schema>
 </schemalist>

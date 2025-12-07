@@ -28,7 +28,9 @@ private:
     void setup_ui();
     void load_settings();
     void save_settings();
+    void apply_color_scheme(const Glib::ustring& scheme);
     void on_rs_enabled_toggled() noexcept;
+    void on_color_scheme_changed() noexcept;
     void on_response(int response_id) noexcept;
 
     // Constants
@@ -43,6 +45,16 @@ private:
 
     // UI widgets
     Gtk::Box m_content_box;
+
+    // Appearance section
+    Gtk::Box m_appearance_box;
+    Gtk::Label m_appearance_title;
+    Gtk::Label m_appearance_description;
+    Gtk::Box m_color_scheme_box;
+    Gtk::Label m_color_scheme_label;
+    Gtk::DropDown m_color_scheme_dropdown;
+
+    // Reed-Solomon section
     Gtk::Box m_rs_box;
     Gtk::Label m_rs_title;
     Gtk::Label m_rs_description;

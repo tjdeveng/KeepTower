@@ -44,8 +44,24 @@ MainWindow::MainWindow()
     set_title(PROJECT_NAME);
     set_default_size(1000, 700);
 
-    // Load Reed-Solomon settings from GSettings and apply to VaultManager
+    // Load settings from GSettings
     auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
+
+    // Apply color scheme
+    Glib::ustring color_scheme = settings->get_string("color-scheme");
+    auto gtk_settings = Gtk::Settings::get_default();
+    if (gtk_settings) {
+        if (color_scheme == "light") {
+            gtk_settings->property_gtk_application_prefer_dark_theme() = false;
+        } else if (color_scheme == "dark") {
+            gtk_settings->property_gtk_application_prefer_dark_theme() = true;
+        } else {
+            // Default: follow system preference
+            gtk_settings->reset_property("gtk-application-prefer-dark-theme");
+        }
+    }
+
+    // Load Reed-Solomon settings and apply to VaultManager
     bool use_rs = settings->get_boolean("use-reed-solomon");
     int rs_redundancy = settings->get_int("rs-redundancy-percent");
     m_vault_manager->set_reed_solomon_enabled(use_rs);
