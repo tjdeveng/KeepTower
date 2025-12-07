@@ -45,6 +45,16 @@ meson compile -C build
 meson test -C build
 ```
 
+### Generate API Documentation
+
+Doxygen API documentation can be generated with:
+
+```bash
+doxygen Doxyfile
+```
+
+The HTML documentation will be created in `docs/api/html/`. Open `docs/api/html/index.html` in your browser to view it.
+
 ## Installation
 
 ```bash
@@ -56,6 +66,14 @@ meson install -C build
 ```bash
 keeptower
 ```
+
+## Documentation
+
+- **README.md** - This file
+- **docs/api/** - Doxygen API documentation (generated)
+- **CODE_REVIEW.md** - Security audit and code review
+- **CONTRIBUTING.md** - Contribution guidelines
+- **SECURITY.md** - Security policy and vulnerability reporting
 
 ## License
 

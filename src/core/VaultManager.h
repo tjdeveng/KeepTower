@@ -1,6 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2025 tjdeveng
 
+/**
+ * @file VaultManager.h
+ * @brief Secure password vault management with AES-256-GCM encryption
+ *
+ * This file contains the VaultManager class which handles encrypted storage
+ * of password records using modern cryptographic standards.
+ */
+
 #ifndef VAULTMANAGER_H
 #define VAULTMANAGER_H
 
@@ -17,7 +25,12 @@
 // Forward declarations for OpenSSL types
 typedef struct evp_cipher_ctx_st EVP_CIPHER_CTX;
 
-// RAII wrapper for OpenSSL cipher context
+/**
+ * @brief RAII wrapper for OpenSSL cipher context
+ *
+ * Provides automatic resource management for EVP_CIPHER_CTX to prevent
+ * memory leaks and ensure proper cleanup in exception scenarios.
+ */
 class EVPCipherContext {
 public:
     EVPCipherContext();
@@ -29,34 +42,190 @@ public:
     EVPCipherContext(EVPCipherContext&&) = delete;
     EVPCipherContext& operator=(EVPCipherContext&&) = delete;
 
+    /**
+     * @brief Get the underlying OpenSSL context pointer
+     * @return Raw pointer to EVP_CIPHER_CTX
+     */
     EVP_CIPHER_CTX* get() noexcept { return ctx_; }
+
+    /**
+     * @brief Check if the context is valid
+     * @return true if context was successfully created, false otherwise
+     */
     [[nodiscard]] bool is_valid() const noexcept { return ctx_ != nullptr; }
 
 private:
     EVP_CIPHER_CTX* ctx_;
 };
 
+/**
+ * @brief Manages encrypted password vaults with AES-256-GCM encryption
+ *
+ * VaultManager provides secure storage and retrieval of password records
+ * using industry-standard encryption and key derivation.
+ *
+ * @section features Features
+ * - AES-256-GCM authenticated encryption
+ * - PBKDF2-SHA256 key derivation (100,000 iterations default)
+ * - Atomic file operations with automatic backups
+ * - Memory protection with mlock() and secure erasure
+ * - File format versioning for future compatibility
+ *
+ * @section security Security
+ * - Encryption keys derived from user password using PBKDF2
+ * - Random salt (32 bytes) per vault
+ * - Random IV (12 bytes) per encryption operation
+ * - Authentication tags verify data integrity
+ * - Sensitive data cleared with OPENSSL_cleanse()
+ *
+ * @section usage Usage Example
+ * @code
+ * VaultManager vm;
+ *
+ * // Create new vault
+ * if (!vm.create_vault("/path/to/vault.vault", "strong_password")) {
+ *     // Handle error
+ * }
+ *
+ * // Add account
+ * keeptower::AccountRecord account;
+ * account.set_account_name("Example");
+ * account.set_user_name("user@example.com");
+ * vm.add_account(account);
+ *
+ * // Save and close
+ * vm.save_vault();
+ * vm.close_vault();
+ * @endcode
+ */
 class VaultManager {
 public:
     VaultManager();
     ~VaultManager();
 
     // Vault operations
+
+    /**
+     * @brief Create a new encrypted vault
+     * @param path Filesystem path where vault will be created
+     * @param password Master password for vault encryption
+     * @return true if vault created successfully, false on error
+     *
+     * Creates a new vault file with:
+     * - Magic header (0x5641554C / "VAUL")
+     * - Version number (1)
+     * - PBKDF2 iteration count
+     * - Random salt (32 bytes)
+     * - Empty encrypted data
+     *
+     * @note File permissions set to 0600 (owner read/write only)
+     * @warning Overwrites existing file at path
+     */
     [[nodiscard]] bool create_vault(const std::string& path, const Glib::ustring& password);
+
+    /**
+     * @brief Open and decrypt an existing vault
+     * @param path Filesystem path to vault file
+     * @param password Master password for vault decryption
+     * @return true if vault opened successfully, false on error
+     *
+     * Validates file format, verifies authentication tag, and loads accounts.
+     *
+     * @note Fails if vault is already open
+     * @note Password verification is implicit through decryption success
+     */
     [[nodiscard]] bool open_vault(const std::string& path, const Glib::ustring& password);
+
+    /**
+     * @brief Save vault to disk
+     * @return true if saved successfully, false on error
+     *
+     * Performs atomic save operation:
+     * 1. Creates backup of existing vault (.backup)
+     * 2. Writes to temporary file
+     * 3. Renames temporary to actual vault
+     *
+     * @note Requires vault to be open
+     */
     [[nodiscard]] bool save_vault();
+
+    /**
+     * @brief Close vault and clear sensitive data
+     * @return true if closed successfully, false on error
+     *
+     * Securely erases encryption keys and other sensitive data from memory.
+     */
     [[nodiscard]] bool close_vault();
 
     // Account operations
+
+    /**
+     * @brief Add new account to vault
+     * @param account Account record to add
+     * @return true if added successfully, false on error
+     *
+     * @note Requires vault to be open
+     * @note Call save_vault() to persist changes
+     */
     [[nodiscard]] bool add_account(const keeptower::AccountRecord& account);
+
+    /**
+     * @brief Get all accounts from vault
+     * @return Vector of all account records
+     *
+     * @note Returns empty vector if vault not open
+     */
     [[nodiscard]] std::vector<keeptower::AccountRecord> get_all_accounts() const;
+
+    /**
+     * @brief Update existing account
+     * @param index Zero-based index of account to update
+     * @param account New account data
+     * @return true if updated successfully, false on error
+     *
+     * @note Requires vault to be open
+     * @note Call save_vault() to persist changes
+     */
     [[nodiscard]] bool update_account(size_t index, const keeptower::AccountRecord& account);
+
+    /**
+     * @brief Delete account from vault
+     * @param index Zero-based index of account to delete
+     * @return true if deleted successfully, false on error
+     *
+     * @note Requires vault to be open
+     * @note Call save_vault() to persist changes
+     */
     [[nodiscard]] bool delete_account(size_t index);
+
+    /**
+     * @brief Get read-only pointer to account
+     * @param index Zero-based index of account
+     * @return Pointer to account or nullptr if invalid index
+     */
     const keeptower::AccountRecord* get_account(size_t index) const;
+
+    /**
+     * @brief Get mutable pointer to account
+     * @param index Zero-based index of account
+     * @return Pointer to account or nullptr if invalid index
+     *
+     * @note Changes must be followed by save_vault() to persist
+     */
     keeptower::AccountRecord* get_account_mutable(size_t index);
+
+    /**
+     * @brief Get number of accounts in vault
+     * @return Account count, or 0 if vault not open
+     */
     [[nodiscard]] size_t get_account_count() const;
 
     // State queries
+
+    /**
+     * @brief Check if vault is currently open
+     * @return true if vault is open, false otherwise
+     */
     bool is_vault_open() const { return m_vault_open; }
     std::string get_current_vault_path() const { return m_current_vault_path; }
     bool is_modified() const { return m_modified; }

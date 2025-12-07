@@ -57,7 +57,20 @@ if gtest_dep.found()
   subdir('tests')
 endif
 
-# Summary
+# Documentation (optional, only if doxygen is available)
+doxygen = find_program('doxygen', required: false)
+if doxygen.found()
+  message('Doxygen found, API documentation target enabled')
+
+  # Run doxygen target
+  run_target('doxygen',
+    command: [doxygen, meson.project_source_root() / 'Doxyfile'],
+  )
+
+  message('Run "ninja doxygen" or "meson compile -C build doxygen" to generate API documentation')
+else
+  message('Doxygen not found, API documentation disabled')
+endif# Summary
 summary({
   'prefix': get_option('prefix'),
   'bindir': get_option('bindir'),

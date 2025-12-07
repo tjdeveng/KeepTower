@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2025 tjdeveng
 
+/**
+ * @file MainWindow.h
+ * @brief Main application window for KeepTower
+ */
+
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
@@ -9,28 +14,51 @@
 #include <memory>
 #include "../../core/VaultManager.h"
 
+/**
+ * @namespace UI
+ * @brief User interface constants and configuration
+ */
 namespace UI {
     // Window dimensions
-    inline constexpr int DEFAULT_WIDTH = 800;
-    inline constexpr int DEFAULT_HEIGHT = 600;
-    inline constexpr int ACCOUNT_LIST_WIDTH = 300;
+    inline constexpr int DEFAULT_WIDTH = 800;  ///< Default window width in pixels
+    inline constexpr int DEFAULT_HEIGHT = 600; ///< Default window height in pixels
+    inline constexpr int ACCOUNT_LIST_WIDTH = 300; ///< Account list pane width
 
     // Dialog dimensions
-    inline constexpr int PASSWORD_DIALOG_WIDTH = 500;
-    inline constexpr int PASSWORD_DIALOG_HEIGHT = 400;
+    inline constexpr int PASSWORD_DIALOG_WIDTH = 500;  ///< Password dialog width
+    inline constexpr int PASSWORD_DIALOG_HEIGHT = 400; ///< Password dialog height
 
     // Timing (milliseconds)
-    inline constexpr int CLIPBOARD_CLEAR_TIMEOUT_MS = 30000;  // 30 seconds
+    inline constexpr int CLIPBOARD_CLEAR_TIMEOUT_MS = 30000;  ///< Auto-clear clipboard after 30 seconds
 
     // Field length limits (characters)
-    inline constexpr int MAX_NOTES_LENGTH = 1000;
-    inline constexpr int MAX_ACCOUNT_NAME_LENGTH = 256;
-    inline constexpr int MAX_USERNAME_LENGTH = 256;
-    inline constexpr int MAX_PASSWORD_LENGTH = 512;
-    inline constexpr int MAX_EMAIL_LENGTH = 256;
-    inline constexpr int MAX_WEBSITE_LENGTH = 512;
+    inline constexpr int MAX_NOTES_LENGTH = 1000;         ///< Maximum notes field length
+    inline constexpr int MAX_ACCOUNT_NAME_LENGTH = 256;   ///< Maximum account name length
+    inline constexpr int MAX_USERNAME_LENGTH = 256;       ///< Maximum username length
+    inline constexpr int MAX_PASSWORD_LENGTH = 512;       ///< Maximum password length
+    inline constexpr int MAX_EMAIL_LENGTH = 256;          ///< Maximum email length
+    inline constexpr int MAX_WEBSITE_LENGTH = 512;        ///< Maximum website URL length
 }
 
+/**
+ * @brief Main application window for password management
+ *
+ * Provides the primary user interface for managing encrypted password vaults.
+ * Supports creating, opening, and managing multiple account records within vaults.
+ *
+ * @section features Window Features
+ * - Split pane with account list and detail view
+ * - Search/filter accounts
+ * - Password visibility toggle
+ * - Copy password to clipboard with auto-clear
+ * - Input validation on all fields
+ * - Real-time account updates
+ *
+ * @section security Security Features
+ * - Field length validation
+ * - Clipboard auto-clear (30 seconds)
+ * - Password masking by default
+ */
 class MainWindow : public Gtk::ApplicationWindow {
 public:
     MainWindow();
@@ -38,16 +66,16 @@ public:
 
 protected:
     // Signal handlers
-    void on_new_vault();
-    void on_open_vault();
-    void on_save_vault();
-    void on_close_vault();
-    void on_add_account();
-    void on_copy_password();
-    void on_toggle_password_visibility();
-    void on_search_changed();
-    void on_selection_changed();
-    void on_account_selected(const Gtk::TreeModel::Path& path, Gtk::TreeViewColumn* column);
+    void on_new_vault();      ///< Create new vault
+    void on_open_vault();     ///< Open existing vault
+    void on_save_vault();     ///< Save current vault
+    void on_close_vault();    ///< Close current vault
+    void on_add_account();    ///< Add new account
+    void on_copy_password();  ///< Copy password to clipboard
+    void on_toggle_password_visibility();  ///< Show/hide password
+    void on_search_changed(); ///< Filter accounts by search
+    void on_selection_changed();  ///< Handle account selection
+    void on_account_selected(const Gtk::TreeModel::Path& path, Gtk::TreeViewColumn* column);  ///< Double-click handler
 
     // Helper methods
     void save_current_account();

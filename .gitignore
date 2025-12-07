@@ -9,6 +9,11 @@ _build/
 # Meson generated files
 compile_commands.json
 
+# Doxygen generated documentation
+docs/api/html/
+docs/api/latex/
+docs/api/*.tag
+
 # Test vault files
 *.vault
 *.vault.backup
