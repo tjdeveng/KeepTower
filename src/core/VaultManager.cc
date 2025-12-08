@@ -15,6 +15,8 @@
 
 #ifdef __linux__
 #include <sys/mman.h>  // For mlock/munlock
+#include <fcntl.h>     // For open()
+#include <unistd.h>    // For fsync(), close()
 #elif defined(_WIN32)
 #include <windows.h>   // For VirtualLock/VirtualUnlock
 #endif
@@ -576,6 +578,16 @@ bool VaultManager::write_vault_file(const std::string& path, const std::vector<u
 
         // Atomic rename (POSIX guarantees atomicity)
         fs::rename(temp_path, path);
+
+        // Sync directory to ensure rename is durable
+        #ifdef __linux__
+        std::string dir_path = fs::path(path).parent_path().string();
+        int dir_fd = open(dir_path.c_str(), O_RDONLY | O_DIRECTORY);
+        if (dir_fd >= 0) {
+            fsync(dir_fd);
+            close(dir_fd);
+        }
+        #endif
 
         // Set secure file permissions (owner read/write only)
         fs::permissions(path,
