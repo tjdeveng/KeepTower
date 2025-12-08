@@ -7,6 +7,9 @@
 #include <gtkmm.h>
 #include <giomm/settings.h>
 
+// Forward declaration
+class VaultManager;
+
 /**
  * @brief Preferences dialog for application settings
  *
@@ -15,7 +18,7 @@
  */
 class PreferencesDialog final : public Gtk::Dialog {
 public:
-    explicit PreferencesDialog(Gtk::Window& parent);
+    explicit PreferencesDialog(Gtk::Window& parent, VaultManager* vault_manager = nullptr);
     ~PreferencesDialog() override = default;
 
     // Prevent copying and moving
@@ -46,6 +49,7 @@ private:
 
     // Settings
     Glib::RefPtr<Gio::Settings> m_settings;
+    VaultManager* m_vault_manager;  // Non-owning pointer
 
     // UI widgets
     Gtk::Box m_content_box;
@@ -68,6 +72,7 @@ private:
     Gtk::SpinButton m_redundancy_spin;
     Gtk::Label m_redundancy_suffix;
     Gtk::Label m_redundancy_help;
+    Gtk::CheckButton m_apply_to_current_check;
 
     // Backup section
     Gtk::Box m_backup_box;

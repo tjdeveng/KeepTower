@@ -2,10 +2,12 @@
 // SPDX-FileCopyrightText: 2025 tjdeveng
 
 #include "PreferencesDialog.h"
+#include "../../core/VaultManager.h"
 #include <stdexcept>
 
-PreferencesDialog::PreferencesDialog(Gtk::Window& parent)
+PreferencesDialog::PreferencesDialog(Gtk::Window& parent, VaultManager* vault_manager)
     : Gtk::Dialog("Preferences", parent, true),
+      m_vault_manager(vault_manager),
       m_content_box(Gtk::Orientation::VERTICAL, 12),
       m_appearance_box(Gtk::Orientation::VERTICAL, 6),
       m_appearance_title("<b>Appearance</b>"),
@@ -20,6 +22,7 @@ PreferencesDialog::PreferencesDialog(Gtk::Window& parent)
       m_redundancy_label("Redundancy level:"),
       m_redundancy_suffix("%"),
       m_redundancy_help("Higher values provide more protection but increase file size.\nCan recover up to half the redundancy percentage in corruption."),
+      m_apply_to_current_check("Apply to current vault (overrides file's original settings)"),
       m_backup_box(Gtk::Orientation::VERTICAL, 6),
       m_backup_title("<b>Automatic Backups</b>"),
       m_backup_description("Create timestamped backups when saving vaults to protect against accidental data loss"),
@@ -133,6 +136,13 @@ void PreferencesDialog::setup_ui() {
     m_redundancy_help.set_halign(Gtk::Align::START);
     m_redundancy_help.add_css_class("dim-label");
     m_rs_box.append(m_redundancy_help);
+
+    // Apply to current vault checkbox (only show if vault is open)
+    if (m_vault_manager && m_vault_manager->is_vault_open()) {
+        m_apply_to_current_check.set_margin_top(6);
+        m_apply_to_current_check.add_css_class("warning");
+        m_rs_box.append(m_apply_to_current_check);
+    }
 
     m_content_box.append(m_rs_box);
 
@@ -266,6 +276,12 @@ void PreferencesDialog::save_settings() {
 
     m_settings->set_boolean("use-reed-solomon", rs_enabled);
     m_settings->set_int("rs-redundancy-percent", rs_redundancy);
+
+    // Apply to current vault if requested
+    if (m_vault_manager && m_vault_manager->is_vault_open() && m_apply_to_current_check.get_active()) {
+        m_vault_manager->set_reed_solomon_enabled(rs_enabled);
+        m_vault_manager->set_rs_redundancy_percent(rs_redundancy);
+    }
 
     // Save backup settings
     const bool backup_enabled = m_backup_enabled_check.get_active();

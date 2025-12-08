@@ -904,7 +904,7 @@ bool MainWindow::prompt_save_if_modified() {
 
 void MainWindow::on_preferences() {
     // Use unique_ptr for automatic cleanup
-    auto dialog = std::make_unique<PreferencesDialog>(*this);
+    auto dialog = std::make_unique<PreferencesDialog>(*this, m_vault_manager.get());
     dialog->set_hide_on_close(true);
 
     // Transfer ownership to lambda for proper RAII cleanup
