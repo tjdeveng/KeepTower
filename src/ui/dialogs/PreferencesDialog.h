@@ -34,6 +34,7 @@ private:
     void apply_color_scheme(const Glib::ustring& scheme);
     void on_rs_enabled_toggled() noexcept;
     void on_backup_enabled_toggled() noexcept;
+    void on_apply_to_current_toggled() noexcept;
     void on_color_scheme_changed() noexcept;
     void on_response(int response_id) noexcept;
 

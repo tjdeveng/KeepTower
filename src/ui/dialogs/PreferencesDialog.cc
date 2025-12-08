@@ -52,6 +52,12 @@ PreferencesDialog::PreferencesDialog(Gtk::Window& parent, VaultManager* vault_ma
     m_backup_enabled_check.signal_toggled().connect(
         sigc::mem_fun(*this, &PreferencesDialog::on_backup_enabled_toggled));
 
+    // Connect apply-to-current checkbox to reload settings when toggled
+    if (m_vault_manager && m_vault_manager->is_vault_open()) {
+        m_apply_to_current_check.signal_toggled().connect(
+            sigc::mem_fun(*this, &PreferencesDialog::on_apply_to_current_toggled));
+    }
+
     signal_response().connect(
         sigc::mem_fun(*this, &PreferencesDialog::on_response));
 }
@@ -217,8 +223,22 @@ void PreferencesDialog::load_settings() {
         m_color_scheme_dropdown.set_selected(0);  // default
     }
 
-    bool rs_enabled = m_settings->get_boolean("use-reed-solomon");
-    int rs_redundancy = m_settings->get_int("rs-redundancy-percent");
+    // If vault is open, show current vault settings and check the "apply to current" box
+    // Otherwise, show default settings from preferences
+    bool rs_enabled;
+    int rs_redundancy;
+
+    if (m_vault_manager && m_vault_manager->is_vault_open()) {
+        // Show current vault's FEC settings
+        rs_enabled = m_vault_manager->is_reed_solomon_enabled();
+        rs_redundancy = m_vault_manager->get_rs_redundancy_percent();
+        // Check the "apply to current vault" checkbox by default
+        m_apply_to_current_check.set_active(true);
+    } else {
+        // Show default settings from preferences
+        rs_enabled = m_settings->get_boolean("use-reed-solomon");
+        rs_redundancy = m_settings->get_int("rs-redundancy-percent");
+    }
 
     // Validate and clamp redundancy value for security
     rs_redundancy = std::clamp(rs_redundancy, MIN_REDUNDANCY, MAX_REDUNDANCY);
@@ -274,10 +294,11 @@ void PreferencesDialog::save_settings() {
         MAX_REDUNDANCY
     );
 
+    // Always save to preferences (default settings for new vaults)
     m_settings->set_boolean("use-reed-solomon", rs_enabled);
     m_settings->set_int("rs-redundancy-percent", rs_redundancy);
 
-    // Apply to current vault if requested
+    // If checkbox is checked, also apply to current vault
     if (m_vault_manager && m_vault_manager->is_vault_open() && m_apply_to_current_check.get_active()) {
         m_vault_manager->set_reed_solomon_enabled(rs_enabled);
         m_vault_manager->set_rs_redundancy_percent(rs_redundancy);
@@ -339,6 +360,35 @@ void PreferencesDialog::on_backup_enabled_toggled() noexcept {
     m_backup_count_spin.set_sensitive(enabled);
     m_backup_count_suffix.set_sensitive(enabled);
     m_backup_help.set_sensitive(enabled);
+}
+
+void PreferencesDialog::on_apply_to_current_toggled() noexcept {
+    if (!m_vault_manager || !m_vault_manager->is_vault_open()) {
+        return;
+    }
+
+    // When toggled, reload FEC settings to show either vault or default settings
+    bool rs_enabled;
+    int rs_redundancy;
+
+    if (m_apply_to_current_check.get_active()) {
+        // Show current vault's FEC settings
+        rs_enabled = m_vault_manager->is_reed_solomon_enabled();
+        rs_redundancy = m_vault_manager->get_rs_redundancy_percent();
+    } else {
+        // Show default settings from preferences
+        if (m_settings) {
+            rs_enabled = m_settings->get_boolean("use-reed-solomon");
+            rs_redundancy = m_settings->get_int("rs-redundancy-percent");
+            rs_redundancy = std::clamp(rs_redundancy, MIN_REDUNDANCY, MAX_REDUNDANCY);
+        } else {
+            return;
+        }
+    }
+
+    // Update UI to reflect the appropriate settings
+    m_rs_enabled_check.set_active(rs_enabled);
+    m_redundancy_spin.set_value(rs_redundancy);
 }
 
 void PreferencesDialog::on_response(int response_id) noexcept {
