@@ -2,15 +2,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
   <defs>
     <style>
-      .cls-1 { fill: #5e5c64; }
-      .cls-2 { fill: #3d3846; }
-      .cls-3 { fill: #77767b; }
+      .cls-1 { fill: #62a0ea; }
+      .cls-2 { fill: #3584e4; }
+      .cls-3 { fill: #99c1f1; }
       .cls-4 { fill: #1a5fb4; }
+      .cls-border { fill: none; stroke: #1c1c1c; stroke-width: 2; opacity: 0.3; }
     </style>
   </defs>
 
-  <!-- Tower base -->
+  <!-- Tower base with border -->
   <rect class="cls-1" x="32" y="48" width="64" height="64" rx="2"/>
+  <rect class="cls-border" x="32" y="48" width="64" height="64" rx="2"/>
 
   <!-- Tower battlements (crenellations) -->
   <rect class="cls-2" x="32" y="40" width="12" height="12"/>
@@ -19,19 +21,19 @@
   <rect class="cls-2" x="92" y="40" width="12" height="12"/>
 
   <!-- Door -->
-  <path class="cls-2" d="M 56 80 L 56 108 L 72 108 L 72 80 Q 64 76 56 80 Z"/>
+  <path class="cls-4" d="M 56 80 L 56 108 L 72 108 L 72 80 Q 64 76 56 80 Z"/>
 
   <!-- Window -->
   <rect class="cls-4" x="58" y="60" width="12" height="12" rx="1"/>
 
   <!-- Tower highlights -->
-  <rect class="cls-3" x="34" y="50" width="2" height="58" opacity="0.3"/>
+  <rect class="cls-3" x="34" y="50" width="3" height="58" opacity="0.5"/>
 
   <!-- Key symbol overlay (security theme) -->
   <g transform="translate(82, 88)">
-    <circle class="cls-4" cx="8" cy="8" r="5" fill="none" stroke="currentColor" stroke-width="2"/>
-    <line class="cls-4" x1="8" y1="13" x2="8" y2="20" stroke="currentColor" stroke-width="2"/>
-    <line class="cls-4" x1="6" y1="16" x2="10" y2="16" stroke="currentColor" stroke-width="2"/>
-    <line class="cls-4" x1="6" y1="19" x2="10" y2="19" stroke="currentColor" stroke-width="2"/>
+    <circle class="cls-4" cx="8" cy="8" r="5" fill="none" stroke="#1a5fb4" stroke-width="2.5"/>
+    <line x1="8" y1="13" x2="8" y2="20" stroke="#1a5fb4" stroke-width="2.5"/>
+    <line x1="6" y1="16" x2="10" y2="16" stroke="#1a5fb4" stroke-width="2.5"/>
+    <line x1="6" y1="19" x2="10" y2="19" stroke="#1a5fb4" stroke-width="2.5"/>
   </g>
 </svg>

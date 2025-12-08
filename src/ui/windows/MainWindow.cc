@@ -15,15 +15,7 @@
 
 MainWindow::MainWindow()
     : m_main_box(Gtk::Orientation::VERTICAL, 0),
-      m_toolbar_box(Gtk::Orientation::HORIZONTAL, 6),
-      m_new_button("_New Vault", true),
-      m_open_button("_Open Vault", true),
-      m_save_button("_Save", true),
-      m_close_button("_Close Vault", true),
-      m_add_account_button("_Add Account", true),
-      m_preferences_button("_Preferences", true),
-      m_search_box(Gtk::Orientation::HORIZONTAL, 6),
-      m_search_label("Search:"),
+      m_search_box(Gtk::Orientation::HORIZONTAL, 12),
       m_paned(Gtk::Orientation::HORIZONTAL),
       m_details_box(Gtk::Orientation::VERTICAL, 12),
       m_account_name_label("Account Name:"),
@@ -73,33 +65,55 @@ MainWindow::MainWindow()
     m_vault_manager->set_backup_enabled(backup_enabled);
     m_vault_manager->set_backup_count(backup_count);
 
+    // Setup HeaderBar (modern GNOME design)
+    set_titlebar(m_header_bar);
+    m_header_bar.set_show_title_buttons(true);
+
+    // Left side of HeaderBar - Vault operations
+    m_new_button.set_icon_name("document-new-symbolic");
+    m_new_button.set_tooltip_text("Create New Vault");
+    m_header_bar.pack_start(m_new_button);
+
+    m_open_button.set_icon_name("document-open-symbolic");
+    m_open_button.set_tooltip_text("Open Vault");
+    m_header_bar.pack_start(m_open_button);
+
+    m_close_button.set_icon_name("window-close-symbolic");
+    m_close_button.set_tooltip_text("Close Vault");
+    m_close_button.add_css_class("destructive-action");
+    m_header_bar.pack_start(m_close_button);
+
+    m_save_button.set_icon_name("document-save-symbolic");
+    m_save_button.set_tooltip_text("Save Vault");
+    m_save_button.add_css_class("suggested-action");
+    m_header_bar.pack_start(m_save_button);
+
+    // Right side of HeaderBar - Record operations and menu
+    m_add_account_button.set_icon_name("list-add-symbolic");
+    m_add_account_button.set_tooltip_text("Add Account");
+    m_header_bar.pack_end(m_add_account_button);
+
+    // Primary menu (hamburger menu)
+    m_primary_menu = Gio::Menu::create();
+    m_primary_menu->append("_Preferences", "app.preferences");
+    m_primary_menu->append("_Keyboard Shortcuts", "win.show-help-overlay");
+    m_primary_menu->append("_About KeepTower", "app.about");
+    m_menu_button.set_icon_name("open-menu-symbolic");
+    m_menu_button.set_menu_model(m_primary_menu);
+    m_menu_button.set_tooltip_text("Main Menu");
+    m_header_bar.pack_end(m_menu_button);
+
     // Setup the main container
     set_child(m_main_box);
 
-    // Setup toolbar
-    m_toolbar_box.set_margin(6);
-    m_toolbar_box.append(m_new_button);
-    m_toolbar_box.append(m_open_button);
-    m_toolbar_box.append(m_save_button);
-    m_toolbar_box.append(m_add_account_button);
-    m_toolbar_box.append(m_preferences_button);
-
-    // Add spacer to push close button to the right
-    auto spacer = Gtk::make_managed<Gtk::Box>();
-    spacer->set_hexpand(true);
-    m_toolbar_box.append(*spacer);
-
-    m_toolbar_box.append(m_close_button);
-
-    m_main_box.append(m_toolbar_box);
-    m_main_box.append(m_separator);
-
-    // Setup search box
-    m_search_box.set_margin(6);
-    m_search_label.set_margin_end(6);
+    // Setup search box (modern GNOME search bar style)
+    m_search_box.set_margin_start(12);
+    m_search_box.set_margin_end(12);
+    m_search_box.set_margin_top(12);
+    m_search_box.set_margin_bottom(6);
     m_search_entry.set_hexpand(true);
-    m_search_entry.set_placeholder_text("Search accounts...");
-    m_search_box.append(m_search_label);
+    m_search_entry.set_placeholder_text("Search accounts…");
+    m_search_entry.add_css_class("search");
     m_search_box.append(m_search_entry);
     m_main_box.append(m_search_box);
 
@@ -119,7 +133,10 @@ MainWindow::MainWindow()
     m_paned.set_start_child(m_list_scrolled);
 
     // Setup account details (right side)
-    m_details_box.set_margin(12);
+    m_details_box.set_margin_start(18);
+    m_details_box.set_margin_end(18);
+    m_details_box.set_margin_top(18);
+    m_details_box.set_margin_bottom(18);
 
     m_account_name_label.set_xalign(0.0);
     m_account_name_entry.set_margin_bottom(12);
@@ -166,8 +183,12 @@ MainWindow::MainWindow()
     m_main_box.append(m_paned);
 
     // Setup status bar
-    m_status_label.set_margin(6);
+    m_status_label.set_margin_start(12);
+    m_status_label.set_margin_end(12);
+    m_status_label.set_margin_top(6);
+    m_status_label.set_margin_bottom(6);
     m_status_label.set_xalign(0.0);
+    m_status_label.add_css_class("dim-label");
     m_main_box.append(m_status_label);
 
     // Configure buttons
@@ -175,15 +196,9 @@ MainWindow::MainWindow()
     m_close_button.set_sensitive(false);
     m_add_account_button.set_sensitive(false);
 
-    // Set button icons
-    m_new_button.set_icon_name("document-new");
-    m_open_button.set_icon_name("document-open");
-    m_save_button.set_icon_name("document-save");
-    m_add_account_button.set_icon_name("list-add");
-    m_preferences_button.set_icon_name("preferences-system");
-    m_close_button.set_icon_name("window-close");
+    // Set remaining button icons
     m_show_password_button.set_icon_name("view-reveal-symbolic");
-    m_copy_password_button.set_icon_name("edit-copy");
+    m_copy_password_button.set_icon_name("edit-copy-symbolic");
 
     // Connect signals
     m_new_button.signal_clicked().connect(
@@ -200,9 +215,6 @@ MainWindow::MainWindow()
     );
     m_add_account_button.signal_clicked().connect(
         sigc::mem_fun(*this, &MainWindow::on_add_account)
-    );
-    m_preferences_button.signal_clicked().connect(
-        sigc::mem_fun(*this, &MainWindow::on_preferences)
     );
     m_show_password_button.signal_clicked().connect(
         sigc::mem_fun(*this, &MainWindow::on_toggle_password_visibility)

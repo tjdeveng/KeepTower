@@ -91,20 +91,20 @@ protected:
 
     // Member widgets
     Gtk::Box m_main_box;
-    Gtk::Box m_toolbar_box;
+    Gtk::HeaderBar m_header_bar;
 
     Gtk::Button m_new_button;
     Gtk::Button m_open_button;
     Gtk::Button m_save_button;
     Gtk::Button m_close_button;
     Gtk::Button m_add_account_button;
-    Gtk::Button m_preferences_button;
+    Gtk::MenuButton m_menu_button;
 
-    Gtk::Separator m_separator;
+    // Primary menu
+    Glib::RefPtr<Gio::Menu> m_primary_menu;
 
     // Search panel
     Gtk::Box m_search_box;
-    Gtk::Label m_search_label;
     Gtk::SearchEntry m_search_entry;
 
     // Split view: list on left, details on right
