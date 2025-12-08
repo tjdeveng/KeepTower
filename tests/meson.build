@@ -112,9 +112,27 @@ vault_reed_solomon_test = executable(
     include_directories: test_inc
 )
 
+# FEC preferences tests
+fec_preferences_test = executable(
+    'fec_preferences_test',
+    'test_fec_preferences.cc',
+    '../src/core/VaultManager.cc',
+    '../src/core/ReedSolomon.cc',
+    proto_gen,
+    dependencies: [
+        gtest_dep,
+        protobuf_dep,
+        openssl_dep,
+        giomm_dep,
+        libcorrect_dep
+    ],
+    include_directories: test_inc
+)
+
 # Register all tests
 test('VaultManager Tests', vault_manager_test)
 test('Password Validation Tests', password_validation_test, timeout: 30)
 test('Input Validation Tests', input_validation_test)
 test('Reed-Solomon Tests', reed_solomon_test)
 test('Vault Reed-Solomon Integration', vault_reed_solomon_test)
+test('FEC Preferences Tests', fec_preferences_test)
