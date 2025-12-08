@@ -59,3 +59,6 @@ vgcore.*
 # Temporary files
 *.tmp
 .*.tmp
+
+# Release notes drafts
+RELEASE_NOTES_*.md
