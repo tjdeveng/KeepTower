@@ -34,8 +34,8 @@ This project adheres to a Code of Conduct that all contributors are expected to 
 
 1. **Fork and Clone**
    ```bash
-   git clone https://github.com/yourusername/keeptower.git
-   cd keeptower
+   git clone https://github.com/tjdeveng/KeepTower.git
+   cd KeepTower
    ```
 
 2. **Build**

@@ -70,10 +70,10 @@ void Application::on_action_about() {
     dialog.set_version(VERSION);
     dialog.set_comments("A GNOME GTK4 Application");
     dialog.set_license_type(Gtk::License::GPL_3_0);
-    dialog.set_website("https://github.com/yourusername/keeptower");
+    dialog.set_website("https://github.com/tjdeveng/KeepTower");
     dialog.set_website_label("GitHub Repository");
 
-    std::vector<Glib::ustring> authors = {"Your Name"};
+    std::vector<Glib::ustring> authors = {"TJDev"};
     dialog.set_authors(authors);
 
     dialog.present();

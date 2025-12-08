@@ -79,5 +79,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - No save-on-close prompts
 - No multi-vault switching in same session
 
-[Unreleased]: https://github.com/yourusername/keeptower/compare/v0.1.0-beta...HEAD
-[0.1.0-beta]: https://github.com/yourusername/keeptower/releases/tag/v0.1.0-beta
+[Unreleased]: https://github.com/tjdeveng/KeepTower/compare/v0.1.0-beta...HEAD
+[0.1.0-beta]: https://github.com/tjdeveng/KeepTower/releases/tag/v0.1.0-beta
