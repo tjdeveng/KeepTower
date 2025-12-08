@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1-beta] - 2025-12-08
+
+### Fixed
+- Fixed all GitHub Actions CI test failures on Ubuntu 24.04
+- Disabled backups and Reed-Solomon in VaultManagerTest to prevent environment-specific issues
+- Removed GTK dependency from password validation tests (pure logic tests don't need UI)
+- Fixed false Reed-Solomon detection on random ciphertext data
+- Updated placeholder references: GitHub URLs now point to tjdeveng/KeepTower
+- Updated About dialog author to "TJDev"
+
+### Changed
+- Explicitly clarified Linux-only platform support in README
+- Desktop integration improvements with proper GNOME post-install scripts
+- All 103 tests now pass reliably in CI environments
+
+### Added
+- Comprehensive installation documentation (INSTALL.md)
+- Desktop file validation in CI
+- Icon cache and desktop database updates post-install
+
 ## [0.1.0-beta] - 2025-12-07
 
 ### Added
@@ -79,5 +99,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - No save-on-close prompts
 - No multi-vault switching in same session
 
-[Unreleased]: https://github.com/tjdeveng/KeepTower/compare/v0.1.0-beta...HEAD
+[Unreleased]: https://github.com/tjdeveng/KeepTower/compare/v0.1.1-beta...HEAD
+[0.1.1-beta]: https://github.com/tjdeveng/KeepTower/compare/v0.1.0-beta...v0.1.1-beta
 [0.1.0-beta]: https://github.com/tjdeveng/KeepTower/releases/tag/v0.1.0-beta
