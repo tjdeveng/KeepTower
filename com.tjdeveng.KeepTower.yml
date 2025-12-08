@@ -1,0 +1,187 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2025 tjdeveng
+#
+# Flatpak manifest for KeepTower Password Manager
+#
+# To build and test locally:
+#   flatpak-builder --user --install --force-clean build-dir com.tjdeveng.KeepTower.yml
+#   flatpak run com.tjdeveng.KeepTower
+#
+# To uninstall:
+#   flatpak uninstall com.tjdeveng.KeepTower
+
+app-id: com.tjdeveng.keeptower
+runtime: org.gnome.Platform
+runtime-version: '47'
+sdk: org.gnome.Sdk
+command: keeptower
+
+finish-args:
+  # Display access
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+
+  # GPU acceleration (optional, for smoother UI)
+  - --device=dri
+
+  # Home directory access (for vault files)
+  # TODO: Consider restricting to xdg-documents or specific folder
+  - --filesystem=home
+
+  # Secret Service access (for potential GNOME Keyring integration)
+  - --talk-name=org.freedesktop.secrets
+
+  # Settings access (for GTK/GNOME theme preferences)
+  - --filesystem=xdg-config/gtk-3.0:ro
+  - --filesystem=xdg-config/gtk-4.0:ro
+
+  # Network access (disabled for now - password manager doesn't need it)
+  # Uncomment if you add sync/cloud features later
+  # - --share=network
+
+modules:
+  # Build abseil-cpp (required by protobuf)
+  - name: abseil-cpp
+    buildsystem: cmake
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DCMAKE_CXX_STANDARD=17
+      - -DABSL_PROPAGATE_CXX_STD=ON
+      - -DABSL_BUILD_TESTING=OFF
+    sources:
+      - type: archive
+        url: https://github.com/abseil/abseil-cpp/archive/refs/tags/20240116.2.tar.gz
+        sha256: 733726b8c3a6d39a4120d7e45ea8b41a434cdacde401cba500f14236c49b39dc
+    cleanup:
+      - /include
+      - /lib/pkgconfig
+
+  # Build protobuf (required for record serialization)
+  - name: protobuf
+    buildsystem: cmake
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -Dprotobuf_BUILD_TESTS=OFF
+      - -Dprotobuf_BUILD_EXAMPLES=OFF
+      - -Dprotobuf_ABSL_PROVIDER=package
+    sources:
+      - type: archive
+        url: https://github.com/protocolbuffers/protobuf/releases/download/v25.1/protobuf-25.1.tar.gz
+        sha256: 9bd87b8280ef720d3240514f884e56a712f2218f0d693b48050c836028940a42
+    cleanup:
+      - /bin/protoc
+      - /include
+      - /lib/pkgconfig
+      - /lib/*.la
+
+  # Build libcorrect from source (not available in Flatpak runtimes)
+  - name: libcorrect
+    buildsystem: cmake
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+    sources:
+      - type: git
+        url: https://github.com/quiet/libcorrect.git
+        # Using master branch since no stable tags exist
+        branch: master
+        commit: f5a28c74fba7a99736fe49d3a5243eca29517ae9
+    cleanup:
+      - /include
+      - /lib/pkgconfig
+      - /lib/*.a
+      - /lib/*.la
+
+  # Build libsigc++ (base dependency for all *mm libraries)
+  - name: libsigcplusplus
+    buildsystem: meson
+    config-opts:
+      - -Dbuild-documentation=false
+      - -Dbuild-examples=false
+      - -Dvalidation=false
+    sources:
+      - type: archive
+        url: https://download.gnome.org/sources/libsigc++/3.6/libsigc++-3.6.0.tar.xz
+        sha256: c3d23b37dfd6e39f2e09f091b77b1541fbfa17c4f0b6bf5c89baef7229080e17
+    cleanup:
+      - /include
+      - /lib/pkgconfig
+      - /lib/*.la
+
+  # Build glibmm (required by pangomm and gtkmm)
+  - name: glibmm
+    buildsystem: meson
+    config-opts:
+      - -Dbuild-documentation=false
+      - -Dbuild-examples=false
+    sources:
+      - type: archive
+        url: https://download.gnome.org/sources/glibmm/2.78/glibmm-2.78.1.tar.xz
+        sha256: f473f2975d26c3409e112ed11ed36406fb3843fa975df575c22d4cb843085f61
+    cleanup:
+      - /include
+      - /lib/pkgconfig
+      - /lib/*.la
+
+  # Build cairomm (gtkmm dependency)
+  - name: cairomm
+    buildsystem: meson
+    config-opts:
+      - -Dbuild-documentation=false
+      - -Dbuild-examples=false
+      - -Dbuild-tests=false
+    sources:
+      - type: archive
+        url: https://www.cairographics.org/releases/cairomm-1.18.0.tar.xz
+        sha256: b81255394e3ea8e8aa887276d22afa8985fc8daef60692eb2407d23049f03cfb
+    cleanup:
+      - /include
+      - /lib/pkgconfig
+      - /lib/*.la
+
+  # Build pangomm (gtkmm dependency)
+  - name: pangomm
+    buildsystem: meson
+    config-opts:
+      - -Dbuild-documentation=false
+    sources:
+      - type: archive
+        url: https://download.gnome.org/sources/pangomm/2.52/pangomm-2.52.0.tar.xz
+        sha256: 34a134126a6484ff12f774358c36ecc44d0e9df094e1b83796d9774bb7d24947
+    cleanup:
+      - /include
+      - /lib/pkgconfig
+      - /lib/*.la
+
+  # Build gtkmm-4.0 (not included in GNOME Platform 47)
+  - name: gtkmm
+    buildsystem: meson
+    config-opts:
+      - -Dbuild-documentation=false
+      - -Dbuild-demos=false
+      - -Dbuild-tests=false
+    sources:
+      - type: archive
+        url: https://download.gnome.org/sources/gtkmm/4.14/gtkmm-4.14.0.tar.xz
+        sha256: 9350a0444b744ca3dc69586ebd1b6707520922b6d9f4f232103ce603a271ecda
+    cleanup:
+      - /include
+      - /lib/pkgconfig
+      - /lib/*.la
+
+  # KeepTower application
+  - name: keeptower
+    buildsystem: meson
+    config-opts:
+      - -Dbuildtype=release
+    sources:
+      # For development/testing: Use local directory
+      - type: dir
+        path: .
+
+      # For Flathub submission: Use git tag instead
+      # Uncomment and update when ready to submit:
+      # - type: git
+      #   url: https://github.com/tjdeveng/KeepTower.git
+      #   tag: v0.1.1-beta
+      #   commit: <full-commit-hash>
