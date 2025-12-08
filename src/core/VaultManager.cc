@@ -39,6 +39,7 @@ VaultManager::VaultManager()
       m_modified(false),
       m_use_reed_solomon(false),
       m_rs_redundancy_percent(10),
+      m_fec_loaded_from_file(false),
       m_backup_enabled(true),
       m_backup_count(5),
       m_pbkdf2_iterations(DEFAULT_PBKDF2_ITERATIONS) {
@@ -117,6 +118,8 @@ bool VaultManager::open_vault(const std::string& path, const Glib::ustring& pass
     // Check for Reed-Solomon encoding
     size_t ciphertext_offset = SALT_LENGTH + IV_LENGTH;
     std::vector<uint8_t> ciphertext;
+    bool file_has_fec = false;  // Track if this file was saved with FEC
+    uint8_t file_fec_redundancy = 10;  // Store the file's FEC redundancy
 
     // Check if there's room for flags byte and RS metadata
     if (file_data.size() > SALT_LENGTH + IV_LENGTH + 6) {  // flags(1) + redundancy(1) + original_size(4)
@@ -129,45 +132,63 @@ bool VaultManager::open_vault(const std::string& path, const Glib::ustring& pass
 
             // Validate redundancy is in acceptable range before treating as RS-encoded
             if (rs_redundancy >= 5 && rs_redundancy <= 50) {
-                ciphertext_offset += 2;  // Skip flags and redundancy bytes
-
+                // Additional validation: check if original_size makes sense
                 // Extract original size (4 bytes, big-endian)
                 uint32_t original_size =
-                    (static_cast<uint32_t>(file_data[ciphertext_offset]) << 24) |
-                    (static_cast<uint32_t>(file_data[ciphertext_offset + 1]) << 16) |
-                    (static_cast<uint32_t>(file_data[ciphertext_offset + 2]) << 8) |
-                    static_cast<uint32_t>(file_data[ciphertext_offset + 3]);
-                ciphertext_offset += 4;
+                    (static_cast<uint32_t>(file_data[SALT_LENGTH + IV_LENGTH + 2]) << 24) |
+                    (static_cast<uint32_t>(file_data[SALT_LENGTH + IV_LENGTH + 3]) << 16) |
+                    (static_cast<uint32_t>(file_data[SALT_LENGTH + IV_LENGTH + 4]) << 8) |
+                    static_cast<uint32_t>(file_data[SALT_LENGTH + IV_LENGTH + 5]);
 
-                // Extract RS-encoded data
-                std::vector<uint8_t> encoded_data(file_data.begin() + ciphertext_offset,
-                                                 file_data.end());
+                // Calculate expected encoded size
+                size_t data_offset = SALT_LENGTH + IV_LENGTH + 6;
+                size_t encoded_size = file_data.size() - data_offset;
 
-                // Create ReedSolomon instance if needed
-                if (!m_reed_solomon || m_rs_redundancy_percent != rs_redundancy) {
-                    m_reed_solomon = std::make_unique<ReedSolomon>(rs_redundancy);
+                // Sanity check: original size should be less than encoded size
+                // Reed-Solomon uses 255-byte blocks, so the ratio can be high for small data
+                // Just verify that original_size is reasonable (not 0, not huge)
+                size_t max_reasonable_size = 100 * 1024 * 1024;  // 100MB max
+
+                if (original_size > 0 &&
+                    original_size < max_reasonable_size &&
+                    original_size <= encoded_size) {                    file_has_fec = true;
+                    file_fec_redundancy = rs_redundancy;
+                    ciphertext_offset += 2;  // Skip flags and redundancy bytes
+                    ciphertext_offset += 4;  // Skip original_size bytes
+
+                    // Extract RS-encoded data
+                    std::vector<uint8_t> encoded_data(file_data.begin() + ciphertext_offset,
+                                                     file_data.end());
+
+                    // Create ReedSolomon instance if needed
+                    if (!m_reed_solomon || m_rs_redundancy_percent != rs_redundancy) {
+                        m_reed_solomon = std::make_unique<ReedSolomon>(rs_redundancy);
+                    }
+
+                    // Decode with Reed-Solomon
+                    ReedSolomon::EncodedData encoded_struct{
+                        .data = encoded_data,
+                        .original_size = original_size,
+                        .redundancy_percent = rs_redundancy,
+                        .block_size = 0,  // Not needed for decode
+                        .num_data_blocks = 0,  // Not needed for decode
+                        .num_parity_blocks = 0  // Not needed for decode
+                    };
+                    auto decode_result = m_reed_solomon->decode(encoded_struct);
+                    if (!decode_result) {
+                        KeepTower::Log::error("Reed-Solomon decoding failed: {}",
+                                             ReedSolomon::error_to_string(decode_result.error()));
+                        std::cerr << "Failed to decode Reed-Solomon data (file may be too corrupted)" << std::endl;
+                        return false;
+                    }
+
+                    ciphertext = std::move(decode_result.value());
+                    KeepTower::Log::info("Vault decoded with Reed-Solomon ({}% redundancy, {} -> {} bytes)",
+                                        rs_redundancy, encoded_data.size(), ciphertext.size());
+                } else {
+                    // Invalid size ratio - treat as legacy format
+                    ciphertext.assign(file_data.begin() + (SALT_LENGTH + IV_LENGTH), file_data.end());
                 }
-
-                // Decode with Reed-Solomon
-                ReedSolomon::EncodedData encoded_struct{
-                    .data = encoded_data,
-                    .original_size = original_size,
-                    .redundancy_percent = rs_redundancy,
-                    .block_size = 0,  // Not needed for decode
-                    .num_data_blocks = 0,  // Not needed for decode
-                    .num_parity_blocks = 0  // Not needed for decode
-                };
-                auto decode_result = m_reed_solomon->decode(encoded_struct);
-                if (!decode_result) {
-                    KeepTower::Log::error("Reed-Solomon decoding failed: {}",
-                                         ReedSolomon::error_to_string(decode_result.error()));
-                    std::cerr << "Failed to decode Reed-Solomon data (file may be too corrupted)" << std::endl;
-                    return false;
-                }
-
-                ciphertext = std::move(decode_result.value());
-                KeepTower::Log::info("Vault decoded with Reed-Solomon ({}% redundancy, {} -> {} bytes)",
-                                    rs_redundancy, encoded_data.size(), ciphertext.size());
             } else {
                 // Invalid redundancy - treat as legacy format
                 ciphertext.assign(file_data.begin() + ciphertext_offset, file_data.end());
@@ -203,6 +224,20 @@ bool VaultManager::open_vault(const std::string& path, const Glib::ustring& pass
     if (!m_vault_data.ParseFromArray(plaintext.data(), plaintext.size())) {
         std::cerr << "Failed to parse vault data (corrupted file?)" << std::endl;
         return false;
+    }
+
+    // Preserve the FEC settings from the file
+    // This ensures we don't overwrite a file's FEC status with preference defaults
+    if (file_has_fec) {
+        m_use_reed_solomon = true;
+        m_rs_redundancy_percent = file_fec_redundancy;
+        m_fec_loaded_from_file = true;
+        KeepTower::Log::info("Preserved FEC settings from file: enabled=true, redundancy={}%",
+                            file_fec_redundancy);
+    } else {
+        m_use_reed_solomon = false;
+        m_fec_loaded_from_file = true;  // Also track that file had FEC disabled
+        KeepTower::Log::info("Preserved FEC settings from file: enabled=false");
     }
 
     m_current_vault_path = path;

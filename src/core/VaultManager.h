@@ -236,14 +236,34 @@ public:
     /**
      * @brief Enable or disable Reed-Solomon error correction for future saves
      * @param enable true to enable RS encoding, false to disable
+     * @note This marks the settings as user-modified (not from file)
      */
-    void set_reed_solomon_enabled(bool enable) { m_use_reed_solomon = enable; }
+    void set_reed_solomon_enabled(bool enable) {
+        m_use_reed_solomon = enable;
+        m_fec_loaded_from_file = false;  // User is explicitly changing the setting
+    }
 
     /**
+     * @brief Apply default FEC preferences (used for new vaults)
+     * @param enable true to enable RS encoding, false to disable
+     * @param redundancy_percent Redundancy level (5-50%)
+     * @note This does NOT mark settings as user-modified
+     */
+    void apply_default_fec_preferences(bool enable, uint8_t redundancy_percent) {
+        m_use_reed_solomon = enable;
+        m_rs_redundancy_percent = redundancy_percent;
+        // Don't set m_fec_loaded_from_file - these are just defaults
+    }    /**
      * @brief Check if Reed-Solomon encoding is enabled
      * @return true if RS will be used on next save
      */
     bool is_reed_solomon_enabled() const { return m_use_reed_solomon; }
+
+    /**
+     * @brief Check if FEC settings were loaded from the opened file
+     * @return true if settings came from file, false if from preferences or user-modified
+     */
+    bool is_fec_from_file() const { return m_fec_loaded_from_file; }
 
     /**
      * @brief Set RS redundancy percentage for future saves
@@ -332,6 +352,7 @@ private:
     std::unique_ptr<ReedSolomon> m_reed_solomon;
     bool m_use_reed_solomon;
     uint8_t m_rs_redundancy_percent;
+    bool m_fec_loaded_from_file;  // Track if FEC settings came from opened file
 
     // Backup configuration
     bool m_backup_enabled;

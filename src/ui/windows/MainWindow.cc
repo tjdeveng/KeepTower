@@ -53,11 +53,11 @@ MainWindow::MainWindow()
         }
     }
 
-    // Load Reed-Solomon settings and apply to VaultManager
+    // Load Reed-Solomon settings as defaults for NEW vaults
+    // Note: Opened vaults preserve their own FEC settings
     bool use_rs = settings->get_boolean("use-reed-solomon");
     int rs_redundancy = settings->get_int("rs-redundancy-percent");
-    m_vault_manager->set_reed_solomon_enabled(use_rs);
-    m_vault_manager->set_rs_redundancy_percent(rs_redundancy);
+    m_vault_manager->apply_default_fec_preferences(use_rs, rs_redundancy);
 
     // Load backup settings and apply to VaultManager
     bool backup_enabled = settings->get_boolean("backup-enabled");
