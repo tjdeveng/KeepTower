@@ -65,6 +65,15 @@ MainWindow::MainWindow()
     m_vault_manager->set_backup_enabled(backup_enabled);
     m_vault_manager->set_backup_count(backup_count);
 
+    // Set up window actions
+    add_action("preferences", sigc::mem_fun(*this, &MainWindow::on_preferences));
+
+    // Set keyboard shortcut for preferences
+    auto app = get_application();
+    if (app) {
+        app->set_accel_for_action("win.preferences", "<Ctrl>comma");
+    }
+
     // Setup HeaderBar (modern GNOME design)
     set_titlebar(m_header_bar);
     m_header_bar.set_show_title_buttons(true);
@@ -95,7 +104,7 @@ MainWindow::MainWindow()
 
     // Primary menu (hamburger menu)
     m_primary_menu = Gio::Menu::create();
-    m_primary_menu->append("_Preferences", "app.preferences");
+    m_primary_menu->append("_Preferences", "win.preferences");
     m_primary_menu->append("_Keyboard Shortcuts", "win.show-help-overlay");
     m_primary_menu->append("_About KeepTower", "app.about");
     m_menu_button.set_icon_name("open-menu-symbolic");
@@ -277,6 +286,12 @@ void MainWindow::on_new_vault() {
             pwd_dialog->signal_response().connect([this, pwd_dialog, vault_path](int pwd_response) {
                 if (pwd_response == Gtk::ResponseType::OK) {
                     Glib::ustring password = pwd_dialog->get_password();
+
+                    // Load default FEC preferences for new vault
+                    auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
+                    bool use_rs = settings->get_boolean("use-reed-solomon");
+                    int rs_redundancy = settings->get_int("rs-redundancy-percent");
+                    m_vault_manager->apply_default_fec_preferences(use_rs, rs_redundancy);
 
                     // Create encrypted vault file with password
                     auto result = m_vault_manager->create_vault(vault_path.raw(), password);

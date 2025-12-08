@@ -21,11 +21,9 @@ void Application::on_startup() {
     // Add application actions
     add_action("quit", sigc::mem_fun(*this, &Application::on_action_quit));
     add_action("about", sigc::mem_fun(*this, &Application::on_action_about));
-    add_action("preferences", sigc::mem_fun(*this, &Application::on_action_preferences));
 
     // Set keyboard accelerators
     set_accel_for_action("app.quit", "<Ctrl>Q");
-    set_accel_for_action("app.preferences", "<Ctrl>comma");
 }
 
 void Application::on_activate() {
@@ -98,14 +96,5 @@ void Application::on_action_about() {
         return true;
     }, false);
 
-    dialog->present();
-}
-
-void Application::on_action_preferences() {
-    auto window = get_active_window();
-    if (!window) return;
-
-    auto dialog = new PreferencesDialog(*window);
-    dialog->set_modal(true);
     dialog->present();
 }

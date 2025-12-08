@@ -144,10 +144,17 @@ void PreferencesDialog::setup_ui() {
     m_rs_box.append(m_redundancy_help);
 
     // Apply to current vault checkbox (only show if vault is open)
-    if (m_vault_manager && m_vault_manager->is_vault_open()) {
+    bool vault_is_open = m_vault_manager && m_vault_manager->is_vault_open();
+    std::cout << "DEBUG: PreferencesDialog - vault_manager=" << m_vault_manager
+              << " vault_is_open=" << vault_is_open << std::endl;
+
+    if (vault_is_open) {
         m_apply_to_current_check.set_margin_top(6);
         m_apply_to_current_check.add_css_class("warning");
         m_rs_box.append(m_apply_to_current_check);
+        std::cout << "DEBUG: Added 'Apply to current vault' checkbox" << std::endl;
+    } else {
+        std::cout << "DEBUG: Checkbox NOT added - no vault open" << std::endl;
     }
 
     m_content_box.append(m_rs_box);
@@ -294,14 +301,15 @@ void PreferencesDialog::save_settings() {
         MAX_REDUNDANCY
     );
 
-    // Always save to preferences (default settings for new vaults)
-    m_settings->set_boolean("use-reed-solomon", rs_enabled);
-    m_settings->set_int("rs-redundancy-percent", rs_redundancy);
-
-    // If checkbox is checked, also apply to current vault
+    // Checkbox controls whether to apply to current vault or save as defaults
     if (m_vault_manager && m_vault_manager->is_vault_open() && m_apply_to_current_check.get_active()) {
+        // Apply only to current vault, don't change defaults
         m_vault_manager->set_reed_solomon_enabled(rs_enabled);
         m_vault_manager->set_rs_redundancy_percent(rs_redundancy);
+    } else {
+        // Save to preferences (defaults for new vaults)
+        m_settings->set_boolean("use-reed-solomon", rs_enabled);
+        m_settings->set_int("rs-redundancy-percent", rs_redundancy);
     }
 
     // Save backup settings
