@@ -840,6 +840,7 @@ bool VaultManager::set_rs_redundancy_percent(uint8_t percent) {
         return false;
     }
     m_rs_redundancy_percent = percent;
+    m_fec_loaded_from_file = false;  // User is explicitly changing the redundancy
     if (m_reed_solomon) {
         m_reed_solomon = std::make_unique<ReedSolomon>(m_rs_redundancy_percent);
     }
