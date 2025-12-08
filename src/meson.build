@@ -4,6 +4,17 @@
 # Import filesystem module
 fs = import('fs')
 
+# Import gnome module for resources
+gnome = import('gnome')
+
+# Compile GResources
+gresources = gnome.compile_resources(
+  'keeptower-resources',
+  '../resources/gresource.xml',
+  source_dir: '../resources',
+  c_name: 'keeptower',
+)
+
 # Generate protocol buffer sources
 protoc = find_program('protoc', required: true)
 
@@ -43,8 +54,8 @@ sources = files(
   # Add more source files as you create them
 )
 
-# Combine regular sources with generated proto sources
-all_sources = sources + proto_sources
+# Combine regular sources with generated proto sources and resources
+all_sources = sources + proto_sources + gresources
 
 # Include directories
 src_inc = include_directories(

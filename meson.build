@@ -43,6 +43,7 @@ conf_data.set_quoted('VERSION', meson.project_version())
 conf_data.set_quoted('PACKAGE_VERSION', meson.project_version())
 conf_data.set_quoted('GETTEXT_PACKAGE', project_name)
 conf_data.set_quoted('LOCALEDIR', get_option('prefix') / get_option('localedir'))
+conf_data.set_quoted('PROJECT_SOURCE_DIR', meson.project_source_root())
 
 # Generate config header
 configure_file(

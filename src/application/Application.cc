@@ -4,6 +4,7 @@
 #include "Application.h"
 #include "../ui/windows/MainWindow.h"
 #include "../ui/dialogs/PasswordDialog.h"
+#include "../ui/dialogs/PreferencesDialog.h"
 #include "../config.h"
 
 Application::Application()
@@ -62,24 +63,49 @@ void Application::on_action_quit() {
 }
 
 void Application::on_action_about() {
-    auto dialog = Gtk::AboutDialog();
-    dialog.set_transient_for(*get_active_window());
-    dialog.set_modal(true);
+    auto window = get_active_window();
+    if (!window) return;
 
-    dialog.set_program_name(PROJECT_NAME);
-    dialog.set_version(VERSION);
-    dialog.set_comments("A GNOME GTK4 Application");
-    dialog.set_license_type(Gtk::License::GPL_3_0);
-    dialog.set_website("https://github.com/tjdeveng/KeepTower");
-    dialog.set_website_label("GitHub Repository");
+    auto dialog = new Gtk::AboutDialog();
+    dialog->set_transient_for(*window);
+    dialog->set_modal(true);
+    dialog->set_hide_on_close(true);
+
+    dialog->set_program_name(PROJECT_NAME);
+    dialog->set_version(VERSION);
+    dialog->set_comments("Secure password manager with AES-256-GCM encryption and Reed-Solomon error correction");
+    dialog->set_copyright("Copyright © 2025 TJDev");
+    dialog->set_license_type(Gtk::License::GPL_3_0);
+    dialog->set_website("https://github.com/tjdeveng/KeepTower");
+    dialog->set_website_label("GitHub Repository");
+
+    // Set application icon - load from embedded resources
+    try {
+        // Path includes the exact file path as specified in gresource.xml
+        auto resource_path = "/com/tjdeveng/keeptower/../data/icons/hicolor/scalable/apps/com.tjdeveng.keeptower.svg";
+        auto pixbuf = Gdk::Pixbuf::create_from_resource(resource_path);
+        auto texture = Gdk::Texture::create_for_pixbuf(pixbuf);
+        dialog->set_logo(texture);
+    } catch (const Glib::Error& ex) {
+        g_warning("Failed to load application icon from resources: %s", ex.what());
+    }
 
     std::vector<Glib::ustring> authors = {"TJDev"};
-    dialog.set_authors(authors);
+    dialog->set_authors(authors);
 
-    dialog.present();
+    dialog->signal_close_request().connect([dialog]() {
+        delete dialog;
+        return true;
+    }, false);
+
+    dialog->present();
 }
 
 void Application::on_action_preferences() {
-    // TODO: Implement preferences dialog
-    g_print("Preferences dialog not yet implemented\n");
+    auto window = get_active_window();
+    if (!window) return;
+
+    auto dialog = new PreferencesDialog(*window);
+    dialog->set_modal(true);
+    dialog->present();
 }
