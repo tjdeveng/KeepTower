@@ -6,6 +6,7 @@
 #include "../dialogs/PasswordDialog.h"
 #include "../dialogs/PreferencesDialog.h"
 #include "../../core/VaultError.h"
+#include "../../utils/SettingsValidator.h"
 #include "config.h"
 #include "record.pb.h"
 #include <regex>
@@ -579,9 +580,9 @@ void MainWindow::on_add_account() {
     auto clipboard = get_clipboard();
     clipboard->set_text(password);
 
-    // Get clipboard timeout from settings
+    // Get validated clipboard timeout from settings
     auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
-    const int timeout_seconds = settings->get_int("clipboard-clear-timeout");
+    const int timeout_seconds = SettingsValidator::get_clipboard_timeout(settings);
 
     const std::string copied_msg = std::format("Password copied to clipboard (will clear in {}s)", timeout_seconds);
     m_status_label.set_text(copied_msg);
@@ -1218,7 +1219,7 @@ void MainWindow::on_user_activity() {
 
     // Check if auto-lock is enabled (cache settings to avoid repeated creation)
     static const auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
-    if (!settings->get_boolean("auto-lock-enabled")) {
+    if (!SettingsValidator::is_auto_lock_enabled(settings)) {
         return;
     }
 
@@ -1227,8 +1228,8 @@ void MainWindow::on_user_activity() {
         m_auto_lock_timeout.disconnect();
     }
 
-    // Schedule auto-lock after configured timeout
-    const int timeout_seconds = settings->get_int("auto-lock-timeout");
+    // Schedule auto-lock after validated timeout
+    const int timeout_seconds = SettingsValidator::get_auto_lock_timeout(settings);
     m_auto_lock_timeout = Glib::signal_timeout().connect(
         sigc::mem_fun(*this, &MainWindow::on_auto_lock_timeout),
         timeout_seconds * 1000  // Convert seconds to milliseconds

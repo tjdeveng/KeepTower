@@ -150,6 +150,17 @@ ui_security_test = executable(
     include_directories: test_inc
 )
 
+# Settings validator tests (runtime validation against schema tampering)
+settings_validator_test = executable(
+    'settings_validator_test',
+    'test_settings_validator.cc',
+    dependencies: [
+        gtest_dep,
+        giomm_dep
+    ],
+    include_directories: test_inc
+)
+
 # Register all tests
 test('VaultManager Tests', vault_manager_test)
 test('Password Validation Tests', password_validation_test, timeout: 30)
@@ -159,3 +170,4 @@ test('Vault Reed-Solomon Integration', vault_reed_solomon_test)
 test('FEC Preferences Tests', fec_preferences_test)
 test('UI Features Tests', ui_features_test)
 test('UI Security Tests', ui_security_test, env: ['GSETTINGS_SCHEMA_DIR=' + meson.project_source_root() / 'data'])
+test('Settings Validator Tests', settings_validator_test, env: ['GSETTINGS_SCHEMA_DIR=' + meson.project_source_root() / 'data'])

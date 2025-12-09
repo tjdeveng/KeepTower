@@ -3,6 +3,7 @@
 
 #include "PreferencesDialog.h"
 #include "../../core/VaultManager.h"
+#include "../../utils/SettingsValidator.h"
 #include <stdexcept>
 
 PreferencesDialog::PreferencesDialog(Gtk::Window& parent, VaultManager* vault_manager)
@@ -406,17 +407,17 @@ void PreferencesDialog::load_settings() {
     m_backup_count_suffix.set_sensitive(backup_enabled);
     m_backup_help.set_sensitive(backup_enabled);
 
-    // Load security settings
-    int clipboard_timeout = m_settings->get_int("clipboard-clear-timeout");
+    // Load security settings with validation
+    int clipboard_timeout = SettingsValidator::get_clipboard_timeout(m_settings);
     m_clipboard_timeout_spin.set_value(clipboard_timeout);
 
-    bool auto_lock_enabled = m_settings->get_boolean("auto-lock-enabled");
+    bool auto_lock_enabled = SettingsValidator::is_auto_lock_enabled(m_settings);
     m_auto_lock_enabled_check.set_active(auto_lock_enabled);
 
-    int auto_lock_timeout = m_settings->get_int("auto-lock-timeout");
+    int auto_lock_timeout = SettingsValidator::get_auto_lock_timeout(m_settings);
     m_auto_lock_timeout_spin.set_value(auto_lock_timeout);
 
-    bool password_history_enabled = m_settings->get_boolean("password-history-enabled");
+    bool password_history_enabled = SettingsValidator::is_password_history_enabled(m_settings);
     m_password_history_enabled_check.set_active(password_history_enabled);
 
     // Update auto-lock controls sensitivity
