@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <ctime>
 #include <format>
+#include <random>
 
 MainWindow::MainWindow()
     : m_main_box(Gtk::Orientation::VERTICAL, 0),
@@ -67,6 +68,7 @@ MainWindow::MainWindow()
 
     // Set up window actions
     add_action("preferences", sigc::mem_fun(*this, &MainWindow::on_preferences));
+    add_action("delete-account", sigc::mem_fun(*this, &MainWindow::on_delete_account));
 
     // Set keyboard shortcut for preferences
     auto app = get_application();
@@ -128,7 +130,8 @@ MainWindow::MainWindow()
 
     // Setup split pane
     m_paned.set_vexpand(true);
-    m_paned.set_position(UI::ACCOUNT_LIST_WIDTH);  // Left panel width
+    constexpr int account_list_width = UI::ACCOUNT_LIST_WIDTH;
+    m_paned.set_position(account_list_width);  // Left panel width
 
     // Setup account list (left side)
     m_account_list_store = Gtk::ListStore::create(m_columns);
@@ -154,10 +157,11 @@ MainWindow::MainWindow()
     m_user_name_entry.set_margin_bottom(12);
 
     m_password_label.set_xalign(0.0);
-    Gtk::Box* password_box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 6);
+    auto* password_box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 6);
     m_password_entry.set_hexpand(true);
     m_password_entry.set_visibility(false);
     password_box->append(m_password_entry);
+    password_box->append(m_generate_password_button);
     password_box->append(m_show_password_button);
     password_box->append(m_copy_password_button);
 
@@ -185,6 +189,14 @@ MainWindow::MainWindow()
     m_details_box.append(m_notes_label);
     m_details_box.append(m_notes_scrolled);
 
+    // Delete button at bottom (HIG compliant placement)
+    m_delete_account_button.set_label("Delete Account");
+    m_delete_account_button.set_icon_name("user-trash-symbolic");
+    m_delete_account_button.add_css_class("destructive-action");
+    m_delete_account_button.set_sensitive(false);
+    m_delete_account_button.set_margin_top(12);
+    m_details_box.append(m_delete_account_button);
+
     m_details_scrolled.set_policy(Gtk::PolicyType::AUTOMATIC, Gtk::PolicyType::AUTOMATIC);
     m_details_scrolled.set_child(m_details_box);
     m_paned.set_end_child(m_details_scrolled);
@@ -206,8 +218,12 @@ MainWindow::MainWindow()
     m_add_account_button.set_sensitive(false);
 
     // Set remaining button icons
+    m_generate_password_button.set_icon_name("view-refresh-symbolic");
+    m_generate_password_button.set_tooltip_text("Generate Password");
     m_show_password_button.set_icon_name("view-reveal-symbolic");
+    m_show_password_button.set_tooltip_text("Show/Hide Password");
     m_copy_password_button.set_icon_name("edit-copy-symbolic");
+    m_copy_password_button.set_tooltip_text("Copy Password");
 
     // Connect signals
     m_new_button.signal_clicked().connect(
@@ -225,6 +241,12 @@ MainWindow::MainWindow()
     m_add_account_button.signal_clicked().connect(
         sigc::mem_fun(*this, &MainWindow::on_add_account)
     );
+    m_delete_account_button.signal_clicked().connect(
+        sigc::mem_fun(*this, &MainWindow::on_delete_account)
+    );
+    m_generate_password_button.signal_clicked().connect(
+        sigc::mem_fun(*this, &MainWindow::on_generate_password)
+    );
     m_show_password_button.signal_clicked().connect(
         sigc::mem_fun(*this, &MainWindow::on_toggle_password_visibility)
     );
@@ -240,7 +262,19 @@ MainWindow::MainWindow()
         sigc::mem_fun(*this, &MainWindow::on_selection_changed)
     );
 
-    // Initially disable search and details
+    // Setup context menu for account list - use GestureClick for right-click
+    auto gesture = Gtk::GestureClick::create();
+    gesture->set_button(GDK_BUTTON_SECONDARY);  // Right-click
+    gesture->signal_released().connect([this](int n_press, double x, double y) {
+        // Convert coordinates from widget-relative to bin_window-relative
+        // TreeView coordinates need to account for headers
+        int bin_x, bin_y;
+        m_account_tree_view.convert_widget_to_bin_window_coords(
+            static_cast<int>(x), static_cast<int>(y), bin_x, bin_y);
+
+        on_account_right_click(n_press, static_cast<double>(bin_x), static_cast<double>(bin_y));
+    });
+    m_account_tree_view.add_controller(gesture);    // Initially disable search and details
     m_search_entry.set_sensitive(false);
     clear_account_details();
 }
@@ -306,8 +340,8 @@ void MainWindow::on_new_vault() {
                         update_account_list();
                         clear_account_details();
                     } else {
-                        auto error_msg = std::string("Failed to create vault");
-                        auto error_dialog = Gtk::make_managed<Gtk::MessageDialog>(*this, error_msg,
+                        constexpr std::string_view error_msg{"Failed to create vault"};
+                        auto error_dialog = Gtk::make_managed<Gtk::MessageDialog>(*this, std::string{error_msg},
                             false, Gtk::MessageType::ERROR, Gtk::ButtonsType::OK, true);
                         error_dialog->signal_response().connect([=](int) {
                             error_dialog->hide();
@@ -367,8 +401,8 @@ void MainWindow::on_open_vault() {
 
                         update_account_list();
                     } else {
-                        auto error_msg = std::string("Failed to open vault");
-                        auto error_dialog = Gtk::make_managed<Gtk::MessageDialog>(*this, error_msg,
+                        constexpr std::string_view error_msg{"Failed to open vault"};
+                        auto error_dialog = Gtk::make_managed<Gtk::MessageDialog>(*this, std::string{error_msg},
                             false, Gtk::MessageType::ERROR, Gtk::ButtonsType::OK, true);
                         error_dialog->signal_response().connect([=](int) {
                             error_dialog->hide();
@@ -465,8 +499,8 @@ void MainWindow::on_add_account() {
     // Add to vault manager
     auto result = m_vault_manager->add_account(new_account);
     if (!result) {
-        auto error_msg = std::string("Failed to add account");
-        m_status_label.set_text(error_msg);
+        constexpr std::string_view error_msg{"Failed to add account"};
+        m_status_label.set_text(std::string{error_msg});
         return;
     }
 
@@ -496,10 +530,11 @@ void MainWindow::on_add_account() {
         }
     }
 }void MainWindow::on_copy_password() {
-    Glib::ustring password = m_password_entry.get_text();
+    const Glib::ustring password = m_password_entry.get_text();
 
     if (password.empty()) {
-        m_status_label.set_text("No password to copy");
+        constexpr std::string_view no_password_msg{"No password to copy"};
+        m_status_label.set_text(std::string{no_password_msg});
         return;
     }
 
@@ -507,7 +542,8 @@ void MainWindow::on_add_account() {
     auto clipboard = get_clipboard();
     clipboard->set_text(password);
 
-    m_status_label.set_text("Password copied to clipboard (will clear in 30s)");
+    constexpr std::string_view copied_msg{"Password copied to clipboard (will clear in 30s)"};
+    m_status_label.set_text(std::string{copied_msg});
 
     // Cancel previous timeout if exists
     if (m_clipboard_timeout.connected()) {
@@ -518,7 +554,8 @@ void MainWindow::on_add_account() {
     m_clipboard_timeout = Glib::signal_timeout().connect(
         [clipboard, this]() {
             clipboard->set_text("");
-            m_status_label.set_text("Clipboard cleared for security");
+            constexpr std::string_view cleared_msg{"Clipboard cleared for security"};
+            m_status_label.set_text(std::string{cleared_msg});
             return false;  // Don't repeat
         },
         UI::CLIPBOARD_CLEAR_TIMEOUT_MS
@@ -556,30 +593,37 @@ void MainWindow::on_selection_changed() {
     }
 
     auto iter = selection->get_selected();
-    if (iter) {
-        int new_index = (*iter)[m_columns.m_col_index];
-
-        // Only save if we're switching to a different account
-        if (new_index != m_selected_account_index) {
-            if (!save_current_account()) {
-                // Validation failed, revert to previous selection without triggering display update
-                m_updating_selection = true;
-                auto prev_iter = m_account_list_store->children().begin();
-                while (prev_iter != m_account_list_store->children().end()) {
-                    if ((*prev_iter)[m_columns.m_col_index] == m_selected_account_index) {
-                        selection->select(prev_iter);
-                        m_updating_selection = false;
-                        return;
-                    }
-                    ++prev_iter;
-                }
-                m_updating_selection = false;
-                return;
-            }
-        }
-
-        display_account_details(new_index);
+    if (!iter) {
+        return;
     }
+
+    const int new_index = (*iter)[m_columns.m_col_index];
+
+    // Bounds checking for safety
+    if (new_index < 0) {
+        return;
+    }
+
+    // Only save if we're switching to a different account
+    if (new_index != m_selected_account_index) {
+        if (!save_current_account()) {
+            // Validation failed, revert to previous selection without triggering display update
+            m_updating_selection = true;
+            auto prev_iter = m_account_list_store->children().begin();
+            while (prev_iter != m_account_list_store->children().end()) {
+                if ((*prev_iter)[m_columns.m_col_index] == m_selected_account_index) {
+                    selection->select(prev_iter);
+                    m_updating_selection = false;
+                    return;
+                }
+                ++prev_iter;
+            }
+            m_updating_selection = false;
+            return;
+        }
+    }
+
+    display_account_details(new_index);
 }
 
 void MainWindow::on_account_selected(const Gtk::TreeModel::Path& path, Gtk::TreeViewColumn* /* column */) {
@@ -597,6 +641,78 @@ void MainWindow::on_account_selected(const Gtk::TreeModel::Path& path, Gtk::Tree
 
         display_account_details(new_index);
     }
+}
+
+void MainWindow::on_account_right_click([[maybe_unused]] int n_press, double x, double y) {
+    if (!m_vault_open) {
+        return;
+    }
+
+    // Get the path at the click position
+    Gtk::TreeModel::Path path;
+    Gtk::TreeViewColumn* column = nullptr;
+    int cell_x{}, cell_y{};  // C++23: uniform initialization
+
+    if (!m_account_tree_view.get_path_at_pos(static_cast<int>(x), static_cast<int>(y),
+                                              path, column, cell_x, cell_y)) {
+        return;  // Click wasn't on an item
+    }
+
+    // Select the item that was right-clicked
+    m_account_tree_view.get_selection()->select(path);
+
+    auto iter = m_account_list_store->get_iter(path);
+    if (!iter) {
+        return;
+    }
+
+    // Create simple popover with button (avoids action group issues)
+    auto popover = Gtk::make_managed<Gtk::Popover>();
+    auto box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL);
+    box->set_margin(6);
+
+    auto delete_button = Gtk::make_managed<Gtk::Button>("Delete Account");
+    delete_button->add_css_class("flat");
+    delete_button->signal_clicked().connect([this, popover]() {
+        popover->popdown();
+        on_delete_account();
+    });
+
+    box->append(*delete_button);
+    popover->set_child(*box);
+    popover->set_parent(*this);
+    popover->set_autohide(true);
+
+    // Get TreeView position in window
+    double tree_x{}, tree_y{};  // C++23: uniform initialization
+    if (!m_account_tree_view.translate_coordinates(*this, 0, 0, tree_x, tree_y)) {
+        return;
+    }
+
+    // Calculate absolute position with header offset
+    constexpr double header_offset = 25.0;  // TreeView header height
+    const double abs_x = tree_x + x;
+    const double abs_y = tree_y + y + header_offset;
+
+    // Bounds check to ensure positive coordinates
+    if (abs_x < 0.0 || abs_y < 0.0) {
+        return;
+    }
+
+    Gdk::Rectangle pointing_rect;
+    pointing_rect.set_x(static_cast<int>(abs_x));
+    pointing_rect.set_y(static_cast<int>(abs_y));
+    pointing_rect.set_width(1);
+    pointing_rect.set_height(1);
+
+    popover->set_pointing_to(pointing_rect);
+
+    // Unparent when closed to prevent widget hierarchy issues
+    popover->signal_closed().connect([popover]() {
+        popover->unparent();
+    });
+
+    popover->popup();
 }
 
 void MainWindow::update_account_list() {
@@ -631,9 +747,9 @@ void MainWindow::filter_accounts(const Glib::ustring& search_text) {
         std::string pattern = ".*" + search_text.lowercase().raw() + ".*";
         std::regex search_regex(pattern, std::regex::icase);
 
-        auto accounts = m_vault_manager->get_all_accounts();
+        const auto accounts = m_vault_manager->get_all_accounts();
 
-        for (size_t i = 0; i < accounts.size(); i++) {
+        for (size_t i = 0; i < accounts.size(); ++i) {
             const auto& account = accounts[i];
 
             if (std::regex_search(account.account_name(), search_regex) ||
@@ -668,17 +784,24 @@ void MainWindow::clear_account_details() {
     m_email_entry.set_sensitive(false);
     m_website_entry.set_sensitive(false);
     m_notes_view.set_sensitive(false);
+    m_generate_password_button.set_sensitive(false);
     m_show_password_button.set_sensitive(false);
     m_copy_password_button.set_sensitive(false);
+    m_delete_account_button.set_sensitive(false);
 
     m_selected_account_index = -1;
 }
 
 void MainWindow::display_account_details(int index) {
+    // Bounds checking for safety
+    if (index < 0) {
+        return;
+    }
+
     m_selected_account_index = index;
 
     // Load account from VaultManager
-    auto* account = m_vault_manager->get_account(index);
+    const auto* account = m_vault_manager->get_account(index);
     if (!account) {
         return;
     }
@@ -697,18 +820,18 @@ void MainWindow::display_account_details(int index) {
     m_email_entry.set_sensitive(true);
     m_website_entry.set_sensitive(true);
     m_notes_view.set_sensitive(true);
+    m_generate_password_button.set_sensitive(true);
     m_show_password_button.set_sensitive(true);
     m_copy_password_button.set_sensitive(true);
+    m_delete_account_button.set_sensitive(true);
 }
 
 bool MainWindow::save_current_account() {
     // Only save if we have a valid account selected
     if (m_selected_account_index < 0 || !m_vault_open) {
         return true;  // Nothing to save, allow continue
-    }
-
-    // Validate the index is within bounds
-    auto accounts = m_vault_manager->get_all_accounts();
+    }    // Validate the index is within bounds
+    const auto accounts = m_vault_manager->get_all_accounts();
     if (m_selected_account_index >= static_cast<int>(accounts.size())) {
         g_warning("Invalid account index %d (total accounts: %zu)",
                   m_selected_account_index, accounts.size());
@@ -727,7 +850,7 @@ bool MainWindow::save_current_account() {
     }
 
     // Validate email format if not empty
-    auto email_text = m_email_entry.get_text();
+    const auto email_text = m_email_entry.get_text();
     if (!email_text.empty() && !validate_email_format(email_text)) {
         return false;
     }
@@ -740,8 +863,8 @@ bool MainWindow::save_current_account() {
     }
 
     // Validate notes length
-    auto buffer = m_notes_view.get_buffer();
-    auto notes_text = buffer->get_text();
+    const auto buffer = m_notes_view.get_buffer();
+    const auto notes_text = buffer->get_text();
     if (!validate_field_length("Notes", notes_text, UI::MAX_NOTES_LENGTH)) {
         return false;
     }
@@ -754,7 +877,7 @@ bool MainWindow::save_current_account() {
     }
 
     // Store the old account name to detect if it changed
-    std::string old_name = account->account_name();
+    const std::string old_name = account->account_name();
 
     // Update the account with current field values
     account->set_account_name(m_account_name_entry.get_text().raw());
@@ -807,8 +930,11 @@ bool MainWindow::validate_email_format(const Glib::ustring& email) {
     // - Local part: alphanumeric, dots, hyphens, underscores, plus signs
     // - Domain: must have at least one dot
     // - TLD: at least 2 characters
+    constexpr std::string_view email_pattern_str{
+        R"(^[a-zA-Z0-9._+-]+@[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})*$)"
+    };
     static const std::regex email_pattern(
-        R"(^[a-zA-Z0-9._+-]+@[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})*$)",
+        email_pattern_str.data(),
         std::regex::optimize
     );
 
@@ -929,4 +1055,92 @@ void MainWindow::on_preferences() {
     });
 
     dialog_ptr->show();
+}
+
+void MainWindow::on_delete_account() {
+    if (m_selected_account_index < 0 || !m_vault_open) {
+        return;
+    }
+
+    // Get account name for confirmation dialog
+    const auto* account = m_vault_manager->get_account(m_selected_account_index);
+    if (!account) {
+        return;
+    }
+
+    const Glib::ustring account_name = account->account_name();
+
+    // Create confirmation dialog
+    auto dialog = Gtk::make_managed<Gtk::MessageDialog>(
+        *this,
+        "Delete Account?",
+        false,
+        Gtk::MessageType::WARNING,
+        Gtk::ButtonsType::NONE,
+        true
+    );
+
+    dialog->set_modal(true);
+    dialog->set_hide_on_close(true);
+    dialog->set_secondary_text(
+        "Are you sure you want to delete '" + account_name + "'?\nThis action cannot be undone."
+    );
+
+    dialog->add_button("Cancel", Gtk::ResponseType::CANCEL);
+    auto delete_button = dialog->add_button("Delete", Gtk::ResponseType::OK);
+    delete_button->add_css_class("destructive-action");
+
+    dialog->signal_response().connect([this, dialog](int response) {
+        if (response == Gtk::ResponseType::OK) {
+            // Delete the account
+            if (m_vault_manager->delete_account(m_selected_account_index)) {
+                clear_account_details();
+                update_account_list();
+                filter_accounts(m_search_entry.get_text());
+            } else {
+                show_error_dialog("Failed to delete account");
+            }
+        }
+        dialog->hide();
+    });
+
+    dialog->show();
+}
+
+void MainWindow::on_generate_password() {
+    if (!m_vault_open || m_selected_account_index < 0) {
+        return;
+    }
+
+    // Generate a strong random password
+    constexpr int password_length = 20;  // C++23: use constexpr for compile-time constants
+
+    // Charset without ambiguous characters (0/O, 1/l/I) for better usability
+    constexpr std::string_view charset =
+        "abcdefghjkmnpqrstuvwxyz"  // lowercase (no l)
+        "ABCDEFGHJKMNPQRSTUVWXYZ"  // uppercase (no I, O)
+        "23456789"                  // digits (no 0, 1)
+        "!@#$%^&*()-_=+[]{}|;:,.<>?";
+
+    // Use std::random_device with entropy check
+    std::random_device rd;
+    if (rd.entropy() == 0.0) {
+        // Fallback warning if random_device is deterministic
+        g_warning("std::random_device has zero entropy, password may be less secure");
+    }
+
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<std::size_t> dis(0, charset.size() - 1);
+
+    std::string password;
+    password.reserve(password_length);
+
+    for (int i = 0; i < password_length; ++i) {
+        password += charset[dis(gen)];
+    }
+
+    m_password_entry.set_text(password);
+
+    // Note: password string will be cleared when it goes out of scope
+    // GTK entry widget manages its own secure memory
 }

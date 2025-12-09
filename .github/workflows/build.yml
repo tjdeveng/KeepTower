@@ -62,7 +62,7 @@ jobs:
       if: matrix.distro == 'fedora-39'
       uses: uraimo/run-on-arch-action@v2
       with:
-        arch: none
+        arch: x86_64
         distro: fedora_latest
         dockerRunArgs: |
           --volume "${PWD}:/workspace"

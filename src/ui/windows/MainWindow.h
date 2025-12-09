@@ -71,12 +71,15 @@ protected:
     void on_save_vault();     ///< Save current vault
     void on_close_vault();    ///< Close current vault
     void on_add_account();    ///< Add new account
+    void on_delete_account(); ///< Delete selected account
     void on_preferences();    ///< Show preferences dialog
     void on_copy_password();  ///< Copy password to clipboard
+    void on_generate_password();  ///< Generate random password
     void on_toggle_password_visibility();  ///< Show/hide password
     void on_search_changed(); ///< Filter accounts by search
     void on_selection_changed();  ///< Handle account selection
     void on_account_selected(const Gtk::TreeModel::Path& path, Gtk::TreeViewColumn* column);  ///< Double-click handler
+    void on_account_right_click(int n_press, double x, double y);  ///< Context menu handler
 
     // Helper methods
     bool save_current_account();  ///< Returns false if validation fails
@@ -129,6 +132,8 @@ protected:
     Gtk::Entry m_password_entry;
     Gtk::Button m_show_password_button;
     Gtk::Button m_copy_password_button;
+    Gtk::Button m_generate_password_button;
+    Gtk::Button m_delete_account_button;
 
     Gtk::Label m_email_label;
     Gtk::Entry m_email_entry;

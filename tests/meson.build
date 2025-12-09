@@ -129,6 +129,16 @@ fec_preferences_test = executable(
     include_directories: test_inc
 )
 
+# UI features tests (password generator, delete functionality)
+ui_features_test = executable(
+    'ui_features_test',
+    'test_ui_features.cc',
+    dependencies: [
+        gtest_dep
+    ],
+    include_directories: test_inc
+)
+
 # Register all tests
 test('VaultManager Tests', vault_manager_test)
 test('Password Validation Tests', password_validation_test, timeout: 30)
@@ -136,3 +146,4 @@ test('Input Validation Tests', input_validation_test)
 test('Reed-Solomon Tests', reed_solomon_test)
 test('Vault Reed-Solomon Integration', vault_reed_solomon_test)
 test('FEC Preferences Tests', fec_preferences_test)
+test('UI Features Tests', ui_features_test)
