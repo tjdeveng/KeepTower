@@ -11,7 +11,7 @@ KeepTower requires the following libraries:
 - libcorrect (Reed-Solomon error correction)
 - GIO/GLib 2.68+
 - Meson build system
-- C++20 compatible compiler (GCC 11+ or Clang 14+)
+- C++23 compatible compiler (GCC 13+ or Clang 16+)
 
 ---
 

@@ -196,7 +196,7 @@ All tests should pass before submitting changes.
   - Member variables: `m_` prefix (e.g., `m_vault_open`)
   - Constants: `UPPER_CASE` (e.g., `KEY_LENGTH`)
 - **Headers:** Include guards or `#pragma once`
-- **Modern C++:** Use C++20 features appropriately
+- **Modern C++:** Use C++23 features appropriately
 
 **GTK/gtkmm:**
 - Follow GNOME HIG (Human Interface Guidelines)
