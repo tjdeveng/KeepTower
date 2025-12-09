@@ -171,18 +171,18 @@ protected:
     ModelColumns m_columns;
 
     // State
-    bool m_vault_open;
-    bool m_updating_selection;  // Prevent recursive selection change handling
-    bool m_is_locked;  // Vault is locked, requires re-authentication
-    Glib::ustring m_current_vault_path;
-    std::string m_cached_master_password;  // Cached for re-opening after lock
-    int m_selected_account_index;
-    std::vector<int> m_filtered_indices;  // Indices matching current search
-    sigc::connection m_clipboard_timeout;
-    sigc::connection m_auto_lock_timeout;
+    bool m_vault_open;                        ///< True if a vault is currently open
+    bool m_updating_selection;                ///< Prevent recursive selection change handling
+    bool m_is_locked;                         ///< Vault is locked, requires re-authentication
+    Glib::ustring m_current_vault_path;       ///< Path to currently open vault file
+    std::string m_cached_master_password;     ///< Cached for re-opening after lock (cleared on close)
+    int m_selected_account_index;             ///< Currently selected account index (-1 if none)
+    std::vector<int> m_filtered_indices;      ///< Indices matching current search filter
+    sigc::connection m_clipboard_timeout;     ///< Connection for clipboard auto-clear timer
+    sigc::connection m_auto_lock_timeout;     ///< Connection for auto-lock inactivity timer
 
     // Vault manager
-    std::unique_ptr<VaultManager> m_vault_manager;
+    std::unique_ptr<VaultManager> m_vault_manager;  ///< Manages vault encryption/decryption
 };
 
 #endif // MAINWINDOW_H

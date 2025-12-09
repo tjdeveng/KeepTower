@@ -28,19 +28,19 @@ public:
     PreferencesDialog& operator=(PreferencesDialog&&) = delete;
 
 private:
-    void setup_ui();
-    void setup_appearance_page();
-    void setup_security_page();
-    void setup_storage_page();
-    void load_settings();
-    void save_settings();
-    void apply_color_scheme(const Glib::ustring& scheme);
-    void on_rs_enabled_toggled() noexcept;
-    void on_backup_enabled_toggled() noexcept;
-    void on_auto_lock_enabled_toggled() noexcept;
-    void on_apply_to_current_toggled() noexcept;
-    void on_color_scheme_changed() noexcept;
-    void on_response(int response_id) noexcept override;
+    void setup_ui();                                     ///< Initialize main dialog layout with sidebar and stack
+    void setup_appearance_page();                        ///< Build appearance preferences page (color scheme)
+    void setup_security_page();                          ///< Build security preferences page (clipboard, auto-lock, password history)
+    void setup_storage_page();                           ///< Build storage preferences page (FEC, backups)
+    void load_settings();                                ///< Load all settings from GSettings into UI controls
+    void save_settings();                                ///< Save all UI control values to GSettings
+    void apply_color_scheme(const Glib::ustring& scheme);  ///< Apply color scheme to GTK application
+    void on_rs_enabled_toggled() noexcept;               ///< Handle Reed-Solomon enabled checkbox toggle
+    void on_backup_enabled_toggled() noexcept;           ///< Handle backup enabled checkbox toggle
+    void on_auto_lock_enabled_toggled() noexcept;        ///< Handle auto-lock enabled checkbox toggle
+    void on_apply_to_current_toggled() noexcept;         ///< Handle "Apply to current vault" checkbox toggle
+    void on_color_scheme_changed() noexcept;             ///< Handle color scheme dropdown selection change
+    void on_response(int response_id) noexcept override; ///< Handle dialog response (Apply/Cancel)
 
     // Constants
     static constexpr int MIN_REDUNDANCY = 5;
