@@ -56,5 +56,38 @@
       <summary>Number of backups to maintain</summary>
       <description>Maximum number of timestamped backups to keep (1-50). Older backups are automatically deleted when this limit is exceeded.</description>
     </key>
+
+    <key name="clipboard-clear-timeout" type="i">
+      <default>30</default>
+      <range min="5" max="300"/>
+      <summary>Clipboard auto-clear timeout (seconds)</summary>
+      <description>Time in seconds before the clipboard is automatically cleared after copying a password (5-300 seconds).</description>
+    </key>
+
+    <key name="auto-lock-enabled" type="b">
+      <default>true</default>
+      <summary>Enable auto-lock</summary>
+      <description>Automatically lock the vault after a period of inactivity.</description>
+    </key>
+
+    <key name="auto-lock-timeout" type="i">
+      <default>300</default>
+      <range min="60" max="3600"/>
+      <summary>Auto-lock timeout (seconds)</summary>
+      <description>Time in seconds of inactivity before the vault is locked (60-3600 seconds, 1-60 minutes).</description>
+    </key>
+
+    <key name="password-history-enabled" type="b">
+      <default>true</default>
+      <summary>Enable password history</summary>
+      <description>Track previous passwords to prevent reuse and maintain change history.</description>
+    </key>
+
+    <key name="password-history-limit" type="i">
+      <default>5</default>
+      <range min="1" max="20"/>
+      <summary>Password history limit</summary>
+      <description>Maximum number of previous passwords to remember per account (1-20).</description>
+    </key>
   </schema>
 </schemalist>

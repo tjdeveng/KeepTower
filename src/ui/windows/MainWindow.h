@@ -81,6 +81,11 @@ protected:
     void on_account_selected(const Gtk::TreeModel::Path& path, Gtk::TreeViewColumn* column);  ///< Double-click handler
     void on_account_right_click(int n_press, double x, double y);  ///< Context menu handler
 
+    // Security handlers
+    void on_user_activity();  ///< Reset inactivity timer
+    bool on_auto_lock_timeout();  ///< Auto-lock vault after inactivity
+    void lock_vault();  ///< Lock the vault requiring re-authentication
+
     // Helper methods
     bool save_current_account();  ///< Returns false if validation fails
     void update_account_list();
@@ -91,6 +96,8 @@ protected:
     bool validate_field_length(const Glib::ustring& field_name, const Glib::ustring& value, int max_length);
     bool validate_email_format(const Glib::ustring& email);
     bool prompt_save_if_modified();  ///< Prompt to save if vault modified, return false if user cancels
+    void setup_activity_monitoring();  ///< Setup event monitors for user activity
+    std::string get_master_password_for_lock();  ///< Get master password to re-open after lock
 
     // Member widgets
     Gtk::Box m_main_box;
@@ -166,10 +173,13 @@ protected:
     // State
     bool m_vault_open;
     bool m_updating_selection;  // Prevent recursive selection change handling
+    bool m_is_locked;  // Vault is locked, requires re-authentication
     Glib::ustring m_current_vault_path;
+    std::string m_cached_master_password;  // Cached for re-opening after lock
     int m_selected_account_index;
     std::vector<int> m_filtered_indices;  // Indices matching current search
     sigc::connection m_clipboard_timeout;
+    sigc::connection m_auto_lock_timeout;
 
     // Vault manager
     std::unique_ptr<VaultManager> m_vault_manager;

@@ -2,7 +2,7 @@
 
 This document outlines the planned features and improvements for KeepTower, organized by release milestones.
 
-## Current Version: v0.1.1-beta
+## Current Version: v0.2.0-beta (In Development)
 
 ✅ Core vault management with AES-256-GCM encryption
 ✅ Reed-Solomon forward error correction (5-50% redundancy)
@@ -10,18 +10,24 @@ This document outlines the planned features and improvements for KeepTower, orga
 ✅ Password strength validation
 ✅ FEC preferences with per-vault settings
 ✅ GTK4/libadwaita UI with dark mode support
+✅ **NEW: Configurable clipboard auto-clear (5-300 seconds)**
+✅ **NEW: Auto-lock after inactivity (60-3600 seconds)**
+✅ **NEW: Password history tracking (UI ready, backend pending)**
+✅ **NEW: Modern sidebar preferences dialog (GNOME HIG compliant)**
+✅ **NEW: Activity monitoring for security features**
+✅ **NEW: Session timeout with re-authentication**
 
 ---
 
-## Near-term (v0.2.x - Core Functionality)
+## Near-term (v0.2.x - Security Quick Wins) - IN PROGRESS
 
 ### Security Enhancements
-- [ ] Two-factor authentication support (TOTP/HOTP code generation)
-- [ ] Biometric unlock support (fingerprint via polkit)
-- [ ] Auto-lock after configurable inactivity timeout
-- [ ] Clipboard auto-clear after paste (configurable delay)
-- [ ] Password history tracking per account
-- [ ] Session timeout with re-authentication
+- [x] Clipboard auto-clear after paste (configurable 5-300s delay)
+- [x] Auto-lock after configurable inactivity timeout (60-3600s)
+- [x] Session timeout with re-authentication (integrated with auto-lock)
+- [ ] Password history tracking per account (UI complete, backend pending)
+- [ ] Two-factor authentication support (TOTP/HOTP code generation) - *requires hardware*
+- [ ] Biometric unlock support (fingerprint via polkit) - *requires hardware access*
 
 ### Usability Improvements
 - [ ] Import functionality (KeePass XML, 1Password, CSV formats)

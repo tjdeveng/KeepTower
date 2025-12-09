@@ -30,6 +30,7 @@ MainWindow::MainWindow()
       m_status_label("No vault open"),
       m_vault_open(false),
       m_updating_selection(false),
+      m_is_locked(false),
       m_selected_account_index(-1),
       m_vault_manager(std::make_unique<VaultManager>()) {
 
@@ -274,7 +275,12 @@ MainWindow::MainWindow()
 
         on_account_right_click(n_press, static_cast<double>(bin_x), static_cast<double>(bin_y));
     });
-    m_account_tree_view.add_controller(gesture);    // Initially disable search and details
+    m_account_tree_view.add_controller(gesture);
+
+    // Setup activity monitoring for auto-lock
+    setup_activity_monitoring();
+
+    // Initially disable search and details
     m_search_entry.set_sensitive(false);
     clear_account_details();
 }
@@ -284,6 +290,17 @@ MainWindow::~MainWindow() {
     if (m_clipboard_timeout.connected()) {
         m_clipboard_timeout.disconnect();
         get_clipboard()->set_text("");
+    }
+
+    // Disconnect auto-lock timeout
+    if (m_auto_lock_timeout.connected()) {
+        m_auto_lock_timeout.disconnect();
+    }
+
+    // Clear cached password
+    if (!m_cached_master_password.empty()) {
+        std::fill(m_cached_master_password.begin(), m_cached_master_password.end(), '\0');
+        m_cached_master_password.clear();
     }
 }
 
@@ -332,6 +349,7 @@ void MainWindow::on_new_vault() {
                     if (result) {
                         m_current_vault_path = vault_path;
                         m_vault_open = true;
+                        m_is_locked = false;
                         m_save_button.set_sensitive(true);
                         m_close_button.set_sensitive(true);
                         m_add_account_button.set_sensitive(true);
@@ -339,6 +357,9 @@ void MainWindow::on_new_vault() {
 
                         update_account_list();
                         clear_account_details();
+
+                        // Start activity monitoring for auto-lock
+                        on_user_activity();
                     } else {
                         constexpr std::string_view error_msg{"Failed to create vault"};
                         auto error_dialog = Gtk::make_managed<Gtk::MessageDialog>(*this, std::string{error_msg},
@@ -394,12 +415,16 @@ void MainWindow::on_open_vault() {
                     if (result) {
                         m_current_vault_path = vault_path;
                         m_vault_open = true;
+                        m_is_locked = false;
                         m_save_button.set_sensitive(true);
                         m_close_button.set_sensitive(true);
                         m_add_account_button.set_sensitive(true);
                         m_search_entry.set_sensitive(true);
 
                         update_account_list();
+
+                        // Start activity monitoring for auto-lock
+                        on_user_activity();
                     } else {
                         constexpr std::string_view error_msg{"Failed to open vault"};
                         auto error_dialog = Gtk::make_managed<Gtk::MessageDialog>(*this, std::string{error_msg},
@@ -448,6 +473,17 @@ void MainWindow::on_close_vault() {
         get_clipboard()->set_text("");
     }
 
+    // Stop auto-lock timer
+    if (m_auto_lock_timeout.connected()) {
+        m_auto_lock_timeout.disconnect();
+    }
+
+    // Clear cached password
+    if (!m_cached_master_password.empty()) {
+        std::fill(m_cached_master_password.begin(), m_cached_master_password.end(), '\0');
+        m_cached_master_password.clear();
+    }
+
     // Save the current account before closing
     save_current_account();
 
@@ -464,6 +500,7 @@ void MainWindow::on_close_vault() {
     }
 
     m_vault_open = false;
+    m_is_locked = false;
     m_current_vault_path.clear();
     m_save_button.set_sensitive(false);
     m_close_button.set_sensitive(false);
@@ -542,15 +579,19 @@ void MainWindow::on_add_account() {
     auto clipboard = get_clipboard();
     clipboard->set_text(password);
 
-    constexpr std::string_view copied_msg{"Password copied to clipboard (will clear in 30s)"};
-    m_status_label.set_text(std::string{copied_msg});
+    // Get clipboard timeout from settings
+    auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
+    const int timeout_seconds = settings->get_int("clipboard-clear-timeout");
+
+    const std::string copied_msg = std::format("Password copied to clipboard (will clear in {}s)", timeout_seconds);
+    m_status_label.set_text(copied_msg);
 
     // Cancel previous timeout if exists
     if (m_clipboard_timeout.connected()) {
         m_clipboard_timeout.disconnect();
     }
 
-    // Schedule clipboard clear after 30 seconds
+    // Schedule clipboard clear after configured timeout
     m_clipboard_timeout = Glib::signal_timeout().connect(
         [clipboard, this]() {
             clipboard->set_text("");
@@ -558,7 +599,7 @@ void MainWindow::on_add_account() {
             m_status_label.set_text(std::string{cleared_msg});
             return false;  // Don't repeat
         },
-        UI::CLIPBOARD_CLEAR_TIMEOUT_MS
+        timeout_seconds * 1000  // Convert seconds to milliseconds
     );
 }
 
@@ -1143,4 +1184,209 @@ void MainWindow::on_generate_password() {
 
     // Note: password string will be cleared when it goes out of scope
     // GTK entry widget manages its own secure memory
+}
+
+void MainWindow::setup_activity_monitoring() {
+    // Create event controllers to monitor user activity
+    auto key_controller = Gtk::EventControllerKey::create();
+    key_controller->signal_key_pressed().connect(
+        [this](guint, guint, Gdk::ModifierType) {
+            on_user_activity();
+            return false;  // Don't block event
+        }, false);
+    add_controller(key_controller);
+
+    auto motion_controller = Gtk::EventControllerMotion::create();
+    motion_controller->signal_motion().connect(
+        [this](double, double) {
+            on_user_activity();
+        });
+    add_controller(motion_controller);
+
+    auto click_controller = Gtk::GestureClick::create();
+    click_controller->signal_pressed().connect(
+        [this](int, double, double) {
+            on_user_activity();
+        });
+    add_controller(click_controller);
+}
+
+void MainWindow::on_user_activity() {
+    if (!m_vault_open || m_is_locked) {
+        return;
+    }
+
+    // Check if auto-lock is enabled (cache settings to avoid repeated creation)
+    static const auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
+    if (!settings->get_boolean("auto-lock-enabled")) {
+        return;
+    }
+
+    // Cancel previous timeout if exists
+    if (m_auto_lock_timeout.connected()) {
+        m_auto_lock_timeout.disconnect();
+    }
+
+    // Schedule auto-lock after configured timeout
+    const int timeout_seconds = settings->get_int("auto-lock-timeout");
+    m_auto_lock_timeout = Glib::signal_timeout().connect(
+        sigc::mem_fun(*this, &MainWindow::on_auto_lock_timeout),
+        timeout_seconds * 1000  // Convert seconds to milliseconds
+    );
+}
+
+bool MainWindow::on_auto_lock_timeout() {
+    if (m_vault_open && !m_is_locked) {
+        lock_vault();
+    }
+    return false;  // Don't repeat
+}
+
+void MainWindow::lock_vault() {
+    if (!m_vault_open || m_is_locked) {
+        return;
+    }
+
+    // Cache the master password for re-authentication
+    m_cached_master_password = get_master_password_for_lock();
+    if (m_cached_master_password.empty()) {
+        // Can't lock without being able to unlock
+        return;
+    }
+
+    // Save any unsaved changes
+    save_current_account();
+    if (!m_vault_manager->save_vault()) {
+        g_warning("Failed to save vault before locking");
+    }
+
+    // Set locked state
+    m_is_locked = true;
+
+    // Disable UI
+    m_add_account_button.set_sensitive(false);
+    m_save_button.set_sensitive(false);
+    m_search_entry.set_sensitive(false);
+    m_delete_account_button.set_sensitive(false);
+    clear_account_details();
+
+    // Clear clipboard
+    if (m_clipboard_timeout.connected()) {
+        m_clipboard_timeout.disconnect();
+        get_clipboard()->set_text("");
+    }
+
+    // Update status
+    constexpr std::string_view locked_msg{"Vault locked due to inactivity. Click to unlock."};
+    m_status_label.set_text(std::string{locked_msg});
+
+    // Show unlock dialog
+    auto* dialog = Gtk::make_managed<Gtk::MessageDialog>(
+        *this,
+        "Vault Locked",
+        false,
+        Gtk::MessageType::INFO,
+        Gtk::ButtonsType::OK_CANCEL
+    );
+    dialog->set_secondary_text("The vault has been locked due to inactivity.\nEnter your master password to continue.");
+    dialog->set_modal(true);
+    dialog->set_hide_on_close(true);
+
+    auto* content = dialog->get_message_area();
+    auto* password_entry = Gtk::make_managed<Gtk::Entry>();
+    password_entry->set_visibility(false);
+    password_entry->set_placeholder_text("Master password");
+    password_entry->set_margin_start(12);
+    password_entry->set_margin_end(12);
+    password_entry->set_margin_top(12);
+    content->append(*password_entry);
+
+    dialog->signal_response().connect([this, password_entry](const int response) {
+        if (response == Gtk::ResponseType::OK) {
+            const std::string entered_password{password_entry->get_text()};
+
+            // Verify password by attempting to open vault
+            const auto temp_vault = std::make_unique<VaultManager>();
+            const bool success = temp_vault->open_vault(std::string{m_current_vault_path}, entered_password);
+
+            if (success && entered_password == m_cached_master_password) {
+                // Unlock successful
+                m_is_locked = false;
+
+                // Re-enable UI
+                m_add_account_button.set_sensitive(true);
+                m_save_button.set_sensitive(true);
+                m_search_entry.set_sensitive(true);
+
+                // Restore account list and selection
+                update_account_list();
+                filter_accounts(m_search_entry.get_text());
+
+                // Reset activity monitoring
+                on_user_activity();
+
+                constexpr std::string_view unlocked_msg{"Vault unlocked"};
+                m_status_label.set_text(std::string{unlocked_msg});
+            } else {
+                // Wrong password
+                password_entry->set_text("");
+                password_entry->grab_focus();
+
+                auto* error_dialog = Gtk::make_managed<Gtk::MessageDialog>(
+                    *this,
+                    "Incorrect Password",
+                    false,
+                    Gtk::MessageType::ERROR,
+                    Gtk::ButtonsType::OK
+                );
+                error_dialog->set_secondary_text("The password you entered is incorrect.");
+                error_dialog->set_modal(true);
+                error_dialog->set_hide_on_close(true);
+                error_dialog->show();
+            }
+        }
+    });
+
+    dialog->show();
+}
+
+std::string MainWindow::get_master_password_for_lock() {
+    // We need to get the master password to cache it for unlock
+    // This is called when locking, so we prompt the user
+    auto* dialog = Gtk::make_managed<Gtk::MessageDialog>(
+        *this,
+        "Confirm Lock",
+        false,
+        Gtk::MessageType::QUESTION,
+        Gtk::ButtonsType::OK_CANCEL
+    );
+    dialog->set_secondary_text("Enter your master password to enable auto-lock.\nThis will be cached securely in memory for unlock.");
+    dialog->set_modal(true);
+    dialog->set_hide_on_close(true);
+
+    auto* content = dialog->get_message_area();
+    auto* password_entry = Gtk::make_managed<Gtk::Entry>();
+    password_entry->set_visibility(false);
+    password_entry->set_placeholder_text("Master password");
+    password_entry->set_margin_start(12);
+    password_entry->set_margin_end(12);
+    password_entry->set_margin_top(12);
+    content->append(*password_entry);
+
+    std::string result;
+    dialog->signal_response().connect([&result, password_entry](const int response) {
+        if (response == Gtk::ResponseType::OK) {
+            result = std::string{password_entry->get_text()};
+        }
+    });
+
+    dialog->set_hide_on_close(true);
+    dialog->show();
+
+    // Wait for dialog to close (use modern GTK4 pattern)
+    while (dialog->get_visible()) {
+        g_main_context_iteration(nullptr, true);
+    }
+
+    return result;
 }

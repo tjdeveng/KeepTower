@@ -139,6 +139,17 @@ ui_features_test = executable(
     include_directories: test_inc
 )
 
+# UI security tests (GSettings security configuration)
+ui_security_test = executable(
+    'ui_security_test',
+    'test_ui_security.cc',
+    dependencies: [
+        gtest_dep,
+        giomm_dep
+    ],
+    include_directories: test_inc
+)
+
 # Register all tests
 test('VaultManager Tests', vault_manager_test)
 test('Password Validation Tests', password_validation_test, timeout: 30)
@@ -147,3 +158,4 @@ test('Reed-Solomon Tests', reed_solomon_test)
 test('Vault Reed-Solomon Integration', vault_reed_solomon_test)
 test('FEC Preferences Tests', fec_preferences_test)
 test('UI Features Tests', ui_features_test)
+test('UI Security Tests', ui_security_test, env: ['GSETTINGS_SCHEMA_DIR=' + meson.project_source_root() / 'data'])
