@@ -93,6 +93,21 @@ if compile_schemas.found()
     compile_schemas,
     args: ['--strict', '--dry-run', meson.current_source_dir()],
   )
+
+  # Copy schema to build directory and compile for local development
+  schema_in_build = configure_file(
+    input: gschema_file,
+    output: gschema_file,
+    copy: true,
+  )
+
+  custom_target('gsettings-compile',
+    input: schema_in_build,
+    output: 'gschemas.compiled',
+    command: [compile_schemas, meson.current_build_dir()],
+    build_by_default: true,
+    install: false,
+  )
 endif
 
 # Icons
