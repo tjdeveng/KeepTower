@@ -75,7 +75,9 @@ jobs:
               protobuf-devel \
               openssl-devel \
               gtest-devel \
-              libcorrect-devel && \
+              libcorrect-devel \
+              desktop-file-utils \
+              gettext && \
             meson setup build --buildtype=release --prefix=/usr && \
             meson compile -C build && \
             mkdir -p dist && \
