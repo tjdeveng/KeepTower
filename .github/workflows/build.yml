@@ -171,7 +171,7 @@ jobs:
     - name: Download build artifact
       uses: actions/download-artifact@v4
       with:
-        name: keeptower-ubuntu-22.04
+        name: keeptower-ubuntu-24.04
 
     - name: Extract and test
       run: |
