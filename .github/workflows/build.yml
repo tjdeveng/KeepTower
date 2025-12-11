@@ -60,31 +60,28 @@ jobs:
 
     - name: Build on Fedora
       if: matrix.distro == 'fedora-39'
-      uses: uraimo/run-on-arch-action@v2
-      with:
-        arch: x86_64
-        distro: fedora_39
-        dockerRunArgs: |
-          --volume "${PWD}:/workspace"
-        install: |
-          dnf install -y \
-            gcc-c++ \
-            meson \
-            ninja-build \
-            pkg-config \
-            gtkmm4.0-devel \
-            protobuf-devel \
-            openssl-devel \
-            gtest-devel \
-            libcorrect-devel
-        run: |
-          cd /workspace
-          meson setup build --buildtype=release --prefix=/usr
-          meson compile -C build
-
-          mkdir -p dist
-          cp build/src/keeptower dist/
-          tar -czf keeptower-fedora-39-x86_64.tar.gz -C dist keeptower
+      run: |
+        docker run --rm \
+          -v "$PWD:/workspace" \
+          -w /workspace \
+          fedora:39 \
+          bash -c "
+            dnf install -y \
+              gcc-c++ \
+              meson \
+              ninja-build \
+              pkg-config \
+              gtkmm4.0-devel \
+              protobuf-devel \
+              openssl-devel \
+              gtest-devel \
+              libcorrect-devel && \
+            meson setup build --buildtype=release --prefix=/usr && \
+            meson compile -C build && \
+            mkdir -p dist && \
+            cp build/src/keeptower dist/ && \
+            tar -czf keeptower-fedora-39-x86_64.tar.gz -C dist keeptower
+          "
 
     - name: Upload build artifact
       uses: actions/upload-artifact@v4
