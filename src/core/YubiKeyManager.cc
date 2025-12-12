@@ -152,11 +152,21 @@ YubiKeyManager::ChallengeResponse YubiKeyManager::challenge_response(
         return result;
     }
 
+    // Release and re-init to ensure clean state (workaround for ykpers state issues)
+    yk_release();
+    if (!yk_init()) {
+        result.error_message = "Failed to re-initialize YubiKey library";
+        set_error(result.error_message);
+        KeepTower::Log::error("YubiKey re-initialization failed");
+        return result;
+    }
+
     // Open YubiKey
     YK_KEY* yk = yk_open_first_key();
     if (!yk) {
         result.error_message = "No YubiKey device found";
         set_error(result.error_message);
+        KeepTower::Log::error("No YubiKey device found");
         return result;
     }
 
@@ -165,23 +175,42 @@ YubiKeyManager::ChallengeResponse YubiKeyManager::challenge_response(
     const size_t copy_size = std::min(challenge.size(), CHALLENGE_SIZE);
     std::copy_n(challenge.begin(), copy_size, padded_challenge.begin());
 
-    // Note: timeout is handled internally by ykpers library
-    // The timeout_ms parameter is kept for API consistency
-    (void)timeout_ms;  // Suppress unused warning
+    KeepTower::Log::info("Sending challenge to YubiKey slot 2...");
+    (void)require_touch;  // Touch requirement is in slot configuration
+    (void)timeout_ms;     // Timeout handled by ykpers
 
-    // Perform challenge-response on slot 2
-    (void)require_touch;  // Suppress unused warning - always use touch mode
+    // Prepare response buffer - must be 64 bytes per ykpers API requirements
+    // Even though HMAC-SHA1 is only 20 bytes, the API requires 64-byte buffer
+    std::array<unsigned char, CHALLENGE_SIZE> response_buffer{};
 
-    if (!yk_challenge_response(yk, SLOT2, 1,  // Always require touch for security
-                               CHALLENGE_SIZE, padded_challenge.data(),
-                               RESPONSE_SIZE, result.response.data())) {
-        result.error_message = "Challenge-response failed";
+    // Use yk_challenge_response as ykchalresp does
+    // Parameters: yk, slot_command, may_block, challenge_len, challenge, response_buf_len, response_buf
+    const int ret = yk_challenge_response(
+        yk,
+        SLOT_CHAL_HMAC2,         // 0x38 - Slot 2 HMAC-SHA1
+        1,                        // may_block=1 (blocking, as ykchalresp default)
+        CHALLENGE_SIZE,           // 64 bytes
+        padded_challenge.data(),
+        CHALLENGE_SIZE,           // Response buffer must be 64 bytes!
+        response_buffer.data()
+    );
+
+    if (ret != 1) {
+        result.error_message = std::format(
+            "yk_challenge_response failed (returned {}). "
+            "Verify slot 2 is configured for HMAC-SHA1 challenge-response.",
+            ret
+        );
         set_error(result.error_message);
-        KeepTower::Log::error("Challenge-response failed");
+        KeepTower::Log::error("yk_challenge_response failed: returned {}", ret);
         yk_close_key(yk);
         return result;
     }
 
+    // Copy the actual 20-byte HMAC-SHA1 response from the 64-byte buffer
+    std::copy_n(response_buffer.begin(), RESPONSE_SIZE, result.response.begin());
+
+    KeepTower::Log::info("Challenge-response succeeded, got {} byte HMAC-SHA1 response", RESPONSE_SIZE);
     yk_close_key(yk);
 
     result.success = true;
