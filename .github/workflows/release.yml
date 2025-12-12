@@ -54,15 +54,24 @@ jobs:
 
     - name: Create Release
       id: create_release
-      uses: actions/create-release@v1
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ steps.get_version.outputs.version }}
-        release_name: KeepTower ${{ steps.get_version.outputs.version }}
-        body_path: release-notes.md
-        draft: false
-        prerelease: ${{ contains(steps.get_version.outputs.version, 'beta') || contains(steps.get_version.outputs.version, 'alpha') || contains(steps.get_version.outputs.version, 'rc') }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        PRERELEASE=""
+        if [[ "${{ steps.get_version.outputs.version }}" == *"beta"* ]] || \
+           [[ "${{ steps.get_version.outputs.version }}" == *"alpha"* ]] || \
+           [[ "${{ steps.get_version.outputs.version }}" == *"rc"* ]]; then
+          PRERELEASE="--prerelease"
+        fi
+        
+        gh release create "${{ steps.get_version.outputs.version }}" \
+          --title "KeepTower ${{ steps.get_version.outputs.version }}" \
+          --notes-file release-notes.md \
+          $PRERELEASE
+        
+        # Get upload URL for artifacts
+        UPLOAD_URL=$(gh api repos/${{ github.repository }}/releases/tags/${{ steps.get_version.outputs.version }} --jq .upload_url)
+        echo "upload_url=$UPLOAD_URL" >> $GITHUB_OUTPUT
 
   build-release-artifacts:
     name: Build ${{ matrix.artifact }}
@@ -156,25 +165,24 @@ jobs:
         sha256sum keeptower-* > checksums-${{ matrix.artifact }}.txt
         cat checksums-${{ matrix.artifact }}.txt
 
-    - name: Upload Release Asset
-      uses: actions/upload-release-asset@v1
+    - name: Upload Release Assets
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ needs.create-release.outputs.upload_url }}
-        asset_path: ./keeptower-${{ needs.create-release.outputs.version }}-${{ matrix.artifact == 'source' && 'source' || matrix.artifact == 'appimage' && 'x86_64' || format('{0}-x86_64', matrix.artifact) }}.${{ matrix.artifact == 'appimage' && 'AppImage' || 'tar.gz' }}
-        asset_name: keeptower-${{ needs.create-release.outputs.version }}-${{ matrix.artifact == 'source' && 'source' || matrix.artifact == 'appimage' && 'x86_64' || format('{0}-x86_64', matrix.artifact) }}.${{ matrix.artifact == 'appimage' && 'AppImage' || 'tar.gz' }}
-        asset_content_type: application/${{ matrix.artifact == 'appimage' && 'octet-stream' || 'gzip' }}
-
-    - name: Upload Checksums
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ needs.create-release.outputs.upload_url }}
-        asset_path: ./checksums-${{ matrix.artifact }}.txt
-        asset_name: checksums-${{ matrix.artifact }}.txt
-        asset_content_type: text/plain
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        # Determine artifact filename
+        if [ "${{ matrix.artifact }}" = "source" ]; then
+          ARTIFACT_FILE="keeptower-${{ needs.create-release.outputs.version }}-source.tar.gz"
+        elif [ "${{ matrix.artifact }}" = "appimage" ]; then
+          ARTIFACT_FILE="keeptower-${{ needs.create-release.outputs.version }}-x86_64.AppImage"
+        else
+          ARTIFACT_FILE="keeptower-${{ needs.create-release.outputs.version }}-${{ matrix.artifact }}-x86_64.tar.gz"
+        fi
+        
+        # Upload artifact and checksums
+        gh release upload "${{ needs.create-release.outputs.version }}" \
+          "$ARTIFACT_FILE" \
+          "checksums-${{ matrix.artifact }}.txt" \
+          --clobber
 
   build-documentation:
     name: Build and Deploy Documentation
