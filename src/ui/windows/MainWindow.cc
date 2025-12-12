@@ -5,6 +5,7 @@
 #include "../dialogs/CreatePasswordDialog.h"
 #include "../dialogs/PasswordDialog.h"
 #include "../dialogs/PreferencesDialog.h"
+#include "../dialogs/YubiKeyPromptDialog.h"
 #include "../../core/VaultError.h"
 #include "../../utils/SettingsValidator.h"
 #include "../../utils/Log.h"
@@ -356,8 +357,32 @@ void MainWindow::on_new_vault() {
                     int rs_redundancy = settings->get_int("rs-redundancy-percent");
                     m_vault_manager->apply_default_fec_preferences(use_rs, rs_redundancy);
 
+#ifdef HAVE_YUBIKEY_SUPPORT
+                    // Show touch prompt if YubiKey is required
+                    YubiKeyPromptDialog* touch_dialog = nullptr;
+                    if (require_yubikey) {
+                        pwd_dialog->hide();
+                        touch_dialog = Gtk::make_managed<YubiKeyPromptDialog>(*this,
+                            YubiKeyPromptDialog::PromptType::TOUCH);
+                        touch_dialog->present();
+
+                        // Force GTK to process events and render the dialog
+                        auto context = Glib::MainContext::get_default();
+                        while (context->pending()) {
+                            context->iteration(false);
+                        }
+                        g_usleep(150000);  // 150ms
+                    }
+#endif
+
                     // Create encrypted vault file with password (and optionally YubiKey)
                     auto result = m_vault_manager->create_vault(vault_path.raw(), password, require_yubikey);
+
+#ifdef HAVE_YUBIKEY_SUPPORT
+                    if (touch_dialog) {
+                        touch_dialog->hide();
+                    }
+#endif
                     if (result) {
                         m_current_vault_path = vault_path;
                         m_vault_open = true;
@@ -417,13 +442,79 @@ void MainWindow::on_open_vault() {
         if (response == Gtk::ResponseType::OK) {
             Glib::ustring vault_path = dialog->get_file()->get_path();
 
+#ifdef HAVE_YUBIKEY_SUPPORT
+            // Check if vault requires YubiKey
+            std::string yubikey_serial;
+            bool yubikey_required = m_vault_manager->check_vault_requires_yubikey(vault_path.raw(), yubikey_serial);
+
+            if (yubikey_required) {
+                // Check if YubiKey is present
+                YubiKeyManager yk_manager;
+                [[maybe_unused]] bool yk_init = yk_manager.initialize();
+
+                if (!yk_manager.is_yubikey_present()) {
+                    // Show "Insert YubiKey" dialog
+                    auto yk_dialog = Gtk::make_managed<YubiKeyPromptDialog>(*this,
+                        YubiKeyPromptDialog::PromptType::INSERT, yubikey_serial);
+
+                    yk_dialog->signal_response().connect([this, yk_dialog, vault_path](int yk_response) {
+                        if (yk_response == Gtk::ResponseType::OK) {
+                            // User clicked Retry - try opening again
+                            yk_dialog->hide();
+                            on_open_vault();  // Restart the process
+                            return;
+                        }
+                        yk_dialog->hide();
+                    });
+
+                    yk_dialog->show();
+                    dialog->hide();
+                    return;
+                }
+            }
+#endif
+
             // Show password dialog to decrypt vault
             auto pwd_dialog = Gtk::make_managed<PasswordDialog>(*this);
             pwd_dialog->signal_response().connect([this, pwd_dialog, vault_path](int pwd_response) {
                 if (pwd_response == Gtk::ResponseType::OK) {
                     Glib::ustring password = pwd_dialog->get_password();
 
+#ifdef HAVE_YUBIKEY_SUPPORT
+                    // Check again if YubiKey is required (for touch prompt)
+                    std::string yubikey_serial;
+                    bool yubikey_required = m_vault_manager->check_vault_requires_yubikey(vault_path.raw(), yubikey_serial);
+
+                    YubiKeyPromptDialog* touch_dialog = nullptr;
+                    if (yubikey_required) {
+                        // Hide password dialog to show touch prompt
+                        pwd_dialog->hide();
+
+                        // Show touch prompt dialog
+                        touch_dialog = Gtk::make_managed<YubiKeyPromptDialog>(*this,
+                            YubiKeyPromptDialog::PromptType::TOUCH);
+                        touch_dialog->present();
+
+                        // Force GTK to process events and render the dialog
+                        auto context = Glib::MainContext::get_default();
+                        while (context->pending()) {
+                            context->iteration(false);
+                        }
+
+                        // Additional small delay to ensure dialog is fully rendered
+                        g_usleep(150000);  // 150ms
+                    }
+#endif
+
                     auto result = m_vault_manager->open_vault(vault_path.raw(), password);
+
+#ifdef HAVE_YUBIKEY_SUPPORT
+                    // Hide touch prompt if it was shown
+                    if (touch_dialog) {
+                        touch_dialog->hide();
+                    }
+#endif
+
                     if (result) {
                         m_current_vault_path = vault_path;
                         m_vault_open = true;

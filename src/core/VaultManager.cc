@@ -165,6 +165,49 @@ bool VaultManager::create_vault(const std::string& path,
     return save_vault();
 }
 
+bool VaultManager::check_vault_requires_yubikey(const std::string& path, std::string& serial) {
+    // Read vault file
+    std::vector<uint8_t> file_data;
+    if (!read_vault_file(path, file_data)) {
+        return false;
+    }
+
+    // Check minimum size for flags
+    if (file_data.size() < SALT_LENGTH + IV_LENGTH + 1) {
+        return false;
+    }
+
+    // Read flags byte
+    uint8_t flags = file_data[SALT_LENGTH + IV_LENGTH];
+
+    if (!(flags & FLAG_YUBIKEY_REQUIRED)) {
+        return false;
+    }
+
+    // YubiKey is required, try to read serial number
+    // Skip past salt, IV, flags, and RS metadata if present
+    size_t offset = SALT_LENGTH + IV_LENGTH + 1;
+
+    // Check if RS is enabled
+    if (flags & FLAG_RS_ENABLED) {
+        // Skip RS metadata: redundancy (1 byte) + original_size (4 bytes)
+        offset += 5;
+    }
+
+    // Check if we have enough data for YubiKey metadata
+    if (offset + 1 > file_data.size()) {
+        return true;  // YubiKey required but no serial available
+    }
+
+    // Read YubiKey serial
+    uint8_t serial_len = file_data[offset++];
+    if (offset + serial_len <= file_data.size()) {
+        serial.assign(file_data.begin() + offset, file_data.begin() + offset + serial_len);
+    }
+
+    return true;
+}
+
 bool VaultManager::open_vault(const std::string& path, const Glib::ustring& password) {
     if (m_vault_open) {
         if (!close_vault()) {
@@ -234,7 +277,15 @@ bool VaultManager::open_vault(const std::string& path, const Glib::ustring& pass
 
                 // Calculate expected encoded size
                 size_t data_offset = SALT_LENGTH + IV_LENGTH + 6;
-                size_t encoded_size = file_data.size() - data_offset;
+
+                // Account for YubiKey metadata if present (comes after RS metadata, before RS data)
+                size_t yk_metadata_size = 0;
+                if (yubikey_required && data_offset < file_data.size()) {
+                    uint8_t serial_len = file_data[data_offset];
+                    yk_metadata_size = 1 + serial_len + YUBIKEY_CHALLENGE_SIZE;
+                }
+
+                size_t encoded_size = file_data.size() - data_offset - yk_metadata_size;
 
                 // Sanity check: original size should be less than encoded size
                 // Reed-Solomon uses 255-byte blocks, so the ratio can be high for small data
@@ -247,6 +298,17 @@ bool VaultManager::open_vault(const std::string& path, const Glib::ustring& pass
                     file_fec_redundancy = rs_redundancy;
                     ciphertext_offset += 2;  // Skip flags and redundancy bytes
                     ciphertext_offset += 4;  // Skip original_size bytes
+
+                    // Read YubiKey metadata if required (comes BEFORE RS-encoded data)
+                    if (yubikey_required && ciphertext_offset < file_data.size()) {
+                        uint8_t serial_len = file_data[ciphertext_offset++];
+                        stored_serial.assign(file_data.begin() + ciphertext_offset,
+                                           file_data.begin() + ciphertext_offset + serial_len);
+                        ciphertext_offset += serial_len;
+                        stored_challenge.assign(file_data.begin() + ciphertext_offset,
+                                              file_data.begin() + ciphertext_offset + YUBIKEY_CHALLENGE_SIZE);
+                        ciphertext_offset += YUBIKEY_CHALLENGE_SIZE;
+                    }
 
                     // Extract RS-encoded data
                     std::vector<uint8_t> encoded_data(file_data.begin() + ciphertext_offset,
@@ -277,19 +339,6 @@ bool VaultManager::open_vault(const std::string& path, const Glib::ustring& pass
                     ciphertext = std::move(decode_result.value());
                     KeepTower::Log::info("Vault decoded with Reed-Solomon ({}% redundancy, {} -> {} bytes)",
                                         rs_redundancy, encoded_data.size(), ciphertext.size());
-
-                    // Read YubiKey metadata if required (after RS data)
-                    if (yubikey_required && ciphertext_offset < file_data.size()) {
-                        size_t yk_offset = ciphertext_offset;
-                        uint8_t serial_len = file_data[yk_offset++];
-                        stored_serial.assign(file_data.begin() + yk_offset,
-                                           file_data.begin() + yk_offset + serial_len);
-                        yk_offset += serial_len;
-                        stored_challenge.assign(file_data.begin() + yk_offset,
-                                              file_data.begin() + yk_offset + YUBIKEY_CHALLENGE_SIZE);
-                        yk_offset += YUBIKEY_CHALLENGE_SIZE;
-                        ciphertext_offset = yk_offset;
-                    }
                 } else {
                     // Invalid size ratio - treat as legacy format
                     ciphertext.assign(file_data.begin() + (SALT_LENGTH + IV_LENGTH), file_data.end());
@@ -335,7 +384,7 @@ bool VaultManager::open_vault(const std::string& path, const Glib::ustring& pass
         KeepTower::Log::info("Vault requires YubiKey authentication (serial: {})", stored_serial);
 
         YubiKeyManager yk_manager;
-        if (!yk_manager.is_available()) {
+        if (!yk_manager.initialize() || !yk_manager.is_yubikey_present()) {
             std::cerr << "YubiKey is required but no YubiKey is connected" << std::endl;
             return false;
         }

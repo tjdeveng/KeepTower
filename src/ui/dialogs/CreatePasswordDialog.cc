@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2025 tjdeveng
 
+#include "config.h"
 #include "CreatePasswordDialog.h"
 #include "../../core/CommonPasswords.h"
 #include <algorithm>
@@ -22,7 +23,7 @@ CreatePasswordDialog::CreatePasswordDialog(Gtk::Window& parent)
       m_yubikey_info_label() {
 
     // Set dialog properties
-    set_default_size(500, 400);
+    set_default_size(500, 500);  // Increased height for YubiKey section
     set_modal(true);
 
     // Add buttons
@@ -98,9 +99,13 @@ CreatePasswordDialog::CreatePasswordDialog(Gtk::Window& parent)
 
 #ifdef HAVE_YUBIKEY_SUPPORT
     // Add YubiKey option section
+    m_validation_message.set_margin_bottom(12);  // Add space before separator
+
     m_yubikey_separator.set_margin_top(12);
-    m_yubikey_separator.set_margin_bottom(12);
+    m_yubikey_separator.set_margin_bottom(18);
     m_content_box.append(m_yubikey_separator);
+
+    m_yubikey_check.set_margin_bottom(12);
     m_content_box.append(m_yubikey_check);
 
     // Configure YubiKey info label
@@ -125,7 +130,9 @@ CreatePasswordDialog::CreatePasswordDialog(Gtk::Window& parent)
 
     // Check if YubiKey is available
     YubiKeyManager yk_manager;
-    if (!yk_manager.is_available()) {
+    bool yk_init_success = yk_manager.initialize();
+
+    if (!yk_init_success || !yk_manager.is_yubikey_present()) {
         m_yubikey_check.set_sensitive(false);
         m_yubikey_check.set_tooltip_text("No YubiKey detected. Please connect your YubiKey.");
     }

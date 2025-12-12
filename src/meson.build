@@ -56,6 +56,7 @@ sources = files(
 # Add YubiKey support if available
 if yubikey_available
   sources += files('core/YubiKeyManager.cc')
+  sources += files('ui/dialogs/YubiKeyPromptDialog.cc')
 endif
 
 # Combine regular sources with generated proto sources and resources

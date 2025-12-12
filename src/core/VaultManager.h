@@ -24,6 +24,11 @@
 #include "VaultError.h"
 #include "ReedSolomon.h"
 
+// Forward declare for conditional compilation
+#if __has_include("config.h")
+#include "config.h"
+#endif
+
 #ifdef HAVE_YUBIKEY_SUPPORT
 #include "YubiKeyManager.h"
 #endif
@@ -134,6 +139,16 @@ public:
                                      const Glib::ustring& password,
                                      bool require_yubikey = false,
                                      std::string yubikey_serial = "");
+
+    /**
+     * @brief Check if a vault requires YubiKey authentication
+     * @param path Filesystem path to vault file
+     * @param serial Output parameter for YubiKey serial number (if available)
+     * @return true if vault requires YubiKey, false otherwise or on error
+     *
+     * Peeks at vault file flags without opening or decrypting.
+     */
+    [[nodiscard]] bool check_vault_requires_yubikey(const std::string& path, std::string& serial);
 
     /**
      * @brief Open and decrypt an existing vault
