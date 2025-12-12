@@ -51,8 +51,12 @@ sources = files(
   'ui/dialogs/PreferencesDialog.cc',
   'core/VaultManager.cc',
   'core/ReedSolomon.cc',
-  # Add more source files as you create them
 )
+
+# Add YubiKey support if available
+if yubikey_available
+  sources += files('core/YubiKeyManager.cc')
+endif
 
 # Combine regular sources with generated proto sources and resources
 all_sources = sources + proto_sources + gresources

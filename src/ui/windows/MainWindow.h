@@ -13,6 +13,9 @@
 #include <vector>
 #include <memory>
 #include "../../core/VaultManager.h"
+#ifdef HAVE_YUBIKEY_SUPPORT
+#include "../../core/YubiKeyManager.h"
+#endif
 
 /**
  * @namespace UI
@@ -73,6 +76,7 @@ protected:
     void on_add_account();    ///< Add new account
     void on_delete_account(); ///< Delete selected account
     void on_preferences();    ///< Show preferences dialog
+    void on_test_yubikey();   ///< Test YubiKey detection
     void on_copy_password();  ///< Copy password to clipboard
     void on_generate_password();  ///< Generate random password
     void on_toggle_password_visibility();  ///< Show/hide password

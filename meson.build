@@ -27,6 +27,21 @@ libcorrect_dep = declare_dependency(
   dependencies: libcorrect_lib
 )
 
+# YubiKey dependencies (optional for hardware 2FA support)
+ykpers_dep = dependency('ykpers-1', required: false)
+libyubikey_lib = cc.find_library('yubikey', required: false)
+libyubikey_dep = declare_dependency(
+  dependencies: libyubikey_lib
+)
+
+# Check if YubiKey support is available
+yubikey_available = ykpers_dep.found() and libyubikey_lib.found()
+if yubikey_available
+  message('YubiKey support: ENABLED')
+else
+  warning('YubiKey support: DISABLED (install libyubikey-devel and ykpers-devel to enable)')
+endif
+
 # Common dependencies
 common_deps = [
   gtkmm_dep,
@@ -34,6 +49,11 @@ common_deps = [
   openssl_dep,
   libcorrect_dep,
 ]
+
+# Add YubiKey dependencies if available
+if yubikey_available
+  common_deps += [libyubikey_dep, ykpers_dep]
+endif
 
 # Configuration data
 conf_data = configuration_data()
@@ -44,6 +64,7 @@ conf_data.set_quoted('PACKAGE_VERSION', meson.project_version())
 conf_data.set_quoted('GETTEXT_PACKAGE', project_name)
 conf_data.set_quoted('LOCALEDIR', get_option('prefix') / get_option('localedir'))
 conf_data.set_quoted('PROJECT_SOURCE_DIR', meson.project_source_root())
+conf_data.set('HAVE_YUBIKEY_SUPPORT', yubikey_available)
 
 # Generate config header
 configure_file(

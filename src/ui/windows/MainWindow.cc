@@ -7,7 +7,11 @@
 #include "../dialogs/PreferencesDialog.h"
 #include "../../core/VaultError.h"
 #include "../../utils/SettingsValidator.h"
+#include "../../utils/Log.h"
 #include "config.h"
+#ifdef HAVE_YUBIKEY_SUPPORT
+#include "../../core/YubiKeyManager.h"
+#endif
 #include "record.pb.h"
 #include <regex>
 #include <algorithm>
@@ -71,6 +75,9 @@ MainWindow::MainWindow()
     // Set up window actions
     add_action("preferences", sigc::mem_fun(*this, &MainWindow::on_preferences));
     add_action("delete-account", sigc::mem_fun(*this, &MainWindow::on_delete_account));
+#ifdef HAVE_YUBIKEY_SUPPORT
+    add_action("test-yubikey", sigc::mem_fun(*this, &MainWindow::on_test_yubikey));
+#endif
 
     // Set keyboard shortcut for preferences
     auto app = get_application();
@@ -109,6 +116,9 @@ MainWindow::MainWindow()
     // Primary menu (hamburger menu)
     m_primary_menu = Gio::Menu::create();
     m_primary_menu->append("_Preferences", "win.preferences");
+#ifdef HAVE_YUBIKEY_SUPPORT
+    m_primary_menu->append("Test _YubiKey", "win.test-yubikey");
+#endif
     m_primary_menu->append("_Keyboard Shortcuts", "win.show-help-overlay");
     m_primary_menu->append("_About KeepTower", "app.about");
     m_menu_button.set_icon_name("open-menu-symbolic");
@@ -1391,3 +1401,62 @@ std::string MainWindow::get_master_password_for_lock() {
 
     return result;
 }
+
+#ifdef HAVE_YUBIKEY_SUPPORT
+void MainWindow::on_test_yubikey() {
+    using namespace KeepTower::Log;
+
+    info("Testing YubiKey detection...");
+
+    YubiKeyManager yk_manager{};
+
+    // Initialize YubiKey subsystem
+    if (!yk_manager.initialize()) {
+        auto dialog = Gtk::AlertDialog::create("YubiKey Initialization Failed");
+        dialog->set_detail("Could not initialize YubiKey subsystem. Make sure the required libraries are installed.");
+        dialog->set_buttons({"OK"});
+        dialog->choose(*this, {});
+        error("YubiKey initialization failed");
+        return;
+    }
+
+    // Check if YubiKey is present
+    if (!yk_manager.is_yubikey_present()) {
+        auto dialog = Gtk::AlertDialog::create("No YubiKey Detected");
+        dialog->set_detail("Please insert a YubiKey device and try again.");
+        dialog->set_buttons({"OK"});
+        dialog->choose(*this, {});
+        info("No YubiKey detected");
+        return;
+    }
+
+    // Get device information
+    auto device_info = yk_manager.get_device_info();
+    if (!device_info) {
+        auto dialog = Gtk::AlertDialog::create("YubiKey Detection Failed");
+        dialog->set_detail("YubiKey detected but could not read device information.");
+        dialog->set_buttons({"OK"});
+        dialog->choose(*this, {});
+        error("Failed to read YubiKey device info");
+        return;
+    }
+
+    // Show success dialog with device details
+    const std::string message = std::format(
+        "YubiKey Detected Successfully!\n\n"
+        "Serial Number: {}\n"
+        "Firmware Version: {}\n"
+        "Slot 2 Configured: {}",
+        device_info->serial_number,
+        device_info->version_string(),
+        device_info->slot2_configured ? "Yes" : "No (needs configuration)"
+    );
+
+    auto dialog = Gtk::AlertDialog::create("YubiKey Detection Test");
+    dialog->set_detail(message);
+    dialog->set_buttons({"OK"});
+    dialog->choose(*this, {});
+
+    info("YubiKey test completed: {}", message);
+}
+#endif
