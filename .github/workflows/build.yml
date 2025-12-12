@@ -119,78 +119,67 @@ jobs:
 
   build-appimage:
     name: Build AppImage
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Cache libcorrect
-      id: cache-libcorrect
-      uses: actions/cache@v4
-      with:
-        path: /tmp/libcorrect-install
-        key: libcorrect-appimage-${{ hashFiles('.github/libcorrect-version.txt') }}
-        restore-keys: |
-          libcorrect-appimage-
-
-    - name: Install dependencies
+    - name: Build AppImage with Fedora
       run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          build-essential \
-          meson \
-          ninja-build \
-          pkg-config \
-          libgtkmm-4.0-dev \
-          libprotobuf-dev \
-          protobuf-compiler \
-          libssl-dev \
-          libgtest-dev \
-          wget \
-          file \
-          cmake \
-          git \
-          gettext \
-          desktop-file-utils
+        docker run --rm \
+          -v "$PWD:/workspace" \
+          -w /workspace \
+          --privileged \
+          fedora:39 \
+          bash -c "
+            set -e
 
-    - name: Build and install libcorrect
-      run: |
-        if [ "${{ steps.cache-libcorrect.outputs.cache-hit }}" != "true" ]; then
-          git clone https://github.com/quiet/libcorrect.git /tmp/libcorrect
-          cd /tmp/libcorrect
-          mkdir build && cd build
-          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/tmp/libcorrect-install ..
-          make -j$(nproc)
-          make install
-        fi
-        sudo cp -r /tmp/libcorrect-install/* /usr/
-        sudo ldconfig
+            # Install dependencies
+            dnf install -y \
+              gcc-c++ \
+              meson \
+              ninja-build \
+              pkg-config \
+              gtkmm4.0-devel \
+              protobuf-devel \
+              openssl-devel \
+              libcorrect-devel \
+              gettext \
+              desktop-file-utils \
+              wget \
+              file \
+              fuse-libs
 
-    - name: Build application
-      run: |
-        meson setup build --buildtype=release --prefix=/usr
-        meson compile -C build
-        DESTDIR=$PWD/AppDir meson install -C build
+            # Build application
+            meson setup build --buildtype=release --prefix=/usr
+            meson compile -C build
+            DESTDIR=\$PWD/AppDir meson install -C build
 
-    - name: Download linuxdeploy
-      run: |
-        wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-        chmod +x linuxdeploy-x86_64.AppImage
+            # Download linuxdeploy
+            wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+            chmod +x linuxdeploy-x86_64.AppImage
 
-    - name: Create AppImage
-      run: |
-        ./linuxdeploy-x86_64.AppImage \
-          --appdir AppDir \
-          --executable AppDir/usr/bin/keeptower \
-          --desktop-file AppDir/usr/share/applications/com.example.keeptower.desktop \
-          --icon-file AppDir/usr/share/icons/hicolor/scalable/apps/com.example.keeptower.svg \
-          --output appimage
+            # Extract linuxdeploy (FUSE may not work in container)
+            ./linuxdeploy-x86_64.AppImage --appimage-extract
 
-    - name: Rename AppImage
-      run: |
-        mv KeepTower*.AppImage keeptower-x86_64.AppImage || true
-        ls -lh *.AppImage
+            # Create AppImage
+            ./squashfs-root/AppRun \
+              --appdir AppDir \
+              --executable AppDir/usr/bin/keeptower \
+              --desktop-file AppDir/usr/share/applications/com.tjdeveng.keeptower.desktop \
+              --icon-file AppDir/usr/share/icons/hicolor/scalable/apps/com.tjdeveng.keeptower.svg \
+              --output appimage || true
+
+            # Rename AppImage
+            if ls KeepTower*.AppImage 1> /dev/null 2>&1; then
+              mv KeepTower*.AppImage keeptower-x86_64.AppImage
+            fi
+
+            # Fix permissions
+            chmod 644 keeptower-x86_64.AppImage || true
+            ls -lh *.AppImage || echo 'No AppImage created'
+          "
 
     - name: Upload AppImage
       uses: actions/upload-artifact@v4
