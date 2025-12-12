@@ -27,7 +27,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        distro: [ubuntu-24.04, fedora-39]
+        distro: [ubuntu-24.04, fedora-41]
 
     steps:
     - name: Checkout code
@@ -84,12 +84,12 @@ jobs:
         tar -czf keeptower-${{ matrix.distro }}-x86_64.tar.gz -C dist keeptower
 
     - name: Build on Fedora
-      if: matrix.distro == 'fedora-39'
+      if: matrix.distro == 'fedora-41'
       run: |
         docker run --rm \
           -v "$PWD:/workspace" \
           -w /workspace \
-          fedora:39 \
+          fedora:41 \
           bash -c "
             dnf install -y \
               gcc-c++ \
@@ -107,7 +107,7 @@ jobs:
             meson compile -C build && \
             mkdir -p dist && \
             cp build/src/keeptower dist/ && \
-            tar -czf keeptower-fedora-39-x86_64.tar.gz -C dist keeptower
+            tar -czf keeptower-fedora-41-x86_64.tar.gz -C dist keeptower
           "
 
     - name: Upload build artifact
@@ -131,7 +131,7 @@ jobs:
           -v "$PWD:/workspace" \
           -w /workspace \
           --privileged \
-          fedora:39 \
+          fedora:41 \
           bash -c "
             set -e
 
