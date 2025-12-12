@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3-beta] - 2025-12-12
+
 ### Added
 - **YubiKey Hardware 2FA:**
   - Optional YubiKey challenge-response authentication for vault encryption
@@ -118,6 +120,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - No save-on-close prompts
 - No multi-vault switching in same session
 
-[Unreleased]: https://github.com/tjdeveng/KeepTower/compare/v0.1.1-beta...HEAD
+[Unreleased]: https://github.com/tjdeveng/KeepTower/compare/v0.2.3-beta...HEAD
+[0.2.3-beta]: https://github.com/tjdeveng/KeepTower/compare/v0.1.1-beta...v0.2.3-beta
 [0.1.1-beta]: https://github.com/tjdeveng/KeepTower/compare/v0.1.0-beta...v0.1.1-beta
 [0.1.0-beta]: https://github.com/tjdeveng/KeepTower/releases/tag/v0.1.0-beta
