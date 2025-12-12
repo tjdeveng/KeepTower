@@ -331,6 +331,50 @@ public:
      */
     int get_backup_count() const { return m_backup_count; }
 
+#ifdef HAVE_YUBIKEY_SUPPORT
+    // YubiKey multi-key management
+
+    /**
+     * @brief Get list of configured YubiKeys for current vault
+     * @return Vector of YubiKey entries (serial, name, added_at)
+     *
+     * @note Returns empty vector if vault not open or no YubiKeys configured
+     */
+    std::vector<keeptower::YubiKeyEntry> get_yubikey_list() const;
+
+    /**
+     * @brief Add a backup YubiKey to the vault
+     * @param name Friendly name for the key (e.g., "Backup", "Office Key")
+     * @return true if added successfully, false on error
+     *
+     * Adds the currently connected YubiKey as a backup. The key must be
+     * programmed with the same HMAC secret as the primary key.
+     *
+     * @note Requires vault to be open and YubiKey-protected
+     * @note Requires a YubiKey to be connected
+     * @note Call save_vault() to persist changes
+     */
+    [[nodiscard]] bool add_backup_yubikey(const std::string& name);
+
+    /**
+     * @brief Remove a YubiKey from the vault's authorized list
+     * @param serial Serial number of the key to remove
+     * @return true if removed successfully, false on error
+     *
+     * @note Cannot remove the last remaining key
+     * @note Requires vault to be open
+     * @note Call save_vault() to persist changes
+     */
+    [[nodiscard]] bool remove_yubikey(const std::string& serial);
+
+    /**
+     * @brief Check if a YubiKey serial is authorized for this vault
+     * @param serial Serial number to check
+     * @return true if authorized, false otherwise
+     */
+    [[nodiscard]] bool is_yubikey_authorized(const std::string& serial) const;
+#endif
+
 private:
     // Cryptographic operations
     bool derive_key(const Glib::ustring& password,

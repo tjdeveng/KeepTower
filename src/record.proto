@@ -170,23 +170,42 @@ message VaultMetadata {
   reserved 8 to 15;
 }
 
-// YubiKey configuration (if vault uses YubiKey 2FA)
-// This could optionally be stored in protobuf instead of binary header
-message YubiKeyConfig {
+// Individual YubiKey entry for multiple key support
+message YubiKeyEntry {
   // YubiKey serial number
   string serial = 1;
 
-  // Challenge for HMAC-SHA1 (64 bytes)
+  // Optional friendly name for this key (e.g., "Primary", "Backup")
+  string name = 2;
+
+  // Timestamp when this key was added
+  int64 added_at = 3;
+
+  // Reserved for future per-key settings
+  reserved 4 to 10;
+}
+
+// YubiKey configuration (if vault uses YubiKey 2FA)
+message YubiKeyConfig {
+  // DEPRECATED: Use yubikey_entries instead
+  // Kept for backward compatibility with single-key vaults
+  string serial = 1 [deprecated = true];
+
+  // Challenge for HMAC-SHA1 (64 bytes) - shared by all configured keys
   bytes challenge = 2;
 
-  // Timestamp when YubiKey was configured
+  // Timestamp when YubiKey was first configured
   int64 configured_at = 3;
 
   // Whether to require YubiKey for vault access
   bool required = 4;
 
-  // Reserved for future YubiKey features (multiple keys, key rotation, etc.)
-  reserved 5 to 10;
+  // List of configured YubiKeys (primary + backups)
+  // All keys must be programmed with the same HMAC secret
+  repeated YubiKeyEntry yubikey_entries = 5;
+
+  // Reserved for future YubiKey features (key rotation, etc.)
+  reserved 6 to 10;
 }
 
 // Container for multiple account records and vault metadata

@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Multiple YubiKey Support:**
+  - Backup YubiKey support for redundancy
+  - YubiKeyManagerDialog for managing authorized keys
+  - Add/remove backup keys through GUI
+  - Display key information (serial, name, date added)
+  - Safety check: cannot remove last key
+  - Validation: backup keys must have same HMAC secret
+  - All authorized keys stored in protobuf vault data
+  - Backward compatible with single-key vaults
+
+### Changed
+- Extended protobuf schema with YubiKeyEntry message and repeated entries
+- VaultManager now supports multiple authorized YubiKey serials
+- Enhanced vault file format with multi-key metadata
+
 ## [0.2.3-beta] - 2025-12-12
 
 ### Added

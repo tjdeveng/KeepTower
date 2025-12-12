@@ -12,6 +12,7 @@
 #include "config.h"
 #ifdef HAVE_YUBIKEY_SUPPORT
 #include "../../core/YubiKeyManager.h"
+#include "../dialogs/YubiKeyManagerDialog.h"
 #endif
 #include "record.pb.h"
 #include <regex>
@@ -78,6 +79,7 @@ MainWindow::MainWindow()
     add_action("delete-account", sigc::mem_fun(*this, &MainWindow::on_delete_account));
 #ifdef HAVE_YUBIKEY_SUPPORT
     add_action("test-yubikey", sigc::mem_fun(*this, &MainWindow::on_test_yubikey));
+    add_action("manage-yubikeys", sigc::mem_fun(*this, &MainWindow::on_manage_yubikeys));
 #endif
 
     // Set keyboard shortcut for preferences
@@ -118,6 +120,7 @@ MainWindow::MainWindow()
     m_primary_menu = Gio::Menu::create();
     m_primary_menu->append("_Preferences", "win.preferences");
 #ifdef HAVE_YUBIKEY_SUPPORT
+    m_primary_menu->append("Manage _YubiKeys", "win.manage-yubikeys");
     m_primary_menu->append("Test _YubiKey", "win.test-yubikey");
 #endif
     m_primary_menu->append("_Keyboard Shortcuts", "win.show-help-overlay");
@@ -1564,5 +1567,31 @@ void MainWindow::on_test_yubikey() {
         dialog->choose(*this, {});
         warning("YubiKey challenge-response failed: {}", challenge_resp.error_message);
     }
+}
+
+void MainWindow::on_manage_yubikeys() {
+    using namespace KeepTower::Log;
+
+    // Check if vault is open and YubiKey-protected
+    if (!m_vault_open) {
+        auto dialog = Gtk::AlertDialog::create("No Vault Open");
+        dialog->set_detail("Please open a vault first.");
+        dialog->set_buttons({"OK"});
+        dialog->choose(*this, {});
+        return;
+    }
+
+    auto keys = m_vault_manager->get_yubikey_list();
+    if (keys.empty()) {
+        auto dialog = Gtk::AlertDialog::create("Vault Not YubiKey-Protected");
+        dialog->set_detail("This vault does not use YubiKey authentication.");
+        dialog->set_buttons({"OK"});
+        dialog->choose(*this, {});
+        return;
+    }
+
+    // Show YubiKey manager dialog
+    YubiKeyManagerDialog dialog(*this, m_vault_manager.get());
+    dialog.show();
 }
 #endif

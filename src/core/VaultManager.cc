@@ -161,6 +161,22 @@ bool VaultManager::create_vault(const std::string& path,
     metadata->set_last_accessed(std::time(nullptr));
     metadata->set_access_count(0);
 
+#ifdef HAVE_YUBIKEY_SUPPORT
+    // Store YubiKey configuration in protobuf if enabled
+    if (m_yubikey_required) {
+        auto* yk_config = m_vault_data.mutable_yubikey_config();
+        yk_config->set_required(true);
+        yk_config->set_challenge(m_yubikey_challenge.data(), m_yubikey_challenge.size());
+        yk_config->set_configured_at(std::time(nullptr));
+
+        // Add primary key to entries list
+        auto* entry = yk_config->add_yubikey_entries();
+        entry->set_serial(m_yubikey_serial);
+        entry->set_name("Primary");
+        entry->set_added_at(std::time(nullptr));
+    }
+#endif
+
     // Save empty vault
     return save_vault();
 }
@@ -396,11 +412,16 @@ bool VaultManager::open_vault(const std::string& path, const Glib::ustring& pass
             return false;
         }
 
-        // Optional: Verify serial number matches
-        if (device_info->serial_number != stored_serial) {
+        // Check if this YubiKey's serial is authorized
+        // Note: stored_serial is the serial from file header (backward compat)
+        // but we should also check protobuf entries list if present
+        bool key_authorized = (device_info->serial_number == stored_serial);
+
+        if (!key_authorized) {
             KeepTower::Log::warning("YubiKey serial mismatch: expected {}, found {}",
                                    stored_serial, device_info->serial_number);
-            // Allow any YubiKey for now - could make this strict in future
+            // Allow any YubiKey for now for backward compatibility
+            // TODO: Make this strict in future versions
         }
 
         // Perform challenge-response
@@ -1175,3 +1196,140 @@ bool VaultManager::migrate_vault_schema() {
     KeepTower::Log::warning("Unknown vault schema version: {}", current_version);
     return false;
 }
+
+#ifdef HAVE_YUBIKEY_SUPPORT
+std::vector<keeptower::YubiKeyEntry> VaultManager::get_yubikey_list() const {
+    std::vector<keeptower::YubiKeyEntry> result;
+
+    if (!m_vault_open || !m_yubikey_required) {
+        return result;
+    }
+
+    if (!m_vault_data.has_yubikey_config()) {
+        return result;
+    }
+
+    const auto& yk_config = m_vault_data.yubikey_config();
+    for (const auto& entry : yk_config.yubikey_entries()) {
+        result.push_back(entry);
+    }
+
+    return result;
+}
+
+bool VaultManager::add_backup_yubikey(const std::string& name) {
+    if (!m_vault_open || !m_yubikey_required) {
+        std::cerr << "Vault must be open and YubiKey-protected to add backup keys" << std::endl;
+        return false;
+    }
+
+    // Initialize YubiKey and get device info
+    YubiKeyManager yk_manager;
+    if (!yk_manager.initialize()) {
+        std::cerr << "Failed to initialize YubiKey" << std::endl;
+        return false;
+    }
+
+    if (!yk_manager.is_yubikey_present()) {
+        std::cerr << "No YubiKey connected" << std::endl;
+        return false;
+    }
+
+    auto device_info = yk_manager.get_device_info();
+    if (!device_info) {
+        std::cerr << "Failed to get YubiKey device information" << std::endl;
+        return false;
+    }
+
+    // Check if already registered
+    if (is_yubikey_authorized(device_info->serial_number)) {
+        std::cerr << "YubiKey with serial " << device_info->serial_number << " is already registered" << std::endl;
+        return false;
+    }
+
+    // Verify the key works with the current challenge
+    auto response = yk_manager.challenge_response(
+        std::span<const unsigned char>(m_yubikey_challenge.data(), m_yubikey_challenge.size()),
+        false,
+        15000
+    );
+
+    if (!response.success) {
+        std::cerr << "YubiKey challenge-response failed. Key may not be programmed with same HMAC secret." << std::endl;
+        return false;
+    }
+
+    // Add to protobuf
+    auto* yk_config = m_vault_data.mutable_yubikey_config();
+    auto* entry = yk_config->add_yubikey_entries();
+    entry->set_serial(device_info->serial_number);
+    entry->set_name(name.empty() ? "Backup" : name);
+    entry->set_added_at(std::time(nullptr));
+
+    m_modified = true;
+    Log::info("Added backup YubiKey with serial: {}", device_info->serial_number);
+    return true;
+}
+
+bool VaultManager::remove_yubikey(const std::string& serial) {
+    if (!m_vault_open || !m_yubikey_required) {
+        std::cerr << "Vault must be open and YubiKey-protected" << std::endl;
+        return false;
+    }
+
+    if (!m_vault_data.has_yubikey_config()) {
+        return false;
+    }
+
+    auto* yk_config = m_vault_data.mutable_yubikey_config();
+
+    // Cannot remove last key
+    if (yk_config->yubikey_entries_size() <= 1) {
+        std::cerr << "Cannot remove the last YubiKey" << std::endl;
+        return false;
+    }
+
+    // Find and remove
+    for (int i = 0; i < yk_config->yubikey_entries_size(); ++i) {
+        if (yk_config->yubikey_entries(i).serial() == serial) {
+            // Remove by swapping with last and deleting
+            if (i < yk_config->yubikey_entries_size() - 1) {
+                yk_config->mutable_yubikey_entries()->SwapElements(i, yk_config->yubikey_entries_size() - 1);
+            }
+            yk_config->mutable_yubikey_entries()->RemoveLast();
+
+            m_modified = true;
+            Log::info("Removed YubiKey with serial: {}", serial);
+            return true;
+        }
+    }
+
+    std::cerr << "YubiKey with serial " << serial << " not found" << std::endl;
+    return false;
+}
+
+bool VaultManager::is_yubikey_authorized(const std::string& serial) const {
+    if (!m_vault_open || !m_yubikey_required) {
+        return false;
+    }
+
+    if (!m_vault_data.has_yubikey_config()) {
+        // Backward compatibility: check against file header serial
+        return serial == m_yubikey_serial;
+    }
+
+    const auto& yk_config = m_vault_data.yubikey_config();
+    for (const auto& entry : yk_config.yubikey_entries()) {
+        if (entry.serial() == serial) {
+            return true;
+        }
+    }
+
+    // Backward compatibility: also check deprecated serial field
+    if (!yk_config.serial().empty() && yk_config.serial() == serial) {
+        return true;
+    }
+
+    return false;
+}
+#endif

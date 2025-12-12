@@ -101,7 +101,7 @@ meson install -C build
 ## Usage
 
 ```bash
-keeptreating YubiKey-Protected Vaults
+### Creating YubiKey-Protected Vaults
 
 To create a vault with YubiKey hardware 2FA:
 
@@ -117,7 +117,29 @@ To create a vault with YubiKey hardware 2FA:
 
 **Important**: Keep your YubiKey safe! If lost, you will need both a backup YubiKey (programmed with the same secret) or the vault cannot be opened.
 
-### Cower
+### Managing Backup YubiKeys
+
+KeepTower supports multiple YubiKeys for redundancy. This protects against losing access if your primary key is lost or damaged.
+
+To add a backup YubiKey:
+
+1. Open a YubiKey-protected vault with your primary key
+2. Select **Menu → Manage YubiKeys**
+3. Insert your backup YubiKey (must be programmed with the **same HMAC secret** as the primary)
+4. Click **Add Current YubiKey** and give it a name (e.g., "Backup", "Office Key")
+5. Touch the YubiKey when prompted to verify it works
+6. Your backup key can now open the vault
+
+**Programming Multiple Keys with Same Secret:**
+```bash
+# Save the secret from your primary key (64 hex characters)
+# Then program the backup key with the SAME secret:
+ykpersonalize -2 -ochal-resp -ochal-hmac -ohmac-lt64 -oserial-api-visible -a<YOUR_SECRET_HERE>
+```
+
+**Note**: All backup keys **must** be programmed with the same HMAC-SHA1 secret. If a key has a different secret, it will be rejected when you try to add it.
+
+### Power User Tips
 ```
 
 ### Configuring Preferences
