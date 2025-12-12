@@ -14,7 +14,8 @@ test_inc = include_directories(
     '../src/ui',
     '../src/ui/windows',
     '../src/ui/dialogs',
-    '../build/src'  # For generated protobuf headers
+    '../build/src',  # For generated protobuf headers
+    '../build'       # For config.h
 )
 
 # Generate protobuf sources for tests (same as in src/meson.build)
@@ -30,19 +31,31 @@ proto_gen = custom_target('record_proto_test',
 )
 
 # VaultManager tests
-vault_manager_test = executable(
-    'vault_manager_test',
+vault_manager_sources = [
     'test_vault_manager.cc',
     '../src/core/VaultManager.cc',
     '../src/core/ReedSolomon.cc',
-    proto_gen,
-    dependencies: [
-        gtest_dep,
-        protobuf_dep,
-        openssl_dep,
-        giomm_dep,
-        libcorrect_dep
-    ],
+    proto_gen
+]
+
+vault_manager_deps = [
+    gtest_dep,
+    protobuf_dep,
+    openssl_dep,
+    giomm_dep,
+    libcorrect_dep
+]
+
+# Add YubiKey support if available
+if yubikey_available
+    vault_manager_sources += files('../src/core/YubiKeyManager.cc')
+    vault_manager_deps += [ykpers_dep, libyubikey_dep]
+endif
+
+vault_manager_test = executable(
+    'vault_manager_test',
+    vault_manager_sources,
+    dependencies: vault_manager_deps,
     include_directories: test_inc
 )
 
@@ -58,18 +71,22 @@ password_validation_test = executable(
 )
 
 # Security features test (standalone verification)
-security_features_test = executable(
-    'test_security_features',
+security_sources = [
     'test_security_features.cc',
     '../src/core/VaultManager.cc',
     '../src/core/ReedSolomon.cc',
-    proto_gen,
-    dependencies: [
-        protobuf_dep,
-        openssl_dep,
-        giomm_dep,
-        libcorrect_dep
-    ],
+    proto_gen
+]
+security_deps = [protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
+if yubikey_available
+    security_sources += files('../src/core/YubiKeyManager.cc')
+    security_deps += [ykpers_dep, libyubikey_dep]
+endif
+
+security_features_test = executable(
+    'test_security_features',
+    security_sources,
+    dependencies: security_deps,
     include_directories: test_inc
 )
 
@@ -96,36 +113,42 @@ reed_solomon_test = executable(
 )
 
 # Vault Reed-Solomon integration tests
-vault_reed_solomon_test = executable(
-    'vault_reed_solomon_test',
+vault_rs_sources = [
     'test_vault_reed_solomon.cc',
     '../src/core/VaultManager.cc',
     '../src/core/ReedSolomon.cc',
-    proto_gen,
-    dependencies: [
-        gtest_dep,
-        protobuf_dep,
-        openssl_dep,
-        giomm_dep,
-        libcorrect_dep
-    ],
+    proto_gen
+]
+vault_rs_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
+if yubikey_available
+    vault_rs_sources += files('../src/core/YubiKeyManager.cc')
+    vault_rs_deps += [ykpers_dep, libyubikey_dep]
+endif
+
+vault_reed_solomon_test = executable(
+    'vault_reed_solomon_test',
+    vault_rs_sources,
+    dependencies: vault_rs_deps,
     include_directories: test_inc
 )
 
 # FEC preferences tests
-fec_preferences_test = executable(
-    'fec_preferences_test',
+fec_pref_sources = [
     'test_fec_preferences.cc',
     '../src/core/VaultManager.cc',
     '../src/core/ReedSolomon.cc',
-    proto_gen,
-    dependencies: [
-        gtest_dep,
-        protobuf_dep,
-        openssl_dep,
-        giomm_dep,
-        libcorrect_dep
-    ],
+    proto_gen
+]
+fec_pref_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
+if yubikey_available
+    fec_pref_sources += files('../src/core/YubiKeyManager.cc')
+    fec_pref_deps += [ykpers_dep, libyubikey_dep]
+endif
+
+fec_preferences_test = executable(
+    'fec_preferences_test',
+    fec_pref_sources,
+    dependencies: fec_pref_deps,
     include_directories: test_inc
 )
 
