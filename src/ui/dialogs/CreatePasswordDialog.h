@@ -6,6 +6,10 @@
 
 #include <gtkmm.h>
 
+#ifdef HAVE_YUBIKEY_SUPPORT
+#include "../../core/YubiKeyManager.h"
+#endif
+
 class CreatePasswordDialog : public Gtk::Dialog {
 public:
     CreatePasswordDialog(Gtk::Window& parent);
@@ -14,12 +18,16 @@ public:
     // Get the created password
     Glib::ustring get_password() const;
 
+    // Check if YubiKey protection is requested
+    bool get_yubikey_enabled() const;
+
 protected:
     // Signal handlers
     void on_show_password_toggled();
     void on_password_changed();
     void on_confirm_changed();
     void validate_passwords();
+    void on_yubikey_toggled();
 
     // Password validation helpers
     bool validate_nist_requirements(const Glib::ustring& password);
@@ -42,6 +50,11 @@ protected:
     Gtk::Label m_strength_label;
     Gtk::ProgressBar m_strength_bar;
     Gtk::Label m_validation_message;
+
+    // YubiKey widgets
+    Gtk::Separator m_yubikey_separator;
+    Gtk::CheckButton m_yubikey_check;
+    Gtk::Label m_yubikey_info_label;
 
     Gtk::Button* m_ok_button;
     Gtk::Button* m_cancel_button;

@@ -16,7 +16,10 @@ CreatePasswordDialog::CreatePasswordDialog(Gtk::Window& parent)
       m_confirm_box(Gtk::Orientation::VERTICAL, 6),
       m_confirm_label("Confirm Password:"),
       m_show_password_check("Show passwords"),
-      m_strength_label("Password Strength:") {
+      m_strength_label("Password Strength:"),
+      m_yubikey_separator(Gtk::Orientation::HORIZONTAL),
+      m_yubikey_check("Require YubiKey for vault access"),
+      m_yubikey_info_label() {
 
     // Set dialog properties
     set_default_size(500, 400);
@@ -93,6 +96,41 @@ CreatePasswordDialog::CreatePasswordDialog(Gtk::Window& parent)
     m_content_box.append(m_strength_bar);
     m_content_box.append(m_validation_message);
 
+#ifdef HAVE_YUBIKEY_SUPPORT
+    // Add YubiKey option section
+    m_yubikey_separator.set_margin_top(12);
+    m_yubikey_separator.set_margin_bottom(12);
+    m_content_box.append(m_yubikey_separator);
+    m_content_box.append(m_yubikey_check);
+
+    // Configure YubiKey info label
+    m_yubikey_info_label.set_text(
+        "Two-factor protection: Vault will require both password AND YubiKey to open.\\n"
+        "Make sure your YubiKey is connected and configured for HMAC-SHA1 challenge-response.");
+    m_yubikey_info_label.set_wrap(true);
+    m_yubikey_info_label.set_xalign(0.0);
+    m_yubikey_info_label.set_margin_start(24);
+    m_yubikey_info_label.set_margin_top(6);
+    m_yubikey_info_label.set_margin_bottom(6);
+    m_yubikey_info_label.set_visible(false);
+
+    // Add subtle styling to info label
+    auto css = Gtk::CssProvider::create();
+    css->load_from_data("label { font-size: 0.9em; color: alpha(@theme_fg_color, 0.7); }");
+    m_yubikey_info_label.get_style_context()->add_provider(
+        css, GTK_STYLE_PROVIDER_PRIORITY_APPLICATION
+    );
+
+    m_content_box.append(m_yubikey_info_label);
+
+    // Check if YubiKey is available
+    YubiKeyManager yk_manager;
+    if (!yk_manager.is_available()) {
+        m_yubikey_check.set_sensitive(false);
+        m_yubikey_check.set_tooltip_text("No YubiKey detected. Please connect your YubiKey.");
+    }
+#endif
+
     // Set margins
     m_password_box.set_margin_bottom(12);
     m_confirm_box.set_margin_bottom(12);
@@ -110,6 +148,12 @@ CreatePasswordDialog::CreatePasswordDialog(Gtk::Window& parent)
     m_confirm_entry.signal_changed().connect(
         sigc::mem_fun(*this, &CreatePasswordDialog::on_confirm_changed)
     );
+
+#ifdef HAVE_YUBIKEY_SUPPORT
+    m_yubikey_check.signal_toggled().connect(
+        sigc::mem_fun(*this, &CreatePasswordDialog::on_yubikey_toggled)
+    );
+#endif
 
     // Set default widget
     set_default_widget(*m_ok_button);
@@ -244,4 +288,18 @@ void CreatePasswordDialog::update_strength_indicator() {
     m_strength_bar.get_style_context()->add_provider(
         css, GTK_STYLE_PROVIDER_PRIORITY_APPLICATION
     );
+}
+
+bool CreatePasswordDialog::get_yubikey_enabled() const {
+#ifdef HAVE_YUBIKEY_SUPPORT
+    return m_yubikey_check.get_active();
+#else
+    return false;
+#endif
+}
+
+void CreatePasswordDialog::on_yubikey_toggled() {
+#ifdef HAVE_YUBIKEY_SUPPORT
+    m_yubikey_info_label.set_visible(m_yubikey_check.get_active());
+#endif
 }

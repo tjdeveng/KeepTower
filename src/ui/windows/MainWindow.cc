@@ -348,6 +348,7 @@ void MainWindow::on_new_vault() {
             pwd_dialog->signal_response().connect([this, pwd_dialog, vault_path](int pwd_response) {
                 if (pwd_response == Gtk::ResponseType::OK) {
                     Glib::ustring password = pwd_dialog->get_password();
+                    bool require_yubikey = pwd_dialog->get_yubikey_enabled();
 
                     // Load default FEC preferences for new vault
                     auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
@@ -355,8 +356,8 @@ void MainWindow::on_new_vault() {
                     int rs_redundancy = settings->get_int("rs-redundancy-percent");
                     m_vault_manager->apply_default_fec_preferences(use_rs, rs_redundancy);
 
-                    // Create encrypted vault file with password
-                    auto result = m_vault_manager->create_vault(vault_path.raw(), password);
+                    // Create encrypted vault file with password (and optionally YubiKey)
+                    auto result = m_vault_manager->create_vault(vault_path.raw(), password, require_yubikey);
                     if (result) {
                         m_current_vault_path = vault_path;
                         m_vault_open = true;
