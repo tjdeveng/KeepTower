@@ -5,47 +5,216 @@ syntax = "proto3";
 
 package keeptower;
 
-// Account credential record
-message AccountRecord {
-  // Unique identifier for the record
-  string id = 1;
+// =============================================================================
+// CORE CREDENTIAL TYPES
+// =============================================================================
 
-  // Timestamp when the record was created (Unix epoch time)
-  int64 created_at = 2;
+// TOTP (Time-based One-Time Password) configuration for 2FA
+message TOTPConfig {
+  // TOTP secret key (base32 encoded)
+  string secret = 1;
 
-  // Timestamp when the record was last modified
-  int64 modified_at = 3;
+  // Number of digits in the TOTP code (usually 6 or 8)
+  int32 digits = 2;
 
-  // Account information
-  string account_name = 4;
-  string user_name = 5;
-  string password = 6;
-  string email = 7;
-  string website = 8;
-  string notes = 9;  // Max 1000 characters (enforced in application)
+  // Time step in seconds (usually 30)
+  int32 period = 3;
+
+  // Hash algorithm (SHA1, SHA256, SHA512)
+  string algorithm = 4;
+
+  // Issuer name (e.g., "Google", "GitHub")
+  string issuer = 5;
+
+  // Reserved for future TOTP enhancements
+  reserved 6 to 10;
 }
 
-// Container for multiple account records
+// Custom field for storing additional key-value data
+message CustomField {
+  // Field name/label
+  string name = 1;
+
+  // Field value
+  string value = 2;
+
+  // Whether this field should be treated as sensitive (masked in UI)
+  bool is_sensitive = 3;
+
+  // Field type hint (text, url, email, multiline, etc.)
+  string field_type = 4;
+
+  // Reserved for future custom field features
+  reserved 5 to 10;
+}
+
+// Account credential record
+// Field numbering strategy:
+//   1-15:  Core identity fields
+//   16-31: Extended metadata
+//   32-47: Optional features (TOTP, custom fields)
+//   48-63: Reserved for future major features
+message AccountRecord {
+  // === CORE IDENTITY FIELDS (1-15) ===
+
+  // Unique identifier for the record (UUID v4 recommended)
+  string id = 1;
+
+  // Primary account name/title (e.g., "Gmail Personal")
+  string account_name = 2;
+
+  // Username or login identifier
+  string user_name = 3;
+
+  // Account password
+  string password = 4;
+
+  // Email associated with account (optional)
+  string email = 5;
+
+  // Website URL (optional)
+  string website = 6;
+
+  // Reserved for additional core identity fields
+  reserved 7 to 15;
+
+  // === EXTENDED METADATA (16-31) ===
+
+  // Timestamp when the record was created (Unix epoch time, seconds)
+  int64 created_at = 16;
+
+  // Timestamp when the record was last modified (Unix epoch time, seconds)
+  int64 modified_at = 17;
+
+  // Timestamp when the password was last changed (Unix epoch time, seconds)
+  // Used for password age tracking
+  int64 password_changed_at = 18;
+
+  // Free-form notes (max length enforced in application)
+  string notes = 19;
+
+  // Tags/categories for organizing accounts (comma-separated or repeated)
+  repeated string tags = 20;
+
+  // Favorite/starred status for quick access
+  bool is_favorite = 21;
+
+  // Whether this account is archived (hidden from main view)
+  bool is_archived = 22;
+
+  // Color code for visual organization (hex format: "#RRGGBB")
+  string color = 23;
+
+  // Icon identifier (icon name or URL)
+  string icon = 24;
+
+  // Reserved for additional metadata
+  reserved 25 to 31;
+
+  // === OPTIONAL FEATURES (32-47) ===
+
+  // TOTP configuration for two-factor authentication
+  TOTPConfig totp = 32;
+
+  // Custom fields for additional data
+  repeated CustomField custom_fields = 33;
+
+  // Security questions and answers
+  repeated CustomField security_questions = 34;
+
+  // Previous passwords (for history tracking)
+  repeated string password_history = 35;
+
+  // Account recovery information
+  string recovery_email = 36;
+  string recovery_phone = 37;
+
+  // Reserved for future optional features
+  reserved 38 to 47;
+
+  // === RESERVED FOR FUTURE MAJOR FEATURES (48-63) ===
+  // Reserved for attachments, shared credentials, expiration policies, etc.
+  reserved 48 to 63;
+}
+
+// =============================================================================
+// VAULT CONTAINER
+// =============================================================================
+
+// Vault metadata and settings
+message VaultMetadata {
+  // Schema version for this vault (allows for migration logic)
+  // Version 1: Original schema
+  // Version 2: Extended schema with TOTP, custom fields, etc.
+  int32 schema_version = 1;
+
+  // Timestamp when the vault was created (Unix epoch time, seconds)
+  int64 created_at = 2;
+
+  // Timestamp when the vault was last modified (Unix epoch time, seconds)
+  int64 last_modified = 3;
+
+  // Timestamp when the vault was last opened (Unix epoch time, seconds)
+  int64 last_accessed = 4;
+
+  // Human-readable vault name/description
+  string name = 5;
+
+  // Vault description
+  string description = 6;
+
+  // Number of times the vault has been opened
+  int64 access_count = 7;
+
+  // Reserved for future vault metadata
+  reserved 8 to 15;
+}
+
+// YubiKey configuration (if vault uses YubiKey 2FA)
+// This could optionally be stored in protobuf instead of binary header
+message YubiKeyConfig {
+  // YubiKey serial number
+  string serial = 1;
+
+  // Challenge for HMAC-SHA1 (64 bytes)
+  bytes challenge = 2;
+
+  // Timestamp when YubiKey was configured
+  int64 configured_at = 3;
+
+  // Whether to require YubiKey for vault access
+  bool required = 4;
+
+  // Reserved for future YubiKey features (multiple keys, key rotation, etc.)
+  reserved 5 to 10;
+}
+
+// Container for multiple account records and vault metadata
 message VaultData {
-  // List of account records
+  // === CORE DATA (1-15) ===
+
+  // List of account records stored in the vault
   repeated AccountRecord accounts = 1;
 
   // Vault metadata
-  int32 version = 2;
-  int64 last_modified = 3;
-}
+  VaultMetadata metadata = 2;
 
-// Encryption metadata (stored in vault file header)
-message EncryptionInfo {
-  // Encryption algorithm used
-  string algorithm = 1;
+  // Reserved for additional core vault data
+  reserved 3 to 15;
 
-  // Initialization vector
-  bytes iv = 2;
+  // === VAULT CONFIGURATION (16-31) ===
 
-  // Salt for key derivation
-  bytes salt = 3;
+  // YubiKey configuration (optional, could also stay in binary header)
+  YubiKeyConfig yubikey_config = 16;
 
-  // Key derivation iterations
-  int32 iterations = 4;
+  // Reed-Solomon FEC settings (could move from binary header)
+  bool fec_enabled = 17;
+  int32 fec_redundancy_percent = 18;
+
+  // Reserved for additional configuration
+  reserved 19 to 31;
+
+  // === FUTURE FEATURES (32-47) ===
+  // Reserved for shared vaults, groups, templates, etc.
+  reserved 32 to 47;
 }

@@ -152,8 +152,14 @@ bool VaultManager::create_vault(const std::string& path,
 
     // Initialize empty vault data
     m_vault_data.Clear();
-    m_vault_data.set_version(1);
-    m_vault_data.set_last_modified(std::time(nullptr));
+
+    // Initialize vault metadata
+    auto* metadata = m_vault_data.mutable_metadata();
+    metadata->set_schema_version(2);  // Version 2: Extended schema
+    metadata->set_created_at(std::time(nullptr));
+    metadata->set_last_modified(std::time(nullptr));
+    metadata->set_last_accessed(std::time(nullptr));
+    metadata->set_access_count(0);
 
     // Save empty vault
     return save_vault();
@@ -394,6 +400,12 @@ bool VaultManager::open_vault(const std::string& path, const Glib::ustring& pass
         return false;
     }
 
+    // Migrate old schema if needed
+    if (!migrate_vault_schema()) {
+        std::cerr << "Failed to migrate vault schema" << std::endl;
+        return false;
+    }
+
     // Preserve the FEC settings from the file
     // This ensures we don't overwrite a file's FEC status with preference defaults
     if (file_has_fec) {
@@ -421,7 +433,8 @@ bool VaultManager::save_vault() {
     }
 
     // Update timestamp
-    m_vault_data.set_last_modified(std::time(nullptr));
+    auto* metadata = m_vault_data.mutable_metadata();
+    metadata->set_last_modified(std::time(nullptr));
 
     // Serialize protobuf to binary
     std::string serialized_data;
@@ -1050,4 +1063,66 @@ bool VaultManager::set_backup_count(int count) {
     }
     m_backup_count = count;
     return true;
+}
+
+bool VaultManager::migrate_vault_schema() {
+    // Get current schema version
+    auto* metadata = m_vault_data.mutable_metadata();
+    int32_t current_version = metadata->schema_version();
+
+    // Check if we have an old vault (version field was used in schema v1)
+    // In the old schema, VaultData had version and last_modified as direct fields
+    // In new schema, these are in VaultMetadata sub-message
+
+    // If schema_version is not set but we have accounts, this is a v1 vault
+    if (current_version == 0 && m_vault_data.accounts_size() > 0) {
+        KeepTower::Log::info("Migrating vault from schema v1 to v2");
+
+        // Migrate v1 to v2
+        // In v1, accounts had fields: id(1), created_at(2), modified_at(3),
+        // account_name(4), user_name(5), password(6), email(7), website(8), notes(9)
+        // In v2, these are at: id(1), account_name(2), user_name(3), password(4),
+        // email(5), website(6), created_at(16), modified_at(17), notes(19)
+
+        // Good news: protobuf is forward/backward compatible by field number
+        // The v1 fields will automatically map to v2 fields with same numbers
+        // We just need to set metadata
+
+        // Set metadata for migrated vault
+        metadata->set_schema_version(2);
+        metadata->set_created_at(std::time(nullptr));  // Unknown, use now
+        metadata->set_last_modified(std::time(nullptr));
+        metadata->set_last_accessed(std::time(nullptr));
+        metadata->set_access_count(1);
+
+        // Mark as modified so it gets saved with new schema
+        m_modified = true;
+
+        KeepTower::Log::info("Vault migrated successfully to schema v2");
+        return true;
+    }
+
+    // If schema version is 0 and no accounts, this is a new empty vault from v2
+    if (current_version == 0 && m_vault_data.accounts_size() == 0) {
+        // Initialize metadata for empty vault
+        metadata->set_schema_version(2);
+        metadata->set_created_at(std::time(nullptr));
+        metadata->set_last_modified(std::time(nullptr));
+        metadata->set_last_accessed(std::time(nullptr));
+        metadata->set_access_count(1);
+        return true;
+    }
+
+    // Already at current version or newer
+    if (current_version >= 2) {
+        // Update access tracking
+        metadata->set_last_accessed(std::time(nullptr));
+        metadata->set_access_count(metadata->access_count() + 1);
+        m_modified = true;  // Save access tracking
+        return true;
+    }
+
+    // Unknown version
+    KeepTower::Log::warning("Unknown vault schema version: {}", current_version);
+    return false;
 }

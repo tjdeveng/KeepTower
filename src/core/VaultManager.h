@@ -348,6 +348,9 @@ private:
     // Backup management
     KeepTower::VaultResult<> create_backup(std::string_view path);
     KeepTower::VaultResult<> restore_from_backup(std::string_view path);
+
+    // Schema migration
+    bool migrate_vault_schema();
     void cleanup_old_backups(std::string_view path, int max_backups);
     std::vector<std::string> list_backups(std::string_view path);
 
