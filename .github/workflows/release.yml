@@ -63,12 +63,12 @@ jobs:
            [[ "${{ steps.get_version.outputs.version }}" == *"rc"* ]]; then
           PRERELEASE="--prerelease"
         fi
-        
+
         gh release create "${{ steps.get_version.outputs.version }}" \
           --title "KeepTower ${{ steps.get_version.outputs.version }}" \
           --notes-file release-notes.md \
           $PRERELEASE
-        
+
         # Get upload URL for artifacts
         UPLOAD_URL=$(gh api repos/${{ github.repository }}/releases/tags/${{ steps.get_version.outputs.version }} --jq .upload_url)
         echo "upload_url=$UPLOAD_URL" >> $GITHUB_OUTPUT
@@ -177,7 +177,7 @@ jobs:
         else
           ARTIFACT_FILE="keeptower-${{ needs.create-release.outputs.version }}-${{ matrix.artifact }}-x86_64.tar.gz"
         fi
-        
+
         # Upload artifact and checksums
         gh release upload "${{ needs.create-release.outputs.version }}" \
           "$ARTIFACT_FILE" \
