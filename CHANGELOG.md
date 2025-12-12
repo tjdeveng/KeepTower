@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **YubiKey Hardware 2FA:**
+  - Optional YubiKey challenge-response authentication for vault encryption
+  - Two-factor encryption combining password key with YubiKey HMAC-SHA1 response
+  - Automatic YubiKey detection with real-time UI updates
+  - User-friendly prompts for key insertion and touch requirements
+  - Serial number tracking for key identification
+  - YubiKeyPromptDialog with spinner for visual feedback
+  - Graceful error handling when key is not present or required
+  - Compatible with Reed-Solomon FEC encoding
+  - check_vault_requires_yubikey() for pre-authentication detection
+  - Conditional compilation with HAVE_YUBIKEY_SUPPORT flag
+
+### Changed
+- Enhanced CreatePasswordDialog with YubiKey option checkbox
+- Improved vault opening flow with pre-auth YubiKey detection
+- Non-blocking UI during YubiKey operations with proper GTK event processing
+- Vault file format extended to store YubiKey metadata (serial, challenge)
+
 ## [0.1.1-beta] - 2025-12-08
 
 ### Fixed
