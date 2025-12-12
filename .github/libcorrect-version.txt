@@ -1,0 +1,4 @@
+# LibCorrect version tracking for cache invalidation
+# Update this file to force rebuild of libcorrect cache
+# Format: YYYYMMDD-version
+20241212-v1

@@ -21,6 +21,15 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Cache libcorrect
+      id: cache-libcorrect
+      uses: actions/cache@v4
+      with:
+        path: /tmp/libcorrect-install
+        key: libcorrect-${{ runner.os }}-${{ hashFiles('.github/libcorrect-version.txt') }}
+        restore-keys: |
+          libcorrect-${{ runner.os }}-
+
     - name: Install dependencies (Ubuntu)
       if: runner.os == 'Linux'
       run: |
@@ -43,14 +52,19 @@ jobs:
           desktop-file-utils
 
     - name: Build and install libcorrect
-      if: runner.os == 'Linux'
+      if: runner.os == 'Linux' && steps.cache-libcorrect.outputs.cache-hit != 'true'
       run: |
         git clone https://github.com/quiet/libcorrect.git /tmp/libcorrect
         cd /tmp/libcorrect
         mkdir build && cd build
-        cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr ..
+        cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/tmp/libcorrect-install ..
         make -j$(nproc)
-        sudo make install
+        make install
+
+    - name: Install cached libcorrect
+      if: runner.os == 'Linux'
+      run: |
+        sudo cp -r /tmp/libcorrect-install/* /usr/
         sudo ldconfig
 
     - name: Configure build
@@ -78,6 +92,15 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Cache libcorrect
+      id: cache-libcorrect
+      uses: actions/cache@v4
+      with:
+        path: /tmp/libcorrect-install
+        key: libcorrect-lint-${{ hashFiles('.github/libcorrect-version.txt') }}
+        restore-keys: |
+          libcorrect-lint-
+
     - name: Install dependencies
       run: |
         sudo apt-get update
@@ -99,12 +122,15 @@ jobs:
 
     - name: Build and install libcorrect
       run: |
-        git clone https://github.com/quiet/libcorrect.git /tmp/libcorrect
-        cd /tmp/libcorrect
-        mkdir build && cd build
-        cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr ..
-        make -j$(nproc)
-        sudo make install
+        if [ "${{ steps.cache-libcorrect.outputs.cache-hit }}" != "true" ]; then
+          git clone https://github.com/quiet/libcorrect.git /tmp/libcorrect
+          cd /tmp/libcorrect
+          mkdir build && cd build
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/tmp/libcorrect-install ..
+          make -j$(nproc)
+          make install
+        fi
+        sudo cp -r /tmp/libcorrect-install/* /usr/
         sudo ldconfig
 
     - name: Configure build

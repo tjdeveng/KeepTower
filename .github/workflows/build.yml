@@ -3,8 +3,20 @@ name: Build
 on:
   push:
     branches: [ master, main ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'Doxyfile'
+      - '.gitignore'
+      - 'LICENSE'
   pull_request:
     branches: [ master, main ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'Doxyfile'
+      - '.gitignore'
+      - 'LICENSE'
   workflow_dispatch:
 
 jobs:
@@ -20,6 +32,16 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+
+    - name: Cache libcorrect
+      if: startsWith(matrix.distro, 'ubuntu')
+      id: cache-libcorrect
+      uses: actions/cache@v4
+      with:
+        path: /tmp/libcorrect-install
+        key: libcorrect-ubuntu-${{ hashFiles('.github/libcorrect-version.txt') }}
+        restore-keys: |
+          libcorrect-ubuntu-
 
     - name: Build on Ubuntu
       if: startsWith(matrix.distro, 'ubuntu')
@@ -41,12 +63,15 @@ jobs:
           desktop-file-utils
 
         # Build and install libcorrect from source
-        git clone https://github.com/quiet/libcorrect.git /tmp/libcorrect
-        cd /tmp/libcorrect
-        mkdir build && cd build
-        cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr ..
-        make -j$(nproc)
-        sudo make install
+        if [ "${{ steps.cache-libcorrect.outputs.cache-hit }}" != "true" ]; then
+          git clone https://github.com/quiet/libcorrect.git /tmp/libcorrect
+          cd /tmp/libcorrect
+          mkdir build && cd build
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/tmp/libcorrect-install ..
+          make -j$(nproc)
+          make install
+        fi
+        sudo cp -r /tmp/libcorrect-install/* /usr/
         sudo ldconfig
         cd ${{ github.workspace }}
 
@@ -100,6 +125,15 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Cache libcorrect
+      id: cache-libcorrect
+      uses: actions/cache@v4
+      with:
+        path: /tmp/libcorrect-install
+        key: libcorrect-appimage-${{ hashFiles('.github/libcorrect-version.txt') }}
+        restore-keys: |
+          libcorrect-appimage-
+
     - name: Install dependencies
       run: |
         sudo apt-get update
@@ -122,12 +156,15 @@ jobs:
 
     - name: Build and install libcorrect
       run: |
-        git clone https://github.com/quiet/libcorrect.git /tmp/libcorrect
-        cd /tmp/libcorrect
-        mkdir build && cd build
-        cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr ..
-        make -j$(nproc)
-        sudo make install
+        if [ "${{ steps.cache-libcorrect.outputs.cache-hit }}" != "true" ]; then
+          git clone https://github.com/quiet/libcorrect.git /tmp/libcorrect
+          cd /tmp/libcorrect
+          mkdir build && cd build
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/tmp/libcorrect-install ..
+          make -j$(nproc)
+          make install
+        fi
+        sudo cp -r /tmp/libcorrect-install/* /usr/
         sudo ldconfig
 
     - name: Build application
