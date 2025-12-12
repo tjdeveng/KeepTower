@@ -1106,18 +1106,13 @@ bool MainWindow::validate_email_format(const Glib::ustring& email) {
 }
 
 void MainWindow::show_error_dialog(const Glib::ustring& message) {
-    auto* dialog = new Gtk::MessageDialog(*this, "Validation Error", false, Gtk::MessageType::ERROR, Gtk::ButtonsType::OK, true);
+    auto* dialog = Gtk::make_managed<Gtk::MessageDialog>(*this, "Validation Error", false, Gtk::MessageType::ERROR, Gtk::ButtonsType::OK, true);
     dialog->set_secondary_text(message);
     dialog->set_modal(true);
     dialog->set_hide_on_close(true);
 
-    // Delete dialog when closed
     dialog->signal_response().connect([dialog](int) {
         dialog->hide();
-    });
-
-    dialog->signal_hide().connect([dialog]() {
-        delete dialog;
     });
 
     dialog->show();
@@ -1590,8 +1585,8 @@ void MainWindow::on_manage_yubikeys() {
         return;
     }
 
-    // Show YubiKey manager dialog
-    YubiKeyManagerDialog dialog(*this, m_vault_manager.get());
-    dialog.show();
+    // Show YubiKey manager dialog (heap-allocated so it persists)
+    auto* dialog = Gtk::make_managed<YubiKeyManagerDialog>(*this, m_vault_manager.get());
+    dialog->show();
 }
 #endif

@@ -419,7 +419,6 @@ private:
     std::string m_current_vault_path;
     std::vector<uint8_t> m_encryption_key;
     std::vector<uint8_t> m_salt;
-    bool m_memory_locked;  // Track if sensitive memory is locked
 
     // Reed-Solomon error correction
     std::unique_ptr<ReedSolomon> m_reed_solomon;
@@ -430,6 +429,8 @@ private:
     // Backup configuration
     bool m_backup_enabled;
     int m_backup_count;
+
+    bool m_memory_locked;  // Track if sensitive memory is locked
 
     // YubiKey configuration
     bool m_yubikey_required;           // Whether YubiKey is required for this vault

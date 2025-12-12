@@ -42,6 +42,7 @@ VaultManager::VaultManager()
       m_fec_loaded_from_file(false),
       m_backup_enabled(true),
       m_backup_count(5),
+      m_memory_locked(false),
       m_yubikey_required(false),
       m_pbkdf2_iterations(DEFAULT_PBKDF2_ITERATIONS) {
 }
@@ -113,7 +114,8 @@ bool VaultManager::create_vault(const std::string& path,
         // Derive final key: XOR password-derived key with YubiKey response
         // This provides two-factor security: password + physical YubiKey required
         m_encryption_key.resize(KEY_LENGTH);
-        for (size_t i = 0; i < KEY_LENGTH && i < YUBIKEY_RESPONSE_SIZE; ++i) {
+        const size_t xor_length = std::min(KEY_LENGTH, YUBIKEY_RESPONSE_SIZE);
+        for (size_t i = 0; i < xor_length; ++i) {
             m_encryption_key[i] = password_key[i] ^ response.response[i];
         }
         // Copy remaining bytes if YUBIKEY_RESPONSE_SIZE < KEY_LENGTH
@@ -413,15 +415,19 @@ bool VaultManager::open_vault(const std::string& path, const Glib::ustring& pass
         }
 
         // Check if this YubiKey's serial is authorized
-        // Note: stored_serial is the serial from file header (backward compat)
-        // but we should also check protobuf entries list if present
-        bool key_authorized = (device_info->serial_number == stored_serial);
+        // Note: stored_serial is from file header for backward compatibility
+        // For new vaults, check against protobuf entries list
+        const bool key_authorized = is_yubikey_authorized(device_info->serial_number);
 
         if (!key_authorized) {
             KeepTower::Log::warning("YubiKey serial mismatch: expected {}, found {}",
                                    stored_serial, device_info->serial_number);
-            // Allow any YubiKey for now for backward compatibility
-            // TODO: Make this strict in future versions
+            // For backward compatibility, allow legacy single-key vaults
+            if (stored_serial != device_info->serial_number) {
+                KeepTower::Log::error("Unauthorized YubiKey");
+                secure_clear(m_encryption_key);
+                return false;
+            }
         }
 
         // Perform challenge-response
@@ -818,7 +824,6 @@ bool VaultManager::read_vault_file(const std::string& path, std::vector<uint8_t>
 
         // Check if file has the new format with magic header
         constexpr size_t HEADER_SIZE = sizeof(uint32_t) * 3;  // magic + version + iterations
-        bool has_header = false;
         uint32_t iterations = DEFAULT_PBKDF2_ITERATIONS;
 
         if (size >= static_cast<std::streamsize>(HEADER_SIZE)) {
@@ -828,7 +833,6 @@ bool VaultManager::read_vault_file(const std::string& path, std::vector<uint8_t>
             file.read(reinterpret_cast<char*>(&iterations), sizeof(iterations));
 
             if (magic == VAULT_MAGIC) {
-                has_header = true;
                 m_pbkdf2_iterations = static_cast<int>(iterations);
                 KeepTower::Log::info("Vault format version {}, {} PBKDF2 iterations", version, iterations);
 

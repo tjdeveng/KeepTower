@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.4-beta] - 2025-12-12
+
 ### Added
 - **Multiple YubiKey Support:**
   - Backup YubiKey support for redundancy
@@ -22,6 +24,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Extended protobuf schema with YubiKeyEntry message and repeated entries
 - VaultManager now supports multiple authorized YubiKey serials
 - Enhanced vault file format with multi-key metadata
+
+### Security
+- **Comprehensive Security Audit and Code Quality Improvements:**
+  - Fixed uninitialized member variable (m_memory_locked) - potential undefined behavior
+  - Corrected member initialization order to match declaration order
+  - Removed unused variables causing compiler warnings
+  - Implemented proper YubiKey authorization checks (replaced TODO)
+  - Enhanced XOR boundary safety with explicit std::min usage
+  - Fixed undefined variable references in error paths
+  - Added YubiKey serial number validation (reject zero/invalid serials)
+  - Implemented empty challenge rejection in YubiKey operations
+  - Added secure buffer cleanup for sensitive challenge/response data
+  - Improved dialog memory management (consistent use of Gtk::make_managed)
+  - Removed unused function declarations from Application.h
+  - Documented YubiKey library workarounds for state management
+  - Zero compiler warnings achieved across entire codebase
+  - All 12 test suites passing (29 VaultManager tests, YubiKey mocks, security features)
 
 ## [0.2.3-beta] - 2025-12-12
 
@@ -136,7 +155,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - No save-on-close prompts
 - No multi-vault switching in same session
 
-[Unreleased]: https://github.com/tjdeveng/KeepTower/compare/v0.2.3-beta...HEAD
+[Unreleased]: https://github.com/tjdeveng/KeepTower/compare/v0.2.4-beta...HEAD
+[0.2.4-beta]: https://github.com/tjdeveng/KeepTower/compare/v0.2.3-beta...v0.2.4-beta
 [0.2.3-beta]: https://github.com/tjdeveng/KeepTower/compare/v0.1.1-beta...v0.2.3-beta
 [0.1.1-beta]: https://github.com/tjdeveng/KeepTower/compare/v0.1.0-beta...v0.1.1-beta
 [0.1.0-beta]: https://github.com/tjdeveng/KeepTower/releases/tag/v0.1.0-beta

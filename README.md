@@ -3,7 +3,7 @@
 [![CI](https://github.com/tjdeveng/KeepTower/workflows/CI/badge.svg)](https://github.com/tjdeveng/KeepTower/actions/workflows/ci.yml)
 [![Build](https://github.com/tjdeveng/KeepTower/workflows/Build/badge.svg)](https://github.com/tjdeveng/KeepTower/actions/workflows/build.yml)
 [![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.2.3--beta-orange.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.2.4--beta-orange.svg)](CHANGELOG.md)
 
 A secure, modern password manager built with C++23 and GTK4.
 

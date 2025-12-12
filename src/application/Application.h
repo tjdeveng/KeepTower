@@ -55,9 +55,6 @@ private:
     void on_hide_window(Gtk::Window* window);
     void on_action_quit();
     void on_action_about();
-    bool show_password_dialog();
-
-    Glib::ustring m_password;
 };
 
 #endif // APPLICATION_H

@@ -103,8 +103,13 @@ std::optional<YubiKeyManager::YubiKeyInfo> YubiKeyManager::get_device_info() con
 
     // Get serial number
     unsigned int serial{0};
-    if (yk_get_serial(yk, 0, 0, &serial)) {
+    if (yk_get_serial(yk, 0, 0, &serial) && serial != 0) {
         info.serial_number = std::to_string(serial);
+    } else {
+        KeepTower::Log::warning("Failed to retrieve YubiKey serial number or serial is zero");
+        set_error("Failed to retrieve device serial number");
+        yk_close_key(yk);
+        return std::nullopt;
     }
 
     // Get firmware version
@@ -153,6 +158,8 @@ YubiKeyManager::ChallengeResponse YubiKeyManager::challenge_response(
     }
 
     // Release and re-init to ensure clean state (workaround for ykpers state issues)
+    // This addresses known ykpers library issues where repeated operations can fail
+    // if the library state isn't reset. See: https://github.com/Yubico/yubikey-personalization/issues
     yk_release();
     if (!yk_init()) {
         result.error_message = "Failed to re-initialize YubiKey library";
@@ -172,6 +179,13 @@ YubiKeyManager::ChallengeResponse YubiKeyManager::challenge_response(
 
     // Prepare challenge (pad or truncate to 64 bytes)
     std::array<unsigned char, CHALLENGE_SIZE> padded_challenge{};
+    if (challenge.empty()) {
+        result.error_message = "Challenge cannot be empty";
+        set_error(result.error_message);
+        KeepTower::Log::error("Empty challenge provided");
+        yk_close_key(yk);
+        return result;
+    }
     const size_t copy_size = std::min(challenge.size(), CHALLENGE_SIZE);
     std::copy_n(challenge.begin(), copy_size, padded_challenge.begin());
 
@@ -209,6 +223,10 @@ YubiKeyManager::ChallengeResponse YubiKeyManager::challenge_response(
 
     // Copy the actual 20-byte HMAC-SHA1 response from the 64-byte buffer
     std::copy_n(response_buffer.begin(), RESPONSE_SIZE, result.response.begin());
+
+    // Secure cleanup of sensitive buffers
+    std::fill(padded_challenge.begin(), padded_challenge.end(), 0);
+    std::fill(response_buffer.begin(), response_buffer.end(), 0);
 
     KeepTower::Log::info("Challenge-response succeeded, got {} byte HMAC-SHA1 response", RESPONSE_SIZE);
     yk_close_key(yk);

@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2025 tjdeveng
 
 project('keeptower', 'cpp',
-  version: '0.2.3',
+  version: '0.2.4',
   license: 'GPL-3.0-or-later',
   default_options: [
     'cpp_std=c++23',
