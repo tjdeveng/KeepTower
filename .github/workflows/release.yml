@@ -131,6 +131,7 @@ jobs:
         cd dist
         tar -czf keeptower-${{ needs.create-release.outputs.version }}-${{ matrix.artifact }}-x86_64.tar.gz \
           keeptower-${{ needs.create-release.outputs.version }}-${{ matrix.artifact }}-x86_64/
+        mv keeptower-${{ needs.create-release.outputs.version }}-${{ matrix.artifact }}-x86_64.tar.gz ..
         cd ..
 
     - name: Build AppImage
