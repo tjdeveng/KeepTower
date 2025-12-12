@@ -42,6 +42,7 @@ VaultManager::VaultManager()
       m_fec_loaded_from_file(false),
       m_backup_enabled(true),
       m_backup_count(5),
+      m_yubikey_required(false),
       m_pbkdf2_iterations(DEFAULT_PBKDF2_ITERATIONS) {
 }
 
@@ -49,10 +50,14 @@ VaultManager::~VaultManager() {
     // Ensure sensitive data is securely erased
     secure_clear(m_encryption_key);
     secure_clear(m_salt);
+    secure_clear(m_yubikey_challenge);
     (void)close_vault();  // Explicitly ignore return value in destructor
 }
 
-bool VaultManager::create_vault(const std::string& path, const Glib::ustring& password) {
+bool VaultManager::create_vault(const std::string& path,
+                                 const Glib::ustring& password,
+                                 bool require_yubikey,
+                                 std::string yubikey_serial) {
     if (m_vault_open) {
         if (!close_vault()) {
             std::cerr << "Warning: Failed to close existing vault" << std::endl;
@@ -62,17 +67,84 @@ bool VaultManager::create_vault(const std::string& path, const Glib::ustring& pa
     // Generate new salt
     m_salt = generate_random_bytes(SALT_LENGTH);
 
-    // Derive encryption key from password
-    m_encryption_key.resize(KEY_LENGTH);
-    if (!derive_key(password, m_salt, m_encryption_key)) {
+    // Derive base encryption key from password
+    std::vector<uint8_t> password_key(KEY_LENGTH);
+    if (!derive_key(password, m_salt, password_key)) {
         return false;
     }
+
+    // Handle YubiKey integration if requested
+    m_yubikey_required = require_yubikey;
+    if (require_yubikey) {
+#ifdef HAVE_YUBIKEY_SUPPORT
+        // Generate random challenge for this vault
+        m_yubikey_challenge = generate_random_bytes(YUBIKEY_CHALLENGE_SIZE);
+
+        // Get YubiKey response
+        YubiKeyManager yk_manager;
+        if (!yk_manager.initialize()) {
+            std::cerr << "Failed to initialize YubiKey" << std::endl;
+            secure_clear(password_key);
+            return false;
+        }
+
+        auto response = yk_manager.challenge_response(
+            std::span<const unsigned char>(m_yubikey_challenge.data(), m_yubikey_challenge.size()),
+            false,  // don't require touch for vault operations
+            15000   // 15 second timeout
+        );
+
+        if (!response.success) {
+            std::cerr << "YubiKey challenge-response failed: " << response.error_message << std::endl;
+            secure_clear(password_key);
+            return false;
+        }
+
+        // Store YubiKey serial if not provided
+        if (yubikey_serial.empty()) {
+            auto device_info = yk_manager.get_device_info();
+            if (device_info) {
+                m_yubikey_serial = device_info->serial_number;
+            }
+        } else {
+            m_yubikey_serial = yubikey_serial;
+        }
+
+        // Derive final key: XOR password-derived key with YubiKey response
+        // This provides two-factor security: password + physical YubiKey required
+        m_encryption_key.resize(KEY_LENGTH);
+        for (size_t i = 0; i < KEY_LENGTH && i < YUBIKEY_RESPONSE_SIZE; ++i) {
+            m_encryption_key[i] = password_key[i] ^ response.response[i];
+        }
+        // Copy remaining bytes if YUBIKEY_RESPONSE_SIZE < KEY_LENGTH
+        if (YUBIKEY_RESPONSE_SIZE < KEY_LENGTH) {
+            std::copy(password_key.begin() + YUBIKEY_RESPONSE_SIZE,
+                     password_key.end(),
+                     m_encryption_key.begin() + YUBIKEY_RESPONSE_SIZE);
+        }
+
+        Log::info("YubiKey-protected vault created with serial: {}", m_yubikey_serial);
+#else
+        std::cerr << "YubiKey support not compiled in" << std::endl;
+        secure_clear(password_key);
+        return false;
+#endif
+    } else {
+        // No YubiKey: use password-derived key directly
+        m_encryption_key = std::move(password_key);
+    }
+
+    // Clear password-derived key (either moved or no longer needed)
+    secure_clear(password_key);
 
     // Lock encryption key and salt in memory (prevents swapping to disk)
     if (lock_memory(m_encryption_key)) {
         m_memory_locked = true;
     }
-    lock_memory(m_salt);  // Also lock salt
+    lock_memory(m_salt);
+    if (m_yubikey_required) {
+        lock_memory(m_yubikey_challenge);
+    }
 
     m_current_vault_path = path;
     m_vault_open = true;
@@ -121,9 +193,23 @@ bool VaultManager::open_vault(const std::string& path, const Glib::ustring& pass
     bool file_has_fec = false;  // Track if this file was saved with FEC
     uint8_t file_fec_redundancy = 10;  // Store the file's FEC redundancy
 
+    // YubiKey metadata (need scope outside if block)
+    bool yubikey_required = false;
+    std::string stored_serial;
+    std::vector<uint8_t> stored_challenge;
+
     // Check if there's room for flags byte and RS metadata
     if (file_data.size() > SALT_LENGTH + IV_LENGTH + 6) {  // flags(1) + redundancy(1) + original_size(4)
         uint8_t flags = file_data[SALT_LENGTH + IV_LENGTH];
+
+        // Check for YubiKey requirement
+        yubikey_required = (flags & FLAG_YUBIKEY_REQUIRED);
+
+        if (yubikey_required) {
+            // YubiKey metadata follows flags (and RS metadata if present)
+            // Need to parse RS metadata first to get correct offset
+            m_yubikey_required = true;
+        }
 
         // Check if RS flag is set AND redundancy is valid (5-50%)
         // This helps avoid false positives on legacy vaults
@@ -185,6 +271,19 @@ bool VaultManager::open_vault(const std::string& path, const Glib::ustring& pass
                     ciphertext = std::move(decode_result.value());
                     KeepTower::Log::info("Vault decoded with Reed-Solomon ({}% redundancy, {} -> {} bytes)",
                                         rs_redundancy, encoded_data.size(), ciphertext.size());
+
+                    // Read YubiKey metadata if required (after RS data)
+                    if (yubikey_required && ciphertext_offset < file_data.size()) {
+                        size_t yk_offset = ciphertext_offset;
+                        uint8_t serial_len = file_data[yk_offset++];
+                        stored_serial.assign(file_data.begin() + yk_offset,
+                                           file_data.begin() + yk_offset + serial_len);
+                        yk_offset += serial_len;
+                        stored_challenge.assign(file_data.begin() + yk_offset,
+                                              file_data.begin() + yk_offset + YUBIKEY_CHALLENGE_SIZE);
+                        yk_offset += YUBIKEY_CHALLENGE_SIZE;
+                        ciphertext_offset = yk_offset;
+                    }
                 } else {
                     // Invalid size ratio - treat as legacy format
                     ciphertext.assign(file_data.begin() + (SALT_LENGTH + IV_LENGTH), file_data.end());
@@ -195,6 +294,19 @@ bool VaultManager::open_vault(const std::string& path, const Glib::ustring& pass
             }
         } else {
             // No RS encoding, extract normal ciphertext
+            ciphertext_offset += 1;  // Skip flags byte
+
+            // Read YubiKey metadata if required (after flags byte)
+            if (yubikey_required && ciphertext_offset < file_data.size()) {
+                uint8_t serial_len = file_data[ciphertext_offset++];
+                stored_serial.assign(file_data.begin() + ciphertext_offset,
+                                   file_data.begin() + ciphertext_offset + serial_len);
+                ciphertext_offset += serial_len;
+                stored_challenge.assign(file_data.begin() + ciphertext_offset,
+                                      file_data.begin() + ciphertext_offset + YUBIKEY_CHALLENGE_SIZE);
+                ciphertext_offset += YUBIKEY_CHALLENGE_SIZE;
+            }
+
             ciphertext.assign(file_data.begin() + ciphertext_offset, file_data.end());
         }
     } else {
@@ -205,6 +317,62 @@ bool VaultManager::open_vault(const std::string& path, const Glib::ustring& pass
     if (!derive_key(password, m_salt, m_encryption_key)) {
         return false;
     }
+
+#ifdef HAVE_YUBIKEY_SUPPORT
+    // If YubiKey is required, perform challenge-response and XOR with password key
+    if (yubikey_required) {
+        if (stored_challenge.empty() || stored_serial.empty()) {
+            std::cerr << "Vault requires YubiKey but metadata is missing" << std::endl;
+            return false;
+        }
+
+        KeepTower::Log::info("Vault requires YubiKey authentication (serial: {})", stored_serial);
+
+        YubiKeyManager yk_manager;
+        if (!yk_manager.is_available()) {
+            std::cerr << "YubiKey is required but no YubiKey is connected" << std::endl;
+            return false;
+        }
+
+        // Get device info to check serial
+        auto device_info = yk_manager.get_device_info();
+        if (!device_info) {
+            std::cerr << "Failed to get YubiKey device information" << std::endl;
+            return false;
+        }
+
+        // Optional: Verify serial number matches
+        if (device_info->serial_number != stored_serial) {
+            KeepTower::Log::warning("YubiKey serial mismatch: expected {}, found {}",
+                                   stored_serial, device_info->serial_number);
+            // Allow any YubiKey for now - could make this strict in future
+        }
+
+        // Perform challenge-response
+        auto response = yk_manager.challenge_response(stored_challenge, 2);
+        if (!response.success) {
+            std::cerr << "YubiKey challenge-response failed: " << response.error_message << std::endl;
+            return false;
+        }
+
+        KeepTower::Log::info("YubiKey challenge-response successful");
+
+        // XOR password-derived key with YubiKey response
+        for (size_t i = 0; i < KEY_LENGTH && i < YUBIKEY_RESPONSE_SIZE; ++i) {
+            m_encryption_key[i] ^= response.response[i];
+        }
+
+        // Store YubiKey data for save operations
+        m_yubikey_serial = stored_serial;
+        m_yubikey_challenge = stored_challenge;
+        lock_memory(m_yubikey_challenge);
+    }
+#else
+    if (yubikey_required) {
+        std::cerr << "Vault requires YubiKey but YubiKey support is not compiled in" << std::endl;
+        return false;
+    }
+#endif
 
     // Lock encryption key and salt in memory (prevents swapping to disk)
     if (lock_memory(m_encryption_key)) {
@@ -276,7 +444,17 @@ bool VaultManager::save_vault() {
     file_data.insert(file_data.end(), m_salt.begin(), m_salt.end());
     file_data.insert(file_data.end(), iv.begin(), iv.end());
 
-    // Apply Reed-Solomon encoding if enabled
+    // Prepare flags byte
+    uint8_t flags = 0;
+    if (m_use_reed_solomon) {
+        flags |= FLAG_RS_ENABLED;
+    }
+    if (m_yubikey_required) {
+        flags |= FLAG_YUBIKEY_REQUIRED;
+    }
+    file_data.push_back(flags);
+
+    // Write Reed-Solomon metadata if enabled
     if (m_use_reed_solomon) {
         // Ensure ReedSolomon instance exists
         if (!m_reed_solomon) {
@@ -291,9 +469,7 @@ bool VaultManager::save_vault() {
             return false;
         }
 
-        // Write format: [salt][iv][flags][rs_redundancy][original_size(4 bytes)][encoded_ciphertext]
-        uint8_t flags = FLAG_RS_ENABLED;
-        file_data.push_back(flags);
+        // Write RS metadata: [rs_redundancy][original_size(4 bytes)]
         file_data.push_back(m_rs_redundancy_percent);
 
         // Store original ciphertext size (4 bytes, big-endian)
@@ -304,12 +480,33 @@ bool VaultManager::save_vault() {
         file_data.push_back(original_size & 0xFF);
 
         const auto& encoded = encode_result.value();
+
+        // Write YubiKey metadata before encoded data if required
+        if (m_yubikey_required) {
+            // Write: [serial_len(1 byte)][serial][challenge(64 bytes)]
+            uint8_t serial_len = static_cast<uint8_t>(std::min(m_yubikey_serial.length(), size_t{255}));
+            file_data.push_back(serial_len);
+            file_data.insert(file_data.end(), m_yubikey_serial.begin(),
+                           m_yubikey_serial.begin() + serial_len);
+            file_data.insert(file_data.end(), m_yubikey_challenge.begin(), m_yubikey_challenge.end());
+        }
+
         file_data.insert(file_data.end(), encoded.data.begin(), encoded.data.end());
 
         KeepTower::Log::info("Vault saved with Reed-Solomon encoding ({}% redundancy, {} -> {} bytes)",
                             m_rs_redundancy_percent, ciphertext.size(), encoded.data.size());
     } else {
-        // Original format: [salt][iv][ciphertext]
+        // Write YubiKey metadata before ciphertext if required
+        if (m_yubikey_required) {
+            // Write: [serial_len(1 byte)][serial][challenge(64 bytes)]
+            uint8_t serial_len = static_cast<uint8_t>(std::min(m_yubikey_serial.length(), size_t{255}));
+            file_data.push_back(serial_len);
+            file_data.insert(file_data.end(), m_yubikey_serial.begin(),
+                           m_yubikey_serial.begin() + serial_len);
+            file_data.insert(file_data.end(), m_yubikey_challenge.begin(), m_yubikey_challenge.end());
+        }
+
+        // Format: [salt][iv][flags][optional: YubiKey][ciphertext]
         file_data.insert(file_data.end(), ciphertext.begin(), ciphertext.end());
     }
 

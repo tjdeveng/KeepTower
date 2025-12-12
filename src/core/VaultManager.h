@@ -18,10 +18,15 @@
 #include <span>
 #include <memory>
 #include <expected>
+#include <optional>
 #include <glibmm.h>
 #include "record.pb.h"
 #include "VaultError.h"
 #include "ReedSolomon.h"
+
+#ifdef HAVE_YUBIKEY_SUPPORT
+#include "YubiKeyManager.h"
+#endif
 
 // Forward declarations for OpenSSL types
 typedef struct evp_cipher_ctx_st EVP_CIPHER_CTX;
@@ -110,6 +115,8 @@ public:
      * @brief Create a new encrypted vault
      * @param path Filesystem path where vault will be created
      * @param password Master password for vault encryption
+     * @param require_yubikey Optional: require YubiKey for vault access
+     * @param yubikey_serial Optional: specific YubiKey serial number
      * @return true if vault created successfully, false on error
      *
      * Creates a new vault file with:
@@ -117,12 +124,16 @@ public:
      * - Version number (1)
      * - PBKDF2 iteration count
      * - Random salt (32 bytes)
+     * - Optional: YubiKey challenge and serial
      * - Empty encrypted data
      *
      * @note File permissions set to 0600 (owner read/write only)
      * @warning Overwrites existing file at path
      */
-    [[nodiscard]] bool create_vault(const std::string& path, const Glib::ustring& password);
+    [[nodiscard]] bool create_vault(const std::string& path,
+                                     const Glib::ustring& password,
+                                     bool require_yubikey = false,
+                                     std::string yubikey_serial = "");
 
     /**
      * @brief Open and decrypt an existing vault
@@ -358,6 +369,11 @@ private:
     bool m_backup_enabled;
     int m_backup_count;
 
+    // YubiKey configuration
+    bool m_yubikey_required;           // Whether YubiKey is required for this vault
+    std::string m_yubikey_serial;      // YubiKey serial number (for multi-key support)
+    std::vector<uint8_t> m_yubikey_challenge;  // 64-byte challenge for this vault
+
     // In-memory vault data (protobuf)
     keeptower::VaultData m_vault_data;
 
@@ -366,13 +382,16 @@ private:
     static constexpr uint32_t VAULT_VERSION = 1;
 
     // Vault flags
-    static constexpr uint8_t FLAG_RS_ENABLED = 0x01;  // Reed-Solomon error correction enabled
+    static constexpr uint8_t FLAG_RS_ENABLED = 0x01;      // Reed-Solomon error correction enabled
+    static constexpr uint8_t FLAG_YUBIKEY_REQUIRED = 0x02; // YubiKey required for vault access
 
     // Constants for encryption (AES-256-GCM with PBKDF2)
     static constexpr size_t SALT_LENGTH = 32;
     static constexpr size_t KEY_LENGTH = 32;  // 256 bits
     static constexpr size_t IV_LENGTH = 12;   // GCM recommended
     static constexpr int DEFAULT_PBKDF2_ITERATIONS = 100000;  // NIST recommendation
+    static constexpr size_t YUBIKEY_CHALLENGE_SIZE = 64;  // YubiKey challenge size
+    static constexpr size_t YUBIKEY_RESPONSE_SIZE = 20;   // HMAC-SHA1 response size
 
     // Current vault PBKDF2 iterations (configurable per vault)
     int m_pbkdf2_iterations;
