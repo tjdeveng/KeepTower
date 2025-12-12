@@ -105,7 +105,7 @@ CreatePasswordDialog::CreatePasswordDialog(Gtk::Window& parent)
 
     // Configure YubiKey info label
     m_yubikey_info_label.set_text(
-        "Two-factor protection: Vault will require both password AND YubiKey to open.\\n"
+        "Two-factor protection: Vault will require both password AND YubiKey to open.\n"
         "Make sure your YubiKey is connected and configured for HMAC-SHA1 challenge-response.");
     m_yubikey_info_label.set_wrap(true);
     m_yubikey_info_label.set_xalign(0.0);
