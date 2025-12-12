@@ -15,6 +15,11 @@ A secure, modern password manager built with C++23 and GTK4.
 
 - **Strong Encryption**: AES-256-GCM with authenticated encryption
 - **Secure Key Derivation**: PBKDF2-SHA256 with 100,000 iterations (configurable)
+- **YubiKey Hardware 2FA**: Optional hardware-based second factor authentication
+  - Challenge-response HMAC-SHA1 using YubiKey slot 2
+  - Two-factor encryption: password key ⊕ YubiKey response
+  - Automatic key detection with user-friendly prompts
+  - Serial number tracking for key identification
 - **Error Correction**: Reed-Solomon forward error correction (FEC) for vault files
   - Configurable redundancy levels (5-50%)
   - Automatic corruption detection and recovery
@@ -36,6 +41,7 @@ A secure, modern password manager built with C++23 and GTK4.
 - Memory locking prevents swap file exposure
 - Clipboard auto-clear (30 seconds)
 - File permissions restricted to owner only
+- Optional YubiKey hardware 2FA for vault encryption
 - Backward-compatible vault format with versioning
 - Reed-Solomon error correction protects against bit rot and corruption
 - Comprehensive unit test suite (103 tests)
@@ -50,7 +56,10 @@ A secure, modern password manager built with C++23 and GTK4.
 - Protocol Buffers (>= 3.0)
 - libcorrect (for Reed-Solomon error correction)
   - Fedora: `dnf install libcorrect-devel`
-  - Ubuntu: Build from source (see CI workflows for instructions)
+  yubikey-personalization (optional, for YubiKey 2FA support)
+  - Fedora: `dnf install ykpers-devel`
+  - Ubuntu: `apt install libykpers-1-dev`
+- - Ubuntu: Build from source (see CI workflows for instructions)
 - Meson build system
 - GTest (for tests)
 
@@ -92,7 +101,23 @@ meson install -C build
 ## Usage
 
 ```bash
-keeptower
+keeptreating YubiKey-Protected Vaults
+
+To create a vault with YubiKey hardware 2FA:
+
+1. Ensure your YubiKey is connected and configured with HMAC-SHA1 challenge-response in slot 2
+   ```bash
+   # Configure slot 2 for HMAC-SHA1 (one-time setup)
+   ykpersonalize -2 -ochal-resp -ochal-hmac -ohmac-lt64 -oserial-api-visible
+   ```
+2. Click **New Vault** and create a strong password
+3. Check **"Require YubiKey for vault access"** (appears when YubiKey is detected)
+4. Touch your YubiKey when prompted during vault creation
+5. The vault will now require both your password AND the YubiKey to open
+
+**Important**: Keep your YubiKey safe! If lost, you will need both a backup YubiKey (programmed with the same secret) or the vault cannot be opened.
+
+### Cower
 ```
 
 ### Configuring Preferences
