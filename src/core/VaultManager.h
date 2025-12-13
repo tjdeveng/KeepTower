@@ -112,25 +112,66 @@ private:
  */
 class VaultManager {
 public:
-    // Public constants for vault format and testing
-    static constexpr uint8_t FLAG_RS_ENABLED = 0x01;      // Reed-Solomon error correction enabled
-    static constexpr uint8_t FLAG_YUBIKEY_REQUIRED = 0x02; // YubiKey required for vault access
+    /** @name Vault File Format Constants
+     * @brief Protocol constants defining vault file structure
+     * @{
+     */
+
+    /** @brief Reed-Solomon error correction enabled flag (bit 0) */
+    static constexpr uint8_t FLAG_RS_ENABLED = 0x01;
+
+    /** @brief YubiKey authentication required flag (bit 1) */
+    static constexpr uint8_t FLAG_YUBIKEY_REQUIRED = 0x02;
+
+    /** @brief PBKDF2 salt length in bytes (256 bits) */
     static constexpr size_t SALT_LENGTH = 32;
-    static constexpr size_t KEY_LENGTH = 32;  // 256 bits
-    static constexpr size_t IV_LENGTH = 12;   // GCM recommended
-    static constexpr int DEFAULT_PBKDF2_ITERATIONS = 100000;  // NIST recommendation
-    static constexpr size_t YUBIKEY_CHALLENGE_SIZE = 64;  // YubiKey challenge size
-    static constexpr size_t YUBIKEY_RESPONSE_SIZE = 20;   // HMAC-SHA1 response size
-    static constexpr int YUBIKEY_TIMEOUT_MS = 15000;     // YubiKey operation timeout (15 seconds)
-    static constexpr int DEFAULT_BACKUP_COUNT = 5;        // Number of backup files to maintain
-    static constexpr int DEFAULT_RS_REDUNDANCY = 10;      // Default Reed-Solomon redundancy percentage
-    static constexpr size_t VAULT_HEADER_SIZE = 6;        // flags(1) + redundancy(1) + original_size(4)
-    static constexpr uint8_t MIN_RS_REDUNDANCY = 5;       // Minimum Reed-Solomon redundancy percentage
-    static constexpr uint8_t MAX_RS_REDUNDANCY = 50;      // Maximum Reed-Solomon redundancy percentage
-    static constexpr size_t MAX_VAULT_SIZE = 100 * 1024 * 1024;  // 100MB maximum vault size
-    static constexpr size_t BIGENDIAN_SHIFT_24 = 24;      // Bit shift for big-endian byte 0
-    static constexpr size_t BIGENDIAN_SHIFT_16 = 16;      // Bit shift for big-endian byte 1
-    static constexpr size_t BIGENDIAN_SHIFT_8 = 8;        // Bit shift for big-endian byte 2
+
+    /** @brief AES-256 key length in bytes (256 bits) */
+    static constexpr size_t KEY_LENGTH = 32;
+
+    /** @brief AES-GCM initialization vector length in bytes (96 bits, GCM recommended) */
+    static constexpr size_t IV_LENGTH = 12;
+
+    /** @brief Default PBKDF2 iteration count (NIST recommendation: ≥100,000) */
+    static constexpr int DEFAULT_PBKDF2_ITERATIONS = 100000;
+
+    /** @brief YubiKey HMAC-SHA1 challenge size in bytes */
+    static constexpr size_t YUBIKEY_CHALLENGE_SIZE = 64;
+
+    /** @brief YubiKey HMAC-SHA1 response size in bytes */
+    static constexpr size_t YUBIKEY_RESPONSE_SIZE = 20;
+
+    /** @brief YubiKey operation timeout in milliseconds (15 seconds) */
+    static constexpr int YUBIKEY_TIMEOUT_MS = 15000;
+
+    /** @brief Default number of backup files to maintain per vault */
+    static constexpr int DEFAULT_BACKUP_COUNT = 5;
+
+    /** @brief Default Reed-Solomon redundancy percentage */
+    static constexpr int DEFAULT_RS_REDUNDANCY = 10;
+
+    /** @brief Vault header size: flags(1) + redundancy(1) + original_size(4) bytes */
+    static constexpr size_t VAULT_HEADER_SIZE = 6;
+
+    /** @brief Minimum Reed-Solomon redundancy percentage (5%) */
+    static constexpr uint8_t MIN_RS_REDUNDANCY = 5;
+
+    /** @brief Maximum Reed-Solomon redundancy percentage (50%) */
+    static constexpr uint8_t MAX_RS_REDUNDANCY = 50;
+
+    /** @brief Maximum vault file size in bytes (100MB) */
+    static constexpr size_t MAX_VAULT_SIZE = 100 * 1024 * 1024;
+
+    /** @brief Bit shift for big-endian byte 0 (most significant byte) */
+    static constexpr size_t BIGENDIAN_SHIFT_24 = 24;
+
+    /** @brief Bit shift for big-endian byte 1 */
+    static constexpr size_t BIGENDIAN_SHIFT_16 = 16;
+
+    /** @brief Bit shift for big-endian byte 2 */
+    static constexpr size_t BIGENDIAN_SHIFT_8 = 8;
+
+    /** @} */ // end of Vault File Format Constants
 
     VaultManager();
     ~VaultManager();
