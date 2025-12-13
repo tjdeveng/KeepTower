@@ -38,6 +38,7 @@ private:
     void on_rs_enabled_toggled() noexcept;               ///< Handle Reed-Solomon enabled checkbox toggle
     void on_backup_enabled_toggled() noexcept;           ///< Handle backup enabled checkbox toggle
     void on_auto_lock_enabled_toggled() noexcept;        ///< Handle auto-lock enabled checkbox toggle
+    void on_password_history_enabled_toggled() noexcept; ///< Handle password history enabled checkbox toggle
     void on_apply_to_current_toggled() noexcept;         ///< Handle "Apply to current vault" checkbox toggle
     void on_color_scheme_changed() noexcept;             ///< Handle color scheme dropdown selection change
     void on_response(int response_id) noexcept override; ///< Handle dialog response (Apply/Cancel)
@@ -55,6 +56,9 @@ private:
     static constexpr int MIN_AUTO_LOCK_TIMEOUT = 60;
     static constexpr int MAX_AUTO_LOCK_TIMEOUT = 3600;
     static constexpr int DEFAULT_AUTO_LOCK_TIMEOUT = 300;
+    static constexpr int MIN_PASSWORD_HISTORY_LIMIT = 1;
+    static constexpr int MAX_PASSWORD_HISTORY_LIMIT = 50;
+    static constexpr int DEFAULT_PASSWORD_HISTORY_LIMIT = 5;
     static constexpr int DEFAULT_WIDTH = 650;
     static constexpr int DEFAULT_HEIGHT = 500;
 
@@ -85,6 +89,10 @@ private:
     Gtk::SpinButton m_auto_lock_timeout_spin;
     Gtk::Label m_auto_lock_timeout_suffix;
     Gtk::CheckButton m_password_history_enabled_check;
+    Gtk::Box m_password_history_limit_box;
+    Gtk::Label m_password_history_limit_label;
+    Gtk::SpinButton m_password_history_limit_spin;
+    Gtk::Label m_password_history_limit_suffix;
 
     // Storage page (Reed-Solomon + Backups)
     Gtk::Box m_storage_box;

@@ -25,17 +25,18 @@ This document outlines the planned features and improvements for KeepTower, orga
 - [x] Clipboard auto-clear after paste (configurable 5-300s delay)
 - [x] Auto-lock after configurable inactivity timeout (60-3600s)
 - [x] Session timeout with re-authentication (integrated with auto-lock)
-- [ ] Password history tracking per account (UI complete, backend pending)
+- [x] Password history tracking per account (prevents reuse) - **Completed**
 - [ ] Two-factor authentication support (TOTP/HOTP code generation) - *requires hardware*
 - [ ] Biometric unlock support (fingerprint via polkit) - *requires hardware access*
 
 ### Usability Improvements
-- [ ] Import functionality (KeePass XML, 1Password, CSV formats)
-- [ ] Export functionality with security warnings
+- [x] Import functionality (KeePass XML, 1Password 1PIF, CSV formats) - **v0.2.5-beta**
+- [x] Export functionality with security warnings - **v0.2.5-beta**
+- [x] Enhanced password generator with customizable rules - **Completed**
+- [x] Tags system for organizing accounts - **v0.2.6-beta**
 - [ ] Browser extension for auto-fill (Firefox, Chrome)
-- [ ] Enhanced password generator with customizable rules
 - [ ] Favorites/starred accounts for quick access
-- [ ] Tags system for organizing accounts
+- [ ] Tag-based filtering in account list
 - [ ] Advanced search (fuzzy search, filters by field)
 - [ ] Undo/redo support for vault operations
 - [ ] Drag-and-drop account reordering

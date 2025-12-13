@@ -193,6 +193,19 @@ MainWindow::MainWindow()
     m_website_label.set_xalign(0.0);
     m_website_entry.set_margin_bottom(12);
 
+    // Tags configuration
+    m_tags_label.set_xalign(0.0);
+    m_tags_entry.set_placeholder_text("Add tag (press Enter)");
+    m_tags_entry.set_margin_bottom(6);
+    m_tags_scrolled.set_policy(Gtk::PolicyType::AUTOMATIC, Gtk::PolicyType::NEVER);
+    m_tags_scrolled.set_min_content_height(40);
+    m_tags_scrolled.set_max_content_height(120);
+    m_tags_scrolled.set_child(m_tags_flowbox);
+    m_tags_scrolled.set_margin_bottom(12);
+    m_tags_flowbox.set_selection_mode(Gtk::SelectionMode::NONE);
+    m_tags_flowbox.set_max_children_per_line(10);
+    m_tags_flowbox.set_homogeneous(false);
+
     m_notes_label.set_xalign(0.0);
     m_notes_scrolled.set_policy(Gtk::PolicyType::AUTOMATIC, Gtk::PolicyType::AUTOMATIC);
     m_notes_scrolled.set_min_content_height(150);
@@ -208,6 +221,9 @@ MainWindow::MainWindow()
     m_details_box.append(m_email_entry);
     m_details_box.append(m_website_label);
     m_details_box.append(m_website_entry);
+    m_details_box.append(m_tags_label);
+    m_details_box.append(m_tags_entry);
+    m_details_box.append(m_tags_scrolled);
     m_details_box.append(m_notes_label);
     m_details_box.append(m_notes_scrolled);
 
@@ -224,6 +240,32 @@ MainWindow::MainWindow()
     m_paned.set_end_child(m_details_scrolled);
 
     m_main_box.append(m_paned);
+
+    // Add CSS styling for tag chips
+    auto css_provider = Gtk::CssProvider::create();
+    css_provider->load_from_data(R"(
+        .tag-chip {
+            background-color: alpha(@accent_bg_color, 0.2);
+            border-radius: 12px;
+            padding: 2px 4px;
+        }
+        .tag-chip:hover {
+            background-color: alpha(@accent_bg_color, 0.3);
+        }
+        .tag-chip label {
+            font-size: 0.9em;
+        }
+        .tag-chip button {
+            min-width: 16px;
+            min-height: 16px;
+            padding: 0;
+        }
+    )");
+    Gtk::StyleContext::add_provider_for_display(
+        Gdk::Display::get_default(),
+        css_provider,
+        GTK_STYLE_PROVIDER_PRIORITY_APPLICATION
+    );
 
     // Setup status bar
     m_status_label.set_margin_start(12);
@@ -277,6 +319,9 @@ MainWindow::MainWindow()
     );
     m_search_entry.signal_changed().connect(
         sigc::mem_fun(*this, &MainWindow::on_search_changed)
+    );
+    m_tags_entry.signal_activate().connect(
+        sigc::mem_fun(*this, &MainWindow::on_tags_entry_activate)
     );
 
     // Connect to selection changed signal to handle account switching
@@ -931,12 +976,22 @@ void MainWindow::clear_account_details() {
     m_website_entry.set_text("");
     m_notes_view.get_buffer()->set_text("");
 
+    // Clear tags
+    auto child = m_tags_flowbox.get_first_child();
+    while (child) {
+        auto next = child->get_next_sibling();
+        m_tags_flowbox.remove(*child);
+        child = next;
+    }
+    m_tags_entry.set_text("");
+
     m_account_name_entry.set_sensitive(false);
     m_user_name_entry.set_sensitive(false);
     m_password_entry.set_sensitive(false);
     m_email_entry.set_sensitive(false);
     m_website_entry.set_sensitive(false);
     m_notes_view.set_sensitive(false);
+    m_tags_entry.set_sensitive(false);
     m_generate_password_button.set_sensitive(false);
     m_show_password_button.set_sensitive(false);
     m_copy_password_button.set_sensitive(false);
@@ -966,6 +1021,9 @@ void MainWindow::display_account_details(int index) {
     m_website_entry.set_text(account->website());
     m_notes_view.get_buffer()->set_text(account->notes());
 
+    // Update tags display
+    update_tags_display();
+
     // Enable fields for editing
     m_account_name_entry.set_sensitive(true);
     m_user_name_entry.set_sensitive(true);
@@ -973,6 +1031,7 @@ void MainWindow::display_account_details(int index) {
     m_email_entry.set_sensitive(true);
     m_website_entry.set_sensitive(true);
     m_notes_view.set_sensitive(true);
+    m_tags_entry.set_sensitive(true);
     m_generate_password_button.set_sensitive(true);
     m_show_password_button.set_sensitive(true);
     m_copy_password_button.set_sensitive(true);
@@ -1076,6 +1135,13 @@ bool MainWindow::save_current_account() {
     account->set_website(m_website_entry.get_text().raw());
     account->set_notes(notes_text.raw());
 
+    // Update tags
+    account->clear_tags();
+    auto current_tags = get_current_tags();
+    for (const auto& tag : current_tags) {
+        account->add_tags(tag);
+    }
+
     // Update modification timestamp
     account->set_modified_at(std::time(nullptr));
 
@@ -1158,6 +1224,170 @@ void MainWindow::show_error_dialog(const Glib::ustring& message) {
     });
 
     dialog->show();
+}
+
+void MainWindow::on_tags_entry_activate() {
+    Glib::ustring tag_text = m_tags_entry.get_text();
+
+    // Trim whitespace
+    size_t start = tag_text.find_first_not_of(" \t\n\r");
+    size_t end = tag_text.find_last_not_of(" \t\n\r");
+    if (start == Glib::ustring::npos) {
+        return;  // Empty or only whitespace
+    }
+    tag_text = tag_text.substr(start, end - start + 1);
+
+    if (tag_text.empty()) {
+        return;
+    }
+
+    // Validate tag (no commas, max 50 chars)
+    if (tag_text.find(',') != Glib::ustring::npos) {
+        show_error_dialog("Tags cannot contain commas.");
+        return;
+    }
+
+    if (tag_text.length() > 50) {
+        show_error_dialog("Tag is too long (maximum 50 characters).");
+        return;
+    }
+
+    // Check for duplicates
+    auto current_tags = get_current_tags();
+    std::string tag_str = tag_text.raw();
+    if (std::find(current_tags.begin(), current_tags.end(), tag_str) != current_tags.end()) {
+        m_tags_entry.set_text("");
+        return;  // Tag already exists, silently ignore
+    }
+
+    // Add the tag chip
+    add_tag_chip(tag_str);
+
+    // Clear the entry
+    m_tags_entry.set_text("");
+
+    // Mark vault as modified
+    if (m_vault_manager && m_selected_account_index >= 0) {
+        save_current_account();
+    }
+}
+
+void MainWindow::add_tag_chip(const std::string& tag) {
+    // Create a box for the tag chip
+    auto chip_box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 4);
+    chip_box->set_margin_start(4);
+    chip_box->set_margin_end(4);
+    chip_box->set_margin_top(4);
+    chip_box->set_margin_bottom(4);
+    chip_box->add_css_class("tag-chip");
+
+    // Add tag label
+    auto label = Gtk::make_managed<Gtk::Label>(tag);
+    label->set_margin_start(8);
+    chip_box->append(*label);
+
+    // Add remove button
+    auto remove_button = Gtk::make_managed<Gtk::Button>();
+    remove_button->set_icon_name("window-close-symbolic");
+    remove_button->add_css_class("flat");
+    remove_button->add_css_class("circular");
+    remove_button->set_margin_end(4);
+    remove_button->set_tooltip_text("Remove tag");
+
+    // Connect remove button signal - capture tag by value
+    std::string tag_copy = tag;
+    remove_button->signal_clicked().connect([this, tag_copy]() {
+        remove_tag_chip(tag_copy);
+    });
+
+    chip_box->append(*remove_button);
+
+    // Add to flowbox
+    m_tags_flowbox.append(*chip_box);
+}
+
+void MainWindow::remove_tag_chip(const std::string& tag) {
+    // Find and remove the chip with matching tag from flowbox
+    auto child = m_tags_flowbox.get_first_child();
+    while (child) {
+        auto next = child->get_next_sibling();
+
+        // FlowBox wraps our widgets in FlowBoxChild, so we need to get the actual child
+        Gtk::Widget* actual_child = nullptr;
+        if (auto* flowbox_child = dynamic_cast<Gtk::FlowBoxChild*>(child)) {
+            actual_child = flowbox_child->get_child();
+        } else {
+            actual_child = child;
+        }
+
+        // Each child should be a Box containing a Label and Button
+        if (actual_child) {
+            if (auto* box = dynamic_cast<Gtk::Box*>(actual_child)) {
+                // Get the first child which should be the label
+                if (auto* label = dynamic_cast<Gtk::Label*>(box->get_first_child())) {
+                    if (label->get_text().raw() == tag) {
+                        m_tags_flowbox.remove(*child);
+                        break;
+                    }
+                }
+            }
+        }
+        child = next;
+    }
+    // Save the changes
+    if (m_vault_manager && m_selected_account_index >= 0) {
+        save_current_account();
+    }
+}
+
+void MainWindow::update_tags_display() {
+    // Clear existing tags
+    auto child = m_tags_flowbox.get_first_child();
+    while (child) {
+        auto next = child->get_next_sibling();
+        m_tags_flowbox.remove(*child);
+        child = next;
+    }
+
+    // Load tags from current account
+    if (m_vault_manager && m_selected_account_index >= 0) {
+        const auto* account = m_vault_manager->get_account(m_selected_account_index);
+        if (account) {
+            for (int i = 0; i < account->tags_size(); ++i) {
+                add_tag_chip(account->tags(i));
+            }
+        }
+    }
+}
+
+std::vector<std::string> MainWindow::get_current_tags() {
+    std::vector<std::string> tags;
+
+    // Iterate through flowbox children
+    // Note: FlowBox wraps children in FlowBoxChild widgets
+    auto child = m_tags_flowbox.get_first_child();
+    while (child) {
+        // FlowBox wraps our widgets in FlowBoxChild, so we need to get the actual child
+        Gtk::Widget* actual_child = nullptr;
+        if (auto* flowbox_child = dynamic_cast<Gtk::FlowBoxChild*>(child)) {
+            actual_child = flowbox_child->get_child();
+        } else {
+            actual_child = child;
+        }
+
+        // Each child should be a Box containing a Label and Button
+        if (actual_child) {
+            if (auto* box = dynamic_cast<Gtk::Box*>(actual_child)) {
+                // Get the first child which should be the label
+                if (auto* label = dynamic_cast<Gtk::Label*>(box->get_first_child())) {
+                    tags.push_back(label->get_text().raw());
+                }
+            }
+        }
+        child = child->get_next_sibling();
+    }
+
+    return tags;
 }
 
 bool MainWindow::prompt_save_if_modified() {

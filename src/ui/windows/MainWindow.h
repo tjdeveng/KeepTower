@@ -85,6 +85,11 @@ protected:
     void on_copy_password();  ///< Copy password to clipboard
     void on_generate_password();  ///< Generate random password
     void on_toggle_password_visibility();  ///< Show/hide password
+    void on_tags_entry_activate();  ///< Add tag when Enter is pressed
+    void add_tag_chip(const std::string& tag);  ///< Add a tag chip to the flowbox
+    void remove_tag_chip(const std::string& tag);  ///< Remove a tag chip
+    void update_tags_display();  ///< Refresh tags display from current account
+    std::vector<std::string> get_current_tags();  ///< Get tags from current account
     void on_search_changed(); ///< Filter accounts by search
     void on_selection_changed();  ///< Handle account selection
     void on_account_selected(const Gtk::TreeModel::Path& path, Gtk::TreeViewColumn* column);  ///< Double-click handler
@@ -161,6 +166,12 @@ protected:
     Gtk::Label m_notes_label;
     Gtk::TextView m_notes_view;
     Gtk::ScrolledWindow m_notes_scrolled;
+
+    // Tags
+    Gtk::Label m_tags_label;
+    Gtk::Entry m_tags_entry;
+    Gtk::FlowBox m_tags_flowbox;
+    Gtk::ScrolledWindow m_tags_scrolled;
 
     Gtk::Label m_status_label;
 

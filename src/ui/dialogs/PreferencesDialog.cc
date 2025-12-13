@@ -62,6 +62,9 @@ PreferencesDialog::PreferencesDialog(Gtk::Window& parent, VaultManager* vault_ma
     m_auto_lock_enabled_check.signal_toggled().connect(
         sigc::mem_fun(*this, &PreferencesDialog::on_auto_lock_enabled_toggled));
 
+    m_password_history_enabled_check.signal_toggled().connect(
+        sigc::mem_fun(*this, &PreferencesDialog::on_password_history_enabled_toggled));
+
     // Connect apply-to-current checkbox to reload settings when toggled
     if (m_vault_manager && m_vault_manager->is_vault_open()) {
         m_apply_to_current_check.signal_toggled().connect(
@@ -96,9 +99,16 @@ void PreferencesDialog::setup_ui() {
     setup_security_page();
     setup_storage_page();
 
-    // Add main box to dialog with proper margins (GNOME HIG)
-    m_main_box.set_margin_bottom(12);
+    // Add main box to dialog content area
     get_content_area()->append(m_main_box);
+
+    // Apply CSS to ensure proper spacing between content and buttons (GNOME HIG: 12px)
+    auto css_provider = Gtk::CssProvider::create();
+    css_provider->load_from_data("dialog > box > box { margin-bottom: 12px; }");
+    get_style_context()->add_provider(
+        css_provider,
+        GTK_STYLE_PROVIDER_PRIORITY_APPLICATION
+    );
 
     // Connect color scheme signal after UI is set up
     m_color_scheme_dropdown.property_selected().signal_changed().connect(
@@ -234,6 +244,34 @@ void PreferencesDialog::setup_security_page() {
     password_history_section->append(*password_history_desc);
 
     password_history_section->append(m_password_history_enabled_check);
+
+    // Password history limit controls
+    m_password_history_limit_box.set_orientation(Gtk::Orientation::HORIZONTAL);
+    m_password_history_limit_box.set_spacing(12);
+    m_password_history_limit_box.set_margin_top(12);
+    m_password_history_limit_box.set_margin_start(24);
+
+    m_password_history_limit_label.set_text("Remember up to");
+    m_password_history_limit_label.set_halign(Gtk::Align::START);
+    m_password_history_limit_box.append(m_password_history_limit_label);
+
+    auto password_history_adjustment = Gtk::Adjustment::create(
+        static_cast<double>(DEFAULT_PASSWORD_HISTORY_LIMIT),
+        static_cast<double>(MIN_PASSWORD_HISTORY_LIMIT),
+        static_cast<double>(MAX_PASSWORD_HISTORY_LIMIT),
+        1.0, 5.0, 0.0
+    );
+    m_password_history_limit_spin.set_adjustment(password_history_adjustment);
+    m_password_history_limit_spin.set_digits(0);
+    m_password_history_limit_spin.set_value(DEFAULT_PASSWORD_HISTORY_LIMIT);
+    m_password_history_limit_box.append(m_password_history_limit_spin);
+
+    m_password_history_limit_suffix.set_text("previous passwords");
+    m_password_history_limit_suffix.set_halign(Gtk::Align::START);
+    m_password_history_limit_box.append(m_password_history_limit_suffix);
+
+    m_password_history_limit_box.set_halign(Gtk::Align::START);
+    password_history_section->append(m_password_history_limit_box);
 
     m_security_box.append(*password_history_section);
 
@@ -421,10 +459,18 @@ void PreferencesDialog::load_settings() {
     bool password_history_enabled = SettingsValidator::is_password_history_enabled(m_settings);
     m_password_history_enabled_check.set_active(password_history_enabled);
 
+    int password_history_limit = SettingsValidator::get_password_history_limit(m_settings);
+    m_password_history_limit_spin.set_value(password_history_limit);
+
     // Update auto-lock controls sensitivity
     m_auto_lock_timeout_label.set_sensitive(auto_lock_enabled);
     m_auto_lock_timeout_spin.set_sensitive(auto_lock_enabled);
     m_auto_lock_timeout_suffix.set_sensitive(auto_lock_enabled);
+
+    // Update password history controls sensitivity
+    m_password_history_limit_label.set_sensitive(password_history_enabled);
+    m_password_history_limit_spin.set_sensitive(password_history_enabled);
+    m_password_history_limit_suffix.set_sensitive(password_history_enabled);
 }
 
 void PreferencesDialog::save_settings() {
@@ -494,6 +540,13 @@ void PreferencesDialog::save_settings() {
 
     const bool password_history_enabled = m_password_history_enabled_check.get_active();
     m_settings->set_boolean("password-history-enabled", password_history_enabled);
+
+    const int password_history_limit = std::clamp(
+        static_cast<int>(m_password_history_limit_spin.get_value()),
+        MIN_PASSWORD_HISTORY_LIMIT,
+        MAX_PASSWORD_HISTORY_LIMIT
+    );
+    m_settings->set_int("password-history-limit", password_history_limit);
 }
 
 void PreferencesDialog::apply_color_scheme(const Glib::ustring& scheme) {
@@ -576,6 +629,13 @@ void PreferencesDialog::on_auto_lock_enabled_toggled() noexcept {
     m_auto_lock_timeout_label.set_sensitive(enabled);
     m_auto_lock_timeout_spin.set_sensitive(enabled);
     m_auto_lock_timeout_suffix.set_sensitive(enabled);
+}
+
+void PreferencesDialog::on_password_history_enabled_toggled() noexcept {
+    const bool enabled = m_password_history_enabled_check.get_active();
+    m_password_history_limit_label.set_sensitive(enabled);
+    m_password_history_limit_spin.set_sensitive(enabled);
+    m_password_history_limit_suffix.set_sensitive(enabled);
 }
 
 void PreferencesDialog::on_response([[maybe_unused]] const int response_id) noexcept {
