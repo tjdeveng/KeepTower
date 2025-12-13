@@ -44,6 +44,8 @@ jobs:
           protobuf-compiler \
           libssl-dev \
           libgtest-dev \
+          libykpers-1-dev \
+          libyubikey-dev \
           doxygen \
           graphviz \
           cmake \
@@ -113,6 +115,8 @@ jobs:
           libprotobuf-dev \
           protobuf-compiler \
           libssl-dev \
+          libykpers-1-dev \
+          libyubikey-dev \
           cppcheck \
           clang-tidy \
           cmake \
