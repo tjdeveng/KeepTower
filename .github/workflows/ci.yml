@@ -44,14 +44,15 @@ jobs:
           protobuf-compiler \
           libssl-dev \
           libgtest-dev \
-          libykpers-1-dev \
-          libyubikey-dev \
           doxygen \
           graphviz \
           cmake \
           git \
           gettext \
           desktop-file-utils
+
+        # Try to install YubiKey dependencies (may not be available in all Ubuntu versions)
+        sudo apt-get install -y libykpers-1-dev libyubikey-dev || echo "Warning: YubiKey dependencies not available, building without YubiKey support"
 
     - name: Build and install libcorrect
       if: runner.os == 'Linux' && steps.cache-libcorrect.outputs.cache-hit != 'true'
@@ -115,14 +116,15 @@ jobs:
           libprotobuf-dev \
           protobuf-compiler \
           libssl-dev \
-          libykpers-1-dev \
-          libyubikey-dev \
           cppcheck \
           clang-tidy \
           cmake \
           git \
           gettext \
           desktop-file-utils
+
+        # Try to install YubiKey dependencies (may not be available in all Ubuntu versions)
+        sudo apt-get install -y libykpers-1-dev libyubikey-dev || echo "Warning: YubiKey dependencies not available, building without YubiKey support"
 
     - name: Build and install libcorrect
       run: |

@@ -57,12 +57,13 @@ jobs:
           protobuf-compiler \
           libssl-dev \
           libgtest-dev \
-          libykpers-1-dev \
-          libyubikey-dev \
           cmake \
           git \
           gettext \
           desktop-file-utils
+
+        # Try to install YubiKey dependencies (may not be available in all Ubuntu versions)
+        sudo apt-get install -y libykpers-1-dev libyubikey-dev || echo "Warning: YubiKey dependencies not available, building without YubiKey support"
 
         # Build and install libcorrect from source
         if [ "${{ steps.cache-libcorrect.outputs.cache-hit }}" != "true" ]; then
