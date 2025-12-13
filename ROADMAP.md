@@ -105,13 +105,6 @@ This document outlines the planned features and improvements for KeepTower, orga
 - [ ] Emergency access system
 - [ ] Vault integrity monitoring
 
-### Mobile Ecosystem
-- [ ] Mobile companion app (Linux phone: Phosh/Plasma Mobile)
-- [ ] Android app (read-only initially)
-- [ ] iOS app consideration
-- [ ] QR code-based mobile sync setup
-- [ ] Mobile biometric unlock
-
 ### Enterprise Features
 - [ ] LDAP/Active Directory integration
 - [ ] SSO support
