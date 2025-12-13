@@ -184,6 +184,26 @@ settings_validator_test = executable(
     include_directories: test_inc
 )
 
+# Vault helper function tests (unit tests for refactored helpers)
+vault_helpers_sources = [
+    'test_vault_helpers.cc',
+    '../src/core/VaultManager.cc',
+    '../src/core/ReedSolomon.cc',
+    proto_gen
+]
+vault_helpers_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
+if yubikey_available
+    vault_helpers_sources += files('../src/core/YubiKeyManager.cc')
+    vault_helpers_deps += [ykpers_dep, libyubikey_dep]
+endif
+
+vault_helpers_test = executable(
+    'vault_helpers_test',
+    vault_helpers_sources,
+    dependencies: vault_helpers_deps,
+    include_directories: test_inc
+)
+
 # Register all tests
 test('VaultManager Tests', vault_manager_test)
 test('Password Validation Tests', password_validation_test, timeout: 30)
@@ -194,3 +214,4 @@ test('FEC Preferences Tests', fec_preferences_test)
 test('UI Features Tests', ui_features_test)
 test('UI Security Tests', ui_security_test, env: ['GSETTINGS_SCHEMA_DIR=' + meson.project_build_root() / 'data'])
 test('Settings Validator Tests', settings_validator_test, env: ['GSETTINGS_SCHEMA_DIR=' + meson.project_build_root() / 'data'])
+test('Vault Helper Functions', vault_helpers_test)

@@ -210,7 +210,7 @@ bool VaultManager::check_vault_requires_yubikey(const std::string& path, std::st
     // Check if RS is enabled
     if (flags & FLAG_RS_ENABLED) {
         // Skip RS metadata: redundancy (1 byte) + original_size (4 bytes)
-        offset += 5;
+        offset += (VAULT_HEADER_SIZE - 1);  // 6 - 1 (flags byte already skipped)
     }
 
     // Check if we have enough data for YubiKey metadata
@@ -251,7 +251,7 @@ VaultManager::parse_vault_format(const std::vector<uint8_t>& file_data) {
     size_t ciphertext_offset = SALT_LENGTH + IV_LENGTH;
 
     // Check for flags byte and extended format
-    if (file_data.size() > SALT_LENGTH + IV_LENGTH + 6) {  // flags(1) + redundancy(1) + original_size(4)
+    if (file_data.size() > SALT_LENGTH + IV_LENGTH + VAULT_HEADER_SIZE) {
         uint8_t flags = file_data[SALT_LENGTH + IV_LENGTH];
 
         // Check for YubiKey requirement
@@ -263,15 +263,15 @@ VaultManager::parse_vault_format(const std::vector<uint8_t>& file_data) {
             uint8_t rs_redundancy = file_data[SALT_LENGTH + IV_LENGTH + 1];
 
             // Validate redundancy is in acceptable range
-            if (rs_redundancy >= 5 && rs_redundancy <= 50) {
+            if (rs_redundancy >= MIN_RS_REDUNDANCY && rs_redundancy <= MAX_RS_REDUNDANCY) {
                 // Extract original size (4 bytes, big-endian)
                 uint32_t original_size =
-                    (static_cast<uint32_t>(file_data[SALT_LENGTH + IV_LENGTH + 2]) << 24) |
-                    (static_cast<uint32_t>(file_data[SALT_LENGTH + IV_LENGTH + 3]) << 16) |
-                    (static_cast<uint32_t>(file_data[SALT_LENGTH + IV_LENGTH + 4]) << 8) |
+                    (static_cast<uint32_t>(file_data[SALT_LENGTH + IV_LENGTH + 2]) << BIGENDIAN_SHIFT_24) |
+                    (static_cast<uint32_t>(file_data[SALT_LENGTH + IV_LENGTH + 3]) << BIGENDIAN_SHIFT_16) |
+                    (static_cast<uint32_t>(file_data[SALT_LENGTH + IV_LENGTH + 4]) << BIGENDIAN_SHIFT_8) |
                     static_cast<uint32_t>(file_data[SALT_LENGTH + IV_LENGTH + 5]);
 
-                size_t data_offset = SALT_LENGTH + IV_LENGTH + 6;
+                size_t data_offset = SALT_LENGTH + IV_LENGTH + VAULT_HEADER_SIZE;
 
                 // Account for YubiKey metadata if present
                 size_t yk_metadata_size = 0;
@@ -281,16 +281,15 @@ VaultManager::parse_vault_format(const std::vector<uint8_t>& file_data) {
                 }
 
                 size_t encoded_size = file_data.size() - data_offset - yk_metadata_size;
-                size_t max_reasonable_size = 100 * 1024 * 1024;  // 100MB max
 
                 // Validate original size is reasonable
                 if (original_size > 0 &&
-                    original_size < max_reasonable_size &&
+                    original_size < MAX_VAULT_SIZE &&
                     original_size <= encoded_size) {
 
                     result.metadata.has_fec = true;
                     result.metadata.fec_redundancy = rs_redundancy;
-                    ciphertext_offset += 6;  // Skip flags, redundancy, and original_size
+                    ciphertext_offset += VAULT_HEADER_SIZE;  // Skip flags, redundancy, and original_size
 
                     // Read YubiKey metadata if required (comes BEFORE RS-encoded data)
                     if (yubikey_required && ciphertext_offset < file_data.size()) {

@@ -112,6 +112,26 @@ private:
  */
 class VaultManager {
 public:
+    // Public constants for vault format and testing
+    static constexpr uint8_t FLAG_RS_ENABLED = 0x01;      // Reed-Solomon error correction enabled
+    static constexpr uint8_t FLAG_YUBIKEY_REQUIRED = 0x02; // YubiKey required for vault access
+    static constexpr size_t SALT_LENGTH = 32;
+    static constexpr size_t KEY_LENGTH = 32;  // 256 bits
+    static constexpr size_t IV_LENGTH = 12;   // GCM recommended
+    static constexpr int DEFAULT_PBKDF2_ITERATIONS = 100000;  // NIST recommendation
+    static constexpr size_t YUBIKEY_CHALLENGE_SIZE = 64;  // YubiKey challenge size
+    static constexpr size_t YUBIKEY_RESPONSE_SIZE = 20;   // HMAC-SHA1 response size
+    static constexpr int YUBIKEY_TIMEOUT_MS = 15000;     // YubiKey operation timeout (15 seconds)
+    static constexpr int DEFAULT_BACKUP_COUNT = 5;        // Number of backup files to maintain
+    static constexpr int DEFAULT_RS_REDUNDANCY = 10;      // Default Reed-Solomon redundancy percentage
+    static constexpr size_t VAULT_HEADER_SIZE = 6;        // flags(1) + redundancy(1) + original_size(4)
+    static constexpr uint8_t MIN_RS_REDUNDANCY = 5;       // Minimum Reed-Solomon redundancy percentage
+    static constexpr uint8_t MAX_RS_REDUNDANCY = 50;      // Maximum Reed-Solomon redundancy percentage
+    static constexpr size_t MAX_VAULT_SIZE = 100 * 1024 * 1024;  // 100MB maximum vault size
+    static constexpr size_t BIGENDIAN_SHIFT_24 = 24;      // Bit shift for big-endian byte 0
+    static constexpr size_t BIGENDIAN_SHIFT_16 = 16;      // Bit shift for big-endian byte 1
+    static constexpr size_t BIGENDIAN_SHIFT_8 = 8;        // Bit shift for big-endian byte 2
+
     VaultManager();
     ~VaultManager();
 
@@ -495,21 +515,6 @@ private:
     // Vault file format constants
     static constexpr uint32_t VAULT_MAGIC = 0x4B505457;  // "KPTW" (KeepTower)
     static constexpr uint32_t VAULT_VERSION = 1;
-
-    // Vault flags
-    static constexpr uint8_t FLAG_RS_ENABLED = 0x01;      // Reed-Solomon error correction enabled
-    static constexpr uint8_t FLAG_YUBIKEY_REQUIRED = 0x02; // YubiKey required for vault access
-
-    // Constants for encryption (AES-256-GCM with PBKDF2)
-    static constexpr size_t SALT_LENGTH = 32;
-    static constexpr size_t KEY_LENGTH = 32;  // 256 bits
-    static constexpr size_t IV_LENGTH = 12;   // GCM recommended
-    static constexpr int DEFAULT_PBKDF2_ITERATIONS = 100000;  // NIST recommendation
-    static constexpr size_t YUBIKEY_CHALLENGE_SIZE = 64;  // YubiKey challenge size
-    static constexpr size_t YUBIKEY_RESPONSE_SIZE = 20;   // HMAC-SHA1 response size
-    static constexpr int YUBIKEY_TIMEOUT_MS = 15000;     // YubiKey operation timeout (15 seconds)
-    static constexpr int DEFAULT_BACKUP_COUNT = 5;        // Number of backup files to maintain
-    static constexpr int DEFAULT_RS_REDUNDANCY = 10;      // Default Reed-Solomon redundancy percentage
 
     // Current vault PBKDF2 iterations (configurable per vault)
     int m_pbkdf2_iterations;
