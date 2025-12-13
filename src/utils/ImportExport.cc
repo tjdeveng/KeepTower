@@ -9,6 +9,19 @@
 #include <unistd.h>    // For fsync
 #include <fcntl.h>     // For open
 
+// Feature detection for std::format (C++20)
+#if __has_include(<format>)
+    #include <format>
+    #if defined(__cpp_lib_format)
+        #define HAS_STD_FORMAT 1
+    #endif
+#endif
+
+// Compile-time warning if std::format is not available
+#ifndef HAS_STD_FORMAT
+    #warning "std::format not available, using fallback string concatenation. Update to gcc 14+ or newer libstdc++ when available."
+#endif
+
 namespace ImportExport {
 
 std::string import_error_to_string(ImportError error) {
@@ -457,8 +470,14 @@ export_to_1password_1pif(const std::string& filepath,
 
 // Helper: Extract text between XML tags (simple parser for our exported format)
 static std::string extract_xml_value(std::string_view xml, std::string_view tag) {
+#ifdef HAS_STD_FORMAT
+    std::string open_tag = std::format("<{}>", tag);
+    std::string close_tag = std::format("</{}>", tag);
+#else
+    // Fallback for compilers without std::format support
     std::string open_tag = "<" + std::string(tag) + ">";
     std::string close_tag = "</" + std::string(tag) + ">";
+#endif
 
     size_t start = xml.find(open_tag);
     if (start == std::string::npos) {
