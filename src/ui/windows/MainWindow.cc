@@ -169,19 +169,18 @@ MainWindow::MainWindow()
     m_account_list_store = Gtk::ListStore::create(m_columns);
     m_account_tree_view.set_model(m_account_list_store);
 
-    // Add star column for favorites
-    int star_col_num = m_account_tree_view.append_column("", m_columns.m_col_is_favorite);
+    // Add star column for favorites (clickable) - using GTK symbolic icons
+    auto* star_renderer = Gtk::make_managed<Gtk::CellRendererPixbuf>();
+    int star_col_num = m_account_tree_view.append_column("", *star_renderer);
     if (auto* column = m_account_tree_view.get_column(star_col_num - 1)) {
-        if (auto* cell = dynamic_cast<Gtk::CellRendererText*>(column->get_first_cell())) {
-            column->set_cell_data_func(*cell, [](Gtk::CellRenderer* cell, const Gtk::TreeModel::const_iterator& iter) {
-                if (auto* text_cell = dynamic_cast<Gtk::CellRendererText*>(cell)) {
-                    bool is_favorite = false;
-                    iter->get_value(0, is_favorite);
-                    text_cell->property_text() = is_favorite ? "⭐" : "";
-                }
-            });
-        }
-        column->set_fixed_width(30);
+        column->set_cell_data_func(*star_renderer, [](Gtk::CellRenderer* cell, const Gtk::TreeModel::const_iterator& iter) {
+            if (auto* pixbuf_cell = dynamic_cast<Gtk::CellRendererPixbuf*>(cell)) {
+                bool is_favorite = false;
+                iter->get_value(0, is_favorite);
+                pixbuf_cell->property_icon_name() = is_favorite ? "starred-symbolic" : "non-starred-symbolic";
+            }
+        });
+        column->set_fixed_width(32);
         column->set_sizing(Gtk::TreeViewColumn::Sizing::FIXED);
     }
 
@@ -219,10 +218,6 @@ MainWindow::MainWindow()
     m_website_label.set_xalign(0.0);
     m_website_entry.set_margin_bottom(12);
 
-    // Favorite checkbox
-    m_favorite_checkbox.set_label("⭐ Favorite");
-    m_favorite_checkbox.set_margin_bottom(12);
-
     // Tags configuration
     m_tags_label.set_xalign(0.0);
     m_tags_entry.set_placeholder_text("Add tag (press Enter)");
@@ -251,7 +246,6 @@ MainWindow::MainWindow()
     m_details_box.append(m_email_entry);
     m_details_box.append(m_website_label);
     m_details_box.append(m_website_entry);
-    m_details_box.append(m_favorite_checkbox);
     m_details_box.append(m_tags_label);
     m_details_box.append(m_tags_entry);
     m_details_box.append(m_tags_scrolled);
@@ -357,9 +351,6 @@ MainWindow::MainWindow()
     m_tag_filter_dropdown.property_selected().signal_changed().connect(
         sigc::mem_fun(*this, &MainWindow::on_tag_filter_changed)
     );
-    m_favorite_checkbox.signal_toggled().connect(
-        sigc::mem_fun(*this, &MainWindow::on_favorite_toggled)
-    );
 
     // Connect to selection changed signal to handle account switching
     m_account_tree_view.get_selection()->signal_changed().connect(
@@ -379,6 +370,27 @@ MainWindow::MainWindow()
         on_account_right_click(n_press, static_cast<double>(bin_x), static_cast<double>(bin_y));
     });
     m_account_tree_view.add_controller(gesture);
+
+    // Setup click handler for star column (favorite toggle)
+    auto star_gesture = Gtk::GestureClick::create();
+    star_gesture->set_button(GDK_BUTTON_PRIMARY);  // Left-click
+    star_gesture->signal_released().connect([this](int /* n_press */, double x, double y) {
+        int bin_x, bin_y;
+        m_account_tree_view.convert_widget_to_bin_window_coords(
+            static_cast<int>(x), static_cast<int>(y), bin_x, bin_y);
+
+        Gtk::TreeModel::Path path;
+        Gtk::TreeViewColumn* column = nullptr;
+        int cell_x, cell_y;
+
+        if (m_account_tree_view.get_path_at_pos(bin_x, bin_y, path, column, cell_x, cell_y)) {
+            // Check if click was in the first column (star column)
+            if (column == m_account_tree_view.get_column(0)) {
+                on_star_column_clicked(path);
+            }
+        }
+    });
+    m_account_tree_view.add_controller(star_gesture);
 
     // Setup activity monitoring for auto-lock
     setup_activity_monitoring();
@@ -813,12 +825,42 @@ void MainWindow::on_toggle_password_visibility() {
     }
 }
 
-void MainWindow::on_favorite_toggled() {
-    // Save the current account to persist the favorite change
-    if (m_selected_account_index >= 0 && m_vault_open) {
-        save_current_account();
-        // Refresh the list to update sorting (favorites go to top)
-        update_account_list();
+void MainWindow::on_star_column_clicked(const Gtk::TreeModel::Path& path) {
+    if (!m_vault_open) {
+        return;
+    }
+
+    auto iter = m_account_list_store->get_iter(path);
+    if (!iter) {
+        return;
+    }
+
+    int account_index = (*iter)[m_columns.m_col_index];
+    auto* account = m_vault_manager->get_account_mutable(account_index);
+    if (!account) {
+        return;
+    }
+
+    // Toggle favorite status
+    account->set_is_favorite(!account->is_favorite());
+    account->set_modified_at(std::time(nullptr));
+
+    // Refresh list with new sorting
+    int current_selection = m_selected_account_index;
+    update_account_list();
+
+    // Re-select the current account if one was selected
+    if (current_selection >= 0) {
+        m_updating_selection = true;
+        auto list_iter = m_account_list_store->children().begin();
+        while (list_iter != m_account_list_store->children().end()) {
+            if ((*list_iter)[m_columns.m_col_index] == current_selection) {
+                m_account_tree_view.set_cursor(m_account_list_store->get_path(list_iter));
+                break;
+            }
+            ++list_iter;
+        }
+        m_updating_selection = false;
     }
 }
 
@@ -1077,7 +1119,6 @@ void MainWindow::clear_account_details() {
     m_password_entry.set_text("");
     m_email_entry.set_text("");
     m_website_entry.set_text("");
-    m_favorite_checkbox.set_active(false);
     m_notes_view.get_buffer()->set_text("");
 
     // Clear tags
@@ -1094,7 +1135,6 @@ void MainWindow::clear_account_details() {
     m_password_entry.set_sensitive(false);
     m_email_entry.set_sensitive(false);
     m_website_entry.set_sensitive(false);
-    m_favorite_checkbox.set_sensitive(false);
     m_notes_view.set_sensitive(false);
     m_tags_entry.set_sensitive(false);
     m_generate_password_button.set_sensitive(false);
@@ -1124,7 +1164,6 @@ void MainWindow::display_account_details(int index) {
     m_password_entry.set_text(account->password());
     m_email_entry.set_text(account->email());
     m_website_entry.set_text(account->website());
-    m_favorite_checkbox.set_active(account->is_favorite());
     m_notes_view.get_buffer()->set_text(account->notes());
 
     // Update tags display
@@ -1136,7 +1175,6 @@ void MainWindow::display_account_details(int index) {
     m_password_entry.set_sensitive(true);
     m_email_entry.set_sensitive(true);
     m_website_entry.set_sensitive(true);
-    m_favorite_checkbox.set_sensitive(true);
     m_notes_view.set_sensitive(true);
     m_tags_entry.set_sensitive(true);
     m_generate_password_button.set_sensitive(true);
@@ -1240,7 +1278,6 @@ bool MainWindow::save_current_account() {
     account->set_password(new_password);
     account->set_email(m_email_entry.get_text().raw());
     account->set_website(m_website_entry.get_text().raw());
-    account->set_is_favorite(m_favorite_checkbox.get_active());
     account->set_notes(notes_text.raw());
 
     // Update tags
