@@ -90,6 +90,8 @@ protected:
     void remove_tag_chip(const std::string& tag);  ///< Remove a tag chip
     void update_tags_display();  ///< Refresh tags display from current account
     std::vector<std::string> get_current_tags();  ///< Get tags from current account
+    void update_tag_filter_dropdown();  ///< Update tag filter dropdown with all unique tags
+    void on_tag_filter_changed();  ///< Handle tag filter selection change
     void on_search_changed(); ///< Filter accounts by search
     void on_selection_changed();  ///< Handle account selection
     void on_account_selected(const Gtk::TreeModel::Path& path, Gtk::TreeViewColumn* column);  ///< Double-click handler
@@ -131,6 +133,9 @@ protected:
     // Search panel
     Gtk::Box m_search_box;
     Gtk::SearchEntry m_search_entry;
+    Gtk::DropDown m_tag_filter_dropdown;
+    Glib::RefPtr<Gtk::StringList> m_tag_filter_model;
+    std::string m_selected_tag_filter;  // Empty for "All", otherwise the tag to filter by
 
     // Split view: list on left, details on right
     Gtk::Paned m_paned;

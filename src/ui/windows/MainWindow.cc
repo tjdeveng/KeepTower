@@ -18,6 +18,7 @@
 #endif
 #include "record.pb.h"
 #include <regex>
+#include <set>
 #include <algorithm>
 #include <ctime>
 #include <format>
@@ -148,6 +149,15 @@ MainWindow::MainWindow()
     m_search_entry.set_placeholder_text("Search accounts…");
     m_search_entry.add_css_class("search");
     m_search_box.append(m_search_entry);
+
+    // Setup tag filter dropdown
+    m_tag_filter_model = Gtk::StringList::create({"All tags"});
+    m_tag_filter_dropdown.set_model(m_tag_filter_model);
+    m_tag_filter_dropdown.set_selected(0);
+    m_tag_filter_dropdown.set_tooltip_text("Filter by tag");
+    m_tag_filter_dropdown.set_margin_start(6);
+    m_search_box.append(m_tag_filter_dropdown);
+
     m_main_box.append(m_search_box);
 
     // Setup split pane
@@ -323,6 +333,9 @@ MainWindow::MainWindow()
     m_tags_entry.signal_activate().connect(
         sigc::mem_fun(*this, &MainWindow::on_tags_entry_activate)
     );
+    m_tag_filter_dropdown.property_selected().signal_changed().connect(
+        sigc::mem_fun(*this, &MainWindow::on_tag_filter_changed)
+    );
 
     // Connect to selection changed signal to handle account switching
     m_account_tree_view.get_selection()->signal_changed().connect(
@@ -447,6 +460,7 @@ void MainWindow::on_new_vault() {
                         m_search_entry.set_sensitive(true);
 
                         update_account_list();
+                        update_tag_filter_dropdown();
                         clear_account_details();
 
                         // Start activity monitoring for auto-lock
@@ -579,6 +593,7 @@ void MainWindow::on_open_vault() {
                         m_search_entry.set_sensitive(true);
 
                         update_account_list();
+                        update_tag_filter_dropdown();
 
                         // Start activity monitoring for auto-lock
                         on_user_activity();
@@ -934,37 +949,58 @@ void MainWindow::filter_accounts(const Glib::ustring& search_text) {
     m_account_list_store->clear();
     m_filtered_indices.clear();
 
-    if (search_text.empty()) {
-        // Show all accounts
+    const auto accounts = m_vault_manager->get_all_accounts();
+
+    // If both search and tag filter are empty, show all accounts
+    if (search_text.empty() && m_selected_tag_filter.empty()) {
         update_account_list();
         return;
     }
 
-    // Create case-insensitive regex pattern for filtering
-    try {
-        std::string pattern = ".*" + search_text.lowercase().raw() + ".*";
-        std::regex search_regex(pattern, std::regex::icase);
+    // Create case-insensitive regex pattern for text filtering
+    std::regex search_regex;
+    bool has_text_filter = !search_text.empty();
 
-        const auto accounts = m_vault_manager->get_all_accounts();
+    if (has_text_filter) {
+        try {
+            std::string pattern = ".*" + search_text.lowercase().raw() + ".*";
+            search_regex = std::regex(pattern, std::regex::icase);
+        } catch (const std::regex_error& e) {
+            g_print("Regex error: %s\n", e.what());
+            return;
+        }
+    }
 
-        for (size_t i = 0; i < accounts.size(); ++i) {
-            const auto& account = accounts[i];
+    // Filter accounts
+    for (size_t i = 0; i < accounts.size(); ++i) {
+        const auto& account = accounts[i];
 
-            if (std::regex_search(account.account_name(), search_regex) ||
-                std::regex_search(account.user_name(), search_regex) ||
-                std::regex_search(account.email(), search_regex) ||
-                std::regex_search(account.website(), search_regex)) {
+        // Check text filter
+        bool text_match = !has_text_filter ||
+            std::regex_search(account.account_name(), search_regex) ||
+            std::regex_search(account.user_name(), search_regex) ||
+            std::regex_search(account.email(), search_regex) ||
+            std::regex_search(account.website(), search_regex);
 
-                auto row = *(m_account_list_store->append());
-                row[m_columns.m_col_account_name] = account.account_name();
-                row[m_columns.m_col_user_name] = account.user_name();
-                row[m_columns.m_col_index] = i;
-                m_filtered_indices.push_back(i);
+        // Check tag filter
+        bool tag_match = m_selected_tag_filter.empty();
+        if (!m_selected_tag_filter.empty()) {
+            for (int j = 0; j < account.tags_size(); ++j) {
+                if (account.tags(j) == m_selected_tag_filter) {
+                    tag_match = true;
+                    break;
+                }
             }
         }
 
-    } catch (const std::regex_error& e) {
-        g_print("Regex error: %s\n", e.what());
+        // Add account if both filters match
+        if (text_match && tag_match) {
+            auto row = *(m_account_list_store->append());
+            row[m_columns.m_col_account_name] = account.account_name();
+            row[m_columns.m_col_user_name] = account.user_name();
+            row[m_columns.m_col_index] = i;
+            m_filtered_indices.push_back(i);
+        }
     }
 }
 
@@ -1213,6 +1249,48 @@ bool MainWindow::validate_email_format(const Glib::ustring& email) {
     return true;
 }
 
+void MainWindow::update_tag_filter_dropdown() {
+    // Get all unique tags from all accounts
+    std::set<std::string> all_tags;
+
+    if (m_vault_manager && m_vault_manager->is_vault_open()) {
+        const auto accounts = m_vault_manager->get_all_accounts();
+        for (const auto& account : accounts) {
+            for (int i = 0; i < account.tags_size(); ++i) {
+                all_tags.insert(account.tags(i));
+            }
+        }
+    }
+
+    // Rebuild the dropdown model
+    m_tag_filter_model = Gtk::StringList::create({});
+    m_tag_filter_model->append("All tags");
+
+    for (const auto& tag : all_tags) {
+        m_tag_filter_model->append(tag);
+    }
+
+    m_tag_filter_dropdown.set_model(m_tag_filter_model);
+    m_tag_filter_dropdown.set_selected(0);  // Reset to "All tags"
+    m_selected_tag_filter.clear();
+}
+
+void MainWindow::on_tag_filter_changed() {
+    guint selected = m_tag_filter_dropdown.get_selected();
+
+    if (selected == 0) {
+        // "All tags" selected
+        m_selected_tag_filter.clear();
+    } else {
+        // Specific tag selected (index - 1 because "All tags" is at index 0)
+        auto item = m_tag_filter_model->get_string(selected);
+        m_selected_tag_filter = item.raw();
+    }
+
+    // Re-apply current search with tag filter
+    filter_accounts(m_search_entry.get_text());
+}
+
 void MainWindow::show_error_dialog(const Glib::ustring& message) {
     auto* dialog = Gtk::make_managed<Gtk::MessageDialog>(*this, "Validation Error", false, Gtk::MessageType::ERROR, Gtk::ButtonsType::OK, true);
     dialog->set_secondary_text(message);
@@ -1269,6 +1347,7 @@ void MainWindow::on_tags_entry_activate() {
     // Mark vault as modified
     if (m_vault_manager && m_selected_account_index >= 0) {
         save_current_account();
+        update_tag_filter_dropdown();
     }
 }
 
@@ -1337,6 +1416,7 @@ void MainWindow::remove_tag_chip(const std::string& tag) {
     // Save the changes
     if (m_vault_manager && m_selected_account_index >= 0) {
         save_current_account();
+        update_tag_filter_dropdown();
     }
 }
 
