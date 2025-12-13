@@ -175,16 +175,22 @@ jobs:
               --executable AppDir/usr/bin/keeptower \
               --desktop-file AppDir/usr/share/applications/com.tjdeveng.keeptower.desktop \
               --icon-file AppDir/usr/share/icons/hicolor/scalable/apps/com.tjdeveng.keeptower.svg \
-              --output appimage || true
+              --output appimage
 
-            # Rename AppImage
+            # Rename and verify AppImage
             if ls KeepTower*.AppImage 1> /dev/null 2>&1; then
               mv KeepTower*.AppImage keeptower-x86_64.AppImage
+              echo 'AppImage created successfully:'
+              ls -lh keeptower-x86_64.AppImage
+            elif ls keeptower*.AppImage 1> /dev/null 2>&1; then
+              mv keeptower*.AppImage keeptower-x86_64.AppImage
+              echo 'AppImage created successfully:'
+              ls -lh keeptower-x86_64.AppImage
+            else
+              echo 'ERROR: No AppImage file was created!'
+              ls -lah
+              exit 1
             fi
-
-            # Fix permissions
-            chmod 644 keeptower-x86_64.AppImage || true
-            ls -lh *.AppImage || echo 'No AppImage created'
           "
 
     - name: Upload AppImage
