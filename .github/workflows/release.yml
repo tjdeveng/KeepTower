@@ -99,6 +99,8 @@ jobs:
           protobuf-compiler \
           libssl-dev \
           libgtest-dev \
+          libykpers-1-dev \
+          libyubikey-dev \
           doxygen \
           graphviz \
           cmake \

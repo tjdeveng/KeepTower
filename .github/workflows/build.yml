@@ -57,6 +57,8 @@ jobs:
           protobuf-compiler \
           libssl-dev \
           libgtest-dev \
+          libykpers-1-dev \
+          libyubikey-dev \
           cmake \
           git \
           gettext \
@@ -101,6 +103,8 @@ jobs:
               openssl-devel \
               gtest-devel \
               libcorrect-devel \
+              ykpers-devel \
+              libyubikey-devel \
               desktop-file-utils \
               gettext && \
             meson setup build --buildtype=release --prefix=/usr && \
@@ -145,6 +149,8 @@ jobs:
               protobuf-devel \
               openssl-devel \
               libcorrect-devel \
+              ykpers-devel \
+              libyubikey-devel \
               gettext \
               desktop-file-utils \
               wget \
