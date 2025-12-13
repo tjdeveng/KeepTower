@@ -71,7 +71,14 @@ jobs:
         echo "Step 3: Attempting to install YubiKey dependencies..."
         sudo apt-get install -y libykpers-1-dev libyubikey-dev || echo "Warning: YubiKey dependencies not available, building without YubiKey support"
 
-        echo "Step 4: Building libcorrect..."
+        echo "Step 4: Building Google Test..."
+        cd /usr/src/gtest || { echo "ERROR: gtest source not found"; exit 1; }
+        sudo cmake CMakeLists.txt || { echo "ERROR: cmake failed for gtest"; exit 1; }
+        sudo make || { echo "ERROR: make failed for gtest"; exit 1; }
+        sudo cp lib/*.a /usr/lib/ || { echo "ERROR: Failed to copy gtest libraries"; exit 1; }
+        cd ${{ github.workspace }}
+
+        echo "Step 5: Building libcorrect..."
         if [ "${{ steps.cache-libcorrect.outputs.cache-hit }}" != "true" ]; then
           echo "Building libcorrect from source..."
           git clone https://github.com/quiet/libcorrect.git /tmp/libcorrect || { echo "ERROR: Failed to clone libcorrect"; exit 1; }
@@ -84,18 +91,18 @@ jobs:
           echo "Using cached libcorrect"
         fi
 
-        echo "Step 5: Installing libcorrect..."
+        echo "Step 6: Installing libcorrect..."
         sudo cp -r /tmp/libcorrect-install/* /usr/ || { echo "ERROR: Failed to copy libcorrect"; exit 1; }
         sudo ldconfig
         cd ${{ github.workspace }}
 
-        echo "Step 6: Configuring build with meson..."
+        echo "Step 7: Configuring build with meson..."
         meson setup build --buildtype=release --prefix=/usr || { echo "ERROR: meson setup failed"; exit 1; }
 
-        echo "Step 7: Compiling..."
+        echo "Step 8: Compiling..."
         meson compile -C build || { echo "ERROR: meson compile failed"; exit 1; }
 
-        echo "Step 8: Creating tarball..."
+        echo "Step 9: Creating tarball..."
         mkdir -p dist
         cp build/src/keeptower dist/ || { echo "ERROR: Failed to copy binary"; exit 1; }
         tar -czf keeptower-${{ matrix.distro }}-x86_64.tar.gz -C dist keeptower || { echo "ERROR: Failed to create tarball"; exit 1; }
