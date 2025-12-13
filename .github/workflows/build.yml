@@ -64,19 +64,33 @@ jobs:
 
         # Build and install libcorrect from source
         if [ "${{ steps.cache-libcorrect.outputs.cache-hit }}" != "true" ]; then
-          git clone https://github.com/quiet/libcorrect.git /tmp/libcorrect
+          echo "Building libcorrect from source..."
+          git clone https://github.com/quiet/libcorrect.git /tmp/libcorrect || exit 1
           cd /tmp/libcorrect
           mkdir build && cd build
-          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/tmp/libcorrect-install ..
-          make -j$(nproc)
-          make install
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/tmp/libcorrect-install .. || exit 1
+          make -j$(nproc) || exit 1
+          make install || exit 1
+          echo "libcorrect built successfully"
+        else
+          echo "Using cached libcorrect"
         fi
-        sudo cp -r /tmp/libcorrect-install/* /usr/
+        
+        echo "Installing libcorrect to system..."
+        sudo cp -r /tmp/libcorrect-install/* /usr/ || exit 1
         sudo ldconfig
+        
+        # Verify libcorrect is available
+        echo "Verifying libcorrect installation..."
+        pkg-config --exists correct || ls -la /usr/lib/libcorrect.* || echo "WARNING: libcorrect not found via pkg-config"
+        
         cd ${{ github.workspace }}
 
-        meson setup build --buildtype=release --prefix=/usr
-        meson compile -C build
+        echo "Configuring build with meson..."
+        meson setup build --buildtype=release --prefix=/usr || exit 1
+        
+        echo "Compiling..."
+        meson compile -C build || exit 1
 
         # Create tarball
         mkdir -p dist
