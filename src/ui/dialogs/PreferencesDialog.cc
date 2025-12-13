@@ -96,7 +96,8 @@ void PreferencesDialog::setup_ui() {
     setup_security_page();
     setup_storage_page();
 
-    // Add main box to dialog
+    // Add main box to dialog with proper margins (GNOME HIG)
+    m_main_box.set_margin_bottom(12);
     get_content_area()->append(m_main_box);
 
     // Connect color scheme signal after UI is set up
