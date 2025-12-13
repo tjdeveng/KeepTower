@@ -169,6 +169,22 @@ MainWindow::MainWindow()
     m_account_list_store = Gtk::ListStore::create(m_columns);
     m_account_tree_view.set_model(m_account_list_store);
 
+    // Add star column for favorites
+    int star_col_num = m_account_tree_view.append_column("", m_columns.m_col_is_favorite);
+    if (auto* column = m_account_tree_view.get_column(star_col_num - 1)) {
+        if (auto* cell = dynamic_cast<Gtk::CellRendererText*>(column->get_first_cell())) {
+            column->set_cell_data_func(*cell, [](Gtk::CellRenderer* cell, const Gtk::TreeModel::const_iterator& iter) {
+                if (auto* text_cell = dynamic_cast<Gtk::CellRendererText*>(cell)) {
+                    bool is_favorite = false;
+                    iter->get_value(0, is_favorite);
+                    text_cell->property_text() = is_favorite ? "⭐" : "";
+                }
+            });
+        }
+        column->set_fixed_width(30);
+        column->set_sizing(Gtk::TreeViewColumn::Sizing::FIXED);
+    }
+
     m_account_tree_view.append_column("Account", m_columns.m_col_account_name);
     m_account_tree_view.append_column("Username", m_columns.m_col_user_name);
 
@@ -203,6 +219,10 @@ MainWindow::MainWindow()
     m_website_label.set_xalign(0.0);
     m_website_entry.set_margin_bottom(12);
 
+    // Favorite checkbox
+    m_favorite_checkbox.set_label("⭐ Favorite");
+    m_favorite_checkbox.set_margin_bottom(12);
+
     // Tags configuration
     m_tags_label.set_xalign(0.0);
     m_tags_entry.set_placeholder_text("Add tag (press Enter)");
@@ -231,6 +251,7 @@ MainWindow::MainWindow()
     m_details_box.append(m_email_entry);
     m_details_box.append(m_website_label);
     m_details_box.append(m_website_entry);
+    m_details_box.append(m_favorite_checkbox);
     m_details_box.append(m_tags_label);
     m_details_box.append(m_tags_entry);
     m_details_box.append(m_tags_scrolled);
@@ -335,6 +356,9 @@ MainWindow::MainWindow()
     );
     m_tag_filter_dropdown.property_selected().signal_changed().connect(
         sigc::mem_fun(*this, &MainWindow::on_tag_filter_changed)
+    );
+    m_favorite_checkbox.signal_toggled().connect(
+        sigc::mem_fun(*this, &MainWindow::on_favorite_toggled)
     );
 
     // Connect to selection changed signal to handle account switching
@@ -789,6 +813,15 @@ void MainWindow::on_toggle_password_visibility() {
     }
 }
 
+void MainWindow::on_favorite_toggled() {
+    // Save the current account to persist the favorite change
+    if (m_selected_account_index >= 0 && m_vault_open) {
+        save_current_account();
+        // Refresh the list to update sorting (favorites go to top)
+        update_account_list();
+    }
+}
+
 void MainWindow::on_search_changed() {
     Glib::ustring search_text = m_search_entry.get_text();
     filter_accounts(search_text);
@@ -934,11 +967,30 @@ void MainWindow::update_account_list() {
 
     auto accounts = m_vault_manager->get_all_accounts();
 
+    // Create sorted index vector: favorites first, then alphabetically
+    std::vector<std::pair<size_t, bool>> sorted_indices;
+    sorted_indices.reserve(accounts.size());
+
     for (size_t i = 0; i < accounts.size(); i++) {
+        sorted_indices.push_back({i, accounts[i].is_favorite()});
+    }
+
+    // Sort: favorites first, then by account name alphabetically
+    std::sort(sorted_indices.begin(), sorted_indices.end(),
+        [&accounts](const auto& a, const auto& b) {
+            if (a.second != b.second) {
+                return a.second > b.second;  // Favorites first
+            }
+            return accounts[a.first].account_name() < accounts[b.first].account_name();
+        });
+
+    // Add sorted accounts to list
+    for (const auto& [index, is_favorite] : sorted_indices) {
         auto row = *(m_account_list_store->append());
-        row[m_columns.m_col_account_name] = accounts[i].account_name();
-        row[m_columns.m_col_user_name] = accounts[i].user_name();
-        row[m_columns.m_col_index] = i;
+        row[m_columns.m_col_is_favorite] = is_favorite;
+        row[m_columns.m_col_account_name] = accounts[index].account_name();
+        row[m_columns.m_col_user_name] = accounts[index].user_name();
+        row[m_columns.m_col_index] = index;
     }
 
     m_status_label.set_text("Vault opened: " + m_current_vault_path +
@@ -995,12 +1047,27 @@ void MainWindow::filter_accounts(const Glib::ustring& search_text) {
 
         // Add account if both filters match
         if (text_match && tag_match) {
-            auto row = *(m_account_list_store->append());
-            row[m_columns.m_col_account_name] = account.account_name();
-            row[m_columns.m_col_user_name] = account.user_name();
-            row[m_columns.m_col_index] = i;
             m_filtered_indices.push_back(i);
         }
+    }
+
+    // Sort filtered indices: favorites first, then alphabetically
+    std::sort(m_filtered_indices.begin(), m_filtered_indices.end(),
+        [&accounts](size_t a, size_t b) {
+            if (accounts[a].is_favorite() != accounts[b].is_favorite()) {
+                return accounts[a].is_favorite() > accounts[b].is_favorite();
+            }
+            return accounts[a].account_name() < accounts[b].account_name();
+        });
+
+    // Add sorted filtered accounts to list
+    for (size_t index : m_filtered_indices) {
+        const auto& account = accounts[index];
+        auto row = *(m_account_list_store->append());
+        row[m_columns.m_col_is_favorite] = account.is_favorite();
+        row[m_columns.m_col_account_name] = account.account_name();
+        row[m_columns.m_col_user_name] = account.user_name();
+        row[m_columns.m_col_index] = index;
     }
 }
 
@@ -1010,6 +1077,7 @@ void MainWindow::clear_account_details() {
     m_password_entry.set_text("");
     m_email_entry.set_text("");
     m_website_entry.set_text("");
+    m_favorite_checkbox.set_active(false);
     m_notes_view.get_buffer()->set_text("");
 
     // Clear tags
@@ -1026,6 +1094,7 @@ void MainWindow::clear_account_details() {
     m_password_entry.set_sensitive(false);
     m_email_entry.set_sensitive(false);
     m_website_entry.set_sensitive(false);
+    m_favorite_checkbox.set_sensitive(false);
     m_notes_view.set_sensitive(false);
     m_tags_entry.set_sensitive(false);
     m_generate_password_button.set_sensitive(false);
@@ -1055,6 +1124,7 @@ void MainWindow::display_account_details(int index) {
     m_password_entry.set_text(account->password());
     m_email_entry.set_text(account->email());
     m_website_entry.set_text(account->website());
+    m_favorite_checkbox.set_active(account->is_favorite());
     m_notes_view.get_buffer()->set_text(account->notes());
 
     // Update tags display
@@ -1066,6 +1136,7 @@ void MainWindow::display_account_details(int index) {
     m_password_entry.set_sensitive(true);
     m_email_entry.set_sensitive(true);
     m_website_entry.set_sensitive(true);
+    m_favorite_checkbox.set_sensitive(true);
     m_notes_view.set_sensitive(true);
     m_tags_entry.set_sensitive(true);
     m_generate_password_button.set_sensitive(true);
@@ -1169,6 +1240,7 @@ bool MainWindow::save_current_account() {
     account->set_password(new_password);
     account->set_email(m_email_entry.get_text().raw());
     account->set_website(m_website_entry.get_text().raw());
+    account->set_is_favorite(m_favorite_checkbox.get_active());
     account->set_notes(notes_text.raw());
 
     // Update tags

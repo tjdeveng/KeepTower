@@ -85,6 +85,7 @@ protected:
     void on_copy_password();  ///< Copy password to clipboard
     void on_generate_password();  ///< Generate random password
     void on_toggle_password_visibility();  ///< Show/hide password
+    void on_favorite_toggled();  ///< Toggle favorite status
     void on_tags_entry_activate();  ///< Add tag when Enter is pressed
     void add_tag_chip(const std::string& tag);  ///< Add a tag chip to the flowbox
     void remove_tag_chip(const std::string& tag);  ///< Remove a tag chip
@@ -168,6 +169,8 @@ protected:
     Gtk::Label m_website_label;
     Gtk::Entry m_website_entry;
 
+    Gtk::CheckButton m_favorite_checkbox;
+
     Gtk::Label m_notes_label;
     Gtk::TextView m_notes_view;
     Gtk::ScrolledWindow m_notes_scrolled;
@@ -184,11 +187,13 @@ protected:
     class ModelColumns : public Gtk::TreeModel::ColumnRecord {
     public:
         ModelColumns() {
+            add(m_col_is_favorite);
             add(m_col_account_name);
             add(m_col_user_name);
             add(m_col_index);
         }
 
+        Gtk::TreeModelColumn<bool> m_col_is_favorite;           // Favorite/starred status
         Gtk::TreeModelColumn<Glib::ustring> m_col_account_name;
         Gtk::TreeModelColumn<Glib::ustring> m_col_user_name;
         Gtk::TreeModelColumn<int> m_col_index;  // Index in vault data
