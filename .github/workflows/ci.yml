@@ -33,10 +33,7 @@ jobs:
     - name: Install dependencies (Ubuntu)
       if: runner.os == 'Linux'
       run: |
-        echo "Step 1: Updating package list..."
-        sudo apt-get update || { echo "ERROR: apt-get update failed"; exit 1; }
-
-        echo "Step 2: Installing core dependencies..."
+        sudo apt-get update
         sudo apt-get install -y \
           build-essential \
           meson \
@@ -52,55 +49,32 @@ jobs:
           cmake \
           git \
           gettext \
-          desktop-file-utils || { echo "ERROR: Failed to install core dependencies"; exit 1; }
-
-        echo "Step 3: Attempting to install YubiKey dependencies..."
-        sudo apt-get install -y libykpers-1-dev libyubikey-dev || echo "Warning: YubiKey dependencies not available, building without YubiKey support"
-
-    - name: Build and install gtest
-      if: runner.os == 'Linux'
-      run: |
-        echo "Step 4: Building Google Test..."
-        cd /usr/src/gtest || { echo "ERROR: gtest source not found"; exit 1; }
-        sudo cmake CMakeLists.txt || { echo "ERROR: cmake failed for gtest"; exit 1; }
-        sudo make || { echo "ERROR: make failed for gtest"; exit 1; }
-        sudo cp lib/*.a /usr/lib/ || { echo "ERROR: Failed to copy gtest libraries"; exit 1; }
+          desktop-file-utils
 
     - name: Build and install libcorrect
       if: runner.os == 'Linux' && steps.cache-libcorrect.outputs.cache-hit != 'true'
       run: |
-        echo "Step 5: Building libcorrect from source..."
-        git clone https://github.com/quiet/libcorrect.git /tmp/libcorrect || { echo "ERROR: Failed to clone libcorrect"; exit 1; }
+        git clone https://github.com/quiet/libcorrect.git /tmp/libcorrect
         cd /tmp/libcorrect
         mkdir build && cd build
-        cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/tmp/libcorrect-install .. || { echo "ERROR: cmake failed"; exit 1; }
-        make -j$(nproc) || { echo "ERROR: make failed"; exit 1; }
-        make install || { echo "ERROR: make install failed"; exit 1; }
+        cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/tmp/libcorrect-install ..
+        make -j$(nproc)
+        make install
 
     - name: Install cached libcorrect
       if: runner.os == 'Linux'
       run: |
-        echo "Step 6: Installing libcorrect..."
-        sudo cp -r /tmp/libcorrect-install/* /usr/ || { echo "ERROR: Failed to copy libcorrect"; exit 1; }
+        sudo cp -r /tmp/libcorrect-install/* /usr/
         sudo ldconfig
 
     - name: Configure build
-      run: |
-        echo "Step 7: Configuring build with meson..."
-        meson setup build || { echo "ERROR: meson setup failed"; exit 1; }
+      run: meson setup build
 
     - name: Build
-      run: |
-        echo "Step 8: Compiling..."
-        meson compile -C build || { echo "ERROR: meson compile failed"; exit 1; }
+      run: meson compile -C build
 
     - name: Run tests
-      run: |
-        echo "Step 9: Running tests..."
-          echo "Showing test log:";
-          cat build/meson-logs/testlog.txt || true;
-          exit 1;
-        }
+      run: meson test -C build --verbose
 
     - name: Upload test logs on failure
       if: failure()
@@ -129,10 +103,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        echo "Step 1: Updating package list..."
-        sudo apt-get update || { echo "ERROR: apt-get update failed"; exit 1; }
-
-        echo "Step 2: Installing core dependencies..."
+        sudo apt-get update
         sudo apt-get install -y \
           build-essential \
           meson \
@@ -147,37 +118,26 @@ jobs:
           cmake \
           git \
           gettext \
-          desktop-file-utils || { echo "ERROR: Failed to install core dependencies"; exit 1; }
-
-        echo "Step 3: Attempting to install YubiKey dependencies..."
-        sudo apt-get install -y libykpers-1-dev libyubikey-dev || echo "Warning: YubiKey dependencies not available, building without YubiKey support"
+          desktop-file-utils
 
     - name: Build and install libcorrect
       run: |
         if [ "${{ steps.cache-libcorrect.outputs.cache-hit }}" != "true" ]; then
-          echo "Step 4: Building libcorrect from source..."
-          git clone https://github.com/quiet/libcorrect.git /tmp/libcorrect || { echo "ERROR: Failed to clone libcorrect"; exit 1; }
+          git clone https://github.com/quiet/libcorrect.git /tmp/libcorrect
           cd /tmp/libcorrect
           mkdir build && cd build
-          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/tmp/libcorrect-install .. || { echo "ERROR: cmake failed"; exit 1; }
-          make -j$(nproc) || { echo "ERROR: make failed"; exit 1; }
-          make install || { echo "ERROR: make install failed"; exit 1; }
-        else
-          echo "Using cached libcorrect"
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/tmp/libcorrect-install ..
+          make -j$(nproc)
+          make install
         fi
-
-        echo "Step 5: Installing libcorrect..."
-        sudo cp -r /tmp/libcorrect-install/* /usr/ || { echo "ERROR: Failed to copy libcorrect"; exit 1; }
+        sudo cp -r /tmp/libcorrect-install/* /usr/
         sudo ldconfig
 
     - name: Configure build
-      run: |
-        echo "Step 6: Configuring build with meson..."
-        meson setup build || { echo "ERROR: meson setup failed"; exit 1; }
+      run: meson setup build
 
     - name: Run cppcheck
       run: |
-        echo "Step 7: Running cppcheck..."
         cppcheck --enable=warning,style,performance,portability \
           --error-exitcode=0 \
           --inline-suppr \
