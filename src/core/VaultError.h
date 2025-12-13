@@ -37,6 +37,16 @@ enum class VaultError {
     SerializationFailed,
     DeserializationFailed,
     InvalidData,
+    CorruptedFile,
+    InvalidProtobuf,
+    DecodingFailed,
+
+    // YubiKey operations
+    YubiKeyMetadataMissing,
+    YubiKeyNotConnected,
+    YubiKeyDeviceInfoFailed,
+    YubiKeyUnauthorized,
+    YubiKeyChallengeResponseFailed,
 
     // Account operations
     AccountNotFound,
@@ -80,6 +90,22 @@ inline constexpr std::string_view to_string(VaultError error) noexcept {
             return "Failed to deserialize data";
         case VaultError::InvalidData:
             return "Invalid data format";
+        case VaultError::CorruptedFile:
+            return "Vault file is corrupted";
+        case VaultError::InvalidProtobuf:
+            return "Invalid protobuf format";
+        case VaultError::DecodingFailed:
+            return "Reed-Solomon decoding failed";
+        case VaultError::YubiKeyMetadataMissing:
+            return "YubiKey metadata missing from vault";
+        case VaultError::YubiKeyNotConnected:
+            return "YubiKey not connected";
+        case VaultError::YubiKeyDeviceInfoFailed:
+            return "Failed to get YubiKey device info";
+        case VaultError::YubiKeyUnauthorized:
+            return "YubiKey not authorized for this vault";
+        case VaultError::YubiKeyChallengeResponseFailed:
+            return "YubiKey challenge-response failed";
         case VaultError::AccountNotFound:
             return "Account not found";
         case VaultError::InvalidIndex:

@@ -393,6 +393,38 @@ public:
 #endif
 
 private:
+    // Helper structures for vault parsing
+    struct VaultFileMetadata {
+        std::vector<uint8_t> salt;
+        std::vector<uint8_t> iv;
+        bool has_fec = false;
+        uint8_t fec_redundancy = 0;
+        bool requires_yubikey = false;
+        std::string yubikey_serial;
+        std::vector<uint8_t> yubikey_challenge;
+    };
+
+    struct ParsedVaultData {
+        VaultFileMetadata metadata;
+        std::vector<uint8_t> ciphertext;
+    };
+
+    // Helper methods for open_vault() refactoring
+    KeepTower::VaultResult<ParsedVaultData> parse_vault_format(const std::vector<uint8_t>& file_data);
+    KeepTower::VaultResult<std::vector<uint8_t>> decode_with_reed_solomon(
+        const std::vector<uint8_t>& encoded_data,
+        uint32_t original_size,
+        uint8_t redundancy);
+#ifdef HAVE_YUBIKEY_SUPPORT
+    KeepTower::VaultResult<> authenticate_yubikey(
+        const VaultFileMetadata& metadata,
+        std::vector<uint8_t>& encryption_key);
+#endif
+    KeepTower::VaultResult<keeptower::VaultData> decrypt_and_parse_vault(
+        const std::vector<uint8_t>& ciphertext,
+        const std::vector<uint8_t>& key,
+        const std::vector<uint8_t>& iv);
+
     // Cryptographic operations
     bool derive_key(const Glib::ustring& password,
                     std::span<const uint8_t> salt,

@@ -227,66 +227,43 @@ bool VaultManager::check_vault_requires_yubikey(const std::string& path, std::st
     return true;
 }
 
-bool VaultManager::open_vault(const std::string& path, const Glib::ustring& password) {
-    if (m_vault_open) {
-        if (!close_vault()) {
-            std::cerr << "Warning: Failed to close existing vault" << std::endl;
-        }
-    }
+// ============================================================================
+// Helper functions for open_vault() - Refactored for reduced complexity
+// ============================================================================
 
-    // Read vault file
-    std::vector<uint8_t> file_data;
-    if (!read_vault_file(path, file_data)) {
-        return false;
-    }
+KeepTower::VaultResult<VaultManager::ParsedVaultData>
+VaultManager::parse_vault_format(const std::vector<uint8_t>& file_data) {
+    ParsedVaultData result;
 
-    // Parse vault file format:
-    // Legacy format: [SALT_LENGTH bytes: salt][IV_LENGTH bytes: iv][remaining: encrypted data]
-    // RS format:     [SALT_LENGTH bytes: salt][IV_LENGTH bytes: iv][1 byte: flags][1 byte: rs_redundancy][remaining: RS-encoded encrypted data]
+    // Validate minimum file size
     if (file_data.size() < SALT_LENGTH + IV_LENGTH) {
-        std::cerr << "Vault file is corrupted or invalid" << std::endl;
-        return false;
+        return std::unexpected(VaultError::CorruptedFile);
     }
 
     // Extract salt
-    m_salt.assign(file_data.begin(), file_data.begin() + SALT_LENGTH);
+    result.metadata.salt.assign(file_data.begin(), file_data.begin() + SALT_LENGTH);
 
     // Extract IV
-    std::vector<uint8_t> iv(file_data.begin() + SALT_LENGTH,
-                           file_data.begin() + SALT_LENGTH + IV_LENGTH);
+    result.metadata.iv.assign(
+        file_data.begin() + SALT_LENGTH,
+        file_data.begin() + SALT_LENGTH + IV_LENGTH);
 
-    // Check for Reed-Solomon encoding
     size_t ciphertext_offset = SALT_LENGTH + IV_LENGTH;
-    std::vector<uint8_t> ciphertext;
-    bool file_has_fec = false;  // Track if this file was saved with FEC
-    uint8_t file_fec_redundancy = 10;  // Store the file's FEC redundancy
 
-    // YubiKey metadata (need scope outside if block)
-    bool yubikey_required = false;
-    std::string stored_serial;
-    std::vector<uint8_t> stored_challenge;
-
-    // Check if there's room for flags byte and RS metadata
+    // Check for flags byte and extended format
     if (file_data.size() > SALT_LENGTH + IV_LENGTH + 6) {  // flags(1) + redundancy(1) + original_size(4)
         uint8_t flags = file_data[SALT_LENGTH + IV_LENGTH];
 
         // Check for YubiKey requirement
-        yubikey_required = (flags & FLAG_YUBIKEY_REQUIRED);
+        bool yubikey_required = (flags & FLAG_YUBIKEY_REQUIRED);
+        result.metadata.requires_yubikey = yubikey_required;
 
-        if (yubikey_required) {
-            // YubiKey metadata follows flags (and RS metadata if present)
-            // Need to parse RS metadata first to get correct offset
-            m_yubikey_required = true;
-        }
-
-        // Check if RS flag is set AND redundancy is valid (5-50%)
-        // This helps avoid false positives on legacy vaults
+        // Check for Reed-Solomon encoding
         if (flags & FLAG_RS_ENABLED) {
             uint8_t rs_redundancy = file_data[SALT_LENGTH + IV_LENGTH + 1];
 
-            // Validate redundancy is in acceptable range before treating as RS-encoded
+            // Validate redundancy is in acceptable range
             if (rs_redundancy >= 5 && rs_redundancy <= 50) {
-                // Additional validation: check if original_size makes sense
                 // Extract original size (4 bytes, big-endian)
                 uint32_t original_size =
                     (static_cast<uint32_t>(file_data[SALT_LENGTH + IV_LENGTH + 2]) << 24) |
@@ -294,10 +271,9 @@ bool VaultManager::open_vault(const std::string& path, const Glib::ustring& pass
                     (static_cast<uint32_t>(file_data[SALT_LENGTH + IV_LENGTH + 4]) << 8) |
                     static_cast<uint32_t>(file_data[SALT_LENGTH + IV_LENGTH + 5]);
 
-                // Calculate expected encoded size
                 size_t data_offset = SALT_LENGTH + IV_LENGTH + 6;
 
-                // Account for YubiKey metadata if present (comes after RS metadata, before RS data)
+                // Account for YubiKey metadata if present
                 size_t yk_metadata_size = 0;
                 if (yubikey_required && data_offset < file_data.size()) {
                     uint8_t serial_len = file_data[data_offset];
@@ -305,66 +281,51 @@ bool VaultManager::open_vault(const std::string& path, const Glib::ustring& pass
                 }
 
                 size_t encoded_size = file_data.size() - data_offset - yk_metadata_size;
-
-                // Sanity check: original size should be less than encoded size
-                // Reed-Solomon uses 255-byte blocks, so the ratio can be high for small data
-                // Just verify that original_size is reasonable (not 0, not huge)
                 size_t max_reasonable_size = 100 * 1024 * 1024;  // 100MB max
 
+                // Validate original size is reasonable
                 if (original_size > 0 &&
                     original_size < max_reasonable_size &&
-                    original_size <= encoded_size) {                    file_has_fec = true;
-                    file_fec_redundancy = rs_redundancy;
-                    ciphertext_offset += 2;  // Skip flags and redundancy bytes
-                    ciphertext_offset += 4;  // Skip original_size bytes
+                    original_size <= encoded_size) {
+
+                    result.metadata.has_fec = true;
+                    result.metadata.fec_redundancy = rs_redundancy;
+                    ciphertext_offset += 6;  // Skip flags, redundancy, and original_size
 
                     // Read YubiKey metadata if required (comes BEFORE RS-encoded data)
                     if (yubikey_required && ciphertext_offset < file_data.size()) {
                         uint8_t serial_len = file_data[ciphertext_offset++];
-                        stored_serial.assign(file_data.begin() + ciphertext_offset,
-                                           file_data.begin() + ciphertext_offset + serial_len);
+                        result.metadata.yubikey_serial.assign(
+                            file_data.begin() + ciphertext_offset,
+                            file_data.begin() + ciphertext_offset + serial_len);
                         ciphertext_offset += serial_len;
-                        stored_challenge.assign(file_data.begin() + ciphertext_offset,
-                                              file_data.begin() + ciphertext_offset + YUBIKEY_CHALLENGE_SIZE);
+                        result.metadata.yubikey_challenge.assign(
+                            file_data.begin() + ciphertext_offset,
+                            file_data.begin() + ciphertext_offset + YUBIKEY_CHALLENGE_SIZE);
                         ciphertext_offset += YUBIKEY_CHALLENGE_SIZE;
                     }
 
                     // Extract RS-encoded data
-                    std::vector<uint8_t> encoded_data(file_data.begin() + ciphertext_offset,
-                                                     file_data.end());
-
-                    // Create ReedSolomon instance if needed
-                    if (!m_reed_solomon || m_rs_redundancy_percent != rs_redundancy) {
-                        m_reed_solomon = std::make_unique<ReedSolomon>(rs_redundancy);
-                    }
+                    std::vector<uint8_t> encoded_data(
+                        file_data.begin() + ciphertext_offset,
+                        file_data.end());
 
                     // Decode with Reed-Solomon
-                    ReedSolomon::EncodedData encoded_struct{
-                        .data = encoded_data,
-                        .original_size = original_size,
-                        .redundancy_percent = rs_redundancy,
-                        .block_size = 0,  // Not needed for decode
-                        .num_data_blocks = 0,  // Not needed for decode
-                        .num_parity_blocks = 0  // Not needed for decode
-                    };
-                    auto decode_result = m_reed_solomon->decode(encoded_struct);
+                    auto decode_result = decode_with_reed_solomon(encoded_data, original_size, rs_redundancy);
                     if (!decode_result) {
-                        KeepTower::Log::error("Reed-Solomon decoding failed: {}",
-                                             ReedSolomon::error_to_string(decode_result.error()));
-                        std::cerr << "Failed to decode Reed-Solomon data (file may be too corrupted)" << std::endl;
-                        return false;
+                        return std::unexpected(decode_result.error());
                     }
+                    result.ciphertext = std::move(decode_result.value());
 
-                    ciphertext = std::move(decode_result.value());
                     KeepTower::Log::info("Vault decoded with Reed-Solomon ({}% redundancy, {} -> {} bytes)",
-                                        rs_redundancy, encoded_data.size(), ciphertext.size());
+                                        rs_redundancy, encoded_data.size(), result.ciphertext.size());
                 } else {
                     // Invalid size ratio - treat as legacy format
-                    ciphertext.assign(file_data.begin() + (SALT_LENGTH + IV_LENGTH), file_data.end());
+                    result.ciphertext.assign(file_data.begin() + (SALT_LENGTH + IV_LENGTH), file_data.end());
                 }
             } else {
                 // Invalid redundancy - treat as legacy format
-                ciphertext.assign(file_data.begin() + ciphertext_offset, file_data.end());
+                result.ciphertext.assign(file_data.begin() + ciphertext_offset, file_data.end());
             }
         } else {
             // No RS encoding, extract normal ciphertext
@@ -373,109 +334,207 @@ bool VaultManager::open_vault(const std::string& path, const Glib::ustring& pass
             // Read YubiKey metadata if required (after flags byte)
             if (yubikey_required && ciphertext_offset < file_data.size()) {
                 uint8_t serial_len = file_data[ciphertext_offset++];
-                stored_serial.assign(file_data.begin() + ciphertext_offset,
-                                   file_data.begin() + ciphertext_offset + serial_len);
+                result.metadata.yubikey_serial.assign(
+                    file_data.begin() + ciphertext_offset,
+                    file_data.begin() + ciphertext_offset + serial_len);
                 ciphertext_offset += serial_len;
-                stored_challenge.assign(file_data.begin() + ciphertext_offset,
-                                      file_data.begin() + ciphertext_offset + YUBIKEY_CHALLENGE_SIZE);
+                result.metadata.yubikey_challenge.assign(
+                    file_data.begin() + ciphertext_offset,
+                    file_data.begin() + ciphertext_offset + YUBIKEY_CHALLENGE_SIZE);
                 ciphertext_offset += YUBIKEY_CHALLENGE_SIZE;
             }
 
-            ciphertext.assign(file_data.begin() + ciphertext_offset, file_data.end());
+            result.ciphertext.assign(file_data.begin() + ciphertext_offset, file_data.end());
         }
     } else {
         // Legacy format without flags
-        ciphertext.assign(file_data.begin() + ciphertext_offset, file_data.end());
-    }    // Derive key from password
+        result.ciphertext.assign(file_data.begin() + ciphertext_offset, file_data.end());
+    }
+
+    return result;
+}
+
+KeepTower::VaultResult<std::vector<uint8_t>>
+VaultManager::decode_with_reed_solomon(
+    const std::vector<uint8_t>& encoded_data,
+    uint32_t original_size,
+    uint8_t redundancy) {
+
+    // Create ReedSolomon instance if needed
+    if (!m_reed_solomon || m_rs_redundancy_percent != redundancy) {
+        m_reed_solomon = std::make_unique<ReedSolomon>(redundancy);
+    }
+
+    // Decode with Reed-Solomon
+    ReedSolomon::EncodedData encoded_struct{
+        .data = encoded_data,
+        .original_size = original_size,
+        .redundancy_percent = redundancy,
+        .block_size = 0,  // Not needed for decode
+        .num_data_blocks = 0,  // Not needed for decode
+        .num_parity_blocks = 0  // Not needed for decode
+    };
+
+    auto decode_result = m_reed_solomon->decode(encoded_struct);
+    if (!decode_result) {
+        KeepTower::Log::error("Reed-Solomon decoding failed: {}",
+                             ReedSolomon::error_to_string(decode_result.error()));
+        return std::unexpected(VaultError::DecodingFailed);
+    }
+
+    return decode_result.value();
+}
+
+#ifdef HAVE_YUBIKEY_SUPPORT
+KeepTower::VaultResult<>
+VaultManager::authenticate_yubikey(
+    const VaultFileMetadata& metadata,
+    std::vector<uint8_t>& encryption_key) {
+
+    if (metadata.yubikey_challenge.empty() || metadata.yubikey_serial.empty()) {
+        return std::unexpected(VaultError::YubiKeyMetadataMissing);
+    }
+
+    KeepTower::Log::info("Vault requires YubiKey authentication (serial: {})", metadata.yubikey_serial);
+
+    YubiKeyManager yk_manager;
+    if (!yk_manager.initialize() || !yk_manager.is_yubikey_present()) {
+        return std::unexpected(VaultError::YubiKeyNotConnected);
+    }
+
+    // Get device info to check serial
+    auto device_info = yk_manager.get_device_info();
+    if (!device_info) {
+        return std::unexpected(VaultError::YubiKeyDeviceInfoFailed);
+    }
+
+    // Check if this YubiKey's serial is authorized
+    const bool key_authorized = is_yubikey_authorized(device_info->serial_number);
+
+    if (!key_authorized) {
+        KeepTower::Log::warning("YubiKey serial mismatch: expected {}, found {}",
+                               metadata.yubikey_serial, device_info->serial_number);
+        // For backward compatibility, allow legacy single-key vaults
+        if (metadata.yubikey_serial != device_info->serial_number) {
+            KeepTower::Log::error("Unauthorized YubiKey");
+            return std::unexpected(VaultError::YubiKeyUnauthorized);
+        }
+    }
+
+    // Perform challenge-response
+    auto response = yk_manager.challenge_response(metadata.yubikey_challenge, 2);
+    if (!response.success) {
+        KeepTower::Log::error("YubiKey challenge-response failed: {}", response.error_message);
+        return std::unexpected(VaultError::YubiKeyChallengeResponseFailed);
+    }
+
+    KeepTower::Log::info("YubiKey challenge-response successful");
+
+    // XOR password-derived key with YubiKey response
+    for (size_t i = 0; i < KEY_LENGTH && i < YUBIKEY_RESPONSE_SIZE; ++i) {
+        encryption_key[i] ^= response.response[i];
+    }
+
+    // Store YubiKey data for save operations
+    m_yubikey_required = true;
+    m_yubikey_serial = metadata.yubikey_serial;
+    m_yubikey_challenge = metadata.yubikey_challenge;
+    lock_memory(m_yubikey_challenge);
+
+    return {};
+}
+#endif
+
+KeepTower::VaultResult<keeptower::VaultData>
+VaultManager::decrypt_and_parse_vault(
+    const std::vector<uint8_t>& ciphertext,
+    const std::vector<uint8_t>& key,
+    const std::vector<uint8_t>& iv) {
+
+    // Decrypt data
+    std::vector<uint8_t> plaintext;
+    if (!decrypt_data(ciphertext, key, iv, plaintext)) {
+        return std::unexpected(VaultError::DecryptionFailed);
+    }
+
+    // Deserialize protobuf data
+    keeptower::VaultData vault_data;
+    if (!vault_data.ParseFromArray(plaintext.data(), plaintext.size())) {
+        return std::unexpected(VaultError::InvalidProtobuf);
+    }
+
+    return vault_data;
+}
+
+// ============================================================================
+// Refactored open_vault() - Simplified using helper functions
+// ============================================================================
+
+bool VaultManager::open_vault(const std::string& path, const Glib::ustring& password) {
+    // 1. Close existing vault if needed
+    if (m_vault_open && !close_vault()) {
+        std::cerr << "Warning: Failed to close existing vault" << std::endl;
+    }
+
+    // 2. Read vault file
+    std::vector<uint8_t> file_data;
+    if (!read_vault_file(path, file_data)) {
+        return false;
+    }
+
+    // 3. Parse vault format and extract metadata
+    auto parsed_result = parse_vault_format(file_data);
+    if (!parsed_result) {
+        std::cerr << "Failed to parse vault format: "
+                  << static_cast<int>(parsed_result.error()) << std::endl;
+        return false;
+    }
+
+    ParsedVaultData parsed_data = std::move(parsed_result.value());
+    VaultFileMetadata& metadata = parsed_data.metadata;
+    std::vector<uint8_t>& ciphertext = parsed_data.ciphertext;
+
+    // 4. Derive encryption key from password
     m_encryption_key.resize(KEY_LENGTH);
+    m_salt = metadata.salt;
     if (!derive_key(password, m_salt, m_encryption_key)) {
         return false;
     }
 
+    // 5. Authenticate with YubiKey if required
 #ifdef HAVE_YUBIKEY_SUPPORT
-    // If YubiKey is required, perform challenge-response and XOR with password key
-    if (yubikey_required) {
-        if (stored_challenge.empty() || stored_serial.empty()) {
-            std::cerr << "Vault requires YubiKey but metadata is missing" << std::endl;
+    if (metadata.requires_yubikey) {
+        auto yk_result = authenticate_yubikey(metadata, m_encryption_key);
+        if (!yk_result) {
+            std::cerr << "YubiKey authentication failed: "
+                      << static_cast<int>(yk_result.error()) << std::endl;
+            secure_clear(m_encryption_key);
             return false;
         }
-
-        KeepTower::Log::info("Vault requires YubiKey authentication (serial: {})", stored_serial);
-
-        YubiKeyManager yk_manager;
-        if (!yk_manager.initialize() || !yk_manager.is_yubikey_present()) {
-            std::cerr << "YubiKey is required but no YubiKey is connected" << std::endl;
-            return false;
-        }
-
-        // Get device info to check serial
-        auto device_info = yk_manager.get_device_info();
-        if (!device_info) {
-            std::cerr << "Failed to get YubiKey device information" << std::endl;
-            return false;
-        }
-
-        // Check if this YubiKey's serial is authorized
-        // Note: stored_serial is from file header for backward compatibility
-        // For new vaults, check against protobuf entries list
-        const bool key_authorized = is_yubikey_authorized(device_info->serial_number);
-
-        if (!key_authorized) {
-            KeepTower::Log::warning("YubiKey serial mismatch: expected {}, found {}",
-                                   stored_serial, device_info->serial_number);
-            // For backward compatibility, allow legacy single-key vaults
-            if (stored_serial != device_info->serial_number) {
-                KeepTower::Log::error("Unauthorized YubiKey");
-                secure_clear(m_encryption_key);
-                return false;
-            }
-        }
-
-        // Perform challenge-response
-        auto response = yk_manager.challenge_response(stored_challenge, 2);
-        if (!response.success) {
-            std::cerr << "YubiKey challenge-response failed: " << response.error_message << std::endl;
-            return false;
-        }
-
-        KeepTower::Log::info("YubiKey challenge-response successful");
-
-        // XOR password-derived key with YubiKey response
-        for (size_t i = 0; i < KEY_LENGTH && i < YUBIKEY_RESPONSE_SIZE; ++i) {
-            m_encryption_key[i] ^= response.response[i];
-        }
-
-        // Store YubiKey data for save operations
-        m_yubikey_serial = stored_serial;
-        m_yubikey_challenge = stored_challenge;
-        lock_memory(m_yubikey_challenge);
     }
 #else
-    if (yubikey_required) {
+    if (metadata.requires_yubikey) {
         std::cerr << "Vault requires YubiKey but YubiKey support is not compiled in" << std::endl;
         return false;
     }
 #endif
 
-    // Lock encryption key and salt in memory (prevents swapping to disk)
+    // 6. Lock sensitive memory (prevents swapping to disk)
     if (lock_memory(m_encryption_key)) {
         m_memory_locked = true;
     }
-    lock_memory(m_salt);  // Also lock salt
+    lock_memory(m_salt);
 
-    // Decrypt data
-    std::vector<uint8_t> plaintext;
-    if (!decrypt_data(ciphertext, m_encryption_key, iv, plaintext)) {
-        std::cerr << "Failed to decrypt vault (wrong password?)" << std::endl;
+    // 7. Decrypt and parse vault data
+    auto vault_result = decrypt_and_parse_vault(ciphertext, m_encryption_key, metadata.iv);
+    if (!vault_result) {
+        std::cerr << "Failed to decrypt/parse vault (wrong password?): "
+                  << static_cast<int>(vault_result.error()) << std::endl;
         return false;
     }
 
-    // Deserialize protobuf data
-    m_vault_data.Clear();
-    if (!m_vault_data.ParseFromArray(plaintext.data(), plaintext.size())) {
-        std::cerr << "Failed to parse vault data (corrupted file?)" << std::endl;
-        return false;
-    }
+    // 8. Store vault data and metadata
+    m_vault_data = std::move(vault_result.value());
 
     // Migrate old schema if needed
     if (!migrate_vault_schema()) {
@@ -483,20 +542,20 @@ bool VaultManager::open_vault(const std::string& path, const Glib::ustring& pass
         return false;
     }
 
-    // Preserve the FEC settings from the file
-    // This ensures we don't overwrite a file's FEC status with preference defaults
-    if (file_has_fec) {
-        m_use_reed_solomon = true;
-        m_rs_redundancy_percent = file_fec_redundancy;
-        m_fec_loaded_from_file = true;
+    // 9. Preserve FEC settings from file
+    m_use_reed_solomon = metadata.has_fec;
+    // Only update redundancy if FEC was enabled in file
+    if (metadata.has_fec && metadata.fec_redundancy > 0) {
+        m_rs_redundancy_percent = metadata.fec_redundancy;
+    }
+    if (metadata.has_fec) {
         KeepTower::Log::info("Preserved FEC settings from file: enabled=true, redundancy={}%",
-                            file_fec_redundancy);
+                            metadata.fec_redundancy);
     } else {
-        m_use_reed_solomon = false;
-        m_fec_loaded_from_file = true;  // Also track that file had FEC disabled
         KeepTower::Log::info("Preserved FEC settings from file: enabled=false");
     }
 
+    // 10. Update vault state
     m_current_vault_path = path;
     m_vault_open = true;
     m_modified = false;
