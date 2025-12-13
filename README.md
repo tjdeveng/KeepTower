@@ -3,7 +3,7 @@
 [![CI](https://github.com/tjdeveng/KeepTower/workflows/CI/badge.svg)](https://github.com/tjdeveng/KeepTower/actions/workflows/ci.yml)
 [![Build](https://github.com/tjdeveng/KeepTower/workflows/Build/badge.svg)](https://github.com/tjdeveng/KeepTower/actions/workflows/build.yml)
 [![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.2.5--beta-orange.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.2.6--beta-orange.svg)](CHANGELOG.md)
 
 A secure, modern password manager built with C++23 and GTK4.
 
@@ -272,4 +272,8 @@ For security issues, please contact the maintainer directly rather than using th
 
 ## Version
 
-v0.1.0-beta - Initial release
+v0.2.6-beta
+>= 0.59.0
+>= 4.10
+>= 3.0
+>= 1.1.0 - Tags system with filtering, password history limit control
