@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.5-beta] - 2025-12-13
+
+### Added
+- **Multi-Format Import/Export:**
+  - CSV export and import with field escaping
+  - KeePass 2.x XML export and import (round-trip tested)
+  - 1Password 1PIF export and import (round-trip tested)
+  - Password re-authentication required for all exports (YubiKey + password if configured)
+  - Auto-updating file extensions when changing format filter
+  - Format auto-detection from file extension
+  - Security warnings about unencrypted exports
+  - Partial import support with failure reporting
+  - `docs/EXPORT_FORMATS.md` with format specifications
+
+### Changed
+- Menu items updated: "Import Accounts" and "Export Accounts" (removed "CSV" specificity)
+- Export warning dialog generalized for all formats
+- File chooser dialogs support multiple format filters
+- Import success messages include format name
+
+### Security
+- **Critical Segfault Fix:**
+  - Fixed unallocated vector bug in `verify_credentials()` causing segfault with YubiKey authentication
+  - Pre-allocate KEY_LENGTH for password_key and test_key vectors before derive_key() calls
+  - Thread safety: Added `std::mutex m_vault_mutex` to VaultManager
+  - Constant-time password comparison using volatile to prevent timing attacks
+- **Export Security:**
+  - Exported files created with 0600 permissions (owner read/write only)
+  - fsync() called to ensure data integrity
+  - Secure password clearing in all code paths
+  - File size limits (100MB) to prevent DoS attacks on import
+- **Code Quality:**
+  - C++23 improvements: std::string_view for zero-copy parsing
+  - std::format() for string construction
+  - std::move() semantics with emplace_back()
+  - Smart reserve() with size estimation for vector pre-allocation
+  - Removed 100+ lines of excessive debug logging
+  - All memory properly managed with RAII
+  - Comprehensive error handling with std::expected
+
+### Documentation
+- Updated README.md with import/export usage instructions
+- Added technical documentation in `docs/EXPORT_FORMATS.md`
+- Updated `docs/CODE_REVIEW_EXPORT.md` with all fixes and resolution
+
 ## [0.2.4-beta] - 2025-12-12
 
 ### Added

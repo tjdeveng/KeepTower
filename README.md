@@ -3,7 +3,7 @@
 [![CI](https://github.com/tjdeveng/KeepTower/workflows/CI/badge.svg)](https://github.com/tjdeveng/KeepTower/actions/workflows/ci.yml)
 [![Build](https://github.com/tjdeveng/KeepTower/workflows/Build/badge.svg)](https://github.com/tjdeveng/KeepTower/actions/workflows/build.yml)
 [![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.2.4--beta-orange.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.2.5--beta-orange.svg)](CHANGELOG.md)
 
 A secure, modern password manager built with C++23 and GTK4.
 
@@ -15,6 +15,12 @@ A secure, modern password manager built with C++23 and GTK4.
 
 - **Strong Encryption**: AES-256-GCM with authenticated encryption
 - **Secure Key Derivation**: PBKDF2-SHA256 with 100,000 iterations (configurable)
+- **Import/Export**: Multi-format data portability
+  - CSV format (tested and verified)
+  - KeePass 2.x XML format (round-trip tested)
+  - 1Password 1PIF format (round-trip tested)
+  - Password re-authentication required for security
+  - Exported files protected with 0600 permissions
 - **YubiKey Hardware 2FA**: Optional hardware-based second factor authentication
   - Challenge-response HMAC-SHA1 using YubiKey slot 2
   - Two-factor encryption: password key ⊕ YubiKey response
@@ -139,6 +145,46 @@ ykpersonalize -2 -ochal-resp -ochal-hmac -ohmac-lt64 -oserial-api-visible -a<YOU
 
 **Note**: All backup keys **must** be programmed with the same HMAC-SHA1 secret. If a key has a different secret, it will be rejected when you try to add it.
 
+### Importing and Exporting Accounts
+
+KeepTower supports importing and exporting password data in multiple formats:
+
+#### Exporting Accounts
+
+1. Open a vault with your accounts
+2. Select **Menu → Export Accounts**
+3. Review the security warning (all exports are unencrypted plaintext)
+4. Re-authenticate with your password (and YubiKey if configured)
+5. Choose the export format:
+   - **CSV** - Simple comma-separated format (fully tested)
+   - **KeePass XML** - KeePass 2.x compatible XML (round-trip tested)
+   - **1Password 1PIF** - 1Password Interchange Format (round-trip tested)
+6. Select destination and save
+
+**Security Warning**: All export formats save passwords in UNENCRYPTED plaintext. The file is NOT encrypted. Anyone with access can read all your passwords. Delete exported files immediately after use.
+
+**File Protection**: Exported files are created with 0600 permissions (owner read/write only) for additional security.
+
+#### Importing Accounts
+
+1. Open a vault
+2. Select **Menu → Import Accounts**
+3. Choose the file format (CSV, KeePass XML, or 1Password 1PIF)
+4. Select the file to import
+5. Review the import results
+   - Success count and any failures are shown
+   - Failed imports are listed with account names
+   - Duplicate accounts are added as separate entries
+
+**Supported Import Formats**:
+- CSV with header: `Account Name,Username,Password,Email,Website,Notes`
+- KeePass 2.x XML (unencrypted export)
+- 1Password 1PIF format
+
+**Round-Trip Testing**: All formats have been tested for round-trip integrity (export → import → verify). Compatibility with actual KeePass and 1Password applications is pending real-world testing.
+
+For detailed format specifications, see `docs/EXPORT_FORMATS.md`.
+
 ### Power User Tips
 ```
 
@@ -171,6 +217,7 @@ Click **Apply** to save all preference changes.
 ## Documentation
 
 - **README.md** - This file
+- **docs/EXPORT_FORMATS.md** - Import/export format specifications and security notes
 - **docs/api/** - Doxygen API documentation (generated)
 - **CODE_REVIEW.md** - Security audit and code review
 - **CONTRIBUTING.md** - Contribution guidelines

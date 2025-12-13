@@ -1336,4 +1336,114 @@ bool VaultManager::is_yubikey_authorized(const std::string& serial) const {
 
     return false;
 }
+
+bool VaultManager::verify_credentials(const Glib::ustring& password, const std::string& serial) {
+    // Thread safety - lock vault data
+    std::lock_guard<std::mutex> lock(m_vault_mutex);
+
+    if (!m_vault_open) {
+        return false;
+    }
+
+    // If vault requires YubiKey, verify both password and YubiKey
+    if (m_yubikey_required) {
+        if (serial.empty()) {
+            return false;  // YubiKey serial required
+        }
+
+        // Check if the YubiKey serial is authorized
+        if (!is_yubikey_authorized(serial)) {
+            return false;
+        }
+
+        // Derive the key using password + YubiKey response
+        YubiKeyManager yk_manager;
+        if (!yk_manager.initialize() || !yk_manager.is_yubikey_present()) {
+            return false;
+        }
+
+        // Get device info to verify serial matches
+        auto device_info = yk_manager.get_device_info();
+        if (!device_info || device_info->serial_number != serial) {
+            return false;  // Wrong YubiKey connected or failed to get info
+        }
+
+        // Ensure challenge is correct size (64 bytes required by YubiKey)
+        if (m_yubikey_challenge.size() != YUBIKEY_CHALLENGE_SIZE) {
+            KeepTower::Log::error("Invalid YubiKey challenge size: {} (expected {})",
+                                 m_yubikey_challenge.size(), YUBIKEY_CHALLENGE_SIZE);
+            return false;
+        }
+
+        // Perform challenge-response
+        auto cr_result = yk_manager.challenge_response(m_yubikey_challenge, true, 15000);
+        if (!cr_result.success) {
+            KeepTower::Log::error("YubiKey challenge-response failed in verify_credentials: {}",
+                                 cr_result.error_message);
+            return false;
+        }
+
+        // Derive password-based key first
+        std::vector<uint8_t> password_key(KEY_LENGTH);
+        if (!derive_key(password, m_salt, password_key)) {
+            return false;
+        }
+
+        // XOR with YubiKey response to get final key
+        std::vector<uint8_t> test_key = password_key;
+        for (size_t i = 0; i < test_key.size() && i < cr_result.response.size(); i++) {
+            test_key[i] ^= cr_result.response[i];
+        }
+
+        // Constant-time comparison to prevent timing attacks
+        bool match = (test_key.size() == m_encryption_key.size());
+        if (match) {
+            // Manual constant-time compare
+            volatile uint8_t diff = 0;
+            for (size_t i = 0; i < test_key.size(); i++) {
+                diff |= test_key[i] ^ m_encryption_key[i];
+            }
+            match = (diff == 0);
+        }
+
+        // Securely clear sensitive data
+        // Note: These were never locked, so just clear without unlock
+        if (!test_key.empty()) {
+            OPENSSL_cleanse(test_key.data(), test_key.size());
+            test_key.clear();
+            test_key.shrink_to_fit();
+        }
+        if (!password_key.empty()) {
+            OPENSSL_cleanse(password_key.data(), password_key.size());
+            password_key.clear();
+            password_key.shrink_to_fit();
+        }
+        return match;
+    }
+
+    // No YubiKey required - just verify password
+    std::vector<uint8_t> test_key(KEY_LENGTH);
+    if (!derive_key(password, m_salt, test_key)) {
+        return false;
+    }
+
+    // Constant-time comparison to prevent timing attacks
+    bool match = (test_key.size() == m_encryption_key.size());
+    if (match) {
+        // Manual constant-time compare
+        volatile uint8_t diff = 0;
+        for (size_t i = 0; i < test_key.size(); i++) {
+            diff |= test_key[i] ^ m_encryption_key[i];
+        }
+        match = (diff == 0);
+    }
+
+    // Securely clear test key (not locked, so don't call unlock)
+    if (!test_key.empty()) {
+        OPENSSL_cleanse(test_key.data(), test_key.size());
+        test_key.clear();
+        test_key.shrink_to_fit();
+    }
+    return match;
+}
 #endif

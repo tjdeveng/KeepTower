@@ -580,7 +580,7 @@ void PreferencesDialog::on_auto_lock_enabled_toggled() noexcept {
 void PreferencesDialog::on_response([[maybe_unused]] const int response_id) noexcept {
     if (response_id == Gtk::ResponseType::APPLY) {
         save_settings();
-        // Dialog stays open after apply (modern preferences pattern)
+        hide();  // Close dialog after applying settings
     } else {
         // Cancel - just close without saving
         hide();

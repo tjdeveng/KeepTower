@@ -76,6 +76,10 @@ protected:
     void on_add_account();    ///< Add new account
     void on_delete_account(); ///< Delete selected account
     void on_preferences();    ///< Show preferences dialog
+    void on_import_from_csv();  ///< Import accounts from CSV
+    void on_export_to_csv();    ///< Export accounts to CSV (with re-authentication)
+    void show_export_password_dialog();  ///< Show password dialog and perform export auth
+    void show_export_file_chooser();  ///< Show file chooser and perform export
     void on_test_yubikey();   ///< Test YubiKey detection
     void on_manage_yubikeys();  ///< Manage YubiKey backup keys
     void on_copy_password();  ///< Copy password to clipboard
@@ -103,6 +107,7 @@ protected:
     bool prompt_save_if_modified();  ///< Prompt to save if vault modified, return false if user cancels
     void setup_activity_monitoring();  ///< Setup event monitors for user activity
     std::string get_master_password_for_lock();  ///< Get master password to re-open after lock
+
 
     // Member widgets
     Gtk::Box m_main_box;

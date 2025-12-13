@@ -19,6 +19,7 @@
 #include <memory>
 #include <expected>
 #include <optional>
+#include <mutex>
 #include <glibmm.h>
 #include "record.pb.h"
 #include "VaultError.h"
@@ -373,6 +374,22 @@ public:
      * @return true if authorized, false otherwise
      */
     [[nodiscard]] bool is_yubikey_authorized(const std::string& serial) const;
+
+    /**
+     * @brief Check if current vault uses YubiKey authentication
+     * @return true if YubiKey is required, false otherwise
+     */
+    bool is_using_yubikey() const { return m_yubikey_required; }
+
+    /**
+     * @brief Verify credentials against the current vault
+     * @param password Password to verify
+     * @param serial YubiKey serial number (if vault uses YubiKey)
+     * @return true if credentials are valid, false otherwise
+     *
+     * @note Requires vault to be open
+     */
+    [[nodiscard]] bool verify_credentials(const Glib::ustring& password, const std::string& serial = "");
 #endif
 
 private:
@@ -431,6 +448,9 @@ private:
     int m_backup_count;
 
     bool m_memory_locked;  // Track if sensitive memory is locked
+
+    // Thread safety
+    mutable std::mutex m_vault_mutex;  // Protects vault data and encryption key
 
     // YubiKey configuration
     bool m_yubikey_required;           // Whether YubiKey is required for this vault

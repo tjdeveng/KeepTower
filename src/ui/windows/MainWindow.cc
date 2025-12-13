@@ -8,8 +8,10 @@
 #include "../dialogs/YubiKeyPromptDialog.h"
 #include "../../core/VaultError.h"
 #include "../../utils/SettingsValidator.h"
+#include "../../utils/ImportExport.h"
 #include "../../utils/Log.h"
 #include "config.h"
+#include <cstring>  // For memset
 #ifdef HAVE_YUBIKEY_SUPPORT
 #include "../../core/YubiKeyManager.h"
 #include "../dialogs/YubiKeyManagerDialog.h"
@@ -76,6 +78,8 @@ MainWindow::MainWindow()
 
     // Set up window actions
     add_action("preferences", sigc::mem_fun(*this, &MainWindow::on_preferences));
+    add_action("import-csv", sigc::mem_fun(*this, &MainWindow::on_import_from_csv));
+    add_action("export-csv", sigc::mem_fun(*this, &MainWindow::on_export_to_csv));
     add_action("delete-account", sigc::mem_fun(*this, &MainWindow::on_delete_account));
 #ifdef HAVE_YUBIKEY_SUPPORT
     add_action("test-yubikey", sigc::mem_fun(*this, &MainWindow::on_test_yubikey));
@@ -119,6 +123,8 @@ MainWindow::MainWindow()
     // Primary menu (hamburger menu)
     m_primary_menu = Gio::Menu::create();
     m_primary_menu->append("_Preferences", "win.preferences");
+    m_primary_menu->append("_Import Accounts...", "win.import-csv");
+    m_primary_menu->append("_Export Accounts...", "win.export-csv");
 #ifdef HAVE_YUBIKEY_SUPPORT
     m_primary_menu->append("Manage _YubiKeys", "win.manage-yubikeys");
     m_primary_menu->append("Test _YubiKey", "win.test-yubikey");
@@ -1025,11 +1031,47 @@ bool MainWindow::save_current_account() {
 
     // Store the old account name to detect if it changed
     const std::string old_name = account->account_name();
+    const std::string old_password = account->password();
+    const std::string new_password = m_password_entry.get_text().raw();
+
+    // Check password history settings
+    auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
+    const bool history_enabled = SettingsValidator::is_password_history_enabled(settings);
+    const int history_limit = SettingsValidator::get_password_history_limit(settings);
+
+    // Check if password changed and prevent reuse
+    if (new_password != old_password && history_enabled) {
+        // Check against previous passwords to prevent reuse
+        for (int i = 0; i < account->password_history_size(); ++i) {
+            if (account->password_history(i) == new_password) {
+                show_error_dialog("Password reuse detected!\n\n"
+                    "This password was used previously. Please choose a different password.\n\n"
+                    "Using unique passwords for each change improves security.");
+                return false;
+            }
+        }
+
+        // Add old password to history if it's not empty
+        if (!old_password.empty()) {
+            account->add_password_history(old_password);
+
+            // Enforce history limit - remove oldest entries if exceeded
+            while (account->password_history_size() > history_limit) {
+                // Remove the first (oldest) entry
+                account->mutable_password_history()->erase(
+                    account->mutable_password_history()->begin()
+                );
+            }
+        }
+
+        // Update password_changed_at timestamp when password changes
+        account->set_password_changed_at(std::time(nullptr));
+    }
 
     // Update the account with current field values
     account->set_account_name(m_account_name_entry.get_text().raw());
     account->set_user_name(m_user_name_entry.get_text().raw());
-    account->set_password(m_password_entry.get_text().raw());
+    account->set_password(new_password);
     account->set_email(m_email_entry.get_text().raw());
     account->set_website(m_website_entry.get_text().raw());
     account->set_notes(notes_text.raw());
@@ -1249,42 +1291,613 @@ void MainWindow::on_delete_account() {
     dialog->show();
 }
 
+void MainWindow::on_import_from_csv() {
+    if (!m_vault_open) {
+        show_error_dialog("Please open a vault first before importing accounts.");
+        return;
+    }
+
+    // Create file chooser dialog
+    auto dialog = Gtk::make_managed<Gtk::FileChooserDialog>(*this, "Import Accounts", Gtk::FileChooser::Action::OPEN);
+    dialog->set_modal(true);
+    dialog->set_hide_on_close(true);
+
+    dialog->add_button("_Cancel", Gtk::ResponseType::CANCEL);
+    dialog->add_button("_Import", Gtk::ResponseType::OK);
+
+    // Add file filters for supported formats
+    auto csv_filter = Gtk::FileFilter::create();
+    csv_filter->set_name("CSV files (*.csv)");
+    csv_filter->add_pattern("*.csv");
+    dialog->add_filter(csv_filter);
+
+    auto keepass_filter = Gtk::FileFilter::create();
+    keepass_filter->set_name("KeePass XML (*.xml)");
+    keepass_filter->add_pattern("*.xml");
+    dialog->add_filter(keepass_filter);
+
+    auto onepassword_filter = Gtk::FileFilter::create();
+    onepassword_filter->set_name("1Password 1PIF (*.1pif)");
+    onepassword_filter->add_pattern("*.1pif");
+    dialog->add_filter(onepassword_filter);
+
+    // Add all files filter
+    auto all_filter = Gtk::FileFilter::create();
+    all_filter->set_name("All files");
+    all_filter->add_pattern("*");
+    dialog->add_filter(all_filter);
+
+    dialog->signal_response().connect([this, dialog](int response) {
+        if (response == Gtk::ResponseType::OK) {
+            auto file = dialog->get_file();
+            if (!file) {
+                dialog->hide();
+                return;
+            }
+
+            std::string path = file->get_path();
+
+            // Detect format from file extension and perform the import
+            std::expected<std::vector<keeptower::AccountRecord>, ImportExport::ImportError> result;
+            std::string format_name;
+
+            if (path.ends_with(".xml")) {
+                result = ImportExport::import_from_keepass_xml(path);
+                format_name = "KeePass XML";
+            } else if (path.ends_with(".1pif")) {
+                result = ImportExport::import_from_1password(path);
+                format_name = "1Password 1PIF";
+            } else {
+                // Default to CSV
+                result = ImportExport::import_from_csv(path);
+                format_name = "CSV";
+            }
+
+            if (result.has_value()) {
+                auto& accounts = result.value();
+
+                // Add each account to the vault, tracking failures
+                int imported_count = 0;
+                int failed_count = 0;
+                std::vector<std::string> failed_accounts;
+
+                for (const auto& account : accounts) {
+                    if (m_vault_manager->add_account(account)) {
+                        imported_count++;
+                    } else {
+                        failed_count++;
+                        // Limit failure list to avoid huge dialogs
+                        if (failed_accounts.size() < 10) {
+                            failed_accounts.push_back(account.account_name());
+                        }
+                    }
+                }
+
+                // Update UI
+                update_account_list();
+                filter_accounts(m_search_entry.get_text());
+
+                // Show result message (success or partial success)
+                std::string message;
+                Gtk::MessageType msg_type;
+
+                if (failed_count == 0) {
+                    message = std::format("Successfully imported {} account(s) from {} format.", imported_count, format_name);
+                    msg_type = Gtk::MessageType::INFO;
+                } else if (imported_count > 0) {
+                    message = std::format("Imported {} account(s) successfully.\n"
+                                         "{} account(s) failed to import.",
+                                         imported_count, failed_count);
+                    if (!failed_accounts.empty()) {
+                        message += "\n\nFailed accounts:\n";
+                        for (size_t i = 0; i < failed_accounts.size(); i++) {
+                            message += "• " + failed_accounts[i] + "\n";
+                        }
+                        if (static_cast<size_t>(failed_count) > failed_accounts.size()) {
+                            message += std::format("... and {} more", failed_count - static_cast<int>(failed_accounts.size()));
+                        }
+                    }
+                    msg_type = Gtk::MessageType::WARNING;
+                } else {
+                    message = "Failed to import all accounts.";
+                    msg_type = Gtk::MessageType::ERROR;
+                }
+
+                auto result_dialog = Gtk::make_managed<Gtk::MessageDialog>(
+                    *this,
+                    failed_count == 0 ? "Import Successful" : "Import Completed with Issues",
+                    false,
+                    msg_type,
+                    Gtk::ButtonsType::OK,
+                    true
+                );
+                result_dialog->set_modal(true);
+                result_dialog->set_hide_on_close(true);
+                result_dialog->set_secondary_text(message);
+                result_dialog->signal_response().connect([result_dialog](int) {
+                    result_dialog->hide();
+                });
+                result_dialog->show();
+            } else {
+                // Show error message
+                const char* error_msg = nullptr;
+                switch (result.error()) {
+                    case ImportExport::ImportError::FILE_NOT_FOUND:
+                        error_msg = "File not found";
+                        break;
+                    case ImportExport::ImportError::INVALID_FORMAT:
+                        error_msg = "Invalid CSV format";
+                        break;
+                    case ImportExport::ImportError::PARSE_ERROR:
+                        error_msg = "Failed to parse CSV file";
+                        break;
+                    case ImportExport::ImportError::UNSUPPORTED_VERSION:
+                        error_msg = "Unsupported file version";
+                        break;
+                    case ImportExport::ImportError::EMPTY_FILE:
+                        error_msg = "Empty file";
+                        break;
+                    case ImportExport::ImportError::ENCRYPTION_ERROR:
+                        error_msg = "Encryption error";
+                        break;
+                }
+                show_error_dialog(std::format("Import failed: {}", error_msg));
+            }
+        }
+        dialog->hide();
+    });
+
+    dialog->show();
+}
+
+void MainWindow::on_export_to_csv() {
+    if (!m_vault_open) {
+        show_error_dialog("Please open a vault first before exporting accounts.");
+        return;
+    }
+
+    // Security warning dialog (Step 1)
+    auto warning_dialog = Gtk::make_managed<Gtk::MessageDialog>(
+        *this,
+        "Export Accounts to Plaintext?",
+        false,
+        Gtk::MessageType::WARNING,
+        Gtk::ButtonsType::NONE,
+        true
+    );
+    warning_dialog->set_modal(true);
+    warning_dialog->set_hide_on_close(true);
+    warning_dialog->set_secondary_text(
+        "Warning: ALL export formats save passwords in UNENCRYPTED PLAINTEXT.\n\n"
+        "Supported formats: CSV, KeePass XML, 1Password 1PIF\n\n"
+        "The exported file will NOT be encrypted. Anyone with access to the file\n"
+        "will be able to read all your passwords.\n\n"
+        "To proceed, you must re-authenticate with your master password."
+    );
+
+    warning_dialog->add_button("_Cancel", Gtk::ResponseType::CANCEL);
+    auto export_button = warning_dialog->add_button("_Continue", Gtk::ResponseType::OK);
+    export_button->add_css_class("destructive-action");
+
+    warning_dialog->signal_response().connect([this, warning_dialog](int response) {
+        try {
+            warning_dialog->hide();
+
+            if (response != Gtk::ResponseType::OK) {
+                return;
+            }
+
+            // Schedule password dialog via idle callback (flat chain)
+            Glib::signal_idle().connect_once([this]() {
+                show_export_password_dialog();
+            });
+        } catch (const std::exception& e) {
+            KeepTower::Log::error("Exception in export warning handler: {}", e.what());
+            show_error_dialog(std::format("Export failed: {}", e.what()));
+        } catch (...) {
+            KeepTower::Log::error("Unknown exception in export warning handler");
+            show_error_dialog("Export failed due to unknown error");
+        }
+    });
+
+    warning_dialog->show();
+}
+
+void MainWindow::show_export_password_dialog() {
+    try {
+        // Step 2: Show password dialog (warning dialog is now fully closed)
+        auto* password_dialog = Gtk::make_managed<PasswordDialog>(*this);
+        password_dialog->set_title("Authenticate to Export");
+        password_dialog->set_modal(true);
+        password_dialog->set_hide_on_close(true);
+
+        password_dialog->signal_response().connect([this, password_dialog](int response) {
+            if (response != Gtk::ResponseType::OK) {
+                password_dialog->hide();
+                return;
+            }
+
+            try {
+                std::string password = password_dialog->get_password();
+
+#ifdef HAVE_YUBIKEY_SUPPORT
+                // If vault requires YubiKey, show touch prompt and do authentication synchronously
+                YubiKeyPromptDialog* touch_dialog = nullptr;
+                if (m_vault_manager && m_vault_manager->is_using_yubikey()) {
+                    // Get YubiKey serial
+                    YubiKeyManager yk_manager;
+                    if (!yk_manager.initialize() || !yk_manager.is_yubikey_present()) {
+                        password_dialog->hide();
+                        show_error_dialog("YubiKey not detected.");
+                        return;
+                    }
+
+                    auto device_info = yk_manager.get_device_info();
+                    if (!device_info) {
+                        password_dialog->hide();
+                        show_error_dialog("Failed to get YubiKey information.");
+                        return;
+                    }
+
+                    std::string serial_number = device_info->serial_number;
+
+                    // Hide password dialog to show touch prompt
+                    password_dialog->hide();
+
+                    // Show touch prompt dialog
+                    touch_dialog = Gtk::make_managed<YubiKeyPromptDialog>(*this,
+                        YubiKeyPromptDialog::PromptType::TOUCH);
+                    touch_dialog->present();
+
+                    // Force GTK to process events and render the dialog
+                    auto context = Glib::MainContext::get_default();
+                    while (context->pending()) {
+                        context->iteration(false);
+                    }
+
+                    // Small delay to ensure dialog is fully rendered
+                    g_usleep(150000);  // 150ms
+
+                    // Perform authentication with YubiKey (blocking call) - SYNCHRONOUSLY
+                    bool auth_success = m_vault_manager->verify_credentials(password, serial_number);
+
+                    // Hide touch prompt
+                    if (touch_dialog) {
+                        touch_dialog->hide();
+                    }
+
+                    if (!auth_success) {
+                        // Securely clear password before returning
+                        if (!password.empty()) {
+                            volatile char* p = const_cast<char*>(password.data());
+                            for (size_t i = 0; i < password.size(); i++) {
+                                p[i] = '\0';
+                            }
+                            password.clear();
+                        }
+                        show_error_dialog("YubiKey authentication failed. Export cancelled.");
+                        return;
+                    }
+                } else
+#endif
+                {
+                    // No YubiKey - just verify password
+                    password_dialog->hide();
+
+                    bool auth_success = m_vault_manager->verify_credentials(password);
+
+                    if (!auth_success) {
+                        // Securely clear password before returning
+                        if (!password.empty()) {
+                            volatile char* p = const_cast<char*>(password.data());
+                            for (size_t i = 0; i < password.size(); i++) {
+                                p[i] = '\0';
+                            }
+                            password.clear();
+                        }
+                        show_error_dialog("Authentication failed. Export cancelled.");
+                        return;
+                    }
+                }
+
+                // Securely clear password after successful authentication
+                if (!password.empty()) {
+                    volatile char* p = const_cast<char*>(password.data());
+                    for (size_t i = 0; i < password.size(); i++) {
+                        p[i] = '\0';
+                    }
+                    password.clear();
+                }
+
+                // Authentication successful - show file chooser
+                show_export_file_chooser();
+
+            } catch (const std::exception& e) {
+                KeepTower::Log::error("Exception in password dialog handler: {}", e.what());
+                show_error_dialog(std::format("Authentication failed: {}", e.what()));
+                password_dialog->hide();
+            } catch (...) {
+                KeepTower::Log::error("Unknown exception in password dialog handler");
+                show_error_dialog("Authentication failed due to unknown error");
+                password_dialog->hide();
+            }
+        });
+
+        password_dialog->show();
+    } catch (const std::exception& e) {
+        KeepTower::Log::error("Exception showing password dialog: {}", e.what());
+        show_error_dialog(std::format("Failed to show authentication dialog: {}", e.what()));
+    }
+}
+
+void MainWindow::show_export_file_chooser() {
+    try {
+        // Validate state before proceeding
+        if (!m_vault_open || !m_vault_manager) {
+            show_error_dialog("Export cancelled: vault is not open");
+            return;
+        }
+
+        // Ensure we're in main GTK thread and event loop is ready
+        auto context = Glib::MainContext::get_default();
+        if (!context) {
+            KeepTower::Log::error("No GTK main context available");
+            show_error_dialog("Internal error: GTK context unavailable");
+            return;
+        }
+
+        // Process any pending events before showing new dialog
+        while (context->pending()) {
+            context->iteration(false);
+        }
+
+        // Show file chooser for export location (all previous dialogs are now closed)
+        KeepTower::Log::info("Creating file chooser dialog");
+        auto dialog = Gtk::make_managed<Gtk::FileChooserDialog>(*this, "Export Accounts", Gtk::FileChooser::Action::SAVE);
+        KeepTower::Log::info("File chooser dialog created successfully");
+        dialog->set_modal(true);
+        dialog->set_hide_on_close(true);
+
+        dialog->add_button("_Cancel", Gtk::ResponseType::CANCEL);
+        dialog->add_button("_Export", Gtk::ResponseType::OK);
+
+        // Set default filename
+        dialog->set_current_name("passwords_export.csv");
+
+        // Add file filters for different formats
+        auto csv_filter = Gtk::FileFilter::create();
+        csv_filter->set_name("CSV files (*.csv)");
+        csv_filter->add_pattern("*.csv");
+        dialog->add_filter(csv_filter);
+
+        auto keepass_filter = Gtk::FileFilter::create();
+        keepass_filter->set_name("KeePass XML (*.xml) - Not fully tested");
+        keepass_filter->add_pattern("*.xml");
+        dialog->add_filter(keepass_filter);
+
+        auto onepassword_filter = Gtk::FileFilter::create();
+        onepassword_filter->set_name("1Password 1PIF (*.1pif) - Not fully tested");
+        onepassword_filter->add_pattern("*.1pif");
+        dialog->add_filter(onepassword_filter);
+
+        auto all_filter = Gtk::FileFilter::create();
+        all_filter->set_name("All files");
+        all_filter->add_pattern("*");
+        dialog->add_filter(all_filter);
+
+        // Update file extension when filter changes
+        dialog->property_filter().signal_changed().connect([dialog, csv_filter, keepass_filter, onepassword_filter]() {
+            auto current_filter = dialog->get_filter();
+            std::string current_name = dialog->get_current_name();
+
+            // Remove existing extension
+            size_t dot_pos = current_name.find_last_of('.');
+            std::string base_name = (dot_pos != std::string::npos) ? current_name.substr(0, dot_pos) : current_name;
+
+            // Add appropriate extension based on filter
+            if (current_filter == csv_filter) {
+                dialog->set_current_name(base_name + ".csv");
+            } else if (current_filter == keepass_filter) {
+                dialog->set_current_name(base_name + ".xml");
+            } else if (current_filter == onepassword_filter) {
+                dialog->set_current_name(base_name + ".1pif");
+            }
+        });
+
+        dialog->signal_response().connect([this, dialog](int response) {
+            try {
+                if (response == Gtk::ResponseType::OK) {
+                    auto file = dialog->get_file();
+                    if (!file) {
+                        dialog->hide();
+                        return;
+                    }
+
+                    std::string path = file->get_path();
+
+                    // Get all accounts from vault (optimized with reserve)
+                    std::vector<keeptower::AccountRecord> accounts;
+                    int account_count = m_vault_manager->get_account_count();
+                    accounts.reserve(account_count);  // Pre-allocate
+
+                    for (int i = 0; i < account_count; i++) {
+                        const auto* account = m_vault_manager->get_account(i);
+                        if (account) {
+                            accounts.emplace_back(*account);  // Use emplace_back
+                        }
+                    }
+
+                    // Detect format from file extension
+                    std::expected<void, ImportExport::ExportError> result;
+                    std::string format_name;
+                    std::string warning_text = "Warning: This file contains UNENCRYPTED passwords!";
+
+                    if (path.ends_with(".xml")) {
+                        result = ImportExport::export_to_keepass_xml(path, accounts);
+                        format_name = "KeePass XML";
+                        warning_text += "\n\nNOTE: KeePass import compatibility not fully tested.";
+                    } else if (path.ends_with(".1pif")) {
+                        result = ImportExport::export_to_1password_1pif(path, accounts);
+                        format_name = "1Password 1PIF";
+                        warning_text += "\n\nNOTE: 1Password import compatibility not fully tested.";
+                    } else {
+                        // Default to CSV (or if .csv extension)
+                        result = ImportExport::export_to_csv(path, accounts);
+                        format_name = "CSV";
+                    }
+
+                    if (result.has_value()) {
+                        // Show success message
+                        auto success_dialog = Gtk::make_managed<Gtk::MessageDialog>(
+                            *this,
+                            "Export Successful",
+                            false,
+                            Gtk::MessageType::INFO,
+                            Gtk::ButtonsType::OK,
+                            true
+                        );
+                        success_dialog->set_modal(true);
+                        success_dialog->set_hide_on_close(true);
+                        success_dialog->set_secondary_text(
+                            std::format("Successfully exported {} account(s) to {} format:\n{}\n\n{}",
+                                       accounts.size(), format_name, path, warning_text)
+                        );
+                        success_dialog->signal_response().connect([success_dialog](int) {
+                            success_dialog->hide();
+                        });
+                        success_dialog->show();
+                    } else {
+                        // Show error message
+                        const char* error_msg = nullptr;
+                        switch (result.error()) {
+                            case ImportExport::ExportError::FILE_WRITE_ERROR:
+                                error_msg = "Failed to write file";
+                                break;
+                            case ImportExport::ExportError::PERMISSION_DENIED:
+                                error_msg = "Permission denied";
+                                break;
+                            case ImportExport::ExportError::INVALID_DATA:
+                                error_msg = "Invalid data";
+                                break;
+                        }
+                        show_error_dialog(std::format("Export failed: {}", error_msg));
+                    }
+                }
+                dialog->hide();
+            } catch (const std::exception& e) {
+                KeepTower::Log::error("Exception in file chooser handler: {}", e.what());
+                show_error_dialog(std::format("Export failed: {}", e.what()));
+                dialog->hide();
+            } catch (...) {
+                KeepTower::Log::error("Unknown exception in file chooser handler");
+                show_error_dialog("Export failed due to unknown error");
+                dialog->hide();
+            }
+        });
+
+        dialog->show();
+    } catch (const std::exception& e) {
+        KeepTower::Log::error("Exception showing file chooser: {}", e.what());
+        show_error_dialog(std::format("Failed to show file chooser: {}", e.what()));
+    }
+}
+
 void MainWindow::on_generate_password() {
     if (!m_vault_open || m_selected_account_index < 0) {
         return;
     }
 
-    // Generate a strong random password
-    constexpr int password_length = 20;  // C++23: use constexpr for compile-time constants
+    // Create password generator options dialog
+    auto* dialog = Gtk::make_managed<Gtk::Dialog>("Generate Password", *this, true);
+    dialog->add_button("_Cancel", Gtk::ResponseType::CANCEL);
+    dialog->add_button("_Generate", Gtk::ResponseType::OK);
+    dialog->set_default_response(Gtk::ResponseType::OK);
 
-    // Charset without ambiguous characters (0/O, 1/l/I) for better usability
-    constexpr std::string_view charset =
-        "abcdefghjkmnpqrstuvwxyz"  // lowercase (no l)
-        "ABCDEFGHJKMNPQRSTUVWXYZ"  // uppercase (no I, O)
-        "23456789"                  // digits (no 0, 1)
-        "!@#$%^&*()-_=+[]{}|;:,.<>?";
+    auto* box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 12);
+    box->set_margin(24);
 
-    // Use std::random_device with entropy check
-    std::random_device rd;
-    if (rd.entropy() == 0.0) {
-        // Fallback warning if random_device is deterministic
-        g_warning("std::random_device has zero entropy, password may be less secure");
-    }
+    // Password length selector
+    auto* length_box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 12);
+    auto* length_label = Gtk::make_managed<Gtk::Label>("Password Length:");
+    length_label->set_xalign(0.0);
+    auto* length_spin = Gtk::make_managed<Gtk::SpinButton>();
+    length_spin->set_range(8, 64);
+    length_spin->set_increments(1, 5);
+    length_spin->set_value(20);
+    length_spin->set_hexpand(true);
+    length_box->append(*length_label);
+    length_box->append(*length_spin);
 
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<std::size_t> dis(0, charset.size() - 1);
+    // Character type options
+    auto* uppercase_check = Gtk::make_managed<Gtk::CheckButton>("Include Uppercase (A-Z)");
+    uppercase_check->set_active(true);
+    auto* lowercase_check = Gtk::make_managed<Gtk::CheckButton>("Include Lowercase (a-z)");
+    lowercase_check->set_active(true);
+    auto* digits_check = Gtk::make_managed<Gtk::CheckButton>("Include Digits (2-9)");
+    digits_check->set_active(true);
+    auto* symbols_check = Gtk::make_managed<Gtk::CheckButton>("Include Symbols (!@#$%...)");
+    symbols_check->set_active(true);
+    auto* ambiguous_check = Gtk::make_managed<Gtk::CheckButton>("Exclude ambiguous (0/O, 1/l/I)");
+    ambiguous_check->set_active(true);
 
-    std::string password;
-    password.reserve(password_length);
+    box->append(*length_box);
+    box->append(*uppercase_check);
+    box->append(*lowercase_check);
+    box->append(*digits_check);
+    box->append(*symbols_check);
+    box->append(*ambiguous_check);
 
-    for (int i = 0; i < password_length; ++i) {
-        password += charset[dis(gen)];
-    }
+    dialog->get_content_area()->append(*box);
 
-    m_password_entry.set_text(password);
+    dialog->signal_response().connect([this, dialog, length_spin, uppercase_check, lowercase_check,
+                                       digits_check, symbols_check, ambiguous_check](int response) {
+        if (response == Gtk::ResponseType::OK) {
+            const int length = static_cast<int>(length_spin->get_value());
 
-    // Note: password string will be cleared when it goes out of scope
-    // GTK entry widget manages its own secure memory
+            // Build charset based on options
+            std::string charset;
+            if (lowercase_check->get_active()) {
+                charset += ambiguous_check->get_active() ? "abcdefghjkmnpqrstuvwxyz" : "abcdefghijklmnopqrstuvwxyz";
+            }
+            if (uppercase_check->get_active()) {
+                charset += ambiguous_check->get_active() ? "ABCDEFGHJKMNPQRSTUVWXYZ" : "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            }
+            if (digits_check->get_active()) {
+                charset += ambiguous_check->get_active() ? "23456789" : "0123456789";
+            }
+            if (symbols_check->get_active()) {
+                charset += "!@#$%^&*()-_=+[]{}|;:,.<>?";
+            }
+
+            if (charset.empty()) {
+                show_error_dialog("Please select at least one character type.");
+                dialog->hide();
+                return;
+            }
+
+            // Generate password
+            std::random_device rd;
+            if (rd.entropy() == 0.0) {
+                g_warning("std::random_device has zero entropy, password may be less secure");
+            }
+
+            std::mt19937 gen(rd());
+            std::uniform_int_distribution<std::size_t> dis(0, charset.size() - 1);
+
+            std::string password;
+            password.reserve(length);
+
+            for (int i = 0; i < length; ++i) {
+                password += charset[dis(gen)];
+            }
+
+            m_password_entry.set_text(password);
+            m_status_label.set_text(std::format("Generated {}-character password", length));
+        }
+        dialog->hide();
+    });
+
+    dialog->show();
 }
 
 void MainWindow::setup_activity_monitoring() {

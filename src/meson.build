@@ -51,6 +51,7 @@ sources = files(
   'ui/dialogs/PreferencesDialog.cc',
   'core/VaultManager.cc',
   'core/ReedSolomon.cc',
+  'utils/ImportExport.cc',
 )
 
 # Add YubiKey support if available
