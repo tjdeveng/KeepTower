@@ -76,14 +76,6 @@ This document outlines the planned features and improvements for KeepTower, orga
 - [ ] Evaluate macOS port feasibility
 - [ ] Abstract platform-specific code
 
-### Security Audit
-- [ ] Third-party security review
-- [ ] Professional penetration testing
-- [ ] Memory security hardening audit
-- [ ] Side-channel attack mitigation review
-- [ ] Formal cryptographic verification
-- [ ] Bug bounty program consideration
-
 ---
 
 ## Long-term (v0.4.x+ - Advanced Features)
@@ -198,7 +190,7 @@ These features provide high value with relatively low implementation effort:
 ## Version Numbering Scheme
 
 - **v0.x.x** - Pre-1.0 development releases (current phase)
-- **v1.0.0** - First stable release (security audited, feature complete for core use cases)
+- **v1.0.0** - First stable release (feature complete for core use cases)
 - **v1.x.x** - Stable releases with incremental features
 - **v2.0.0+** - Major architectural changes or paradigm shifts
 

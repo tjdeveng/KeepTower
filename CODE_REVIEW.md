@@ -745,4 +745,3 @@ The codebase has a solid foundation with good encryption practices, but requires
 1. Implement Priority 1 security fixes
 2. Add unit tests for critical paths
 3. Gradually modernize codebase
-4. Security audit before 1.0 release
