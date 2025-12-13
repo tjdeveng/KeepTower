@@ -6,6 +6,7 @@
 #include "../ui/dialogs/PasswordDialog.h"
 #include "../ui/dialogs/PreferencesDialog.h"
 #include "../config.h"
+#include <memory>
 
 Application::Application()
     : Gtk::Application("com.tjdeveng.keeptower", Gio::Application::Flags::DEFAULT_FLAGS) {
@@ -42,15 +43,10 @@ void Application::create_window() {
     auto window = new MainWindow();
     add_window(*window);
 
-    window->signal_hide().connect(
-        sigc::bind(sigc::mem_fun(*this, &Application::on_hide_window), window)
-    );
+    // GTK will automatically delete the window when closed
+    window->set_hide_on_close(false);
 
     window->present();
-}
-
-void Application::on_hide_window(Gtk::Window* window) {
-    delete window;
 }
 
 void Application::on_action_quit() {
@@ -62,9 +58,9 @@ void Application::on_action_quit() {
 
 void Application::on_action_about() {
     auto window = get_active_window();
-    if (!window) return;
+    if (window == nullptr) return;
 
-    auto dialog = new Gtk::AboutDialog();
+    auto dialog = std::make_unique<Gtk::AboutDialog>();
     dialog->set_transient_for(*window);
     dialog->set_modal(true);
     dialog->set_hide_on_close(true);
@@ -91,10 +87,6 @@ void Application::on_action_about() {
     std::vector<Glib::ustring> authors = {"TJDev"};
     dialog->set_authors(authors);
 
-    dialog->signal_close_request().connect([dialog]() {
-        delete dialog;
-        return true;
-    }, false);
-
-    dialog->present();
+    // Transfer ownership to GTK - dialog will be deleted when closed
+    dialog.release()->set_visible(true);
 }

@@ -15,6 +15,7 @@
 
 #ifdef __linux__
 #include <sys/mman.h>  // For mlock/munlock
+#include <sys/stat.h>  // For chmod
 #include <fcntl.h>     // For open()
 #include <unistd.h>    // For fsync(), close()
 #elif defined(_WIN32)
@@ -27,7 +28,7 @@ using namespace KeepTower;
 EVPCipherContext::EVPCipherContext() : ctx_(EVP_CIPHER_CTX_new()) {}
 
 EVPCipherContext::~EVPCipherContext() {
-    if (ctx_) {
+    if (ctx_ != nullptr) {
         EVP_CIPHER_CTX_free(ctx_);
         ctx_ = nullptr;
     }
@@ -38,10 +39,10 @@ VaultManager::VaultManager()
     : m_vault_open(false),
       m_modified(false),
       m_use_reed_solomon(false),
-      m_rs_redundancy_percent(10),
+      m_rs_redundancy_percent(DEFAULT_RS_REDUNDANCY),
       m_fec_loaded_from_file(false),
       m_backup_enabled(true),
-      m_backup_count(5),
+      m_backup_count(DEFAULT_BACKUP_COUNT),
       m_memory_locked(false),
       m_yubikey_required(false),
       m_pbkdf2_iterations(DEFAULT_PBKDF2_ITERATIONS) {
@@ -92,7 +93,7 @@ bool VaultManager::create_vault(const std::string& path,
         auto response = yk_manager.challenge_response(
             std::span<const unsigned char>(m_yubikey_challenge.data(), m_yubikey_challenge.size()),
             false,  // don't require touch for vault operations
-            15000   // 15 second timeout
+            YUBIKEY_TIMEOUT_MS
         );
 
         if (!response.success) {
@@ -898,6 +899,13 @@ bool VaultManager::write_vault_file(const std::string& path, const std::vector<u
         // Atomic rename (POSIX guarantees atomicity)
         fs::rename(temp_path, path);
 
+        // Set secure file permissions (owner read/write only)
+        #ifdef __linux__
+        chmod(path.c_str(), S_IRUSR | S_IWUSR);  // 0600
+        #elif defined(_WIN32)
+        // Windows permissions handled through ACLs (TODO: implement)
+        #endif
+
         // Sync directory to ensure rename is durable
         #ifdef __linux__
         std::string dir_path = fs::path(path).parent_path().string();
@@ -1255,7 +1263,7 @@ bool VaultManager::add_backup_yubikey(const std::string& name) {
     auto response = yk_manager.challenge_response(
         std::span<const unsigned char>(m_yubikey_challenge.data(), m_yubikey_challenge.size()),
         false,
-        15000
+        YUBIKEY_TIMEOUT_MS
     );
 
     if (!response.success) {
@@ -1376,7 +1384,7 @@ bool VaultManager::verify_credentials(const Glib::ustring& password, const std::
         }
 
         // Perform challenge-response
-        auto cr_result = yk_manager.challenge_response(m_yubikey_challenge, true, 15000);
+        auto cr_result = yk_manager.challenge_response(m_yubikey_challenge, true, YUBIKEY_TIMEOUT_MS);
         if (!cr_result.success) {
             KeepTower::Log::error("YubiKey challenge-response failed in verify_credentials: {}",
                                  cr_result.error_message);

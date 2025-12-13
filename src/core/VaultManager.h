@@ -475,6 +475,9 @@ private:
     static constexpr int DEFAULT_PBKDF2_ITERATIONS = 100000;  // NIST recommendation
     static constexpr size_t YUBIKEY_CHALLENGE_SIZE = 64;  // YubiKey challenge size
     static constexpr size_t YUBIKEY_RESPONSE_SIZE = 20;   // HMAC-SHA1 response size
+    static constexpr int YUBIKEY_TIMEOUT_MS = 15000;     // YubiKey operation timeout (15 seconds)
+    static constexpr int DEFAULT_BACKUP_COUNT = 5;        // Number of backup files to maintain
+    static constexpr int DEFAULT_RS_REDUNDANCY = 10;      // Default Reed-Solomon redundancy percentage
 
     // Current vault PBKDF2 iterations (configurable per vault)
     int m_pbkdf2_iterations;

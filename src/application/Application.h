@@ -52,7 +52,6 @@ protected:
 
 private:
     void create_window();
-    void on_hide_window(Gtk::Window* window);
     void on_action_quit();
     void on_action_about();
 };
