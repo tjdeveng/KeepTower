@@ -149,6 +149,9 @@ jobs:
 
         # Try to run linuxdeploy directly (may work on GitHub runners)
         # Skip stripping due to Fedora 41 RELR format incompatibility
+        # TODO: Monitor https://github.com/linuxdeploy/linuxdeploy/releases
+        #       Remove NO_STRIP=1 when linuxdeploy supports RELR relocations (binutils 2.38+)
+        #       to reduce AppImage size by ~5-10%
         NO_STRIP=1 ./linuxdeploy-x86_64.AppImage \
           --appdir AppDir \
           --executable AppDir/usr/bin/keeptower \
