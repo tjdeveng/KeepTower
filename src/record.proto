@@ -48,6 +48,51 @@ message CustomField {
   reserved 5 to 10;
 }
 
+// Group membership - represents an account's membership in a specific group
+message GroupMembership {
+  // UUID of the group this account belongs to
+  string group_id = 1;
+
+  // Display order within this specific group
+  // 0 = first, higher values = later in the list
+  int32 display_order = 2;
+
+  // Reserved for future membership metadata (e.g., added_at, role, etc.)
+  reserved 3 to 10;
+}
+
+// Account group definition
+message AccountGroup {
+  // Unique identifier for the group (UUID v4 recommended)
+  string group_id = 1;
+
+  // Display name for the group (e.g., "Work", "Personal", "Banking")
+  string group_name = 2;
+
+  // Display order for groups in the UI
+  // 0 = first group, higher values = later
+  int32 display_order = 3;
+
+  // Whether the group is expanded or collapsed in the UI
+  bool is_expanded = 4;
+
+  // Whether this is a system-managed group (e.g., "Favorites")
+  // System groups cannot be deleted or renamed by users
+  bool is_system_group = 5;
+
+  // Optional description for the group
+  string description = 6;
+
+  // Optional color code for visual organization (hex format: "#RRGGBB")
+  string color = 7;
+
+  // Optional icon identifier
+  string icon = 8;
+
+  // Reserved for future group features (permissions, sharing, etc.)
+  reserved 9 to 15;
+}
+
 // Account credential record
 // Field numbering strategy:
 //   1-15:  Core identity fields
@@ -108,8 +153,13 @@ message AccountRecord {
   // Icon identifier (icon name or URL)
   string icon = 24;
 
+  // Global display order for "All Accounts" view
+  // -1 = automatic sorting (favorites first, then alphabetical)
+  // >= 0 = custom user-defined order
+  int32 global_display_order = 25;
+
   // Reserved for additional metadata
-  reserved 25 to 31;
+  reserved 26 to 31;
 
   // === OPTIONAL FEATURES (32-47) ===
 
@@ -129,8 +179,13 @@ message AccountRecord {
   string recovery_email = 36;
   string recovery_phone = 37;
 
+  // Group memberships (many-to-many relationship)
+  // Each membership defines which group this account belongs to
+  // and its display order within that group
+  repeated GroupMembership groups = 38;
+
   // Reserved for future optional features
-  reserved 38 to 47;
+  reserved 39 to 47;
 
   // === RESERVED FOR FUTURE MAJOR FEATURES (48-63) ===
   // Reserved for attachments, shared credentials, expiration policies, etc.
@@ -233,7 +288,12 @@ message VaultData {
   // Reserved for additional configuration
   reserved 19 to 31;
 
-  // === FUTURE FEATURES (32-47) ===
-  // Reserved for shared vaults, groups, templates, etc.
-  reserved 32 to 47;
+  // === ORGANIZATION FEATURES (32-47) ===
+
+  // Account groups for organizing accounts
+  // Includes both system groups (e.g., "Favorites") and user-created groups
+  repeated AccountGroup groups = 32;
+
+  // Reserved for future organizational features (templates, shared vaults, etc.)
+  reserved 33 to 47;
 }

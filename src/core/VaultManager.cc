@@ -754,6 +754,163 @@ size_t VaultManager::get_account_count() const {
     return m_vault_data.accounts_size();
 }
 
+// ============================================================================
+// Account Reordering (Drag-and-Drop Support)
+// ============================================================================
+
+bool VaultManager::reorder_account(size_t old_index, size_t new_index) {
+    if (!is_vault_open()) {
+        return false;
+    }
+
+    const size_t account_count = get_account_count();
+    if (old_index >= account_count || new_index >= account_count) {
+        return false;
+    }
+
+    // No-op if source and destination are the same
+    if (old_index == new_index) {
+        return true;
+    }
+
+    // Initialize global_display_order for all accounts if not already set
+    if (!has_custom_global_ordering()) {
+        for (size_t i = 0; i < account_count; i++) {
+            m_vault_data.mutable_accounts(i)->set_global_display_order(static_cast<int32_t>(i));
+        }
+    }
+
+    // Get the account being moved
+    auto* account_to_move = m_vault_data.mutable_accounts(old_index);
+
+    if (old_index < new_index) {
+        // Moving down: shift accounts up in the range [old_index+1, new_index]
+        for (size_t i = old_index + 1; i <= new_index; i++) {
+            auto* acc = m_vault_data.mutable_accounts(i);
+            acc->set_global_display_order(acc->global_display_order() - 1);
+        }
+        // Place the moved account at the end of the shifted range
+        account_to_move->set_global_display_order(
+            m_vault_data.accounts(new_index).global_display_order()
+        );
+    } else {
+        // Moving up: shift accounts down in the range [new_index, old_index-1]
+        for (size_t i = new_index; i < old_index; i++) {
+            auto* acc = m_vault_data.mutable_accounts(i);
+            acc->set_global_display_order(acc->global_display_order() + 1);
+        }
+        // Place the moved account at the start of the shifted range
+        account_to_move->set_global_display_order(
+            m_vault_data.accounts(new_index).global_display_order()
+        );
+    }
+
+    // Normalize display orders to ensure they're sequential (0, 1, 2, ...)
+    // This prevents gaps and keeps the logic simple
+    std::vector<std::pair<int32_t, size_t>> order_index_pairs;
+    order_index_pairs.reserve(account_count);
+
+    for (size_t i = 0; i < account_count; i++) {
+        order_index_pairs.emplace_back(
+            m_vault_data.accounts(i).global_display_order(),
+            i
+        );
+    }
+
+    std::sort(order_index_pairs.begin(), order_index_pairs.end());
+
+    for (size_t i = 0; i < account_count; i++) {
+        size_t account_idx = order_index_pairs[i].second;
+        m_vault_data.mutable_accounts(account_idx)->set_global_display_order(static_cast<int32_t>(i));
+    }
+
+    // Save changes
+    m_modified = true;
+    return save_vault();
+}
+
+bool VaultManager::reset_global_display_order() {
+    if (!is_vault_open()) {
+        return false;
+    }
+
+    const size_t account_count = get_account_count();
+    for (size_t i = 0; i < account_count; i++) {
+        m_vault_data.mutable_accounts(i)->set_global_display_order(-1);
+    }
+
+    m_modified = true;
+    return save_vault();
+}
+
+bool VaultManager::has_custom_global_ordering() const {
+    if (!is_vault_open() || get_account_count() == 0) {
+        return false;
+    }
+
+    // Check if any account has global_display_order >= 0
+    const size_t account_count = get_account_count();
+    for (size_t i = 0; i < account_count; i++) {
+        if (m_vault_data.accounts(i).global_display_order() >= 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// ============================================================================
+// Group Management (Phase 2 - Stub Implementations)
+// ============================================================================
+
+std::string VaultManager::create_group(const std::string& name) {
+    // Phase 2 implementation
+    (void)name;  // Unused parameter
+    return "";  // Not yet implemented
+}
+
+bool VaultManager::delete_group(const std::string& group_id) {
+    // Phase 2 implementation
+    (void)group_id;  // Unused parameter
+    return false;  // Not yet implemented
+}
+
+bool VaultManager::add_account_to_group(size_t account_index, const std::string& group_id) {
+    // Phase 2 implementation
+    (void)account_index;  // Unused parameter
+    (void)group_id;  // Unused parameter
+    return false;  // Not yet implemented
+}
+
+bool VaultManager::remove_account_from_group(size_t account_index, const std::string& group_id) {
+    // Phase 2 implementation
+    (void)account_index;  // Unused parameter
+    (void)group_id;  // Unused parameter
+    return false;  // Not yet implemented
+}
+
+bool VaultManager::reorder_account_in_group(size_t account_index,
+                                            const std::string& group_id,
+                                            int new_order) {
+    // Phase 2 implementation
+    (void)account_index;  // Unused parameter
+    (void)group_id;  // Unused parameter
+    (void)new_order;  // Unused parameter
+    return false;  // Not yet implemented
+}
+
+std::string VaultManager::get_favorites_group_id() {
+    // Phase 2 implementation
+    return "";  // Not yet implemented
+}
+
+bool VaultManager::is_account_in_group(size_t account_index, const std::string& group_id) const {
+    // Phase 2 implementation
+    (void)account_index;  // Unused parameter
+    (void)group_id;  // Unused parameter
+    return false;  // Not yet implemented
+}
+
 bool VaultManager::derive_key(const Glib::ustring& password,
                               std::span<const uint8_t> salt,
                               std::vector<uint8_t>& key) {

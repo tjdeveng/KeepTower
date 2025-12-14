@@ -309,6 +309,116 @@ public:
      */
     [[nodiscard]] size_t get_account_count() const;
 
+    // Account reordering (drag-and-drop support)
+
+    /**
+     * @brief Reorder account by moving it from one position to another
+     * @param old_index Current position of the account
+     * @param new_index Target position for the account
+     * @return true if reordered successfully, false on error
+     *
+     * Initializes global_display_order for all accounts if not already set.
+     * Updates display order values to reflect the new arrangement.
+     *
+     * @note Requires vault to be open
+     * @note Automatically calls save_vault() to persist changes
+     */
+    [[nodiscard]] bool reorder_account(size_t old_index, size_t new_index);
+
+    /**
+     * @brief Reset all accounts to automatic sorting
+     * @return true if reset successfully, false on error
+     *
+     * Sets global_display_order to -1 for all accounts, restoring the
+     * default sorting behavior (favorites first, then alphabetical).
+     *
+     * @note Requires vault to be open
+     * @note Automatically calls save_vault() to persist changes
+     */
+    [[nodiscard]] bool reset_global_display_order();
+
+    /**
+     * @brief Check if any accounts have custom global ordering
+     * @return true if custom ordering is active, false if automatic sorting
+     *
+     * Returns true if any account has global_display_order >= 0
+     */
+    [[nodiscard]] bool has_custom_global_ordering() const;
+
+    // Group management (Phase 2 - prepared for future implementation)
+
+    /**
+     * @brief Create a new account group
+     * @param name Display name for the group
+     * @return Group ID (UUID) if created successfully, empty string on error
+     *
+     * @note Phase 2 feature - implementation pending
+     */
+    [[nodiscard]] std::string create_group(const std::string& name);
+
+    /**
+     * @brief Delete an account group
+     * @param group_id UUID of the group to delete
+     * @return true if deleted successfully, false on error
+     *
+     * @note Phase 2 feature - implementation pending
+     * @note System groups (e.g., "Favorites") cannot be deleted
+     */
+    [[nodiscard]] bool delete_group(const std::string& group_id);
+
+    /**
+     * @brief Add an account to a group
+     * @param account_index Index of the account
+     * @param group_id UUID of the group
+     * @return true if added successfully, false on error
+     *
+     * @note Phase 2 feature - implementation pending
+     * @note Accounts can belong to multiple groups
+     */
+    [[nodiscard]] bool add_account_to_group(size_t account_index, const std::string& group_id);
+
+    /**
+     * @brief Remove an account from a group
+     * @param account_index Index of the account
+     * @param group_id UUID of the group
+     * @return true if removed successfully, false on error
+     *
+     * @note Phase 2 feature - implementation pending
+     */
+    [[nodiscard]] bool remove_account_from_group(size_t account_index, const std::string& group_id);
+
+    /**
+     * @brief Reorder an account within a specific group
+     * @param account_index Index of the account
+     * @param group_id UUID of the group
+     * @param new_order New display order within the group
+     * @return true if reordered successfully, false on error
+     *
+     * @note Phase 2 feature - implementation pending
+     */
+    [[nodiscard]] bool reorder_account_in_group(size_t account_index,
+                                                 const std::string& group_id,
+                                                 int new_order);
+
+    /**
+     * @brief Get or create the "Favorites" system group
+     * @return Group ID of the Favorites group
+     *
+     * @note Phase 2 feature - implementation pending
+     * @note Auto-creates the group if it doesn't exist
+     */
+    [[nodiscard]] std::string get_favorites_group_id();
+
+    /**
+     * @brief Check if an account belongs to a specific group
+     * @param account_index Index of the account
+     * @param group_id UUID of the group
+     * @return true if the account is in the group, false otherwise
+     *
+     * @note Phase 2 feature - implementation pending
+     */
+    [[nodiscard]] bool is_account_in_group(size_t account_index, const std::string& group_id) const;
+
     // State queries
 
     /**

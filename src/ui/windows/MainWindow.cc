@@ -1142,7 +1142,7 @@ void MainWindow::update_account_list() {
 
     auto accounts = m_vault_manager->get_all_accounts();
 
-    // Create sorted index vector: favorites first, then alphabetically
+    // Create sorted index vector
     std::vector<std::pair<size_t, bool>> sorted_indices;
     sorted_indices.reserve(accounts.size());
 
@@ -1150,14 +1150,32 @@ void MainWindow::update_account_list() {
         sorted_indices.push_back({i, accounts[i].is_favorite()});
     }
 
-    // Sort: favorites first, then by account name alphabetically
-    std::sort(sorted_indices.begin(), sorted_indices.end(),
-        [&accounts](const auto& a, const auto& b) {
-            if (a.second != b.second) {
-                return a.second > b.second;  // Favorites first
-            }
-            return accounts[a.first].account_name() < accounts[b.first].account_name();
-        });
+    // Check if custom ordering is enabled
+    bool has_custom_order = m_vault_manager->has_custom_global_ordering();
+
+    if (has_custom_order) {
+        // Sort by global_display_order (custom drag-and-drop order)
+        std::sort(sorted_indices.begin(), sorted_indices.end(),
+            [&accounts](const auto& a, const auto& b) {
+                int32_t order_a = accounts[a.first].global_display_order();
+                int32_t order_b = accounts[b.first].global_display_order();
+
+                // If global_display_order is same or invalid, fall back to name
+                if (order_a == order_b || order_a < 0 || order_b < 0) {
+                    return accounts[a.first].account_name() < accounts[b.first].account_name();
+                }
+                return order_a < order_b;
+            });
+    } else {
+        // Use automatic sorting: favorites first, then alphabetically
+        std::sort(sorted_indices.begin(), sorted_indices.end(),
+            [&accounts](const auto& a, const auto& b) {
+                if (a.second != b.second) {
+                    return a.second > b.second;  // Favorites first
+                }
+                return accounts[a.first].account_name() < accounts[b.first].account_name();
+            });
+    }
 
     // Add sorted accounts to list
     for (const auto& [index, is_favorite] : sorted_indices) {
