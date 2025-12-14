@@ -25,7 +25,7 @@ namespace UI {
     // Window dimensions
     inline constexpr int DEFAULT_WIDTH = 800;  ///< Default window width in pixels
     inline constexpr int DEFAULT_HEIGHT = 600; ///< Default window height in pixels
-    inline constexpr int ACCOUNT_LIST_WIDTH = 300; ///< Account list pane width
+    inline constexpr int ACCOUNT_LIST_WIDTH = 220; ///< Account list pane width
 
     // Dialog dimensions
     inline constexpr int PASSWORD_DIALOG_WIDTH = 500;  ///< Password dialog width
@@ -93,6 +93,7 @@ protected:
     std::vector<std::string> get_current_tags();  ///< Get tags from current account
     void update_tag_filter_dropdown();  ///< Update tag filter dropdown with all unique tags
     void on_tag_filter_changed();  ///< Handle tag filter selection change
+    void on_field_filter_changed();  ///< Handle search field filter selection change
     void on_search_changed(); ///< Filter accounts by search
     void on_selection_changed();  ///< Handle account selection
     void on_account_selected(const Gtk::TreeModel::Path& path, Gtk::TreeViewColumn* column);  ///< Double-click handler
@@ -134,6 +135,8 @@ protected:
     // Search panel
     Gtk::Box m_search_box;
     Gtk::SearchEntry m_search_entry;
+    Gtk::DropDown m_field_filter_dropdown;
+    Glib::RefPtr<Gtk::StringList> m_field_filter_model;
     Gtk::DropDown m_tag_filter_dropdown;
     Glib::RefPtr<Gtk::StringList> m_tag_filter_model;
     std::string m_selected_tag_filter;  // Empty for "All", otherwise the tag to filter by
@@ -149,6 +152,8 @@ protected:
     // Account details (right side)
     Gtk::ScrolledWindow m_details_scrolled;
     Gtk::Box m_details_box;
+    Gtk::Paned m_details_paned;  // Horizontal resizable split for fields + notes
+    Gtk::Box m_details_fields_box;  // Left side: all input fields
 
     Gtk::Label m_account_name_label;
     Gtk::Entry m_account_name_entry;

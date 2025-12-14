@@ -204,6 +204,14 @@ vault_helpers_test = executable(
     include_directories: test_inc
 )
 
+# Fuzzy match tests (utility function tests)
+fuzzy_match_test = executable(
+    'fuzzy_match_test',
+    'test_fuzzy_match.cc',
+    dependencies: [],  # No external dependencies needed
+    include_directories: test_inc
+)
+
 # Register all tests
 test('VaultManager Tests', vault_manager_test)
 test('Password Validation Tests', password_validation_test, timeout: 30)
@@ -215,3 +223,4 @@ test('UI Features Tests', ui_features_test)
 test('UI Security Tests', ui_security_test, env: ['GSETTINGS_SCHEMA_DIR=' + meson.project_build_root() / 'data'])
 test('Settings Validator Tests', settings_validator_test, env: ['GSETTINGS_SCHEMA_DIR=' + meson.project_build_root() / 'data'])
 test('Vault Helper Functions', vault_helpers_test)
+test('Fuzzy Match Tests', fuzzy_match_test)

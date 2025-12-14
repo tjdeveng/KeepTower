@@ -245,11 +245,9 @@ jobs:
         cd ../..
 
     - name: Upload Documentation Asset
-      uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ needs.create-release.outputs.upload_url }}
-        asset_path: ./keeptower-${{ needs.create-release.outputs.version }}-docs.tar.gz
-        asset_name: keeptower-${{ needs.create-release.outputs.version }}-docs.tar.gz
-        asset_content_type: application/gzip
+      run: |
+        gh release upload v${{ needs.create-release.outputs.version }} \
+          keeptower-${{ needs.create-release.outputs.version }}-docs.tar.gz \
+          --clobber

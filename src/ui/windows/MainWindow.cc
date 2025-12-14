@@ -9,6 +9,7 @@
 #include "../../core/VaultError.h"
 #include "../../utils/SettingsValidator.h"
 #include "../../utils/ImportExport.h"
+#include "../../utils/helpers/FuzzyMatch.h"
 #include "../../utils/Log.h"
 #include "config.h"
 #include <cstring>  // For memset
@@ -29,6 +30,8 @@ MainWindow::MainWindow()
       m_search_box(Gtk::Orientation::HORIZONTAL, 12),
       m_paned(Gtk::Orientation::HORIZONTAL),
       m_details_box(Gtk::Orientation::VERTICAL, 12),
+      m_details_paned(Gtk::Orientation::HORIZONTAL),
+      m_details_fields_box(Gtk::Orientation::VERTICAL, 12),
       m_account_name_label("Account Name:"),
       m_user_name_label("User Name:"),
       m_password_label("Password:"),
@@ -150,6 +153,14 @@ MainWindow::MainWindow()
     m_search_entry.add_css_class("search");
     m_search_box.append(m_search_entry);
 
+    // Setup field filter dropdown
+    m_field_filter_model = Gtk::StringList::create({"All Fields", "Account Name", "Username", "Email", "Website", "Notes", "Tags"});
+    m_field_filter_dropdown.set_model(m_field_filter_model);
+    m_field_filter_dropdown.set_selected(0);  // Default to "All Fields"
+    m_field_filter_dropdown.set_tooltip_text("Search in specific field");
+    m_field_filter_dropdown.set_margin_start(6);
+    m_search_box.append(m_field_filter_dropdown);
+
     // Setup tag filter dropdown
     m_tag_filter_model = Gtk::StringList::create({"All tags"});
     m_tag_filter_dropdown.set_model(m_tag_filter_model);
@@ -160,10 +171,15 @@ MainWindow::MainWindow()
 
     m_main_box.append(m_search_box);
 
-    // Setup split pane
+    // Setup split pane with resizable sections
     m_paned.set_vexpand(true);
+    m_paned.set_wide_handle(true);  // Make drag handle more visible
     constexpr int account_list_width = UI::ACCOUNT_LIST_WIDTH;
-    m_paned.set_position(account_list_width);  // Left panel width
+    m_paned.set_position(account_list_width);  // Initial left panel width
+    m_paned.set_resize_start_child(false);  // Left side (list) doesn't resize with window
+    m_paned.set_resize_end_child(true);  // Right side (details) resizes with window
+    m_paned.set_shrink_start_child(false);  // Don't allow left side to shrink below min
+    m_paned.set_shrink_end_child(false);  // Don't allow right side to shrink below min
 
     // Setup account list (left side)
     m_account_list_store = Gtk::ListStore::create(m_columns);
@@ -197,6 +213,7 @@ MainWindow::MainWindow()
     m_details_box.set_margin_top(18);
     m_details_box.set_margin_bottom(18);
 
+    // Left side: Input fields
     m_account_name_label.set_xalign(0.0);
     m_account_name_entry.set_margin_bottom(12);
 
@@ -231,26 +248,44 @@ MainWindow::MainWindow()
     m_tags_flowbox.set_max_children_per_line(10);
     m_tags_flowbox.set_homogeneous(false);
 
-    m_notes_label.set_xalign(0.0);
-    m_notes_scrolled.set_policy(Gtk::PolicyType::AUTOMATIC, Gtk::PolicyType::AUTOMATIC);
-    m_notes_scrolled.set_min_content_height(150);
-    m_notes_scrolled.set_child(m_notes_view);
+    // Build left side fields box
+    m_details_fields_box.append(m_account_name_label);
+    m_details_fields_box.append(m_account_name_entry);
+    m_details_fields_box.append(m_user_name_label);
+    m_details_fields_box.append(m_user_name_entry);
+    m_details_fields_box.append(m_password_label);
+    m_details_fields_box.append(*password_box);
+    m_details_fields_box.append(m_email_label);
+    m_details_fields_box.append(m_email_entry);
+    m_details_fields_box.append(m_website_label);
+    m_details_fields_box.append(m_website_entry);
+    m_details_fields_box.append(m_tags_label);
+    m_details_fields_box.append(m_tags_entry);
+    m_details_fields_box.append(m_tags_scrolled);
 
-    m_details_box.append(m_account_name_label);
-    m_details_box.append(m_account_name_entry);
-    m_details_box.append(m_user_name_label);
-    m_details_box.append(m_user_name_entry);
-    m_details_box.append(m_password_label);
-    m_details_box.append(*password_box);
-    m_details_box.append(m_email_label);
-    m_details_box.append(m_email_entry);
-    m_details_box.append(m_website_label);
-    m_details_box.append(m_website_entry);
-    m_details_box.append(m_tags_label);
-    m_details_box.append(m_tags_entry);
-    m_details_box.append(m_tags_scrolled);
-    m_details_box.append(m_notes_label);
-    m_details_box.append(m_notes_scrolled);
+    // Right side: Notes (with label above)
+    auto* notes_box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 0);
+    m_notes_label.set_xalign(0.0);
+    m_notes_label.set_margin_bottom(6);
+    m_notes_scrolled.set_policy(Gtk::PolicyType::AUTOMATIC, Gtk::PolicyType::AUTOMATIC);
+    m_notes_scrolled.set_vexpand(true);
+    m_notes_scrolled.set_hexpand(true);
+    m_notes_scrolled.set_child(m_notes_view);
+    notes_box->append(m_notes_label);
+    notes_box->append(m_notes_scrolled);
+
+    // Configure horizontal resizable split: fields on left, notes on right
+    m_details_paned.set_wide_handle(true);  // Make drag handle more visible
+    m_details_paned.set_position(400);  // Initial split position (adjust as needed)
+    m_details_paned.set_resize_start_child(false);  // Fields don't resize with window
+    m_details_paned.set_resize_end_child(true);  // Notes resize with window
+    m_details_paned.set_shrink_start_child(false);  // Don't shrink fields below min
+    m_details_paned.set_shrink_end_child(false);  // Don't shrink notes below min
+    m_details_paned.set_start_child(m_details_fields_box);
+    m_details_paned.set_end_child(*notes_box);
+
+    // Main details box: resizable split + delete button at bottom
+    m_details_box.append(m_details_paned);
 
     // Delete button at bottom (HIG compliant placement)
     m_delete_account_button.set_label("Delete Account");
@@ -344,6 +379,9 @@ MainWindow::MainWindow()
     );
     m_search_entry.signal_changed().connect(
         sigc::mem_fun(*this, &MainWindow::on_search_changed)
+    );
+    m_field_filter_dropdown.property_selected().signal_changed().connect(
+        sigc::mem_fun(*this, &MainWindow::on_field_filter_changed)
     );
     m_tags_entry.signal_activate().connect(
         sigc::mem_fun(*this, &MainWindow::on_tags_entry_activate)
@@ -628,6 +666,9 @@ void MainWindow::on_open_vault() {
                         m_add_account_button.set_sensitive(true);
                         m_search_entry.set_sensitive(true);
 
+                        // Cache password for auto-lock/unlock
+                        m_cached_master_password = password.raw();
+
                         update_account_list();
                         update_tag_filter_dropdown();
 
@@ -749,6 +790,9 @@ void MainWindow::on_add_account() {
         return;
     }
 
+    // Clear search filter so new account is visible
+    m_search_entry.set_text("");
+
     // Update the display
     update_account_list();
 
@@ -761,10 +805,13 @@ void MainWindow::on_add_account() {
     for (auto iter = children.begin(); iter != children.end(); ++iter) {
         int stored_index = (*iter)[m_columns.m_col_index];
         if (stored_index == new_index) {
-            // Select the row - this will trigger on_account_selected which will call display_account_details
+            // Select the row
             m_account_tree_view.get_selection()->select(iter);
 
-            // Give the selection event time to process, then focus the name field
+            // Explicitly display the account details
+            display_account_details(new_index);
+
+            // Focus the name field and select all text for easy editing
             Glib::signal_idle().connect_once([this]() {
                 m_account_name_entry.grab_focus();
                 m_account_name_entry.select_region(0, -1);
@@ -845,9 +892,9 @@ void MainWindow::on_star_column_clicked(const Gtk::TreeModel::Path& path) {
     account->set_is_favorite(!account->is_favorite());
     account->set_modified_at(std::time(nullptr));
 
-    // Refresh list with new sorting
+    // Refresh list with current search/filter (preserves search state)
     int current_selection = m_selected_account_index;
-    update_account_list();
+    filter_accounts(m_search_entry.get_text());
 
     // Re-select the current account if one was selected
     if (current_selection >= 0) {
@@ -1051,32 +1098,39 @@ void MainWindow::filter_accounts(const Glib::ustring& search_text) {
         return;
     }
 
-    // Create case-insensitive regex pattern for text filtering
-    std::regex search_regex;
-    bool has_text_filter = !search_text.empty();
+    const bool has_text_filter = !search_text.empty();
+    const std::string query = search_text.lowercase().raw();
 
+    // Get selected field filter
+    const guint field_filter = m_field_filter_dropdown.get_selected();
+    // 0=All, 1=Account Name, 2=Username, 3=Email, 4=Website, 5=Notes, 6=Tags
+
+    // Try regex first (for advanced users), fall back to fuzzy if it fails
+    std::regex search_regex;
+    bool use_regex = false;
     if (has_text_filter) {
         try {
-            std::string pattern = ".*" + search_text.lowercase().raw() + ".*";
+            std::string pattern = ".*" + query + ".*";
             search_regex = std::regex(pattern, std::regex::icase);
-        } catch (const std::regex_error& e) {
-            g_print("Regex error: %s\n", e.what());
-            return;
+            use_regex = true;
+        } catch (const std::regex_error&) {
+            // Fall back to fuzzy matching
+            use_regex = false;
         }
     }
 
-    // Filter accounts
+    // Structure to hold index and match score
+    struct FilterResult {
+        size_t index;
+        int score;
+    };
+    std::vector<FilterResult> filtered_results;
+
+    // Filter accounts with scoring
     for (size_t i = 0; i < accounts.size(); ++i) {
         const auto& account = accounts[i];
 
-        // Check text filter
-        bool text_match = !has_text_filter ||
-            std::regex_search(account.account_name(), search_regex) ||
-            std::regex_search(account.user_name(), search_regex) ||
-            std::regex_search(account.email(), search_regex) ||
-            std::regex_search(account.website(), search_regex);
-
-        // Check tag filter
+        // Check tag filter first (no scoring needed)
         bool tag_match = m_selected_tag_filter.empty();
         if (!m_selected_tag_filter.empty()) {
             for (int j = 0; j < account.tags_size(); ++j) {
@@ -1087,29 +1141,81 @@ void MainWindow::filter_accounts(const Glib::ustring& search_text) {
             }
         }
 
-        // Add account if both filters match
-        if (text_match && tag_match) {
-            m_filtered_indices.push_back(i);
+        if (!tag_match) continue;
+
+        // If no text filter, include all tag-matched accounts
+        if (!has_text_filter) {
+            filtered_results.push_back({i, 100});  // Perfect score when no search
+            continue;
+        }
+
+        // Calculate match score based on field filter
+        int best_score = 0;
+
+        auto check_field = [&](std::string_view field_value, int field_boost = 0) {
+            if (use_regex) {
+                if (std::regex_search(std::string(field_value), search_regex)) {
+                    return 100 + field_boost;  // Regex match gets perfect score
+                }
+                return 0;
+            } else {
+                int score = KeepTower::FuzzyMatch::fuzzy_score(query, field_value);
+                return score > 0 ? score + field_boost : 0;
+            }
+        };
+
+        // Check selected field(s) with boost for specific field matches
+        if (field_filter == 0 || field_filter == 1) {
+            best_score = std::max(best_score, check_field(account.account_name(), 10));
+        }
+        if (field_filter == 0 || field_filter == 2) {
+            best_score = std::max(best_score, check_field(account.user_name(), 5));
+        }
+        if (field_filter == 0 || field_filter == 3) {
+            best_score = std::max(best_score, check_field(account.email(), 5));
+        }
+        if (field_filter == 0 || field_filter == 4) {
+            best_score = std::max(best_score, check_field(account.website(), 5));
+        }
+        if (field_filter == 0 || field_filter == 5) {
+            best_score = std::max(best_score, check_field(account.notes(), 0));
+        }
+        if (field_filter == 0 || field_filter == 6) {
+            for (int j = 0; j < account.tags_size(); ++j) {
+                best_score = std::max(best_score, check_field(account.tags(j), 8));
+            }
+        }
+
+        // Include account if score meets threshold (30)
+        if (best_score >= 30) {
+            filtered_results.push_back({i, best_score});
         }
     }
 
-    // Sort filtered indices: favorites first, then alphabetically
-    std::sort(m_filtered_indices.begin(), m_filtered_indices.end(),
-        [&accounts](size_t a, size_t b) {
-            if (accounts[a].is_favorite() != accounts[b].is_favorite()) {
-                return accounts[a].is_favorite() > accounts[b].is_favorite();
+    // Sort by: 1) favorites first, 2) score (descending), 3) alphabetically
+    std::sort(filtered_results.begin(), filtered_results.end(),
+        [&accounts](const FilterResult& a, const FilterResult& b) {
+            const bool a_fav = accounts[a.index].is_favorite();
+            const bool b_fav = accounts[b.index].is_favorite();
+
+            if (a_fav != b_fav) {
+                return a_fav > b_fav;  // Favorites first
             }
-            return accounts[a].account_name() < accounts[b].account_name();
+            if (a.score != b.score) {
+                return a.score > b.score;  // Higher score first
+            }
+            return accounts[a.index].account_name() < accounts[b.index].account_name();
         });
 
-    // Add sorted filtered accounts to list
-    for (size_t index : m_filtered_indices) {
-        const auto& account = accounts[index];
+    // Populate list store and filtered indices
+    for (const auto& result : filtered_results) {
+        m_filtered_indices.push_back(result.index);
+        const auto& account = accounts[result.index];
         auto row = *(m_account_list_store->append());
         row[m_columns.m_col_is_favorite] = account.is_favorite();
         row[m_columns.m_col_account_name] = account.account_name();
         row[m_columns.m_col_user_name] = account.user_name();
-        row[m_columns.m_col_index] = index;
+        row[m_columns.m_col_index] = result.index;
     }
 }
 
@@ -1280,6 +1386,10 @@ bool MainWindow::save_current_account() {
     account->set_website(m_website_entry.get_text().raw());
     account->set_notes(notes_text.raw());
 
+    // Debug: Log what we're saving
+    g_debug("Saved account '%s' (index %d): notes length = %zu",
+            account->account_name().c_str(), m_selected_account_index, notes_text.length());
+
     // Update tags
     account->clear_tags();
     auto current_tags = get_current_tags();
@@ -1397,6 +1507,11 @@ void MainWindow::on_tag_filter_changed() {
     }
 
     // Re-apply current search with tag filter
+    filter_accounts(m_search_entry.get_text());
+}
+
+void MainWindow::on_field_filter_changed() {
+    // Re-apply current search with new field filter
     filter_accounts(m_search_entry.get_text());
 }
 
@@ -2380,10 +2495,10 @@ void MainWindow::lock_vault() {
         return;
     }
 
-    // Cache the master password for re-authentication
-    m_cached_master_password = get_master_password_for_lock();
+    // Password should already be cached from when vault was opened
     if (m_cached_master_password.empty()) {
         // Can't lock without being able to unlock
+        g_warning("Cannot lock vault - master password not cached! This shouldn't happen.");
         return;
     }
 
@@ -2410,77 +2525,197 @@ void MainWindow::lock_vault() {
     }
 
     // Update status
-    constexpr std::string_view locked_msg{"Vault locked due to inactivity. Click to unlock."};
-    m_status_label.set_text(std::string{locked_msg});
+    using namespace std::string_view_literals;
+    m_status_label.set_text(std::string{"Vault locked due to inactivity"sv});
 
-    // Show unlock dialog
-    auto* dialog = Gtk::make_managed<Gtk::MessageDialog>(
-        *this,
-        "Vault Locked",
-        false,
-        Gtk::MessageType::INFO,
-        Gtk::ButtonsType::OK_CANCEL
-    );
-    dialog->set_secondary_text("The vault has been locked due to inactivity.\nEnter your master password to continue.");
+    // Hide account details for security (clears fields and sets m_selected_account_index = -1)
+    clear_account_details();
+
+    // Clear tree view selection to prevent any stale selection
+    m_account_tree_view.get_selection()->unselect_all();
+
+    // Clear and hide account list for security
+    m_account_list_store->clear();
+    m_filtered_indices.clear();
+    m_list_scrolled.set_visible(false);
+
+    // Create unlock dialog using Gtk::Window for full control
+    auto* dialog = Gtk::make_managed<Gtk::Window>();
+    dialog->set_transient_for(*this);
     dialog->set_modal(true);
-    dialog->set_hide_on_close(true);
+    dialog->set_title("Vault Locked - Authentication Required");
+    dialog->set_default_size(450, 200);
+    dialog->set_resizable(false);
 
-    auto* content = dialog->get_message_area();
+    // Create main layout
+    auto* main_box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 0);
+
+    // Content area
+    auto* content_box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 12);
+    content_box->set_margin_start(24);
+    content_box->set_margin_end(24);
+    content_box->set_margin_top(24);
+    content_box->set_margin_bottom(24);
+
+    auto* message_label = Gtk::make_managed<Gtk::Label>();
+    message_label->set_markup("<b>Your vault has been locked due to inactivity.</b>");
+    message_label->set_wrap(true);
+    message_label->set_xalign(0.0);
+    content_box->append(*message_label);
+
+    auto* instruction_label = Gtk::make_managed<Gtk::Label>("Enter your master password to unlock and continue working.");
+    instruction_label->set_wrap(true);
+    instruction_label->set_xalign(0.0);
+    content_box->append(*instruction_label);
+
     auto* password_entry = Gtk::make_managed<Gtk::Entry>();
     password_entry->set_visibility(false);
-    password_entry->set_placeholder_text("Master password");
-    password_entry->set_margin_start(12);
-    password_entry->set_margin_end(12);
-    password_entry->set_margin_top(12);
-    content->append(*password_entry);
+    password_entry->set_placeholder_text("Enter master password to unlock");
+    content_box->append(*password_entry);
 
-    dialog->signal_response().connect([this, password_entry](const int response) {
-        if (response == Gtk::ResponseType::OK) {
-            const std::string entered_password{password_entry->get_text()};
+    main_box->append(*content_box);
 
-            // Verify password by attempting to open vault
-            const auto temp_vault = std::make_unique<VaultManager>();
-            const bool success = temp_vault->open_vault(std::string{m_current_vault_path}, entered_password);
+    // Button area
+    auto* button_box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 6);
+    button_box->set_margin_start(24);
+    button_box->set_margin_end(24);
+    button_box->set_margin_bottom(24);
+    button_box->set_halign(Gtk::Align::END);
 
-            if (success && entered_password == m_cached_master_password) {
-                // Unlock successful
-                m_is_locked = false;
+    auto* cancel_button = Gtk::make_managed<Gtk::Button>("_Cancel");
+    cancel_button->set_use_underline(true);
+    button_box->append(*cancel_button);
 
-                // Re-enable UI
-                m_add_account_button.set_sensitive(true);
-                m_save_button.set_sensitive(true);
-                m_search_entry.set_sensitive(true);
+    auto* ok_button = Gtk::make_managed<Gtk::Button>("_OK");
+    ok_button->set_use_underline(true);
+    ok_button->add_css_class("suggested-action");
+    button_box->append(*ok_button);
 
-                // Restore account list and selection
-                update_account_list();
-                filter_accounts(m_search_entry.get_text());
+    main_box->append(*button_box);
+    dialog->set_child(*main_box);
 
-                // Reset activity monitoring
-                on_user_activity();
+    // Handle OK button
+    ok_button->signal_clicked().connect([this, dialog, password_entry]() {
+        const std::string entered_password{password_entry->get_text().raw()};
 
-                constexpr std::string_view unlocked_msg{"Vault unlocked"};
-                m_status_label.set_text(std::string{unlocked_msg});
-            } else {
-                // Wrong password
-                password_entry->set_text("");
-                password_entry->grab_focus();
+#ifdef HAVE_YUBIKEY_SUPPORT
+        // Check if YubiKey is required for this vault
+        std::string yubikey_serial;
+        bool yubikey_required = m_vault_manager->check_vault_requires_yubikey(m_current_vault_path, yubikey_serial);
 
-                auto* error_dialog = Gtk::make_managed<Gtk::MessageDialog>(
-                    *this,
-                    "Incorrect Password",
-                    false,
-                    Gtk::MessageType::ERROR,
-                    Gtk::ButtonsType::OK
-                );
-                error_dialog->set_secondary_text("The password you entered is incorrect.");
-                error_dialog->set_modal(true);
-                error_dialog->set_hide_on_close(true);
-                error_dialog->show();
+        YubiKeyPromptDialog* touch_dialog = nullptr;
+        if (yubikey_required) {
+            // Show touch prompt dialog
+            touch_dialog = Gtk::make_managed<YubiKeyPromptDialog>(*dialog,
+                YubiKeyPromptDialog::PromptType::TOUCH);
+            touch_dialog->present();
+
+            // Force GTK to process events and render the dialog
+            auto context = Glib::MainContext::get_default();
+            while (context->pending()) {
+                context->iteration(false);
             }
+            g_usleep(150000);  // 150ms delay for rendering
+        }
+#endif
+
+        // Verify password by attempting to open vault
+        const auto temp_vault = std::make_unique<VaultManager>();
+        const bool success = temp_vault->open_vault(std::string{m_current_vault_path}, entered_password);
+
+#ifdef HAVE_YUBIKEY_SUPPORT
+        // Hide touch prompt if it was shown
+        if (touch_dialog) {
+            touch_dialog->hide();
+        }
+#endif
+
+        if (success && entered_password == m_cached_master_password) {
+            // Unlock successful
+            m_is_locked = false;
+
+            // Re-enable UI
+            m_add_account_button.set_sensitive(true);
+            m_save_button.set_sensitive(true);
+            m_search_entry.set_sensitive(true);
+
+            // Show account list again
+            m_list_scrolled.set_visible(true);
+
+            // Restore account list and selection
+            update_account_list();
+            filter_accounts(m_search_entry.get_text());
+
+            // Reset activity monitoring
+            on_user_activity();
+
+            using namespace std::string_view_literals;
+            m_status_label.set_text(std::string{"Vault unlocked"sv});
+
+            delete dialog;
+        } else {
+            // Unlock failed - could be wrong password or missing YubiKey
+            password_entry->set_text("");
+            password_entry->grab_focus();
+
+#ifdef HAVE_YUBIKEY_SUPPORT
+            // Provide more specific error message if YubiKey is required
+            const char* error_message = "Unlock Failed";
+            const char* error_detail;
+            if (yubikey_required) {
+                error_detail = "Unable to unlock vault. This could be due to:\n"
+                              "• Incorrect password\n"
+                              "• YubiKey not inserted\n"
+                              "• YubiKey not touched in time\n"
+                              "• Wrong YubiKey inserted\n\n"
+                              "Please verify your password and ensure the correct YubiKey is connected.";
+            } else {
+                error_detail = "The password you entered is incorrect. Please try again.";
+            }
+#else
+            const char* error_message = "Incorrect Password";
+            const char* error_detail = "The password you entered is incorrect. Please try again.";
+#endif
+
+            auto* error_dialog = Gtk::make_managed<Gtk::MessageDialog>(
+                *dialog,
+                error_message,
+                false,
+                Gtk::MessageType::ERROR,
+                Gtk::ButtonsType::OK,
+                true
+            );
+            error_dialog->set_secondary_text(error_detail);
+            error_dialog->signal_response().connect([error_dialog, password_entry](int) {
+                error_dialog->hide();
+                password_entry->grab_focus();
+            });
+            error_dialog->show();
         }
     });
 
-    dialog->show();
+    // Handle Cancel button
+    cancel_button->signal_clicked().connect([this, dialog]() {
+        // Save and close application
+        if (m_vault_open) {
+            save_current_account();
+            if (!m_vault_manager->save_vault()) {
+                g_warning("Failed to save vault before closing locked application");
+            }
+        }
+
+        delete dialog;
+        close();
+    });
+
+    // Handle Enter key in password entry
+    password_entry->signal_activate().connect([ok_button]() {
+        ok_button->activate();
+    });
+
+    // Show the unlock dialog and set focus
+    dialog->present();
+    password_entry->grab_focus();
 }
 
 std::string MainWindow::get_master_password_for_lock() {
@@ -2488,23 +2723,26 @@ std::string MainWindow::get_master_password_for_lock() {
     // This is called when locking, so we prompt the user
     auto* dialog = Gtk::make_managed<Gtk::MessageDialog>(
         *this,
-        "Confirm Lock",
+        "Verify Password for Auto-Lock",
         false,
         Gtk::MessageType::QUESTION,
         Gtk::ButtonsType::OK_CANCEL
     );
-    dialog->set_secondary_text("Enter your master password to enable auto-lock.\nThis will be cached securely in memory for unlock.");
+    dialog->set_secondary_text("Enter your master password to verify your identity.\nThis allows the vault to auto-lock after inactivity and be unlocked with the same password.");
     dialog->set_modal(true);
     dialog->set_hide_on_close(true);
 
     auto* content = dialog->get_message_area();
     auto* password_entry = Gtk::make_managed<Gtk::Entry>();
     password_entry->set_visibility(false);
-    password_entry->set_placeholder_text("Master password");
+    password_entry->set_placeholder_text("Enter master password");
     password_entry->set_margin_start(12);
     password_entry->set_margin_end(12);
     password_entry->set_margin_top(12);
+    password_entry->set_activates_default(true);
     content->append(*password_entry);
+
+    dialog->set_default_response(Gtk::ResponseType::OK);
 
     std::string result;
     dialog->signal_response().connect([&result, password_entry](const int response) {

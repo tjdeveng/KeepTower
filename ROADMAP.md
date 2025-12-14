@@ -2,7 +2,7 @@
 
 This document outlines the planned features and improvements for KeepTower, organized by release milestones.
 
-## Current Version: v0.2.0-beta (In Development)
+## Current Version: v0.2.6-beta (In Development)
 
 ✅ Core vault management with AES-256-GCM encryption
 ✅ Reed-Solomon forward error correction (5-50% redundancy)
@@ -34,10 +34,9 @@ This document outlines the planned features and improvements for KeepTower, orga
 - [x] Export functionality with security warnings - **v0.2.5-beta**
 - [x] Enhanced password generator with customizable rules - **Completed**
 - [x] Tags system for organizing accounts - **v0.2.6-beta**
-- [ ] Browser extension for auto-fill (Firefox, Chrome)
-- [ ] Favorites/starred accounts for quick access
-- [ ] Tag-based filtering in account list
-- [ ] Advanced search (fuzzy search, filters by field)
+- [x] Tag-based filtering in account list - **v0.2.6-beta**
+- [x] Favorites/starred accounts for quick access - **v0.2.6-beta**
+- [x] Advanced search (fuzzy search, filters by field) - **v0.2.7-beta**
 - [ ] Undo/redo support for vault operations
 - [ ] Drag-and-drop account reordering
 
@@ -105,6 +104,12 @@ This document outlines the planned features and improvements for KeepTower, orga
 - [ ] Password expiration policies
 - [ ] Emergency access system
 - [ ] Vault integrity monitoring
+
+### Browser Integration (Post-v1.0.0)
+- [ ] Browser extension for auto-fill (Firefox, Chrome)
+- [ ] Native messaging host implementation
+- [ ] Cross-browser compatibility layer
+- [ ] Browser store distribution
 
 ### Enterprise Features
 - [ ] LDAP/Active Directory integration
