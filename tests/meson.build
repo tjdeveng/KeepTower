@@ -212,6 +212,26 @@ fuzzy_match_test = executable(
     include_directories: test_inc
 )
 
+# Undo/Redo tests
+undo_redo_sources = [
+    'test_undo_redo.cc',
+    '../src/core/VaultManager.cc',
+    '../src/core/ReedSolomon.cc',
+    proto_gen
+]
+undo_redo_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
+if yubikey_available
+    undo_redo_sources += files('../src/core/YubiKeyManager.cc')
+    undo_redo_deps += [ykpers_dep, libyubikey_dep]
+endif
+
+undo_redo_test = executable(
+    'undo_redo_test',
+    undo_redo_sources,
+    dependencies: undo_redo_deps,
+    include_directories: test_inc
+)
+
 # Register all tests
 test('VaultManager Tests', vault_manager_test)
 test('Password Validation Tests', password_validation_test, timeout: 30)
@@ -224,3 +244,70 @@ test('UI Security Tests', ui_security_test, env: ['GSETTINGS_SCHEMA_DIR=' + meso
 test('Settings Validator Tests', settings_validator_test, env: ['GSETTINGS_SCHEMA_DIR=' + meson.project_build_root() / 'data'])
 test('Vault Helper Functions', vault_helpers_test)
 test('Fuzzy Match Tests', fuzzy_match_test)
+test('Undo/Redo Tests', undo_redo_test)
+
+# Secure memory tests
+secure_memory_sources = [
+    'test_secure_memory.cc',
+    '../src/core/VaultManager.cc',
+    '../src/core/ReedSolomon.cc',
+    proto_gen
+]
+secure_memory_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
+if yubikey_available
+    secure_memory_sources += files('../src/core/YubiKeyManager.cc')
+    secure_memory_deps += [ykpers_dep, libyubikey_dep]
+endif
+
+secure_memory_test = executable(
+    'secure_memory_test',
+    secure_memory_sources,
+    dependencies: secure_memory_deps,
+    include_directories: test_inc
+)
+
+test('Secure Memory Tests', secure_memory_test)
+
+# Undo/Redo preferences integration tests
+undo_redo_prefs_sources = [
+    'test_undo_redo_preferences.cc',
+    '../src/core/VaultManager.cc',
+    '../src/core/ReedSolomon.cc',
+    proto_gen
+]
+undo_redo_prefs_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
+if yubikey_available
+    undo_redo_prefs_sources += files('../src/core/YubiKeyManager.cc')
+    undo_redo_prefs_deps += [ykpers_dep, libyubikey_dep]
+endif
+
+undo_redo_prefs_test = executable(
+    'undo_redo_prefs_test',
+    undo_redo_prefs_sources,
+    dependencies: undo_redo_prefs_deps,
+    include_directories: test_inc
+)
+
+test('Undo/Redo Preferences Tests', undo_redo_prefs_test, env: ['GSETTINGS_SCHEMA_DIR=' + meson.project_build_root() / 'data'])
+
+# Account Groups tests
+account_groups_sources = [
+    'test_account_groups.cc',
+    '../src/core/VaultManager.cc',
+    '../src/core/ReedSolomon.cc',
+    proto_gen
+]
+account_groups_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
+if yubikey_available
+    account_groups_sources += files('../src/core/YubiKeyManager.cc')
+    account_groups_deps += [ykpers_dep, libyubikey_dep]
+endif
+
+account_groups_test = executable(
+    'account_groups_test',
+    account_groups_sources,
+    dependencies: account_groups_deps,
+    include_directories: test_inc
+)
+
+test('Account Groups Tests', account_groups_test)

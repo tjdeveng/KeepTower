@@ -2,7 +2,7 @@
 
 This document outlines the planned features and improvements for KeepTower, organized by release milestones.
 
-## Current Version: v0.2.6-beta (In Development)
+## Current Version: v0.2.8-beta (In Development)
 
 ✅ Core vault management with AES-256-GCM encryption
 ✅ Reed-Solomon forward error correction (5-50% redundancy)
@@ -26,7 +26,8 @@ This document outlines the planned features and improvements for KeepTower, orga
 - [x] Auto-lock after configurable inactivity timeout (60-3600s)
 - [x] Session timeout with re-authentication (integrated with auto-lock)
 - [x] Password history tracking per account (prevents reuse) - **Completed**
-- [ ] Two-factor authentication support (TOTP/HOTP code generation) - *requires hardware*
+- [x] Hardware-based two-factor authentication (YubiKey challenge-response) - **v0.2.0+**
+- [ ] Authenticator app support (TOTP/HOTP code generation for services)
 - [ ] Biometric unlock support (fingerprint via polkit) - *requires hardware access*
 
 ### Usability Improvements
@@ -37,15 +38,21 @@ This document outlines the planned features and improvements for KeepTower, orga
 - [x] Tag-based filtering in account list - **v0.2.6-beta**
 - [x] Favorites/starred accounts for quick access - **v0.2.6-beta**
 - [x] Advanced search (fuzzy search, filters by field) - **v0.2.7-beta**
-- [ ] Undo/redo support for vault operations
-- [ ] Drag-and-drop account reordering
+- [x] Undo/redo support for vault operations - **v0.2.7-beta**
+- [x] Drag-and-drop account reordering - **v0.2.7-beta**
 
 ### Data Features
 - [ ] Custom fields per account (key-value pairs)
 - [ ] File attachments (encrypted documents, notes, images)
 - [ ] Multi-vault support (open/switch between multiple vaults)
 - [ ] Vault merge capabilities
-- [ ] Account groups/folders for organization
+- [x] **Account groups/folders for organization (Backend complete - v0.2.8-beta)**
+  - [x] Multi-group membership support
+  - [x] System "Favorites" group (auto-created)
+  - [x] Create, delete, add/remove accounts from groups
+  - [x] UUID-based group identification
+  - [x] Comprehensive test suite (18 tests)
+  - [ ] UI integration (sidebar, dialogs, filtering) - *Next phase*
 - [ ] Bulk operations (edit, delete, move)
 
 ---
@@ -53,9 +60,9 @@ This document outlines the planned features and improvements for KeepTower, orga
 ## Mid-term (v0.3.x - Polish & Integration)
 
 ### User Experience
-- [ ] Refined dark/light theme with accent colors
-- [ ] Comprehensive keyboard shortcuts
-- [ ] Keyboard shortcuts help dialog (Ctrl+?)
+- [x] Refined dark/light theme with accent colors
+- [x] Basic keyboard shortcuts (Ctrl+Q, Ctrl+Z, Ctrl+Shift+Z, Ctrl+comma) - **v0.2.7-beta**
+- [x] Keyboard shortcuts help dialog (Ctrl+?) - **v0.2.7-beta**
 - [ ] First-run wizard with security best practices
 - [ ] Vault templates (personal, business, family)
 - [ ] Trash/recycle bin for deleted accounts
@@ -65,7 +72,7 @@ This document outlines the planned features and improvements for KeepTower, orga
 
 ### Distribution & Packaging
 - [ ] Flatpak packaging for Flathub
-- [ ] AppImage distribution
+- [x] AppImage distribution
 - [ ] Snap package
 - [ ] AUR package for Arch Linux
 - [ ] RPM packaging improvements
@@ -97,7 +104,8 @@ This document outlines the planned features and improvements for KeepTower, orga
 - [ ] Access revocation system
 
 ### Advanced Security
-- [ ] Hardware security key support (YubiKey, FIDO2)
+- [x] Hardware security key support (YubiKey challenge-response) - **v0.2.0+**
+- [ ] FIDO2/WebAuthn support for vault unlock
 - [ ] Secure password sharing (time-limited, one-time access)
 - [ ] Breach monitoring integration (HaveIBeenPwned API)
 - [ ] Security reports (weak passwords, reused passwords, old passwords)
@@ -131,7 +139,7 @@ This document outlines the planned features and improvements for KeepTower, orga
 - [ ] Comprehensive keyboard navigation
 - [ ] Internationalization (i18n) framework
 - [ ] Translations (Spanish, French, German, Japanese, Chinese)
-- [ ] Complete API documentation (Doxygen)
+- [x] Complete API documentation (Doxygen)
 - [ ] User manual and help system
 - [ ] Video tutorials and screencasts
 - [ ] Developer documentation for contributors
@@ -149,12 +157,12 @@ This document outlines the planned features and improvements for KeepTower, orga
 
 These features provide high value with relatively low implementation effort:
 
-1. **Password strength indicator** - Visual feedback during password creation
+1. ✅ **Password strength indicator** - Visual feedback during password creation (Completed)
 2. **Recently used accounts** - Quick access list on main window
-3. **Keyboard shortcuts** - Ctrl+C for copy password, Ctrl+F for search, etc.
+3. ✅ **Basic keyboard shortcuts** - Ctrl+Q, Ctrl+Z, Ctrl+Shift+Z implemented (v0.2.7-beta)
 4. **Account notes field** - Store security questions, recovery info
 5. **Auto-backup verification** - Test restore integrity on backup creation
-6. **Show/hide password toggle** - Eye icon in password fields
+6. ✅ **Show/hide password toggle** - Eye icon in password fields (Completed)
 7. **Password generation in account dialog** - One-click generation
 8. **Account creation timestamp** - Display "Created" date
 9. **Vault statistics** - Account count, last modified, file size
@@ -202,5 +210,5 @@ This roadmap is a living document. If you have suggestions, please:
 2. Discuss in community channels
 3. Submit a pull request with proposed changes to this document
 
-**Last Updated:** December 8, 2025
+**Last Updated:** December 14, 2025
 **Current Status:** Active development, beta phase
