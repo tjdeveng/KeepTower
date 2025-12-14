@@ -85,7 +85,7 @@ protected:
     void on_copy_password();  ///< Copy password to clipboard
     void on_generate_password();  ///< Generate random password
     void on_toggle_password_visibility();  ///< Show/hide password
-    void on_favorite_toggled();  ///< Toggle favorite status
+    void on_star_column_clicked(const Gtk::TreeModel::Path& path);  ///< Toggle favorite by clicking star column
     void on_tags_entry_activate();  ///< Add tag when Enter is pressed
     void add_tag_chip(const std::string& tag);  ///< Add a tag chip to the flowbox
     void remove_tag_chip(const std::string& tag);  ///< Remove a tag chip
@@ -168,8 +168,6 @@ protected:
 
     Gtk::Label m_website_label;
     Gtk::Entry m_website_entry;
-
-    Gtk::CheckButton m_favorite_checkbox;
 
     Gtk::Label m_notes_label;
     Gtk::TextView m_notes_view;
