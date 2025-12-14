@@ -13,6 +13,7 @@
 #include <vector>
 #include <memory>
 #include "../../core/VaultManager.h"
+#include "../../core/commands/UndoManager.h"
 #ifdef HAVE_YUBIKEY_SUPPORT
 #include "../../core/YubiKeyManager.h"
 #endif
@@ -85,7 +86,10 @@ protected:
     void on_copy_password();  ///< Copy password to clipboard
     void on_generate_password();  ///< Generate random password
     void on_toggle_password_visibility();  ///< Show/hide password
+    void on_undo();  ///< Undo last operation
+    void on_redo();  ///< Redo last undone operation
     void on_star_column_clicked(const Gtk::TreeModel::Path& path);  ///< Toggle favorite by clicking star column
+    [[nodiscard]] bool is_undo_redo_enabled() const;  ///< Check if undo/redo is enabled in preferences
     void on_tags_entry_activate();  ///< Add tag when Enter is pressed
     void add_tag_chip(const std::string& tag);  ///< Add a tag chip to the flowbox
     void remove_tag_chip(const std::string& tag);  ///< Remove a tag chip
@@ -116,7 +120,8 @@ protected:
     bool prompt_save_if_modified();  ///< Prompt to save if vault modified, return false if user cancels
     void setup_activity_monitoring();  ///< Setup event monitors for user activity
     std::string get_master_password_for_lock();  ///< Get master password to re-open after lock
-
+    void update_undo_redo_sensitivity(bool can_undo, bool can_redo);  ///< Update undo/redo menu item sensitivity
+    void setup_drag_and_drop();  ///< Setup drag-and-drop for account reordering
 
     // Member widgets
     Gtk::Box m_main_box;
@@ -214,9 +219,11 @@ protected:
     std::vector<int> m_filtered_indices;      ///< Indices matching current search filter
     sigc::connection m_clipboard_timeout;     ///< Connection for clipboard auto-clear timer
     sigc::connection m_auto_lock_timeout;     ///< Connection for auto-lock inactivity timer
+    sigc::connection m_row_inserted_conn;     ///< Connection for detecting drag-and-drop reordering
 
     // Vault manager
     std::unique_ptr<VaultManager> m_vault_manager;  ///< Manages vault encryption/decryption
+    UndoManager m_undo_manager;  ///< Manages undo/redo history for vault operations
 };
 
 #endif // MAINWINDOW_H

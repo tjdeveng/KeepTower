@@ -240,6 +240,9 @@ MainWindow::MainWindow()
     m_account_tree_view.append_column("Account", m_columns.m_col_account_name);
     m_account_tree_view.append_column("Username", m_columns.m_col_user_name);
 
+    // Setup drag-and-drop for account reordering
+    setup_drag_and_drop();
+
     m_list_scrolled.set_policy(Gtk::PolicyType::AUTOMATIC, Gtk::PolicyType::AUTOMATIC);
     m_list_scrolled.set_child(m_account_tree_view);
     m_paned.set_start_child(m_list_scrolled);
@@ -781,6 +784,11 @@ void MainWindow::on_close_vault() {
     // Stop auto-lock timer
     if (m_auto_lock_timeout.connected()) {
         m_auto_lock_timeout.disconnect();
+    }
+
+    // Disconnect drag-and-drop signal handlers for memory safety
+    if (m_row_inserted_conn.connected()) {
+        m_row_inserted_conn.disconnect();
     }
 
     // Clear cached password
@@ -3055,4 +3063,80 @@ void MainWindow::update_undo_redo_sensitivity(bool can_undo, bool can_redo) {
 bool MainWindow::is_undo_redo_enabled() const {
     auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
     return settings->get_boolean("undo-redo-enabled");
+}
+
+/**
+ * @brief Setup drag-and-drop support for account reordering
+ *
+ * Enables TreeView's built-in reorderable mode for drag-and-drop account
+ * reordering. When users drag accounts to new positions, the changes are
+ * automatically persisted to the vault via VaultManager::reorder_account().
+ *
+ * Security considerations:
+ * - Reordering is disabled during search/filter to prevent confusion
+ * - Only works when vault is open and decrypted
+ * - Changes are immediately saved to vault file
+ *
+ * @note Uses deprecated set_reorderable() API. Future versions should migrate
+ *       to ListView/ColumnView as recommended by GTK4.10+
+ *
+ * @note This method should be called after the TreeView model is set up
+ */
+void MainWindow::setup_drag_and_drop() {
+    // Security: Disable reordering during search/filter to prevent confusion
+    // between visual order and actual vault order
+    if (!m_search_entry.get_text().empty() || !m_selected_tag_filter.empty()) {
+        m_account_tree_view.set_reorderable(false);
+        return;
+    }
+
+    // Disconnect any existing signal connection to prevent duplicates
+    if (m_row_inserted_conn.connected()) {
+        m_row_inserted_conn.disconnect();
+    }
+
+    // Enable built-in drag-and-drop reordering
+    // Note: set_reorderable() is deprecated in GTK4.10+ but remains the most
+    // stable approach for TreeView. Future migration to ListView recommended.
+    m_account_tree_view.set_reorderable(true);
+
+    // Connect to row-inserted signal to detect when drag-and-drop reordering occurs
+    // The TreeModel emits row-inserted after a row is moved via drag-and-drop
+    m_row_inserted_conn = m_account_list_store->signal_row_inserted().connect(
+        [this](const Gtk::TreeModel::Path& path, const Gtk::TreeModel::iterator& iter) {
+            // Ignore insertions during initial list population
+            if (!m_vault_open) {
+                return;
+            }
+
+            // Ignore insertions during search/filter (shouldn't happen, but safety check)
+            if (!m_search_entry.get_text().empty() || !m_selected_tag_filter.empty()) {
+                return;
+            }
+
+            // Get the account index from the iterator
+            const int account_index = (*iter)[m_columns.m_col_index];
+            const int new_position = path[0];  // Path[0] is the row number
+
+            // Validate indices for security
+            const auto account_count = m_vault_manager->get_account_count();
+            if (account_index < 0 || static_cast<size_t>(account_index) >= account_count) {
+                return;
+            }
+            if (new_position < 0 || static_cast<size_t>(new_position) >= account_count) {
+                return;
+            }
+
+            // Persist the reorder to vault
+            // Note: This will trigger save_vault() internally
+            if (m_vault_manager->reorder_account(
+                    static_cast<size_t>(account_index),
+                    static_cast<size_t>(new_position))) {
+                m_status_label.set_text("Account reordered");
+
+                // TODO: Create ReorderAccountCommand for undo/redo support
+                // For now, reordering works but isn't undoable
+            }
+        }
+    );
 }

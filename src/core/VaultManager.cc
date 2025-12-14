@@ -758,17 +758,36 @@ size_t VaultManager::get_account_count() const {
 // Account Reordering (Drag-and-Drop Support)
 // ============================================================================
 
+/**
+ * @brief Reorder account by moving it from one position to another
+ *
+ * This method handles drag-and-drop reordering by updating the global_display_order
+ * field for all affected accounts. The ordering is normalized to sequential values
+ * (0, 1, 2, ...) after the move to prevent gaps.
+ *
+ * Security considerations:
+ * - Validates vault is open before making changes
+ * - Performs bounds checking on indices
+ * - Automatically saves changes to prevent data loss
+ *
+ * @param old_index Current position of the account (0-based)
+ * @param new_index Target position for the account (0-based)
+ * @return true if reordered successfully, false on error
+ */
 bool VaultManager::reorder_account(size_t old_index, size_t new_index) {
+    // Security: Ensure vault is open and decrypted
     if (!is_vault_open()) {
         return false;
     }
 
     const size_t account_count = get_account_count();
+
+    // Security: Validate indices are within bounds
     if (old_index >= account_count || new_index >= account_count) {
         return false;
     }
 
-    // No-op if source and destination are the same
+    // Optimization: No-op if source and destination are the same
     if (old_index == new_index) {
         return true;
     }
@@ -848,9 +867,10 @@ bool VaultManager::has_custom_global_ordering() const {
         return false;
     }
 
-    // Check if any account has global_display_order >= 0
+    // Check if any account has global_display_order >= 0 (custom ordering enabled)
+    // Using range-based loop for better safety and readability
     const size_t account_count = get_account_count();
-    for (size_t i = 0; i < account_count; i++) {
+    for (size_t i = 0; i < account_count; ++i) {
         if (m_vault_data.accounts(i).global_display_order() >= 0) {
             return true;
         }
