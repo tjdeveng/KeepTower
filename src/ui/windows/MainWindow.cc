@@ -7,6 +7,7 @@
 #include "../dialogs/PreferencesDialog.h"
 #include "../dialogs/YubiKeyPromptDialog.h"
 #include "../../core/VaultError.h"
+#include "../../core/commands/AccountCommands.h"
 #include "../../utils/SettingsValidator.h"
 #include "../../utils/ImportExport.h"
 #include "../../utils/helpers/FuzzyMatch.h"
@@ -85,15 +86,36 @@ MainWindow::MainWindow()
     add_action("import-csv", sigc::mem_fun(*this, &MainWindow::on_import_from_csv));
     add_action("export-csv", sigc::mem_fun(*this, &MainWindow::on_export_to_csv));
     add_action("delete-account", sigc::mem_fun(*this, &MainWindow::on_delete_account));
+    add_action("undo", sigc::mem_fun(*this, &MainWindow::on_undo));
+    add_action("redo", sigc::mem_fun(*this, &MainWindow::on_redo));
 #ifdef HAVE_YUBIKEY_SUPPORT
     add_action("test-yubikey", sigc::mem_fun(*this, &MainWindow::on_test_yubikey));
     add_action("manage-yubikeys", sigc::mem_fun(*this, &MainWindow::on_manage_yubikeys));
 #endif
 
-    // Set keyboard shortcut for preferences
+    // Set keyboard shortcuts
     auto app = get_application();
     if (app) {
         app->set_accel_for_action("win.preferences", "<Ctrl>comma");
+        app->set_accel_for_action("win.undo", "<Ctrl>z");
+        app->set_accel_for_action("win.redo", "<Ctrl><Shift>z");
+    }
+
+    // Setup undo/redo state change callback
+    m_undo_manager.set_state_changed_callback([this](bool can_undo, bool can_redo) {
+        update_undo_redo_sensitivity(can_undo, can_redo);
+    });
+
+    // Load undo/redo settings and apply to UndoManager
+    bool undo_redo_enabled = settings->get_boolean("undo-redo-enabled");
+    int undo_history_limit = settings->get_int("undo-history-limit");
+    undo_history_limit = std::clamp(undo_history_limit, 1, 100);
+    m_undo_manager.set_max_history(undo_history_limit);
+
+    // Update action sensitivity based on preference
+    if (!undo_redo_enabled) {
+        m_undo_manager.clear();
+        update_undo_redo_sensitivity(false, false);
     }
 
     // Setup HeaderBar (modern GNOME design)
@@ -126,15 +148,30 @@ MainWindow::MainWindow()
 
     // Primary menu (hamburger menu)
     m_primary_menu = Gio::Menu::create();
-    m_primary_menu->append("_Preferences", "win.preferences");
-    m_primary_menu->append("_Import Accounts...", "win.import-csv");
-    m_primary_menu->append("_Export Accounts...", "win.export-csv");
+
+    // Edit section
+    auto edit_section = Gio::Menu::create();
+    edit_section->append("_Undo", "win.undo");
+    edit_section->append("_Redo", "win.redo");
+    m_primary_menu->append_section(edit_section);
+
+    // Actions section
+    auto actions_section = Gio::Menu::create();
+    actions_section->append("_Preferences", "win.preferences");
+    actions_section->append("_Import Accounts...", "win.import-csv");
+    actions_section->append("_Export Accounts...", "win.export-csv");
 #ifdef HAVE_YUBIKEY_SUPPORT
-    m_primary_menu->append("Manage _YubiKeys", "win.manage-yubikeys");
-    m_primary_menu->append("Test _YubiKey", "win.test-yubikey");
+    actions_section->append("Manage _YubiKeys", "win.manage-yubikeys");
+    actions_section->append("Test _YubiKey", "win.test-yubikey");
 #endif
-    m_primary_menu->append("_Keyboard Shortcuts", "win.show-help-overlay");
-    m_primary_menu->append("_About KeepTower", "app.about");
+    m_primary_menu->append_section(actions_section);
+
+    // Help section
+    auto help_section = Gio::Menu::create();
+    help_section->append("_Keyboard Shortcuts", "win.show-help-overlay");
+    help_section->append("_About KeepTower", "app.about");
+    m_primary_menu->append_section(help_section);
+
     m_menu_button.set_icon_name("open-menu-symbolic");
     m_menu_button.set_menu_model(m_primary_menu);
     m_menu_button.set_tooltip_text("Main Menu");
@@ -390,6 +427,16 @@ MainWindow::MainWindow()
         sigc::mem_fun(*this, &MainWindow::on_tag_filter_changed)
     );
 
+    // Prevent Enter key from propagating to parent and selecting next account
+    auto key_controller = Gtk::EventControllerKey::create();
+    key_controller->signal_key_pressed().connect([this](guint keyval, guint, Gdk::ModifierType) {
+        if (keyval == GDK_KEY_Return || keyval == GDK_KEY_KP_Enter) {
+            return true;  // Stop propagation
+        }
+        return false;
+    }, false);
+    m_tags_entry.add_controller(key_controller);
+
     // Connect to selection changed signal to handle account switching
     m_account_tree_view.get_selection()->signal_changed().connect(
         sigc::mem_fun(*this, &MainWindow::on_selection_changed)
@@ -537,6 +584,12 @@ void MainWindow::on_new_vault() {
                         update_tag_filter_dropdown();
                         clear_account_details();
 
+                        // Initialize undo/redo state
+                        update_undo_redo_sensitivity(false, false);
+
+                        // Initialize undo/redo state
+                        update_undo_redo_sensitivity(false, false);
+
                         // Start activity monitoring for auto-lock
                         on_user_activity();
                     } else {
@@ -672,6 +725,9 @@ void MainWindow::on_open_vault() {
                         update_account_list();
                         update_tag_filter_dropdown();
 
+                        // Initialize undo/redo state
+                        update_undo_redo_sensitivity(false, false);
+
                         // Start activity monitoring for auto-lock
                         on_user_activity();
                     } else {
@@ -748,6 +804,9 @@ void MainWindow::on_close_vault() {
         return;
     }
 
+    // Clear undo/redo history
+    m_undo_manager.clear();
+
     m_vault_open = false;
     m_is_locked = false;
     m_current_vault_path.clear();
@@ -782,43 +841,61 @@ void MainWindow::on_add_account() {
     new_account.set_website("");
     new_account.set_notes("");
 
-    // Add to vault manager
-    auto result = m_vault_manager->add_account(new_account);
-    if (!result) {
-        constexpr std::string_view error_msg{"Failed to add account"};
-        m_status_label.set_text(std::string{error_msg});
-        return;
-    }
+    // Create command with UI callback
+    auto ui_callback = [this]() {
+        // Clear search filter so new account is visible
+        m_search_entry.set_text("");
 
-    // Clear search filter so new account is visible
-    m_search_entry.set_text("");
+        // Clear selection before updating list to avoid stale index issues
+        clear_account_details();
 
-    // Update the display
-    update_account_list();
+        // Update the display
+        update_account_list();
 
-    // Select the newly added account (it will be at the end)
-    auto accounts = m_vault_manager->get_all_accounts();
-    int new_index = accounts.size() - 1;
+        // Select the newly added account (it will be at the end)
+        auto accounts = m_vault_manager->get_all_accounts();
+        int new_index = accounts.size() - 1;
 
-    // Find the row in the tree view and select it
-    auto children = m_account_list_store->children();
-    for (auto iter = children.begin(); iter != children.end(); ++iter) {
-        int stored_index = (*iter)[m_columns.m_col_index];
-        if (stored_index == new_index) {
-            // Select the row
-            m_account_tree_view.get_selection()->select(iter);
+        // Find the row in the tree view and select it
+        auto children = m_account_list_store->children();
+        for (auto iter = children.begin(); iter != children.end(); ++iter) {
+            int stored_index = (*iter)[m_columns.m_col_index];
+            if (stored_index == new_index) {
+                // Select the row
+                m_account_tree_view.get_selection()->select(iter);
 
-            // Explicitly display the account details
-            display_account_details(new_index);
+                // Explicitly display the account details
+                display_account_details(new_index);
 
-            // Focus the name field and select all text for easy editing
-            Glib::signal_idle().connect_once([this]() {
-                m_account_name_entry.grab_focus();
-                m_account_name_entry.select_region(0, -1);
-            });
+                // Focus the name field and select all text for easy editing
+                Glib::signal_idle().connect_once([this]() {
+                    m_account_name_entry.grab_focus();
+                    m_account_name_entry.select_region(0, -1);
+                });
 
-            m_status_label.set_text("New account added - please enter details");
-            break;
+                m_status_label.set_text("New account added - please enter details");
+                break;
+            }
+        }
+    };
+
+    auto command = std::make_unique<AddAccountCommand>(
+        m_vault_manager.get(),
+        std::move(new_account),
+        ui_callback
+    );
+
+    // Check if undo/redo is enabled
+    if (is_undo_redo_enabled()) {
+        if (!m_undo_manager.execute_command(std::move(command))) {
+            constexpr std::string_view error_msg{"Failed to add account"};
+            m_status_label.set_text(std::string{error_msg});
+        }
+    } else {
+        // Execute directly without undo history
+        if (!command->execute()) {
+            constexpr std::string_view error_msg{"Failed to add account"};
+            m_status_label.set_text(std::string{error_msg});
         }
     }
 }void MainWindow::on_copy_password() {
@@ -883,31 +960,40 @@ void MainWindow::on_star_column_clicked(const Gtk::TreeModel::Path& path) {
     }
 
     int account_index = (*iter)[m_columns.m_col_index];
-    auto* account = m_vault_manager->get_account_mutable(account_index);
-    if (!account) {
-        return;
-    }
 
-    // Toggle favorite status
-    account->set_is_favorite(!account->is_favorite());
-    account->set_modified_at(std::time(nullptr));
+    // Create command with UI callback
+    auto ui_callback = [this, account_index]() {
+        // Refresh list with current search/filter (preserves search state)
+        int current_selection = m_selected_account_index;
+        filter_accounts(m_search_entry.get_text());
 
-    // Refresh list with current search/filter (preserves search state)
-    int current_selection = m_selected_account_index;
-    filter_accounts(m_search_entry.get_text());
-
-    // Re-select the current account if one was selected
-    if (current_selection >= 0) {
-        m_updating_selection = true;
-        auto list_iter = m_account_list_store->children().begin();
-        while (list_iter != m_account_list_store->children().end()) {
-            if ((*list_iter)[m_columns.m_col_index] == current_selection) {
-                m_account_tree_view.set_cursor(m_account_list_store->get_path(list_iter));
-                break;
+        // Re-select the current account if one was selected
+        if (current_selection >= 0) {
+            m_updating_selection = true;
+            auto list_iter = m_account_list_store->children().begin();
+            while (list_iter != m_account_list_store->children().end()) {
+                if ((*list_iter)[m_columns.m_col_index] == current_selection) {
+                    m_account_tree_view.set_cursor(m_account_list_store->get_path(list_iter));
+                    break;
+                }
+                ++list_iter;
             }
-            ++list_iter;
+            m_updating_selection = false;
         }
-        m_updating_selection = false;
+    };
+
+    auto command = std::make_unique<ToggleFavoriteCommand>(
+        m_vault_manager.get(),
+        account_index,
+        ui_callback
+    );
+
+    // Check if undo/redo is enabled
+    if (is_undo_redo_enabled()) {
+        (void)m_undo_manager.execute_command(std::move(command));
+    } else {
+        // Execute directly without undo history
+        (void)command->execute();
     }
 }
 
@@ -1573,6 +1659,9 @@ void MainWindow::on_tags_entry_activate() {
         save_current_account();
         update_tag_filter_dropdown();
     }
+
+    // Keep focus on tags entry to prevent selection jump
+    m_tags_entry.grab_focus();
 }
 
 void MainWindow::add_tag_chip(const std::string& tag) {
@@ -1768,7 +1857,25 @@ void MainWindow::on_preferences() {
 
     // Transfer ownership to lambda for proper RAII cleanup
     auto* dialog_ptr = dialog.release();
-    dialog_ptr->signal_hide().connect([dialog_ptr]() noexcept {
+    dialog_ptr->signal_hide().connect([this, dialog_ptr]() noexcept {
+        // Reload undo/redo settings when preferences dialog closes
+        auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
+        bool undo_redo_enabled = settings->get_boolean("undo-redo-enabled");
+        int undo_history_limit = settings->get_int("undo-history-limit");
+        undo_history_limit = std::clamp(undo_history_limit, 1, 100);
+
+        m_undo_manager.set_max_history(undo_history_limit);
+
+        // Update undo/redo state based on new settings
+        if (!undo_redo_enabled) {
+            // If disabled, clear history and disable buttons
+            m_undo_manager.clear();
+            update_undo_redo_sensitivity(false, false);
+        } else {
+            // If enabled, update buttons based on current state
+            update_undo_redo_sensitivity(m_undo_manager.can_undo(), m_undo_manager.can_redo());
+        }
+
         delete dialog_ptr;
     });
 
@@ -1800,9 +1907,14 @@ void MainWindow::on_delete_account() {
 
     dialog->set_modal(true);
     dialog->set_hide_on_close(true);
-    dialog->set_secondary_text(
-        "Are you sure you want to delete '" + account_name + "'?\nThis action cannot be undone."
-    );
+
+    // Adjust message based on whether undo/redo is enabled
+    Glib::ustring message = "Are you sure you want to delete '" + account_name + "'?";
+    if (!is_undo_redo_enabled()) {
+        message += "\nThis action cannot be undone.";
+    }
+
+    dialog->set_secondary_text(message);
 
     dialog->add_button("Cancel", Gtk::ResponseType::CANCEL);
     auto delete_button = dialog->add_button("Delete", Gtk::ResponseType::OK);
@@ -1810,13 +1922,29 @@ void MainWindow::on_delete_account() {
 
     dialog->signal_response().connect([this, dialog](int response) {
         if (response == Gtk::ResponseType::OK) {
-            // Delete the account
-            if (m_vault_manager->delete_account(m_selected_account_index)) {
+            // Create command with UI callback
+            auto ui_callback = [this]() {
                 clear_account_details();
                 update_account_list();
                 filter_accounts(m_search_entry.get_text());
+            };
+
+            auto command = std::make_unique<DeleteAccountCommand>(
+                m_vault_manager.get(),
+                m_selected_account_index,
+                ui_callback
+            );
+
+            // Check if undo/redo is enabled
+            if (is_undo_redo_enabled()) {
+                if (!m_undo_manager.execute_command(std::move(command))) {
+                    show_error_dialog("Failed to delete account");
+                }
             } else {
-                show_error_dialog("Failed to delete account");
+                // Execute directly without undo history
+                if (!command->execute()) {
+                    show_error_dialog("Failed to delete account");
+                }
             }
         }
         dialog->hide();
@@ -2860,3 +2988,53 @@ void MainWindow::on_manage_yubikeys() {
     dialog->show();
 }
 #endif
+
+void MainWindow::on_undo() {
+    if (!m_vault_open) {
+        return;
+    }
+
+    if (m_undo_manager.undo()) {
+        const std::string msg = "Undid: " + m_undo_manager.get_redo_description();
+        m_status_label.set_text(msg);
+    } else {
+        m_status_label.set_text("Nothing to undo");
+    }
+}
+
+void MainWindow::on_redo() {
+    if (!m_vault_open) {
+        return;
+    }
+
+    if (m_undo_manager.redo()) {
+        const std::string msg = "Redid: " + m_undo_manager.get_undo_description();
+        m_status_label.set_text(msg);
+    } else {
+        m_status_label.set_text("Nothing to redo");
+    }
+}
+
+void MainWindow::update_undo_redo_sensitivity(bool can_undo, bool can_redo) {
+    // Update action sensitivity
+    auto undo_action = std::dynamic_pointer_cast<Gio::SimpleAction>(lookup_action("undo"));
+    auto redo_action = std::dynamic_pointer_cast<Gio::SimpleAction>(lookup_action("redo"));
+
+    // Check if undo/redo is enabled in preferences
+    bool undo_redo_enabled = is_undo_redo_enabled();
+
+    if (undo_action) {
+        bool should_enable = can_undo && m_vault_open && undo_redo_enabled;
+        undo_action->set_enabled(should_enable);
+    }
+
+    if (redo_action) {
+        bool should_enable = can_redo && m_vault_open && undo_redo_enabled;
+        redo_action->set_enabled(should_enable);
+    }
+}
+
+bool MainWindow::is_undo_redo_enabled() const {
+    auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
+    return settings->get_boolean("undo-redo-enabled");
+}
