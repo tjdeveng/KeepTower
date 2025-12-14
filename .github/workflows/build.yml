@@ -184,9 +184,9 @@ jobs:
             # Extract linuxdeploy (FUSE may not work in container)
             ./linuxdeploy-x86_64.AppImage --appimage-extract
 
-            # Create AppImage
+            # Create AppImage (skip stripping due to Fedora 41 RELR format)
             echo 'Creating AppImage...'
-            ./squashfs-root/AppRun \
+            NO_STRIP=1 ./squashfs-root/AppRun \
               --appdir AppDir \
               --executable AppDir/usr/bin/keeptower \
               --desktop-file AppDir/usr/share/applications/com.tjdeveng.keeptower.desktop \
@@ -196,7 +196,7 @@ jobs:
             # Verify and rename AppImage
             echo 'Checking for AppImage files...'
             ls -lh *.AppImage || { echo 'ERROR: No AppImage created!'; exit 1; }
-            
+
             if ls KeepTower*.AppImage 1> /dev/null 2>&1; then
               mv KeepTower*.AppImage keeptower-x86_64.AppImage
             elif ls keeptower*.AppImage 1> /dev/null 2>&1; then
@@ -211,7 +211,7 @@ jobs:
               echo 'ERROR: Final AppImage file not found!'
               exit 1
             fi
-            
+
             chmod 644 keeptower-x86_64.AppImage
             ls -lh keeptower-x86_64.AppImage
             echo 'AppImage created successfully'

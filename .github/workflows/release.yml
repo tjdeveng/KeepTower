@@ -148,7 +148,8 @@ jobs:
         chmod +x linuxdeploy-x86_64.AppImage
 
         # Try to run linuxdeploy directly (may work on GitHub runners)
-        ./linuxdeploy-x86_64.AppImage \
+        # Skip stripping due to Fedora 41 RELR format incompatibility
+        NO_STRIP=1 ./linuxdeploy-x86_64.AppImage \
           --appdir AppDir \
           --executable AppDir/usr/bin/keeptower \
           --desktop-file AppDir/usr/share/applications/com.tjdeveng.keeptower.desktop \
@@ -156,7 +157,7 @@ jobs:
           --output appimage || {
             echo "Direct AppImage run failed, trying extraction method..."
             ./linuxdeploy-x86_64.AppImage --appimage-extract
-            ./squashfs-root/AppRun \
+            NO_STRIP=1 ./squashfs-root/AppRun \
               --appdir AppDir \
               --executable AppDir/usr/bin/keeptower \
               --desktop-file AppDir/usr/share/applications/com.tjdeveng.keeptower.desktop \
@@ -167,7 +168,7 @@ jobs:
         # Find and rename the AppImage
         echo "Checking for AppImage files..."
         ls -lh *.AppImage
-        
+
         if ls KeepTower*.AppImage 1> /dev/null 2>&1; then
           mv KeepTower*.AppImage keeptower-${{ needs.create-release.outputs.version }}-x86_64.AppImage
         elif ls keeptower*.AppImage 1> /dev/null 2>&1; then
@@ -176,13 +177,13 @@ jobs:
           echo "ERROR: No AppImage file found!"
           exit 1
         fi
-        
+
         # Verify the final file exists
         if [ ! -f keeptower-${{ needs.create-release.outputs.version }}-x86_64.AppImage ]; then
           echo "ERROR: AppImage file not created successfully"
           exit 1
         fi
-        
+
         ls -lh keeptower-${{ needs.create-release.outputs.version }}-x86_64.AppImage
         echo "AppImage created successfully"
 
