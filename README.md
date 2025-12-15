@@ -3,7 +3,7 @@
 [![CI](https://github.com/tjdeveng/KeepTower/workflows/CI/badge.svg)](https://github.com/tjdeveng/KeepTower/actions/workflows/ci.yml)
 [![Build](https://github.com/tjdeveng/KeepTower/workflows/Build/badge.svg)](https://github.com/tjdeveng/KeepTower/actions/workflows/build.yml)
 [![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.2.6--beta-orange.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.2.8--beta-orange.svg)](CHANGELOG.md)
 
 A secure, modern password manager built with C++23 and GTK4.
 
@@ -37,6 +37,10 @@ A secure, modern password manager built with C++23 and GTK4.
 - **Memory Protection**: Sensitive data secured with mlock() and OPENSSL_cleanse()
 - **Atomic Operations**: Atomic file writes with automatic backups
 - **Appearance Preferences**: Light, dark, or system default color schemes
+- **Account Groups**: Organize accounts into expandable folders with multi-group membership
+  - System "Favorites" group for quick access
+  - Tree-based hierarchical display
+  - Context menu for group management
 - **Modern C++23**: Uses std::span, std::expected, RAII throughout
 - **GTK4 Interface**: Native GNOME desktop integration
 - **Input Validation**: Field length limits enforced on all inputs

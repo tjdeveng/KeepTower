@@ -46,13 +46,14 @@ This document outlines the planned features and improvements for KeepTower, orga
 - [ ] File attachments (encrypted documents, notes, images)
 - [ ] Multi-vault support (open/switch between multiple vaults)
 - [ ] Vault merge capabilities
-- [x] **Account groups/folders for organization (Backend complete - v0.2.8-beta)**
+- [x] **Account groups/folders for organization - v0.2.8-beta**
   - [x] Multi-group membership support
   - [x] System "Favorites" group (auto-created)
   - [x] Create, delete, add/remove accounts from groups
   - [x] UUID-based group identification
   - [x] Comprehensive test suite (18 tests)
-  - [ ] UI integration (sidebar, dialogs, filtering) - *Next phase*
+  - [x] UI integration (tree-based groups, context menu, dialogs)
+  - [x] GNOME HIG compliant design
 - [ ] Bulk operations (edit, delete, move)
 
 ---
@@ -210,5 +211,5 @@ This roadmap is a living document. If you have suggestions, please:
 2. Discuss in community channels
 3. Submit a pull request with proposed changes to this document
 
-**Last Updated:** December 14, 2025
+**Last Updated:** December 15, 2025
 **Current Status:** Active development, beta phase
