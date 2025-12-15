@@ -98,10 +98,18 @@ protected:
     void update_tag_filter_dropdown();  ///< Update tag filter dropdown with all unique tags
     void on_tag_filter_changed();  ///< Handle tag filter selection change
     void on_field_filter_changed();  ///< Handle search field filter selection change
+
+    // Account list handlers
     void on_search_changed(); ///< Filter accounts by search
     void on_selection_changed();  ///< Handle account selection
     void on_account_selected(const Gtk::TreeModel::Path& path, Gtk::TreeViewColumn* column);  ///< Double-click handler
     void on_account_right_click(int n_press, double x, double y);  ///< Context menu handler
+
+    // Group management handlers
+    void on_create_group();  ///< Show dialog to create new group
+    void on_delete_group(const std::string& group_id);  ///< Delete a group
+    void on_add_account_to_group(int account_index, const std::string& group_id);  ///< Add account to group
+    void on_remove_account_from_group(int account_index, const std::string& group_id);  ///< Remove account from group
 
     // Security handlers
     void on_user_activity();  ///< Reset inactivity timer
@@ -146,13 +154,13 @@ protected:
     Glib::RefPtr<Gtk::StringList> m_tag_filter_model;
     std::string m_selected_tag_filter;  // Empty for "All", otherwise the tag to filter by
 
-    // Split view: list on left, details on right
-    Gtk::Paned m_paned;
+    // Split view: account list | details
+    Gtk::Paned m_paned;       // Splits accounts from details
 
-    // Account list (left side)
+    // Account list with groups (left side)
     Gtk::ScrolledWindow m_list_scrolled;
     Gtk::TreeView m_account_tree_view;
-    Glib::RefPtr<Gtk::ListStore> m_account_list_store;
+    Glib::RefPtr<Gtk::TreeStore> m_account_list_store;
 
     // Account details (right side)
     Gtk::ScrolledWindow m_details_scrolled;
@@ -191,7 +199,7 @@ protected:
 
     Gtk::Label m_status_label;
 
-    // Tree model columns
+    // Tree model columns for accounts and groups
     class ModelColumns : public Gtk::TreeModel::ColumnRecord {
     public:
         ModelColumns() {
@@ -199,12 +207,16 @@ protected:
             add(m_col_account_name);
             add(m_col_user_name);
             add(m_col_index);
+            add(m_col_is_group);
+            add(m_col_group_id);
         }
 
         Gtk::TreeModelColumn<bool> m_col_is_favorite;           // Favorite/starred status
         Gtk::TreeModelColumn<Glib::ustring> m_col_account_name;
         Gtk::TreeModelColumn<Glib::ustring> m_col_user_name;
-        Gtk::TreeModelColumn<int> m_col_index;  // Index in vault data
+        Gtk::TreeModelColumn<int> m_col_index;  // Index in vault data (-1 for group rows)
+        Gtk::TreeModelColumn<bool> m_col_is_group;  // True if this row is a group header
+        Gtk::TreeModelColumn<std::string> m_col_group_id;  // Group ID for group rows
     };
 
     ModelColumns m_columns;
