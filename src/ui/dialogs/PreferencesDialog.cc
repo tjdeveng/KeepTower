@@ -22,6 +22,13 @@ PreferencesDialog::PreferencesDialog(Gtk::Window& parent, VaultManager* vault_ma
       m_auto_lock_timeout_label("Lock timeout:"),
       m_auto_lock_timeout_suffix(" seconds"),
       m_password_history_enabled_check("Track password history (prevents reuse)"),
+      m_password_history_limit_box(Gtk::Orientation::HORIZONTAL, 12),
+      m_password_history_limit_label("Remember up to"),
+      m_password_history_limit_suffix(" previous passwords"),
+      m_undo_redo_enabled_check("Enable undo/redo (Ctrl+Z/Ctrl+Shift+Z)"),
+      m_undo_history_limit_box(Gtk::Orientation::HORIZONTAL, 12),
+      m_undo_history_limit_label("Keep up to"),
+      m_undo_history_limit_suffix(" operations"),
       m_storage_box(Gtk::Orientation::VERTICAL, 18),
       m_rs_section_title("<b>Error Correction</b>"),
       m_rs_description("Protect vault files from corruption on unreliable storage"),
@@ -64,6 +71,9 @@ PreferencesDialog::PreferencesDialog(Gtk::Window& parent, VaultManager* vault_ma
 
     m_password_history_enabled_check.signal_toggled().connect(
         sigc::mem_fun(*this, &PreferencesDialog::on_password_history_enabled_toggled));
+
+    m_undo_redo_enabled_check.signal_toggled().connect(
+        sigc::mem_fun(*this, &PreferencesDialog::on_undo_redo_enabled_toggled));
 
     // Connect apply-to-current checkbox to reload settings when toggled
     if (m_vault_manager && m_vault_manager->is_vault_open()) {
@@ -275,6 +285,56 @@ void PreferencesDialog::setup_security_page() {
 
     m_security_box.append(*password_history_section);
 
+    // Undo/Redo section
+    auto* undo_redo_section = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 6);
+    undo_redo_section->set_margin_top(24);
+
+    auto* undo_redo_title = Gtk::make_managed<Gtk::Label>("Undo/Redo");
+    undo_redo_title->set_halign(Gtk::Align::START);
+    undo_redo_title->add_css_class("heading");
+    undo_redo_section->append(*undo_redo_title);
+
+    auto* undo_redo_desc = Gtk::make_managed<Gtk::Label>("Allow undoing vault operations");
+    undo_redo_desc->set_halign(Gtk::Align::START);
+    undo_redo_desc->add_css_class("dim-label");
+    undo_redo_desc->set_wrap(true);
+    undo_redo_section->append(*undo_redo_desc);
+
+    undo_redo_section->append(m_undo_redo_enabled_check);
+
+    m_undo_redo_warning.set_markup("<span size='small'>⚠️  When disabled, operations cannot be undone but passwords are not kept in memory for undo history</span>");
+    m_undo_redo_warning.set_halign(Gtk::Align::START);
+    m_undo_redo_warning.set_wrap(true);
+    m_undo_redo_warning.set_max_width_chars(60);
+    m_undo_redo_warning.add_css_class("dim-label");
+    m_undo_redo_warning.set_margin_start(24);
+    undo_redo_section->append(m_undo_redo_warning);
+
+    // Undo history limit controls
+    m_undo_history_limit_box.set_orientation(Gtk::Orientation::HORIZONTAL);
+    m_undo_history_limit_box.set_spacing(12);
+    m_undo_history_limit_box.set_margin_top(12);
+    m_undo_history_limit_box.set_margin_start(24);
+
+    m_undo_history_limit_label.set_text("Keep up to");
+    m_undo_history_limit_label.set_halign(Gtk::Align::START);
+    m_undo_history_limit_box.append(m_undo_history_limit_label);
+
+    auto undo_history_adjustment = Gtk::Adjustment::create(50.0, 1.0, 100.0, 1.0, 10.0, 0.0);
+    m_undo_history_limit_spin.set_adjustment(undo_history_adjustment);
+    m_undo_history_limit_spin.set_digits(0);
+    m_undo_history_limit_spin.set_value(50.0);
+    m_undo_history_limit_box.append(m_undo_history_limit_spin);
+
+    m_undo_history_limit_suffix.set_text("operations");
+    m_undo_history_limit_suffix.set_halign(Gtk::Align::START);
+    m_undo_history_limit_box.append(m_undo_history_limit_suffix);
+
+    m_undo_history_limit_box.set_halign(Gtk::Align::START);
+    undo_redo_section->append(m_undo_history_limit_box);
+
+    m_security_box.append(*undo_redo_section);
+
     // Add page to stack
     m_stack.add(m_security_box, "security", "Security");
 }
@@ -471,6 +531,19 @@ void PreferencesDialog::load_settings() {
     m_password_history_limit_label.set_sensitive(password_history_enabled);
     m_password_history_limit_spin.set_sensitive(password_history_enabled);
     m_password_history_limit_suffix.set_sensitive(password_history_enabled);
+
+    // Load undo/redo settings
+    bool undo_redo_enabled = m_settings->get_boolean("undo-redo-enabled");
+    m_undo_redo_enabled_check.set_active(undo_redo_enabled);
+
+    int undo_history_limit = m_settings->get_int("undo-history-limit");
+    undo_history_limit = std::clamp(undo_history_limit, 1, 100);
+    m_undo_history_limit_spin.set_value(undo_history_limit);
+
+    // Update undo/redo controls sensitivity
+    m_undo_history_limit_label.set_sensitive(undo_redo_enabled);
+    m_undo_history_limit_spin.set_sensitive(undo_redo_enabled);
+    m_undo_history_limit_suffix.set_sensitive(undo_redo_enabled);
 }
 
 void PreferencesDialog::save_settings() {
@@ -547,6 +620,17 @@ void PreferencesDialog::save_settings() {
         MAX_PASSWORD_HISTORY_LIMIT
     );
     m_settings->set_int("password-history-limit", password_history_limit);
+
+    // Save undo/redo settings
+    const bool undo_redo_enabled = m_undo_redo_enabled_check.get_active();
+    m_settings->set_boolean("undo-redo-enabled", undo_redo_enabled);
+
+    const int undo_history_limit = std::clamp(
+        static_cast<int>(m_undo_history_limit_spin.get_value()),
+        1,
+        100
+    );
+    m_settings->set_int("undo-history-limit", undo_history_limit);
 }
 
 void PreferencesDialog::apply_color_scheme(const Glib::ustring& scheme) {
@@ -636,6 +720,13 @@ void PreferencesDialog::on_password_history_enabled_toggled() noexcept {
     m_password_history_limit_label.set_sensitive(enabled);
     m_password_history_limit_spin.set_sensitive(enabled);
     m_password_history_limit_suffix.set_sensitive(enabled);
+}
+
+void PreferencesDialog::on_undo_redo_enabled_toggled() noexcept {
+    const bool enabled = m_undo_redo_enabled_check.get_active();
+    m_undo_history_limit_label.set_sensitive(enabled);
+    m_undo_history_limit_spin.set_sensitive(enabled);
+    m_undo_history_limit_suffix.set_sensitive(enabled);
 }
 
 void PreferencesDialog::on_response([[maybe_unused]] const int response_id) noexcept {

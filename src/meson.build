@@ -49,6 +49,7 @@ sources = files(
   'ui/dialogs/PasswordDialog.cc',
   'ui/dialogs/CreatePasswordDialog.cc',
   'ui/dialogs/PreferencesDialog.cc',
+  'ui/dialogs/GroupCreateDialog.cc',
   'core/VaultManager.cc',
   'core/ReedSolomon.cc',
   'utils/ImportExport.cc',

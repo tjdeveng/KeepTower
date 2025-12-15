@@ -1205,6 +1205,21 @@ bool VaultManager::is_account_in_group(size_t account_index, const std::string& 
     return false;
 }
 
+std::vector<keeptower::AccountGroup> VaultManager::get_all_groups() const {
+    std::vector<keeptower::AccountGroup> groups;
+
+    if (!is_vault_open()) {
+        return groups;
+    }
+
+    // Copy all groups from vault data
+    for (const auto& group : m_vault_data.groups()) {
+        groups.push_back(group);
+    }
+
+    return groups;
+}
+
 bool VaultManager::derive_key(const Glib::ustring& password,
                               std::span<const uint8_t> salt,
                               std::vector<uint8_t>& key) {

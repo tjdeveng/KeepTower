@@ -5,6 +5,7 @@
 #include "../dialogs/CreatePasswordDialog.h"
 #include "../dialogs/PasswordDialog.h"
 #include "../dialogs/PreferencesDialog.h"
+#include "../dialogs/GroupCreateDialog.h"
 #include "../dialogs/YubiKeyPromptDialog.h"
 #include "../../core/VaultError.h"
 #include "../../core/commands/AccountCommands.h"
@@ -208,7 +209,7 @@ MainWindow::MainWindow()
 
     m_main_box.append(m_search_box);
 
-    // Setup split pane with resizable sections
+    // Setup split pane for accounts and details
     m_paned.set_vexpand(true);
     m_paned.set_wide_handle(true);  // Make drag handle more visible
     constexpr int account_list_width = UI::ACCOUNT_LIST_WIDTH;
@@ -218,8 +219,8 @@ MainWindow::MainWindow()
     m_paned.set_shrink_start_child(false);  // Don't allow left side to shrink below min
     m_paned.set_shrink_end_child(false);  // Don't allow right side to shrink below min
 
-    // Setup account list (left side)
-    m_account_list_store = Gtk::ListStore::create(m_columns);
+    // Setup account list with groups (left side)
+    m_account_list_store = Gtk::TreeStore::create(m_columns);
     m_account_tree_view.set_model(m_account_list_store);
 
     // Add star column for favorites (clickable) - using GTK symbolic icons
@@ -303,8 +304,12 @@ MainWindow::MainWindow()
     m_details_fields_box.append(m_tags_entry);
     m_details_fields_box.append(m_tags_scrolled);
 
+    // Add margins to fields box for spacing within the paned split
+    m_details_fields_box.set_margin_end(12);  // Spacing from paned divider
+
     // Right side: Notes (with label above)
     auto* notes_box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 0);
+    notes_box->set_margin_start(12);  // Spacing from paned divider
     m_notes_label.set_xalign(0.0);
     m_notes_label.set_margin_bottom(6);
     m_notes_scrolled.set_policy(Gtk::PolicyType::AUTOMATIC, Gtk::PolicyType::AUTOMATIC);
@@ -967,6 +972,12 @@ void MainWindow::on_star_column_clicked(const Gtk::TreeModel::Path& path) {
         return;
     }
 
+    // Ignore clicks on group headers
+    const bool is_group = (*iter)[m_columns.m_col_is_group];
+    if (is_group) {
+        return;
+    }
+
     int account_index = (*iter)[m_columns.m_col_index];
 
     // Create command with UI callback
@@ -975,17 +986,26 @@ void MainWindow::on_star_column_clicked(const Gtk::TreeModel::Path& path) {
         int current_selection = m_selected_account_index;
         filter_accounts(m_search_entry.get_text());
 
-        // Re-select the current account if one was selected
+        // Re-select the current account if one was selected (search recursively)
         if (current_selection >= 0) {
             m_updating_selection = true;
-            auto list_iter = m_account_list_store->children().begin();
-            while (list_iter != m_account_list_store->children().end()) {
-                if ((*list_iter)[m_columns.m_col_index] == current_selection) {
-                    m_account_tree_view.set_cursor(m_account_list_store->get_path(list_iter));
-                    break;
+
+            std::function<bool(Gtk::TreeModel::Children)> find_and_select;
+            find_and_select = [&](Gtk::TreeModel::Children children) -> bool {
+                for (auto child_iter = children.begin(); child_iter != children.end(); ++child_iter) {
+                    if ((*child_iter)[m_columns.m_col_index] == current_selection) {
+                        m_account_tree_view.set_cursor(m_account_list_store->get_path(child_iter));
+                        return true;
+                    }
+                    // Recursively search children
+                    if (child_iter->children().size() > 0 && find_and_select(child_iter->children())) {
+                        return true;
+                    }
                 }
-                ++list_iter;
-            }
+                return false;
+            };
+
+            find_and_select(m_account_list_store->children());
             m_updating_selection = false;
         }
     };
@@ -1026,6 +1046,13 @@ void MainWindow::on_selection_changed() {
         return;
     }
 
+    // Check if selected row is a group header
+    const bool is_group = (*iter)[m_columns.m_col_is_group];
+    if (is_group) {
+        // Don't show details for group headers
+        return;
+    }
+
     const int new_index = (*iter)[m_columns.m_col_index];
 
     // Bounds checking for safety
@@ -1038,15 +1065,24 @@ void MainWindow::on_selection_changed() {
         if (!save_current_account()) {
             // Validation failed, revert to previous selection without triggering display update
             m_updating_selection = true;
-            auto prev_iter = m_account_list_store->children().begin();
-            while (prev_iter != m_account_list_store->children().end()) {
-                if ((*prev_iter)[m_columns.m_col_index] == m_selected_account_index) {
-                    selection->select(prev_iter);
-                    m_updating_selection = false;
-                    return;
+
+            // Search recursively through tree for previous account
+            std::function<bool(Gtk::TreeModel::Children)> find_and_select;
+            find_and_select = [&](Gtk::TreeModel::Children children) -> bool {
+                for (auto group_iter = children.begin(); group_iter != children.end(); ++group_iter) {
+                    if ((*group_iter)[m_columns.m_col_index] == m_selected_account_index) {
+                        selection->select(group_iter);
+                        return true;
+                    }
+                    // Recursively check children of this row
+                    if (group_iter->children().size() > 0 && find_and_select(group_iter->children())) {
+                        return true;
+                    }
                 }
-                ++prev_iter;
-            }
+                return false;
+            };
+
+            find_and_select(m_account_list_store->children());
             m_updating_selection = false;
             return;
         }
@@ -1058,6 +1094,18 @@ void MainWindow::on_selection_changed() {
 void MainWindow::on_account_selected(const Gtk::TreeModel::Path& path, Gtk::TreeViewColumn* /* column */) {
     auto iter = m_account_list_store->get_iter(path);
     if (iter) {
+        // Check if selected row is a group header
+        const bool is_group = (*iter)[m_columns.m_col_is_group];
+        if (is_group) {
+            // Toggle expansion of group on double-click
+            if (m_account_tree_view.row_expanded(path)) {
+                m_account_tree_view.collapse_row(path);
+            } else {
+                m_account_tree_view.expand_row(path, false);
+            }
+            return;
+        }
+
         int new_index = (*iter)[m_columns.m_col_index];
 
         // Only save if we're switching to a different account
@@ -1082,32 +1130,145 @@ void MainWindow::on_account_right_click([[maybe_unused]] int n_press, double x, 
     Gtk::TreeViewColumn* column = nullptr;
     int cell_x{}, cell_y{};  // C++23: uniform initialization
 
-    if (!m_account_tree_view.get_path_at_pos(static_cast<int>(x), static_cast<int>(y),
-                                              path, column, cell_x, cell_y)) {
-        return;  // Click wasn't on an item
-    }
+    bool clicked_on_item = m_account_tree_view.get_path_at_pos(
+        static_cast<int>(x), static_cast<int>(y), path, column, cell_x, cell_y);
 
-    // Select the item that was right-clicked
-    m_account_tree_view.get_selection()->select(path);
-
-    auto iter = m_account_list_store->get_iter(path);
-    if (!iter) {
-        return;
-    }
-
-    // Create simple popover with button (avoids action group issues)
+    // Create context menu - HIG: no margins on popover content
     auto popover = Gtk::make_managed<Gtk::Popover>();
     auto box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL);
-    box->set_margin(6);
+    box->add_css_class("menu");
 
-    auto delete_button = Gtk::make_managed<Gtk::Button>("Delete Account");
-    delete_button->add_css_class("flat");
-    delete_button->signal_clicked().connect([this, popover]() {
-        popover->popdown();
-        on_delete_account();
-    });
+    if (clicked_on_item) {
+        // Select the item that was right-clicked
+        m_account_tree_view.get_selection()->select(path);
 
-    box->append(*delete_button);
+        auto iter = m_account_list_store->get_iter(path);
+        if (!iter) {
+            return;
+        }
+
+        bool is_group = (*iter)[m_columns.m_col_is_group];
+
+        if (is_group) {
+            // Right-clicked on a group header
+            std::string group_id = (*iter)[m_columns.m_col_group_id];
+            Glib::ustring group_name = (*iter)[m_columns.m_col_account_name];
+
+            // Can't delete system groups
+            bool is_system = (group_id == "favorites" || group_id == "all");
+
+            // HIG: Regular actions first
+            auto create_group_btn = Gtk::make_managed<Gtk::Button>("New Group…");  // HIG: Use ellipsis for actions that open dialogs
+            create_group_btn->add_css_class("flat");
+            create_group_btn->signal_clicked().connect([this, popover]() {
+                popover->popdown();
+                on_create_group();
+            });
+            box->append(*create_group_btn);
+
+            // HIG: Destructive actions in separate section at bottom
+            if (!is_system) {
+                auto separator = Gtk::make_managed<Gtk::Separator>(Gtk::Orientation::HORIZONTAL);
+                box->append(*separator);
+
+                auto delete_group_btn = Gtk::make_managed<Gtk::Button>("Delete Group");
+                delete_group_btn->add_css_class("flat");
+                delete_group_btn->add_css_class("destructive-action");
+                delete_group_btn->signal_clicked().connect([this, popover, group_id]() {
+                    popover->popdown();
+                    on_delete_group(group_id);
+                });
+                box->append(*delete_group_btn);
+            }
+
+        } else {
+            // Right-clicked on an account
+            int account_index = (*iter)[m_columns.m_col_index];
+
+            // Get all groups
+            auto groups = m_vault_manager->get_all_groups();
+
+            // HIG: Group-related actions first, organized by function
+            bool has_group_actions = false;
+
+            // Add to group actions
+            for (const auto& group : groups) {
+                // Skip if already in group
+                if (m_vault_manager->is_account_in_group(account_index, group.group_id())) {
+                    continue;
+                }
+
+                auto add_btn = Gtk::make_managed<Gtk::Button>("Add to " + group.group_name());
+                add_btn->add_css_class("flat");
+                std::string group_id = group.group_id();
+                add_btn->signal_clicked().connect([this, popover, account_index, group_id]() {
+                    popover->popdown();
+                    on_add_account_to_group(account_index, group_id);
+                });
+                box->append(*add_btn);
+                has_group_actions = true;
+            }
+
+            // Check which groups this account belongs to
+            std::vector<std::pair<std::string, std::string>> account_groups;  // id, name
+            for (const auto& group : groups) {
+                if (m_vault_manager->is_account_in_group(account_index, group.group_id())) {
+                    account_groups.push_back({group.group_id(), group.group_name()});
+                }
+            }
+
+            // Remove from group actions
+            for (const auto& [group_id, group_name] : account_groups) {
+                auto remove_btn = Gtk::make_managed<Gtk::Button>("Remove from " + group_name);
+                remove_btn->add_css_class("flat");
+                remove_btn->signal_clicked().connect([this, popover, account_index, group_id]() {
+                    popover->popdown();
+                    on_remove_account_from_group(account_index, group_id);
+                });
+                box->append(*remove_btn);
+                has_group_actions = true;
+            }
+
+            // Separator before create group action
+            if (has_group_actions) {
+                auto separator = Gtk::make_managed<Gtk::Separator>(Gtk::Orientation::HORIZONTAL);
+                box->append(*separator);
+            }
+
+            // Create new group
+            auto create_group_btn = Gtk::make_managed<Gtk::Button>("New Group…");  // HIG: ellipsis for dialog-opening actions
+            create_group_btn->add_css_class("flat");
+            create_group_btn->signal_clicked().connect([this, popover]() {
+                popover->popdown();
+                on_create_group();
+            });
+            box->append(*create_group_btn);
+
+            // HIG: Destructive actions in separate section at bottom
+            auto separator2 = Gtk::make_managed<Gtk::Separator>(Gtk::Orientation::HORIZONTAL);
+            box->append(*separator2);
+
+            // Delete account
+            auto delete_button = Gtk::make_managed<Gtk::Button>("Delete Account");
+            delete_button->add_css_class("flat");
+            delete_button->add_css_class("destructive-action");
+            delete_button->signal_clicked().connect([this, popover]() {
+                popover->popdown();
+                on_delete_account();
+            });
+            box->append(*delete_button);
+        }
+    } else {
+        // Right-clicked on empty space
+        auto create_group_btn = Gtk::make_managed<Gtk::Button>("New Group…");  // HIG: ellipsis for dialog-opening actions
+        create_group_btn->add_css_class("flat");
+        create_group_btn->signal_clicked().connect([this, popover]() {
+            popover->popdown();
+            on_create_group();
+        });
+        box->append(*create_group_btn);
+    }
+
     popover->set_child(*box);
     popover->set_parent(*this);
     popover->set_autohide(true);
@@ -1149,50 +1310,126 @@ void MainWindow::update_account_list() {
     m_filtered_indices.clear();
 
     auto accounts = m_vault_manager->get_all_accounts();
+    auto groups = m_vault_manager->get_all_groups();
 
-    // Create sorted index vector
-    std::vector<std::pair<size_t, bool>> sorted_indices;
-    sorted_indices.reserve(accounts.size());
-
+    // Add "Favorites" group with favorited accounts
+    std::vector<size_t> favorite_indices;
     for (size_t i = 0; i < accounts.size(); i++) {
-        sorted_indices.push_back({i, accounts[i].is_favorite()});
+        if (accounts[i].is_favorite()) {
+            favorite_indices.push_back(i);
+        }
     }
 
-    // Check if custom ordering is enabled
-    bool has_custom_order = m_vault_manager->has_custom_global_ordering();
+    if (!favorite_indices.empty()) {
+        auto favorites_group_row = *(m_account_list_store->append());
+        favorites_group_row[m_columns.m_col_is_group] = true;
+        favorites_group_row[m_columns.m_col_account_name] = "⭐ Favorites";
+        favorites_group_row[m_columns.m_col_user_name] = "";
+        favorites_group_row[m_columns.m_col_index] = -1;
+        favorites_group_row[m_columns.m_col_group_id] = "favorites";
+        favorites_group_row[m_columns.m_col_is_favorite] = false;
 
-    if (has_custom_order) {
-        // Sort by global_display_order (custom drag-and-drop order)
-        std::sort(sorted_indices.begin(), sorted_indices.end(),
-            [&accounts](const auto& a, const auto& b) {
-                int32_t order_a = accounts[a.first].global_display_order();
-                int32_t order_b = accounts[b.first].global_display_order();
-
-                // If global_display_order is same or invalid, fall back to name
-                if (order_a == order_b || order_a < 0 || order_b < 0) {
-                    return accounts[a.first].account_name() < accounts[b.first].account_name();
-                }
-                return order_a < order_b;
+        // Sort favorites alphabetically
+        std::sort(favorite_indices.begin(), favorite_indices.end(),
+            [&accounts](size_t a, size_t b) {
+                return accounts[a].account_name() < accounts[b].account_name();
             });
-    } else {
-        // Use automatic sorting: favorites first, then alphabetically
-        std::sort(sorted_indices.begin(), sorted_indices.end(),
-            [&accounts](const auto& a, const auto& b) {
-                if (a.second != b.second) {
-                    return a.second > b.second;  // Favorites first
-                }
-                return accounts[a.first].account_name() < accounts[b.first].account_name();
-            });
+
+        for (size_t index : favorite_indices) {
+            auto child_row = *(m_account_list_store->append(favorites_group_row.children()));
+            child_row[m_columns.m_col_is_group] = false;
+            child_row[m_columns.m_col_is_favorite] = true;
+            child_row[m_columns.m_col_account_name] = accounts[index].account_name();
+            child_row[m_columns.m_col_user_name] = accounts[index].user_name();
+            child_row[m_columns.m_col_index] = index;
+            child_row[m_columns.m_col_group_id] = "";
+        }
     }
 
-    // Add sorted accounts to list
-    for (const auto& [index, is_favorite] : sorted_indices) {
-        auto row = *(m_account_list_store->append());
-        row[m_columns.m_col_is_favorite] = is_favorite;
-        row[m_columns.m_col_account_name] = accounts[index].account_name();
-        row[m_columns.m_col_user_name] = accounts[index].user_name();
-        row[m_columns.m_col_index] = index;
+    // Add user-created groups
+    for (const auto& group : groups) {
+        // Skip system group (favorites)
+        if (group.group_id() == "favorites") continue;
+
+        // Get accounts in this group
+        std::vector<size_t> group_account_indices;
+        for (size_t i = 0; i < accounts.size(); i++) {
+            if (m_vault_manager->is_account_in_group(i, group.group_id())) {
+                group_account_indices.push_back(i);
+            }
+        }
+
+        // Only show group if it has accounts
+        if (group_account_indices.empty()) continue;
+
+        auto group_row = *(m_account_list_store->append());
+        group_row[m_columns.m_col_is_group] = true;
+        group_row[m_columns.m_col_account_name] = group.group_name();
+        group_row[m_columns.m_col_user_name] = "";
+        group_row[m_columns.m_col_index] = -1;
+        group_row[m_columns.m_col_group_id] = group.group_id();
+        group_row[m_columns.m_col_is_favorite] = false;
+
+        // Sort accounts alphabetically
+        std::sort(group_account_indices.begin(), group_account_indices.end(),
+            [&accounts](size_t a, size_t b) {
+                return accounts[a].account_name() < accounts[b].account_name();
+            });
+
+        for (size_t index : group_account_indices) {
+            auto child_row = *(m_account_list_store->append(group_row.children()));
+            child_row[m_columns.m_col_is_group] = false;
+            child_row[m_columns.m_col_is_favorite] = accounts[index].is_favorite();
+            child_row[m_columns.m_col_account_name] = accounts[index].account_name();
+            child_row[m_columns.m_col_user_name] = accounts[index].user_name();
+            child_row[m_columns.m_col_index] = index;
+            child_row[m_columns.m_col_group_id] = "";
+        }
     }
+
+    // Add "All Accounts" group with all ungrouped accounts
+    std::vector<size_t> ungrouped_indices;
+    for (size_t i = 0; i < accounts.size(); i++) {
+        bool is_in_any_group = false;
+        for (const auto& group : groups) {
+            if (m_vault_manager->is_account_in_group(i, group.group_id())) {
+                is_in_any_group = true;
+                break;
+            }
+        }
+        if (!is_in_any_group) {
+            ungrouped_indices.push_back(i);
+        }
+    }
+
+    if (!ungrouped_indices.empty()) {
+        auto all_accounts_row = *(m_account_list_store->append());
+        all_accounts_row[m_columns.m_col_is_group] = true;
+        all_accounts_row[m_columns.m_col_account_name] = "All Accounts";
+        all_accounts_row[m_columns.m_col_user_name] = "";
+        all_accounts_row[m_columns.m_col_index] = -1;
+        all_accounts_row[m_columns.m_col_group_id] = "all";
+        all_accounts_row[m_columns.m_col_is_favorite] = false;
+
+        // Sort ungrouped accounts alphabetically
+        std::sort(ungrouped_indices.begin(), ungrouped_indices.end(),
+            [&accounts](size_t a, size_t b) {
+                return accounts[a].account_name() < accounts[b].account_name();
+            });
+
+        for (size_t index : ungrouped_indices) {
+            auto child_row = *(m_account_list_store->append(all_accounts_row.children()));
+            child_row[m_columns.m_col_is_group] = false;
+            child_row[m_columns.m_col_is_favorite] = accounts[index].is_favorite();
+            child_row[m_columns.m_col_account_name] = accounts[index].account_name();
+            child_row[m_columns.m_col_user_name] = accounts[index].user_name();
+            child_row[m_columns.m_col_index] = index;
+            child_row[m_columns.m_col_group_id] = "";
+        }
+    }
+
+    // Expand all groups by default
+    m_account_tree_view.expand_all();
 
     m_status_label.set_text("Vault opened: " + m_current_vault_path +
                            " (" + std::to_string(accounts.size()) + " accounts)");
@@ -3139,4 +3376,129 @@ void MainWindow::setup_drag_and_drop() {
             }
         }
     );
+}
+
+// Account Groups Implementation
+// ============================================================================
+
+void MainWindow::on_create_group() {
+    if (!m_vault_open) {
+        return;
+    }
+
+    auto* dialog = Gtk::make_managed<GroupCreateDialog>(*this);
+    dialog->set_modal(true);
+    dialog->set_hide_on_close(true);
+
+    dialog->signal_response().connect([this, dialog](int result) {
+        dialog->hide();
+
+        if (result != static_cast<int>(Gtk::ResponseType::OK)) {
+            return;
+        }
+
+        auto group_name = dialog->get_group_name();
+        if (group_name.empty()) {
+            return;
+        }
+
+        // Create the group
+        std::string group_id = m_vault_manager->create_group(group_name.raw());
+        if (group_id.empty()) {
+            show_error_dialog("Failed to create group. The name may already exist or be invalid.");
+            return;
+        }
+
+        m_status_label.set_text("Group created: " + group_name);
+        update_account_list();
+    });
+
+    dialog->present();
+}
+
+void MainWindow::on_delete_group(const std::string& group_id) {
+    if (!m_vault_open || group_id.empty()) {
+        return;
+    }
+
+    // Find group name
+    auto groups = m_vault_manager->get_all_groups();
+    std::string group_name;
+    for (const auto& group : groups) {
+        if (group.group_id() == group_id) {
+            group_name = group.group_name();
+            break;
+        }
+    }
+
+    if (group_name.empty()) {
+        return;
+    }
+
+    // Confirm deletion
+    auto confirm_dialog = std::make_unique<Gtk::MessageDialog>(
+        *this,
+        "Delete Group?",
+        false,
+        Gtk::MessageType::QUESTION,
+        Gtk::ButtonsType::YES_NO,
+        true
+    );
+    confirm_dialog->set_secondary_text(
+        "Are you sure you want to delete '" + group_name + "'? Accounts will not be deleted."
+    );
+
+    confirm_dialog->signal_response().connect([this, dialog = confirm_dialog.get(), group_id, group_name](int response) {
+        if (response == Gtk::ResponseType::YES) {
+            if (m_vault_manager->delete_group(group_id)) {
+                m_status_label.set_text("Group deleted: " + group_name);
+                update_account_list();
+            } else {
+                show_error_dialog("Failed to delete group.");
+            }
+        }
+        dialog->hide();
+    });
+
+    confirm_dialog.release()->present();
+}
+
+void MainWindow::on_add_account_to_group(int account_index, const std::string& group_id) {
+    if (!m_vault_open || account_index < 0 || group_id.empty()) {
+        return;
+    }
+
+    if (m_vault_manager->add_account_to_group(account_index, group_id)) {
+        // Find group name
+        auto groups = m_vault_manager->get_all_groups();
+        for (const auto& group : groups) {
+            if (group.group_id() == group_id) {
+                m_status_label.set_text("Added to " + group.group_name());
+                break;
+            }
+        }
+        update_account_list();
+    } else {
+        show_error_dialog("Failed to add account to group.");
+    }
+}
+
+void MainWindow::on_remove_account_from_group(int account_index, const std::string& group_id) {
+    if (!m_vault_open || account_index < 0 || group_id.empty()) {
+        return;
+    }
+
+    if (m_vault_manager->remove_account_from_group(account_index, group_id)) {
+        // Find group name
+        auto groups = m_vault_manager->get_all_groups();
+        for (const auto& group : groups) {
+            if (group.group_id() == group_id) {
+                m_status_label.set_text("Removed from " + group.group_name());
+                break;
+            }
+        }
+        update_account_list();
+    } else {
+        show_error_dialog("Failed to remove account from group.");
+    }
 }

@@ -39,6 +39,7 @@ private:
     void on_backup_enabled_toggled() noexcept;           ///< Handle backup enabled checkbox toggle
     void on_auto_lock_enabled_toggled() noexcept;        ///< Handle auto-lock enabled checkbox toggle
     void on_password_history_enabled_toggled() noexcept; ///< Handle password history enabled checkbox toggle
+    void on_undo_redo_enabled_toggled() noexcept;        ///< Handle undo/redo enabled checkbox toggle
     void on_apply_to_current_toggled() noexcept;         ///< Handle "Apply to current vault" checkbox toggle
     void on_color_scheme_changed() noexcept;             ///< Handle color scheme dropdown selection change
     void on_response(int response_id) noexcept override; ///< Handle dialog response (Apply/Cancel)
@@ -93,6 +94,12 @@ private:
     Gtk::Label m_password_history_limit_label;
     Gtk::SpinButton m_password_history_limit_spin;
     Gtk::Label m_password_history_limit_suffix;
+    Gtk::CheckButton m_undo_redo_enabled_check;
+    Gtk::Box m_undo_history_limit_box;
+    Gtk::Label m_undo_history_limit_label;
+    Gtk::SpinButton m_undo_history_limit_spin;
+    Gtk::Label m_undo_history_limit_suffix;
+    Gtk::Label m_undo_redo_warning;
 
     // Storage page (Reed-Solomon + Backups)
     Gtk::Box m_storage_box;

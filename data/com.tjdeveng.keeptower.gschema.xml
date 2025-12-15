@@ -89,5 +89,18 @@
       <summary>Password history limit</summary>
       <description>Maximum number of previous passwords to remember per account (1-20).</description>
     </key>
+
+    <key name="undo-redo-enabled" type="b">
+      <default>true</default>
+      <summary>Enable undo/redo</summary>
+      <description>Allow undoing vault operations (add/delete/modify accounts). When disabled, operations cannot be undone but passwords are not kept in memory for undo history, improving security.</description>
+    </key>
+
+    <key name="undo-history-limit" type="i">
+      <default>50</default>
+      <range min="1" max="100"/>
+      <summary>Undo history limit</summary>
+      <description>Maximum number of operations to keep in undo history (1-100). Lower values reduce memory usage.</description>
+    </key>
   </schema>
 </schemalist>

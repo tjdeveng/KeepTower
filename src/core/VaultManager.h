@@ -419,6 +419,12 @@ public:
      */
     [[nodiscard]] bool is_account_in_group(size_t account_index, const std::string& group_id) const;
 
+    /**
+     * @brief Get all account groups
+     * @return Vector of all groups in the vault
+     */
+    [[nodiscard]] std::vector<keeptower::AccountGroup> get_all_groups() const;
+
     // State queries
 
     /**
