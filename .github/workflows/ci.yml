@@ -53,6 +53,25 @@ jobs:
           libykpers-1-dev \
           libyubikey-dev
 
+    - name: Verify C++23 support
+      if: runner.os == 'Linux'
+      run: |
+        echo "=== Compiler Version ==="
+        g++ --version
+        echo ""
+        echo "=== C++ Standard Support ==="
+        g++ -std=c++23 -dM -E -x c++ - < /dev/null | grep __cplusplus
+        echo ""
+        echo "=== Verifying C++23 mode ==="
+        expected_value=202302L
+        actual_value=$(g++ -std=c++23 -dM -E -x c++ - < /dev/null | grep '__cplusplus' | awk '{print $3}')
+        if [ "$actual_value" -ge "$expected_value" ]; then
+          echo "✓ C++23 support confirmed (value: $actual_value)"
+        else
+          echo "✗ C++23 support incomplete (value: $actual_value, expected: >= $expected_value)"
+          echo "Note: Build may still succeed if only well-supported features are used"
+        fi
+
     - name: Build and install libcorrect
       if: runner.os == 'Linux' && steps.cache-libcorrect.outputs.cache-hit != 'true'
       run: |
@@ -77,6 +96,17 @@ jobs:
 
     - name: Run tests
       run: meson test -C build --verbose
+
+    - name: Publish Test Results Summary
+      uses: mikepenz/action-junit-report@v4
+      if: always()
+      with:
+        report_paths: 'build/meson-logs/testlog.junit.xml'
+        detailed_summary: true
+        include_passed: true
+        check_name: 'Test Results (${{ matrix.os }})'
+        fail_on_failure: true
+        require_tests: true
 
     - name: Upload test logs on failure
       if: failure()
