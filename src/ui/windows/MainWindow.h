@@ -107,6 +107,7 @@ protected:
 
     // Group management handlers
     void on_create_group();  ///< Show dialog to create new group
+    void on_rename_group(const std::string& group_id, const Glib::ustring& current_name);  ///< Rename a group
     void on_delete_group(const std::string& group_id);  ///< Delete a group
     void on_add_account_to_group(int account_index, const std::string& group_id);  ///< Add account to group
     void on_remove_account_from_group(int account_index, const std::string& group_id);  ///< Remove account from group

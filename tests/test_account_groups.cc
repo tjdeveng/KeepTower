@@ -302,6 +302,233 @@ TEST_F(AccountGroupsTest, GroupNamesWithSpecialCharacters) {
     EXPECT_FALSE(vault_manager->create_group("Работа").empty());
 }
 
+// ============================================================================
+// PHASE 5 TESTS: Group Rename, Reorder, and Account Ordering Within Groups
+// ============================================================================
+
+// Test: Rename group succeeds with valid name
+TEST_F(AccountGroupsTest, RenameGroupSuccess) {
+    std::string group_id = vault_manager->create_group("Old Name");
+    ASSERT_FALSE(group_id.empty());
+
+    // Rename should succeed
+    EXPECT_TRUE(vault_manager->rename_group(group_id, "New Name"));
+
+    // Verify name changed
+    auto groups = vault_manager->get_all_groups();
+    auto it = std::find_if(groups.begin(), groups.end(),
+                          [&](const auto& g) { return g.group_id() == group_id; });
+    ASSERT_NE(it, groups.end());
+    EXPECT_EQ(it->group_name(), "New Name");
+}
+
+// Test: Cannot rename system groups
+TEST_F(AccountGroupsTest, CannotRenameSystemGroups) {
+    std::string fav_id = vault_manager->get_favorites_group_id();
+    ASSERT_FALSE(fav_id.empty());
+
+    // Attempt to rename Favorites should fail
+    EXPECT_FALSE(vault_manager->rename_group(fav_id, "Not Favorites"));
+
+    // Verify name unchanged
+    auto groups = vault_manager->get_all_groups();
+    auto it = std::find_if(groups.begin(), groups.end(),
+                          [&](const auto& g) { return g.group_id() == fav_id; });
+    ASSERT_NE(it, groups.end());
+    EXPECT_EQ(it->group_name(), "Favorites");
+}
+
+// Test: Cannot rename to duplicate name
+TEST_F(AccountGroupsTest, RenameGroupDuplicateName) {
+    std::string group1_id = vault_manager->create_group("Work");
+    std::string group2_id = vault_manager->create_group("Personal");
+    ASSERT_FALSE(group1_id.empty());
+    ASSERT_FALSE(group2_id.empty());
+
+    // Attempt to rename group2 to "Work" should fail
+    EXPECT_FALSE(vault_manager->rename_group(group2_id, "Work"));
+
+    // Verify group2 name unchanged
+    auto groups = vault_manager->get_all_groups();
+    auto it = std::find_if(groups.begin(), groups.end(),
+                          [&](const auto& g) { return g.group_id() == group2_id; });
+    ASSERT_NE(it, groups.end());
+    EXPECT_EQ(it->group_name(), "Personal");
+}
+
+// Test: Rename with invalid name fails
+TEST_F(AccountGroupsTest, RenameGroupInvalidName) {
+    std::string group_id = vault_manager->create_group("Valid");
+    ASSERT_FALSE(group_id.empty());
+
+    // Empty name
+    EXPECT_FALSE(vault_manager->rename_group(group_id, ""));
+
+    // Too long name
+    std::string long_name(101, 'x');
+    EXPECT_FALSE(vault_manager->rename_group(group_id, long_name));
+
+    // Path traversal
+    EXPECT_FALSE(vault_manager->rename_group(group_id, "../evil"));
+}
+
+// Test: Rename persists across vault close/reopen
+TEST_F(AccountGroupsTest, RenameGroupPersistence) {
+    std::string group_id = vault_manager->create_group("Original");
+    ASSERT_FALSE(group_id.empty());
+    ASSERT_TRUE(vault_manager->rename_group(group_id, "Renamed"));
+
+    // Close and reopen vault
+    ASSERT_TRUE(vault_manager->close_vault());
+    ASSERT_TRUE(vault_manager->open_vault(test_vault_path, test_password));
+
+    // Verify renamed group persisted
+    auto groups = vault_manager->get_all_groups();
+    auto it = std::find_if(groups.begin(), groups.end(),
+                          [&](const auto& g) { return g.group_id() == group_id; });
+    ASSERT_NE(it, groups.end());
+    EXPECT_EQ(it->group_name(), "Renamed");
+}
+
+// Test: Reorder group succeeds
+TEST_F(AccountGroupsTest, ReorderGroupSuccess) {
+    std::string group1_id = vault_manager->create_group("Group 1");
+    std::string group2_id = vault_manager->create_group("Group 2");
+    ASSERT_FALSE(group1_id.empty());
+    ASSERT_FALSE(group2_id.empty());
+
+    // Reorder group1 to position 5
+    EXPECT_TRUE(vault_manager->reorder_group(group1_id, 5));
+
+    // Verify order changed
+    auto groups = vault_manager->get_all_groups();
+    auto it = std::find_if(groups.begin(), groups.end(),
+                          [&](const auto& g) { return g.group_id() == group1_id; });
+    ASSERT_NE(it, groups.end());
+    EXPECT_EQ(it->display_order(), 5);
+}
+
+// Test: Cannot reorder system groups
+TEST_F(AccountGroupsTest, CannotReorderSystemGroups) {
+    std::string fav_id = vault_manager->get_favorites_group_id();
+    ASSERT_FALSE(fav_id.empty());
+
+    // Attempt to reorder Favorites should fail
+    EXPECT_FALSE(vault_manager->reorder_group(fav_id, 10));
+
+    // Verify order unchanged (should be 0)
+    auto groups = vault_manager->get_all_groups();
+    auto it = std::find_if(groups.begin(), groups.end(),
+                          [&](const auto& g) { return g.group_id() == fav_id; });
+    ASSERT_NE(it, groups.end());
+    EXPECT_EQ(it->display_order(), 0);
+}
+
+// Test: Reorder with negative order fails
+TEST_F(AccountGroupsTest, ReorderGroupInvalidOrder) {
+    std::string group_id = vault_manager->create_group("Test");
+    ASSERT_FALSE(group_id.empty());
+
+    // Negative order should fail
+    EXPECT_FALSE(vault_manager->reorder_group(group_id, -1));
+}
+
+// Test: Reorder persists across vault close/reopen
+TEST_F(AccountGroupsTest, ReorderGroupPersistence) {
+    std::string group_id = vault_manager->create_group("Test");
+    ASSERT_FALSE(group_id.empty());
+    ASSERT_TRUE(vault_manager->reorder_group(group_id, 42));
+
+    // Close and reopen vault
+    ASSERT_TRUE(vault_manager->close_vault());
+    ASSERT_TRUE(vault_manager->open_vault(test_vault_path, test_password));
+
+    // Verify reorder persisted
+    auto groups = vault_manager->get_all_groups();
+    auto it = std::find_if(groups.begin(), groups.end(),
+                          [&](const auto& g) { return g.group_id() == group_id; });
+    ASSERT_NE(it, groups.end());
+    EXPECT_EQ(it->display_order(), 42);
+}
+
+// Test: Reorder account within group
+TEST_F(AccountGroupsTest, ReorderAccountInGroup) {
+    std::string group_id = vault_manager->create_group("Work");
+    ASSERT_FALSE(group_id.empty());
+
+    // Add accounts to group
+    ASSERT_TRUE(vault_manager->add_account_to_group(0, group_id));
+    ASSERT_TRUE(vault_manager->add_account_to_group(1, group_id));
+
+    // Reorder first account to position 3
+    EXPECT_TRUE(vault_manager->reorder_account_in_group(0, group_id, 3));
+
+    // Verify by reading account data directly
+    const auto* account = vault_manager->get_account(0);
+    ASSERT_NE(account, nullptr);
+
+    bool found = false;
+    for (const auto& membership : account->groups()) {
+        if (membership.group_id() == group_id) {
+            EXPECT_EQ(membership.display_order(), 3);
+            found = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(found);
+}
+
+// Test: Cannot reorder account not in group
+TEST_F(AccountGroupsTest, ReorderAccountNotInGroup) {
+    std::string group_id = vault_manager->create_group("Work");
+    ASSERT_FALSE(group_id.empty());
+
+    // Account 0 is not in the group
+    EXPECT_FALSE(vault_manager->reorder_account_in_group(0, group_id, 5));
+}
+
+// Test: Reorder account with invalid parameters
+TEST_F(AccountGroupsTest, ReorderAccountInGroupInvalidParams) {
+    std::string group_id = vault_manager->create_group("Work");
+    ASSERT_FALSE(group_id.empty());
+    ASSERT_TRUE(vault_manager->add_account_to_group(0, group_id));
+
+    // Invalid account index
+    EXPECT_FALSE(vault_manager->reorder_account_in_group(999, group_id, 0));
+
+    // Invalid group ID
+    EXPECT_FALSE(vault_manager->reorder_account_in_group(0, "nonexistent-id", 0));
+
+    // Negative order
+    EXPECT_FALSE(vault_manager->reorder_account_in_group(0, group_id, -1));
+}
+
+// Test: Reorder account within group persists
+TEST_F(AccountGroupsTest, ReorderAccountInGroupPersistence) {
+    std::string group_id = vault_manager->create_group("Work");
+    ASSERT_FALSE(group_id.empty());
+    ASSERT_TRUE(vault_manager->add_account_to_group(0, group_id));
+    ASSERT_TRUE(vault_manager->reorder_account_in_group(0, group_id, 7));
+
+    // Close and reopen vault
+    ASSERT_TRUE(vault_manager->close_vault());
+    ASSERT_TRUE(vault_manager->open_vault(test_vault_path, test_password));
+
+    // Verify reorder persisted
+    const auto* account = vault_manager->get_account(0);
+    ASSERT_NE(account, nullptr);
+
+    bool found = false;
+    for (const auto& membership : account->groups()) {
+        if (membership.group_id() == group_id) {
+            EXPECT_EQ(membership.display_order(), 7);
+            found = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(found);
+}
+
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

@@ -6,6 +6,7 @@
 #include "../dialogs/PasswordDialog.h"
 #include "../dialogs/PreferencesDialog.h"
 #include "../dialogs/GroupCreateDialog.h"
+#include "../dialogs/GroupRenameDialog.h"
 #include "../dialogs/YubiKeyPromptDialog.h"
 #include "../../core/VaultError.h"
 #include "../../core/commands/AccountCommands.h"
@@ -1165,6 +1166,51 @@ void MainWindow::on_account_right_click([[maybe_unused]] int n_press, double x, 
                 on_create_group();
             });
             box->append(*create_group_btn);
+
+            // Rename group (not for system groups)
+            if (!is_system) {
+                auto rename_group_btn = Gtk::make_managed<Gtk::Button>("Rename Group…");
+                rename_group_btn->add_css_class("flat");
+                rename_group_btn->signal_clicked().connect([this, popover, group_id, group_name]() {
+                    popover->popdown();
+                    on_rename_group(group_id, group_name);
+                });
+                box->append(*rename_group_btn);
+
+                // Group reordering (Move Up/Down) - not for system groups
+                // System groups always stay at display_order=0 (first position)
+                auto groups = m_vault_manager->get_all_groups();
+                auto it = std::find_if(groups.begin(), groups.end(),
+                                      [&](const auto& g) { return g.group_id() == group_id; });
+
+                if (it != groups.end()) {
+                    int current_order = it->display_order();
+
+                    auto move_up_btn = Gtk::make_managed<Gtk::Button>("Move Up");
+                    move_up_btn->add_css_class("flat");
+                    move_up_btn->signal_clicked().connect([this, popover, group_id, current_order]() {
+                        popover->popdown();
+                        if (current_order > 1) {  // Can't go below 1 (0 is reserved for system groups)
+                            if (m_vault_manager->reorder_group(group_id, current_order - 1)) {
+                                update_account_list();
+                                m_status_label.set_text("Group moved up");
+                            }
+                        }
+                    });
+                    box->append(*move_up_btn);
+
+                    auto move_down_btn = Gtk::make_managed<Gtk::Button>("Move Down");
+                    move_down_btn->add_css_class("flat");
+                    move_down_btn->signal_clicked().connect([this, popover, group_id, current_order]() {
+                        popover->popdown();
+                        if (m_vault_manager->reorder_group(group_id, current_order + 1)) {
+                            update_account_list();
+                            m_status_label.set_text("Group moved down");
+                        }
+                    });
+                    box->append(*move_down_btn);
+                }
+            }
 
             // HIG: Destructive actions in separate section at bottom
             if (!is_system) {
@@ -3410,6 +3456,40 @@ void MainWindow::on_create_group() {
         }
 
         m_status_label.set_text("Group created: " + group_name);
+        update_account_list();
+    });
+
+    dialog->present();
+}
+
+void MainWindow::on_rename_group(const std::string& group_id, const Glib::ustring& current_name) {
+    if (!m_vault_open || group_id.empty()) {
+        return;
+    }
+
+    auto* dialog = Gtk::make_managed<GroupRenameDialog>(*this, current_name);
+    dialog->set_modal(true);
+    dialog->set_hide_on_close(true);
+
+    dialog->signal_response().connect([this, dialog, group_id, current_name](int result) {
+        dialog->hide();
+
+        if (result != static_cast<int>(Gtk::ResponseType::OK)) {
+            return;
+        }
+
+        auto new_name = dialog->get_group_name();
+        if (new_name.empty() || new_name == current_name) {
+            return;  // No change
+        }
+
+        // Rename the group
+        if (!m_vault_manager->rename_group(group_id, new_name.raw())) {
+            show_error_dialog("Failed to rename group. The name may already exist, be invalid, or this is a system group.");
+            return;
+        }
+
+        m_status_label.set_text("Group renamed to: " + new_name);
         update_account_list();
     });
 

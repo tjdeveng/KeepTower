@@ -1145,12 +1145,42 @@ bool VaultManager::remove_account_from_group(size_t account_index, std::string_v
 }
 
 bool VaultManager::reorder_account_in_group(size_t account_index,
-                                            const std::string& group_id,
+                                            std::string_view group_id,
                                             int new_order) {
-    // Phase 3 - will be implemented when group-specific drag-drop UI is added
-    (void)account_index;
-    (void)group_id;
-    (void)new_order;
+    // Security: Ensure vault is open
+    if (!is_vault_open()) {
+        return false;
+    }
+
+    // Security: Validate account index
+    if (account_index >= get_account_count()) {
+        return false;
+    }
+
+    // Validate group exists
+    const keeptower::AccountGroup* group = find_group_by_id(m_vault_data, std::string{group_id});
+    if (!group) {
+        return false;
+    }
+
+    // Validate new order is reasonable
+    if (new_order < 0) {
+        return false;
+    }
+
+    auto* account = m_vault_data.mutable_accounts(account_index);
+
+    // Find the membership for this group
+    for (int i = 0; i < account->groups_size(); ++i) {
+        auto* membership = account->mutable_groups(i);
+        if (membership->group_id() == group_id) {
+            membership->set_display_order(new_order);
+            m_modified = true;
+            return save_vault();
+        }
+    }
+
+    // Account is not in this group
     return false;
 }
 
@@ -1221,6 +1251,80 @@ std::vector<keeptower::AccountGroup> VaultManager::get_all_groups() const {
     }
 
     return groups;
+}
+
+bool VaultManager::rename_group(std::string_view group_id, std::string_view new_name) {
+    // Security: Ensure vault is open
+    if (!is_vault_open()) {
+        return false;
+    }
+
+    // Security: Validate new name
+    if (!is_valid_group_name(new_name)) {
+        return false;
+    }
+
+    // Find the group
+    keeptower::AccountGroup* group = find_group_by_id(m_vault_data, std::string{group_id});
+    if (!group) {
+        return false;
+    }
+
+    // Security: Cannot rename system groups
+    if (group->is_system_group()) {
+        return false;
+    }
+
+    // Check for duplicate name (case-sensitive)
+    for (const auto& existing_group : m_vault_data.groups()) {
+        if (existing_group.group_id() != group_id &&
+            existing_group.group_name() == new_name) {
+            return false;  // Name already exists
+        }
+    }
+
+    // Update the group name
+    group->set_group_name(std::string{new_name});
+    m_modified = true;
+
+    // Save vault
+    if (!save_vault()) {
+        // Rollback on failure - protobuf doesn't have transaction support
+        // so we rely on the fact that save_vault() restores from backup
+        return false;
+    }
+
+    return true;
+}
+
+bool VaultManager::reorder_group(std::string_view group_id, int new_order) {
+    // Security: Ensure vault is open
+    if (!is_vault_open()) {
+        return false;
+    }
+
+    // Validate new order is reasonable
+    if (new_order < 0) {
+        return false;
+    }
+
+    // Find the group
+    keeptower::AccountGroup* group = find_group_by_id(m_vault_data, std::string{group_id});
+    if (!group) {
+        return false;
+    }
+
+    // System groups always have display_order = 0, cannot be reordered
+    if (group->is_system_group()) {
+        return false;
+    }
+
+    // Update the display order
+    group->set_display_order(new_order);
+    m_modified = true;
+
+    // Save vault
+    return save_vault();
 }
 
 bool VaultManager::derive_key(const Glib::ustring& password,

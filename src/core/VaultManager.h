@@ -391,13 +391,13 @@ public:
      * @brief Reorder an account within a specific group
      * @param account_index Index of the account
      * @param group_id UUID of the group
-     * @param new_order New display order within the group
+     * @param new_order New display order within the group (0 = first, higher = later)
      * @return true if reordered successfully, false on error
      *
-     * @note Phase 2 feature - implementation pending
+     * @note Phase 5 feature
      */
     [[nodiscard]] bool reorder_account_in_group(size_t account_index,
-                                                 const std::string& group_id,
+                                                 std::string_view group_id,
                                                  int new_order);
 
     /**
@@ -424,6 +424,29 @@ public:
      * @return Vector of all groups in the vault
      */
     [[nodiscard]] std::vector<keeptower::AccountGroup> get_all_groups() const;
+
+    /**
+     * @brief Rename an existing account group
+     * @param group_id UUID of the group to rename
+     * @param new_name New display name for the group
+     * @return true if renamed successfully, false on error
+     *
+     * @note Phase 5 feature
+     * @note System groups (e.g., "Favorites") cannot be renamed
+     * @security Validates new name (length, special characters)
+     */
+    [[nodiscard]] bool rename_group(std::string_view group_id, std::string_view new_name);
+
+    /**
+     * @brief Reorder groups in the UI display
+     * @param group_id UUID of the group to move
+     * @param new_order New display order (0 = first, higher = later)
+     * @return true if reordered successfully, false on error
+     *
+     * @note Phase 5 feature
+     * @note System groups maintain display_order = 0 (always first)
+     */
+    [[nodiscard]] bool reorder_group(std::string_view group_id, int new_order);
 
     // State queries
 
