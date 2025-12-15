@@ -354,7 +354,7 @@ public:
      *
      * @note Phase 2 feature - implementation pending
      */
-    [[nodiscard]] std::string create_group(const std::string& name);
+    [[nodiscard]] std::string create_group(std::string_view name);
 
     /**
      * @brief Delete an account group
@@ -364,7 +364,7 @@ public:
      * @note Phase 2 feature - implementation pending
      * @note System groups (e.g., "Favorites") cannot be deleted
      */
-    [[nodiscard]] bool delete_group(const std::string& group_id);
+    [[nodiscard]] bool delete_group(std::string_view group_id);
 
     /**
      * @brief Add an account to a group
@@ -375,7 +375,7 @@ public:
      * @note Phase 2 feature - implementation pending
      * @note Accounts can belong to multiple groups
      */
-    [[nodiscard]] bool add_account_to_group(size_t account_index, const std::string& group_id);
+    [[nodiscard]] bool add_account_to_group(size_t account_index, std::string_view group_id);
 
     /**
      * @brief Remove an account from a group
@@ -385,7 +385,7 @@ public:
      *
      * @note Phase 2 feature - implementation pending
      */
-    [[nodiscard]] bool remove_account_from_group(size_t account_index, const std::string& group_id);
+    [[nodiscard]] bool remove_account_from_group(size_t account_index, std::string_view group_id);
 
     /**
      * @brief Reorder an account within a specific group
@@ -417,7 +417,7 @@ public:
      *
      * @note Phase 2 feature - implementation pending
      */
-    [[nodiscard]] bool is_account_in_group(size_t account_index, const std::string& group_id) const;
+    [[nodiscard]] bool is_account_in_group(size_t account_index, std::string_view group_id) const;
 
     /**
      * @brief Get all account groups

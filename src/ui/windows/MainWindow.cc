@@ -3435,8 +3435,8 @@ void MainWindow::on_delete_group(const std::string& group_id) {
         return;
     }
 
-    // Confirm deletion
-    auto confirm_dialog = std::make_unique<Gtk::MessageDialog>(
+    // Confirm deletion - GTK4: use Gtk::make_managed for proper lifecycle
+    auto* confirm_dialog = Gtk::make_managed<Gtk::MessageDialog>(
         *this,
         "Delete Group?",
         false,
@@ -3444,11 +3444,13 @@ void MainWindow::on_delete_group(const std::string& group_id) {
         Gtk::ButtonsType::YES_NO,
         true
     );
+    confirm_dialog->set_modal(true);
+    confirm_dialog->set_hide_on_close(true);
     confirm_dialog->set_secondary_text(
         "Are you sure you want to delete '" + group_name + "'? Accounts will not be deleted."
     );
 
-    confirm_dialog->signal_response().connect([this, dialog = confirm_dialog.get(), group_id, group_name](int response) {
+    confirm_dialog->signal_response().connect([this, confirm_dialog, group_id, group_name](int response) {
         if (response == Gtk::ResponseType::YES) {
             if (m_vault_manager->delete_group(group_id)) {
                 m_status_label.set_text("Group deleted: " + group_name);
@@ -3457,10 +3459,10 @@ void MainWindow::on_delete_group(const std::string& group_id) {
                 show_error_dialog("Failed to delete group.");
             }
         }
-        dialog->hide();
+        confirm_dialog->hide();
     });
 
-    confirm_dialog.release()->present();
+    confirm_dialog->present();
 }
 
 void MainWindow::on_add_account_to_group(int account_index, const std::string& group_id) {

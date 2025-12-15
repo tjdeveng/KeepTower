@@ -930,7 +930,7 @@ namespace {
      * - No control characters
      * - No path traversal attempts
      */
-    bool is_valid_group_name(const std::string& name) {
+    bool is_valid_group_name(std::string_view name) {
         if (name.empty() || name.length() > 100) {
             return false;
         }
@@ -958,7 +958,7 @@ namespace {
      * @return Pointer to group if found, nullptr otherwise
      */
     keeptower::AccountGroup* find_group_by_id(keeptower::VaultData& vault_data,
-                                               const std::string& group_id) {
+                                               std::string_view group_id) {
         for (int i = 0; i < vault_data.groups_size(); ++i) {
             if (vault_data.groups(i).group_id() == group_id) {
                 return vault_data.mutable_groups(i);
@@ -971,7 +971,7 @@ namespace {
      * @brief Find a group by ID (const version)
      */
     const keeptower::AccountGroup* find_group_by_id(const keeptower::VaultData& vault_data,
-                                                     const std::string& group_id) {
+                                                     std::string_view group_id) {
         for (int i = 0; i < vault_data.groups_size(); ++i) {
             if (vault_data.groups(i).group_id() == group_id) {
                 return &vault_data.groups(i);
@@ -981,7 +981,7 @@ namespace {
     }
 }
 
-std::string VaultManager::create_group(const std::string& name) {
+std::string VaultManager::create_group(std::string_view name) {
     // Security: Ensure vault is open
     if (!is_vault_open()) {
         return "";
@@ -992,9 +992,12 @@ std::string VaultManager::create_group(const std::string& name) {
         return "";
     }
 
+    // Convert to std::string for protobuf API
+    std::string name_str{name};
+
     // Check for duplicate names (usability)
     for (int i = 0; i < m_vault_data.groups_size(); ++i) {
-        if (m_vault_data.groups(i).group_name() == name) {
+        if (m_vault_data.groups(i).group_name() == name_str) {
             return "";  // Group with this name already exists
         }
     }
@@ -1005,7 +1008,7 @@ std::string VaultManager::create_group(const std::string& name) {
     // Create new group
     auto* new_group = m_vault_data.add_groups();
     new_group->set_group_id(group_id);
-    new_group->set_group_name(name);
+    new_group->set_group_name(name_str);
     new_group->set_is_system_group(false);
     new_group->set_display_order(m_vault_data.groups_size() - 1);
     new_group->set_is_expanded(true);  // New groups start expanded
@@ -1021,7 +1024,7 @@ std::string VaultManager::create_group(const std::string& name) {
     return group_id;
 }
 
-bool VaultManager::delete_group(const std::string& group_id) {
+bool VaultManager::delete_group(std::string_view group_id) {
     // Security: Ensure vault is open
     if (!is_vault_open()) {
         return false;
@@ -1072,7 +1075,7 @@ bool VaultManager::delete_group(const std::string& group_id) {
     return save_vault();
 }
 
-bool VaultManager::add_account_to_group(size_t account_index, const std::string& group_id) {
+bool VaultManager::add_account_to_group(size_t account_index, std::string_view group_id) {
     // Security: Ensure vault is open
     if (!is_vault_open()) {
         return false;
@@ -1098,9 +1101,9 @@ bool VaultManager::add_account_to_group(size_t account_index, const std::string&
         }
     }
 
-    // Add group membership
+    // Add group membership - convert string_view to string for protobuf API
     auto* membership = account->add_groups();
-    membership->set_group_id(group_id);
+    membership->set_group_id(std::string{group_id});
     membership->set_display_order(-1);  // Use automatic ordering initially
 
     // Mark as modified and save
@@ -1108,7 +1111,7 @@ bool VaultManager::add_account_to_group(size_t account_index, const std::string&
     return save_vault();
 }
 
-bool VaultManager::remove_account_from_group(size_t account_index, const std::string& group_id) {
+bool VaultManager::remove_account_from_group(size_t account_index, std::string_view group_id) {
     // Security: Ensure vault is open
     if (!is_vault_open()) {
         return false;
@@ -1187,7 +1190,7 @@ std::string VaultManager::get_favorites_group_id() {
     return group_id;
 }
 
-bool VaultManager::is_account_in_group(size_t account_index, const std::string& group_id) const {
+bool VaultManager::is_account_in_group(size_t account_index, std::string_view group_id) const {
     // Security: Validate indices
     if (!is_vault_open() || account_index >= get_account_count()) {
         return false;
