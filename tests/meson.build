@@ -59,6 +59,34 @@ vault_manager_test = executable(
     include_directories: test_inc
 )
 
+# FIPS mode tests
+fips_mode_sources = [
+    'test_fips_mode.cc',
+    '../src/core/VaultManager.cc',
+    '../src/core/ReedSolomon.cc',
+    proto_gen
+]
+
+fips_mode_deps = [
+    gtest_dep,
+    protobuf_dep,
+    openssl_dep,
+    giomm_dep,
+    libcorrect_dep
+]
+
+if yubikey_available
+    fips_mode_sources += files('../src/core/YubiKeyManager.cc')
+    fips_mode_deps += [ykpers_dep, libyubikey_dep]
+endif
+
+fips_mode_test = executable(
+    'fips_mode_test',
+    fips_mode_sources,
+    dependencies: fips_mode_deps,
+    include_directories: test_inc
+)
+
 # Password validation tests
 password_validation_test = executable(
     'password_validation_test',
@@ -245,6 +273,7 @@ test('Settings Validator Tests', settings_validator_test, env: ['GSETTINGS_SCHEM
 test('Vault Helper Functions', vault_helpers_test)
 test('Fuzzy Match Tests', fuzzy_match_test)
 test('Undo/Redo Tests', undo_redo_test)
+test('FIPS Mode Tests', fips_mode_test)
 
 # Secure memory tests
 secure_memory_sources = [
