@@ -4,8 +4,11 @@
 #include "config.h"
 #include "CreatePasswordDialog.h"
 #include "../../core/CommonPasswords.h"
+#include "../../utils/StringHelpers.h"
 #include <algorithm>
 #include <cctype>
+
+using KeepTower::safe_ustring_to_string;
 
 CreatePasswordDialog::CreatePasswordDialog(Gtk::Window& parent)
     : Gtk::Dialog("Create New Password", parent, true),
@@ -239,7 +242,7 @@ bool CreatePasswordDialog::validate_nist_requirements(const Glib::ustring& passw
     // 2. Check against common passwords list using comprehensive database
 
     // Use the comprehensive common password list
-    std::string password_str(password.raw());
+    std::string password_str(safe_ustring_to_string(password, "generated_password"));
     return !KeepTower::is_common_password(password_str);
 }
 

@@ -1,3 +1,7 @@
+#include <string>
+
+// Forward declarations for widget classes
+namespace Gtk { class Box; class HeaderBar; class Button; class MenuButton; class Label; class Entry; class TextView; class ScrolledWindow; class FlowBox; }
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2025 tjdeveng
 
@@ -9,7 +13,17 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
-#include <gtkmm.h>
+// GTKmm includes
+#include <gtkmm/window.h>
+#include <gtkmm/box.h>
+#include <gtkmm/headerbar.h>
+#include <gtkmm/button.h>
+#include <gtkmm/menubutton.h>
+#include <gtkmm/label.h>
+#include <gtkmm/entry.h>
+#include <gtkmm/textview.h>
+#include <gtkmm/scrolledwindow.h>
+#include <gtkmm/flowbox.h>
 #include <vector>
 #include <memory>
 #include "../../core/VaultManager.h"
@@ -17,6 +31,10 @@
 #ifdef HAVE_YUBIKEY_SUPPORT
 #include "../../core/YubiKeyManager.h"
 #endif
+
+// Project widget headers (must come after GTKmm includes)
+#include "../widgets/AccountTreeWidget.h"
+#include "../widgets/AccountDetailWidget.h"
 
 /**
  * @namespace UI
@@ -88,7 +106,8 @@ protected:
     void on_toggle_password_visibility();  ///< Show/hide password
     void on_undo();  ///< Undo last operation
     void on_redo();  ///< Redo last undone operation
-    void on_star_column_clicked(const Gtk::TreeModel::Path& path);  ///< Toggle favorite by clicking star column
+    void on_star_column_clicked(const Gtk::TreeModel::Path& path);  ///< Toggle favorite by clicking star column (legacy)
+    void on_favorite_toggled(int account_index);  ///< Handle favorite toggle from AccountRowWidget
     [[nodiscard]] bool is_undo_redo_enabled() const;  ///< Check if undo/redo is enabled in preferences
     void on_tags_entry_activate();  ///< Add tag when Enter is pressed
     void add_tag_chip(const std::string& tag);  ///< Add a tag chip to the flowbox
@@ -102,8 +121,7 @@ protected:
     // Account list handlers
     void on_search_changed(); ///< Filter accounts by search
     void on_selection_changed();  ///< Handle account selection
-    void on_account_selected(const Gtk::TreeModel::Path& path, Gtk::TreeViewColumn* column);  ///< Double-click handler
-    void on_account_right_click(int n_press, double x, double y);  ///< Context menu handler
+    // [REMOVED] Legacy TreeView/TreeStore handlers (migrated to AccountTreeWidget)
 
     // Group management handlers
     void on_create_group();  ///< Show dialog to create new group
@@ -119,8 +137,8 @@ protected:
 
     // Helper methods
     bool save_current_account();  ///< Returns false if validation fails
-    void update_account_list();
-    void filter_accounts(const Glib::ustring& search_text);
+    void update_account_list(); // Will be stubbed, legacy logic removed
+    void filter_accounts(const Glib::ustring& search_text); // Will be stubbed, legacy logic removed
     void clear_account_details();
     void display_account_details(int index);
     void show_error_dialog(const Glib::ustring& message);
@@ -130,7 +148,15 @@ protected:
     void setup_activity_monitoring();  ///< Setup event monitors for user activity
     std::string get_master_password_for_lock();  ///< Get master password to re-open after lock
     void update_undo_redo_sensitivity(bool can_undo, bool can_redo);  ///< Update undo/redo menu item sensitivity
-    void setup_drag_and_drop();  ///< Setup drag-and-drop for account reordering
+    // [REMOVED] Legacy drag-and-drop setup (handled by AccountTreeWidget)
+
+    // Helper methods for widget-based UI
+    int find_account_index_by_id(const std::string& account_id) const;
+    void filter_accounts_by_group(const std::string& group_id);
+    void show_account_context_menu(const std::string& account_id, Gtk::Widget* widget, double x, double y);
+    void show_group_context_menu(const std::string& group_id, Gtk::Widget* widget, double x, double y);
+    void on_account_reordered(const std::string& account_id, const std::string& target_group_id, int new_index);
+    void on_group_reordered(const std::string& group_id, int new_index);
 
     // Member widgets
     Gtk::Box m_main_box;
@@ -158,69 +184,14 @@ protected:
     // Split view: account list | details
     Gtk::Paned m_paned;       // Splits accounts from details
 
-    // Account list with groups (left side)
-    Gtk::ScrolledWindow m_list_scrolled;
-    Gtk::TreeView m_account_tree_view;
-    Glib::RefPtr<Gtk::TreeStore> m_account_list_store;
-
-    // Account details (right side)
-    Gtk::ScrolledWindow m_details_scrolled;
-    Gtk::Box m_details_box;
-    Gtk::Paned m_details_paned;  // Horizontal resizable split for fields + notes
-    Gtk::Box m_details_fields_box;  // Left side: all input fields
-
-    Gtk::Label m_account_name_label;
-    Gtk::Entry m_account_name_entry;
-
-    Gtk::Label m_user_name_label;
-    Gtk::Entry m_user_name_entry;
-
-    Gtk::Label m_password_label;
-    Gtk::Entry m_password_entry;
-    Gtk::Button m_show_password_button;
-    Gtk::Button m_copy_password_button;
-    Gtk::Button m_generate_password_button;
-    Gtk::Button m_delete_account_button;
-
-    Gtk::Label m_email_label;
-    Gtk::Entry m_email_entry;
-
-    Gtk::Label m_website_label;
-    Gtk::Entry m_website_entry;
-
-    Gtk::Label m_notes_label;
-    Gtk::TextView m_notes_view;
-    Gtk::ScrolledWindow m_notes_scrolled;
-
-    // Tags
-    Gtk::Label m_tags_label;
-    Gtk::Entry m_tags_entry;
-    Gtk::FlowBox m_tags_flowbox;
-    Gtk::ScrolledWindow m_tags_scrolled;
+    // New widget-based UI
+    std::unique_ptr<AccountTreeWidget> m_account_tree_widget;
+    std::unique_ptr<AccountDetailWidget> m_account_detail_widget;
 
     Gtk::Label m_status_label;
 
     // Tree model columns for accounts and groups
-    class ModelColumns : public Gtk::TreeModel::ColumnRecord {
-    public:
-        ModelColumns() {
-            add(m_col_is_favorite);
-            add(m_col_account_name);
-            add(m_col_user_name);
-            add(m_col_index);
-            add(m_col_is_group);
-            add(m_col_group_id);
-        }
-
-        Gtk::TreeModelColumn<bool> m_col_is_favorite;           // Favorite/starred status
-        Gtk::TreeModelColumn<Glib::ustring> m_col_account_name;
-        Gtk::TreeModelColumn<Glib::ustring> m_col_user_name;
-        Gtk::TreeModelColumn<int> m_col_index;  // Index in vault data (-1 for group rows)
-        Gtk::TreeModelColumn<bool> m_col_is_group;  // True if this row is a group header
-        Gtk::TreeModelColumn<std::string> m_col_group_id;  // Group ID for group rows
-    };
-
-    ModelColumns m_columns;
+    // [REMOVED] Legacy TreeModel columns (migrated to AccountTreeWidget)
 
     // State
     bool m_vault_open;                        ///< True if a vault is currently open
@@ -233,6 +204,11 @@ protected:
     sigc::connection m_clipboard_timeout;     ///< Connection for clipboard auto-clear timer
     sigc::connection m_auto_lock_timeout;     ///< Connection for auto-lock inactivity timer
     sigc::connection m_row_inserted_conn;     ///< Connection for detecting drag-and-drop reordering
+    std::vector<sigc::connection> m_signal_connections;  ///< Persistent widget signal connections
+
+    // Context menu state
+    std::string m_context_menu_account_id;  ///< Account ID for current context menu
+    std::string m_context_menu_group_id;     ///< Group ID for current context menu
 
     // Vault manager
     std::unique_ptr<VaultManager> m_vault_manager;  ///< Manages vault encryption/decryption

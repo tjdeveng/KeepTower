@@ -17,6 +17,7 @@ application_id = 'com.tjdeveng.keeptower'
 
 # Dependencies
 gtkmm_dep = dependency('gtkmm-4.0', version: '>= 4.10')
+sigcxx_dep = dependency('sigc++-3.0')
 protobuf_dep = dependency('protobuf', version: '>= 3.0')
 openssl_dep = dependency('openssl', version: '>= 1.1.0')
 
@@ -45,6 +46,7 @@ endif
 # Common dependencies
 common_deps = [
   gtkmm_dep,
+  sigcxx_dep,
   protobuf_dep,
   openssl_dep,
   libcorrect_dep,
