@@ -2,7 +2,9 @@
 
 ## Overview
 
-This guide explains how to configure KeepTower to use FIPS-140-3 validated cryptographic operations via OpenSSL 3.5+. FIPS mode is optional and designed for environments requiring cryptographic compliance.
+This guide explains how to configure KeepTower to use FIPS-140-3 validated cryptographic operations via the NIST-certified OpenSSL 3.5+ FIPS module. FIPS mode is optional and designed for environments requiring cryptographic compliance.
+
+**Important:** KeepTower uses FIPS-validated cryptographic modules but is not itself FIPS-certified. FIPS certification requires third-party validation and auditing. Organizations requiring certified systems should perform independent assessment.
 
 ## Requirements
 

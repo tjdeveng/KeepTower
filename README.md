@@ -14,7 +14,7 @@ A secure, modern password manager built with C++23 and GTK4.
 ## Features
 
 - **Strong Encryption**: AES-256-GCM with authenticated encryption
-- **FIPS-140-3 Compliant Cryptography**: Optional FIPS-validated cryptographic operations (OpenSSL 3.5+)
+- **FIPS-140-3 Ready Cryptography**: Optional FIPS-validated cryptographic operations via OpenSSL 3.5+ FIPS module (KeepTower itself is not FIPS-certified)
 - **Secure Key Derivation**: PBKDF2-SHA256 with 100,000 iterations (configurable)
 - **Import/Export**: Multi-format data portability
   - CSV format (tested and verified)
@@ -48,10 +48,11 @@ A secure, modern password manager built with C++23 and GTK4.
 
 ## Security Features
 
-- **FIPS-140-3 Support**: Optional cryptographic compliance mode
-  - Uses OpenSSL 3.5+ FIPS provider when available
+- **FIPS-140-3 Ready**: Optional FIPS-validated cryptographic operations
+  - Uses NIST-certified OpenSSL 3.5+ FIPS module
   - All algorithms FIPS-approved (AES-256-GCM, PBKDF2-HMAC-SHA256, SHA-256)
   - User-configurable in Preferences → Security
+  - **Note:** KeepTower uses FIPS-validated modules but is not itself FIPS-certified
   - See [FIPS_COMPLIANCE.md](FIPS_COMPLIANCE.md) for details
 - Secure memory clearing prevents data remnants
 - Memory locking prevents swap file exposure

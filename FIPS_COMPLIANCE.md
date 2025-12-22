@@ -2,7 +2,9 @@
 
 ## Compliance Statement
 
-**KeepTower Password Manager** provides optional FIPS-140-3 compliant cryptographic operations via OpenSSL 3.5+ with the FIPS cryptographic module. This document describes KeepTower's FIPS compliance status, cryptographic algorithms, and validation details.
+**KeepTower Password Manager** provides optional FIPS-140-3 ready cryptographic operations via the NIST-certified OpenSSL 3.5+ FIPS cryptographic module. This document describes KeepTower's use of FIPS-validated cryptography, supported algorithms, and implementation details.
+
+**Certification Status:** KeepTower is **not FIPS-certified**. It uses the FIPS-validated OpenSSL module (CAVP Certificate #4282) for cryptographic operations. Organizations requiring FIPS certification must perform independent validation.
 
 ## Date: December 22, 2025
 ## KeepTower Version: 0.2.8-beta and higher
@@ -12,15 +14,17 @@
 
 ## Executive Summary
 
-KeepTower implements a FIPS-140-3 compliant cryptographic mode that:
+KeepTower implements a FIPS-140-3 ready cryptographic mode that:
 
-✅ Uses **only FIPS-validated algorithms**
-✅ Operates through **NIST-certified OpenSSL 3.5+ FIPS module**
-✅ Provides **user-configurable compliance mode**
+✅ Uses **only FIPS-validated algorithms** from OpenSSL FIPS module
+✅ Operates through **NIST-certified OpenSSL 3.5+ FIPS module** (Certificate #4282)
+✅ Provides **user-configurable FIPS mode**
 ✅ Maintains **full backward compatibility** with non-FIPS mode
 ✅ Includes **comprehensive test suite** (11 FIPS-specific tests)
 
-**Compliance Level:** FIPS 140-3 Level 1 (Software Cryptographic Module)
+**Important:** KeepTower itself is **not FIPS-certified**. It uses the FIPS-validated OpenSSL cryptographic module for all cryptographic operations when FIPS mode is enabled. Organizations requiring FIPS certification should perform their own validation and testing.
+
+**FIPS Module:** OpenSSL 3.5+ FIPS Provider (Level 1 Software Cryptographic Module)
 
 ---
 
@@ -410,18 +414,24 @@ gsettings get com.tjdeveng.keeptower fips-mode-enabled
 
 ## Compliance Statement Summary
 
-**KeepTower Password Manager v0.2.8-beta and higher provides FIPS-140-3 compliant cryptographic operations when:**
+**KeepTower Password Manager v0.2.8-beta and higher provides FIPS-140-3 ready cryptographic operations when:**
 
 1. Deployed with OpenSSL 3.5.0+ and FIPS module properly configured
 2. FIPS mode explicitly enabled by user in Preferences
 3. FIPS provider successfully loaded (verified in About dialog)
 4. All cryptographic operations using approved algorithms (AES-256-GCM, PBKDF2-HMAC-SHA256, SHA-256)
 
-**Compliance Level:** FIPS 140-3 Level 1 (Software Cryptographic Module via OpenSSL)
+**FIPS Module:** OpenSSL 3.5+ FIPS Provider (CAVP Certificate #4282, Level 1 Software Cryptographic Module)
 
-**Validated By:** OpenSSL 3.5+ FIPS module (CAVP-certified)
+**KeepTower Certification Status:** KeepTower is **not FIPS-certified**. It leverages the FIPS-validated OpenSSL cryptographic module.
 
-**Attestation:** All cryptographic operations in FIPS mode use only FIPS-approved algorithms from NIST SP 800-131A Rev. 2.
+**Attestation:** All cryptographic operations in FIPS mode use only FIPS-approved algorithms from NIST SP 800-131A Rev. 2, executed through the NIST-certified OpenSSL FIPS module.
+
+**Note:** Organizations requiring FIPS certification for KeepTower itself should:
+- Perform independent third-party validation
+- Conduct formal security audits
+- Obtain CMVP (Cryptographic Module Validation Program) certification
+- Document implementation-specific compliance evidence
 
 ---
 
@@ -499,15 +509,35 @@ For security audits and compliance verification:
 
 ## Disclaimer
 
-This document describes KeepTower's use of FIPS-validated cryptographic modules. **KeepTower itself is not FIPS-validated.** FIPS validation applies to the OpenSSL 3.5+ FIPS module, which KeepTower uses for cryptographic operations.
+**IMPORTANT - CERTIFICATION STATUS:**
 
-Organizations requiring FIPS compliance should:
-1. Verify OpenSSL FIPS module CAVP certificate
+**KeepTower Password Manager is NOT FIPS-140-3 certified.** FIPS-140-3 certification requires formal validation by an accredited testing laboratory and approval by the NIST Cryptographic Module Validation Program (CMVP). KeepTower has not undergone this certification process.
+
+**What KeepTower Provides:**
+- Uses the **NIST-certified OpenSSL 3.5+ FIPS module** (CAVP Certificate #4282) for all cryptographic operations
+- Implements only **FIPS-approved algorithms** when FIPS mode is enabled
+- Provides a **FIPS-ready architecture** suitable for organizations requiring validated cryptography
+- Includes comprehensive testing and documentation
+
+**What is Required for Certification:**
+FIPS-140-3 certification requires:
+1. **Third-party validation** by NIST-accredited testing laboratory
+2. **Formal security policy** documentation
+3. **Physical security** requirements (for hardware modules)
+4. **Design assurance** testing and documentation
+5. **CMVP review** and approval process
+6. Ongoing **re-validation** for updates
+
+Organizations requiring FIPS-140-3 certification should:
+1. Verify OpenSSL FIPS module CAVP certificate (#4282 or current)
 2. Ensure proper FIPS module configuration
 3. Enable and verify FIPS mode in KeepTower
 4. Maintain documentation for compliance audits
+5. Consider independent security assessment of KeepTower
+6. Consult with NIST-accredited testing labs for formal certification if required
 
-**This document does not constitute legal or compliance advice. Organizations should consult with their compliance officers and legal counsel regarding FIPS requirements.**
+**Legal Notice:**
+This document does not constitute legal or compliance advice. Organizations should consult with their compliance officers, security auditors, and legal counsel regarding FIPS requirements and certification needs. The use of FIPS-validated cryptographic modules does not automatically confer FIPS certification on the application.
 
 ---
 

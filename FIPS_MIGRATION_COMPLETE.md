@@ -8,9 +8,11 @@
 
 ## Executive Summary
 
-The FIPS-140-3 migration for KeepTower has been **successfully completed** in all 5 phases. The application now provides optional FIPS-validated cryptographic operations through OpenSSL 3.5+ with comprehensive documentation, testing, and user interface support.
+The FIPS-140-3 migration for KeepTower has been **successfully completed** in all 5 phases. The application now provides optional FIPS-validated cryptographic operations through the NIST-certified OpenSSL 3.5+ FIPS module with comprehensive documentation, testing, and user interface support.
 
 **Status:** ✅ **PRODUCTION READY**
+
+**Certification Status:** KeepTower uses FIPS-validated cryptographic modules (OpenSSL FIPS) but is not itself FIPS-certified. FIPS certification requires third-party validation and formal auditing.
 
 ---
 

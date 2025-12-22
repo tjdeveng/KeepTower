@@ -106,7 +106,7 @@
     <key name="fips-mode-enabled" type="b">
       <default>false</default>
       <summary>Enable FIPS-140-3 mode</summary>
-      <description>Enable FIPS-140-3 compliant cryptographic operations using OpenSSL FIPS module. Requires application restart to take effect. Only available if OpenSSL FIPS provider is properly configured.</description>
+      <description>Enable FIPS-140-3 validated cryptographic operations using the NIST-certified OpenSSL FIPS module. Requires application restart to take effect. Only available if OpenSSL FIPS provider is properly configured. Note: KeepTower uses FIPS-validated modules but is not itself FIPS-certified.</description>
     </key>
   </schema>
 </schemalist>

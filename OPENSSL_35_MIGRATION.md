@@ -2,12 +2,14 @@
 
 ## Overview
 
-This document outlines the migration strategy for upgrading KeepTower to OpenSSL 3.5 with FIPS-140-3 compliance support.
+This document outlines the migration strategy for upgrading KeepTower to OpenSSL 3.5 with FIPS-140-3 ready cryptographic support using the NIST-certified OpenSSL FIPS module.
+
+**Note:** This migration enables KeepTower to use FIPS-validated cryptography but does not provide FIPS certification for KeepTower itself.
 
 ## Current State (v0.2.8-beta)
 
 - **OpenSSL Version**: 3.2.6 (local), varies by CI environment
-- **FIPS Status**: Not FIPS-compliant
+- **FIPS Status**: Not FIPS-ready
 - **Cryptographic Operations**:
   - AES-256-GCM encryption/decryption
   - PBKDF2-HMAC-SHA256 key derivation (100,000 iterations default)
@@ -17,7 +19,7 @@ This document outlines the migration strategy for upgrading KeepTower to OpenSSL
 ## Target State
 
 - **OpenSSL Version**: 3.5.0+ (REQUIRED)
-- **FIPS Status**: FIPS-140-3 ready (optional runtime activation)
+- **FIPS Status**: FIPS-140-3 ready via NIST-certified OpenSSL FIPS module (optional runtime activation)
 - **Provider Architecture**: OpenSSL 3.5 provider model
 - **Backward Compatibility**: OpenSSL 3.5+ only - no legacy support
 
