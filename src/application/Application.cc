@@ -6,6 +6,8 @@
 #include "../ui/windows/MainWindow.h"
 #include "../ui/dialogs/PasswordDialog.h"
 #include "../ui/dialogs/PreferencesDialog.h"
+#include "../core/VaultManager.h"
+#include "../utils/Log.h"
 #include "../config.h"
 #include <memory>
 
@@ -19,6 +21,20 @@ Glib::RefPtr<Application> Application::create() {
 
 void Application::on_startup() {
     Gtk::Application::on_startup();
+
+    // Initialize FIPS mode
+    // TODO: Read FIPS preference from GSettings
+    bool enable_fips = false;  // Default to disabled for now
+    if (!VaultManager::init_fips_mode(enable_fips)) {
+        KeepTower::Log::error("Failed to initialize FIPS mode");
+        // Continue anyway - VaultManager will use default provider
+    }
+
+    if (VaultManager::is_fips_available()) {
+        KeepTower::Log::info("FIPS-140-3 provider available (enabled={})", VaultManager::is_fips_enabled());
+    } else {
+        KeepTower::Log::info("FIPS-140-3 provider not available - using default provider");
+    }
 
     // Add application actions
     add_action("quit", sigc::mem_fun(*this, &Application::on_action_quit));

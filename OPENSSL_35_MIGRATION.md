@@ -68,15 +68,21 @@ For CI environments and users requiring FIPS support:
 
 ### Phase 1: Build Infrastructure ✅
 - [x] Create `scripts/build-openssl-3.5.sh` build script
-- [ ] Update `meson.build` for version detection
-- [ ] Add OpenSSL version check at compile time
-- [ ] Update CI workflows for conditional building
-- [ ] Add caching for custom OpenSSL builds
+- [x] Update `meson.build` for version detection
+- [x] Add OpenSSL version check at compile time
+- [x] Update CI workflows for conditional building
+- [x] Add caching for custom OpenSSL builds
 
-### Phase 2: Code Migration
-- [ ] Audit all OpenSSL API usage
-- [ ] Add FIPS provider initialization (optional)
-- [ ] Update EVP context creation for provider model
+### Phase 2: Code Migration 🔄
+- [x] Audit all OpenSSL API usage
+- [x] Add FIPS provider initialization (optional)
+- [x] Add static FIPS mode state tracking
+- [x] Implement `VaultManager::init_fips_mode()`
+- [x] Implement `VaultManager::is_fips_available()`
+- [x] Implement `VaultManager::is_fips_enabled()`
+- [x] Implement `VaultManager::set_fips_mode()`
+- [x] Initialize FIPS mode in Application::on_startup()
+- [ ] Update EVP context creation for provider model (already compatible)
 - [ ] Verify RAND_bytes uses FIPS-approved DRBG in FIPS mode
 - [ ] Add runtime FIPS mode detection/logging
 - [ ] Update error handling for provider errors

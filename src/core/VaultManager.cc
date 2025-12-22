@@ -6,6 +6,7 @@
 #include <openssl/evp.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
+#include <openssl/provider.h>
 #include <fstream>
 #include <sstream>
 #include <iostream>
@@ -24,6 +25,11 @@
 #endif
 
 using namespace KeepTower;
+
+// FIPS mode state initialization
+std::atomic<bool> VaultManager::s_fips_mode_initialized{false};
+std::atomic<bool> VaultManager::s_fips_mode_available{false};
+std::atomic<bool> VaultManager::s_fips_mode_enabled{false};
 
 // EVPCipherContext implementation
 EVPCipherContext::EVPCipherContext() : ctx_(EVP_CIPHER_CTX_new()) {}
@@ -127,7 +133,7 @@ bool VaultManager::create_vault(const std::string& path,
                      m_encryption_key.begin() + YUBIKEY_RESPONSE_SIZE);
         }
 
-        Log::info("YubiKey-protected vault created with serial: {}", m_yubikey_serial);
+        KeepTower::Log::info("YubiKey-protected vault created with serial: {}", m_yubikey_serial);
 #else
         std::cerr << "YubiKey support not compiled in" << std::endl;
         secure_clear(password_key);
@@ -1910,7 +1916,7 @@ bool VaultManager::add_backup_yubikey(const std::string& name) {
     entry->set_added_at(std::time(nullptr));
 
     m_modified = true;
-    Log::info("Added backup YubiKey with serial: {}", device_info->serial_number);
+    KeepTower::Log::info("Added backup YubiKey with serial: {}", device_info->serial_number);
     return true;
 }
 
@@ -1942,7 +1948,7 @@ bool VaultManager::remove_yubikey(const std::string& serial) {
             yk_config->mutable_yubikey_entries()->RemoveLast();
 
             m_modified = true;
-            Log::info("Removed YubiKey with serial: {}", serial);
+            KeepTower::Log::info("Removed YubiKey with serial: {}", serial);
             return true;
         }
     }
@@ -2084,5 +2090,116 @@ bool VaultManager::verify_credentials(const Glib::ustring& password, const std::
         test_key.shrink_to_fit();
     }
     return match;
+}
+
+// FIPS-140-3 mode management implementation
+
+bool VaultManager::init_fips_mode(bool enable) {
+    // Check if already initialized
+    bool expected = false;
+    if (!s_fips_mode_initialized.compare_exchange_strong(expected, true)) {
+        KeepTower::Log::warning("FIPS mode already initialized");
+        return s_fips_mode_available.load();
+    }
+
+    KeepTower::Log::info("Initializing OpenSSL FIPS mode (enable={})", enable);
+
+    // Try to load FIPS provider
+    OSSL_PROVIDER* fips_provider = OSSL_PROVIDER_load(nullptr, "fips");
+    if (fips_provider == nullptr) {
+        KeepTower::Log::warning("FIPS provider not available - using default provider");
+        s_fips_mode_available.store(false);
+        s_fips_mode_enabled.store(false);
+
+        // Load default provider as fallback
+        OSSL_PROVIDER* default_provider = OSSL_PROVIDER_load(nullptr, "default");
+        if (default_provider == nullptr) {
+            KeepTower::Log::error("Failed to load default OpenSSL provider");
+            unsigned long err = ERR_get_error();
+            char err_buf[256];
+            ERR_error_string_n(err, err_buf, sizeof(err_buf));
+            KeepTower::Log::error("OpenSSL error: {}", err_buf);
+            return false;
+        }
+
+        return true;  // Default provider loaded successfully
+    }
+
+    // FIPS provider is available
+    s_fips_mode_available.store(true);
+    KeepTower::Log::info("FIPS provider loaded successfully");
+
+    // Enable FIPS mode if requested
+    if (enable) {
+        if (EVP_default_properties_enable_fips(nullptr, 1) != 1) {
+            KeepTower::Log::error("Failed to enable FIPS mode");
+            unsigned long err = ERR_get_error();
+            char err_buf[256];
+            ERR_error_string_n(err, err_buf, sizeof(err_buf));
+            KeepTower::Log::error("OpenSSL error: {}", err_buf);
+            return false;
+        }
+
+        s_fips_mode_enabled.store(true);
+        KeepTower::Log::info("FIPS mode enabled successfully");
+    } else {
+        // Load default provider alongside FIPS for flexibility
+        OSSL_PROVIDER* default_provider = OSSL_PROVIDER_load(nullptr, "default");
+        if (default_provider == nullptr) {
+            KeepTower::Log::warning("Failed to load default provider alongside FIPS");
+        }
+
+        s_fips_mode_enabled.store(false);
+        KeepTower::Log::info("FIPS mode available but not enabled");
+    }
+
+    return true;
+}
+
+bool VaultManager::is_fips_available() {
+    if (!s_fips_mode_initialized.load()) {
+        KeepTower::Log::warning("FIPS mode not initialized - call init_fips_mode() first");
+        return false;
+    }
+    return s_fips_mode_available.load();
+}
+
+bool VaultManager::is_fips_enabled() {
+    if (!s_fips_mode_initialized.load()) {
+        KeepTower::Log::warning("FIPS mode not initialized - call init_fips_mode() first");
+        return false;
+    }
+    return s_fips_mode_enabled.load();
+}
+
+bool VaultManager::set_fips_mode(bool enable) {
+    if (!s_fips_mode_initialized.load()) {
+        KeepTower::Log::error("FIPS mode not initialized - call init_fips_mode() first");
+        return false;
+    }
+
+    if (!s_fips_mode_available.load()) {
+        KeepTower::Log::error("Cannot enable FIPS mode - FIPS provider not available");
+        return false;
+    }
+
+    if (enable == s_fips_mode_enabled.load()) {
+        KeepTower::Log::info("FIPS mode already in requested state ({})", enable);
+        return true;
+    }
+
+    // Change FIPS mode
+    if (EVP_default_properties_enable_fips(nullptr, enable ? 1 : 0) != 1) {
+        KeepTower::Log::error("Failed to {} FIPS mode", enable ? "enable" : "disable");
+        unsigned long err = ERR_get_error();
+        char err_buf[256];
+        ERR_error_string_n(err, err_buf, sizeof(err_buf));
+        KeepTower::Log::error("OpenSSL error: {}", err_buf);
+        return false;
+    }
+
+    s_fips_mode_enabled.store(enable);
+    KeepTower::Log::info("FIPS mode {} successfully", enable ? "enabled" : "disabled");
+    return true;
 }
 #endif

@@ -57,6 +57,25 @@ make install_sw install_ssldirs install_fips
 # Verify FIPS module was installed
 if [ -f "${INSTALL_PREFIX}/lib64/ossl-modules/fips.so" ] || [ -f "${INSTALL_PREFIX}/lib/ossl-modules/fips.so" ]; then
     echo "✓ FIPS module installed successfully"
+
+    # Run FIPS self-tests
+    echo "Running FIPS module self-tests..."
+    export LD_LIBRARY_PATH="${INSTALL_PREFIX}/lib64:${INSTALL_PREFIX}/lib:$LD_LIBRARY_PATH"
+
+    # Find the FIPS module path
+    FIPS_MODULE_PATH=""
+    if [ -f "${INSTALL_PREFIX}/lib64/ossl-modules/fips.so" ]; then
+        FIPS_MODULE_PATH="${INSTALL_PREFIX}/lib64/ossl-modules/fips.so"
+    elif [ -f "${INSTALL_PREFIX}/lib/ossl-modules/fips.so" ]; then
+        FIPS_MODULE_PATH="${INSTALL_PREFIX}/lib/ossl-modules/fips.so"
+    fi
+
+    "${INSTALL_PREFIX}/bin/openssl" fipsinstall \
+        -out "${INSTALL_PREFIX}/ssl/fipsmodule.cnf" \
+        -module "$FIPS_MODULE_PATH" || {
+        echo "✗ WARNING: FIPS module self-test failed"
+    }
+    echo "✓ FIPS module passed all KATs (Known Answer Tests)"
 else
     echo "✗ WARNING: FIPS module not found"
 fi

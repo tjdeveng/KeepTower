@@ -20,6 +20,7 @@
 #include <expected>
 #include <optional>
 #include <mutex>
+#include <atomic>
 #include <glibmm.h>
 #include "record.pb.h"
 #include "VaultError.h"
@@ -245,6 +246,52 @@ public:
      * Securely erases encryption keys and other sensitive data from memory.
      */
     [[nodiscard]] bool close_vault();
+
+    // FIPS-140-3 mode management
+
+    /**
+     * @brief Initialize FIPS mode provider
+     * @param enable If true, attempts to enable FIPS mode; if false, uses default provider
+     * @return true if initialization successful, false on error
+     *
+     * This must be called before performing any cryptographic operations.
+     * FIPS mode requires OpenSSL 3.5+ with the FIPS module installed.
+     *
+     * @note This is a static method and affects all VaultManager instances
+     * @note Can only be called once per process lifetime
+     * @security FIPS-140-3 compliance requires FIPS mode to be enabled
+     */
+    [[nodiscard]] static bool init_fips_mode(bool enable = false);
+
+    /**
+     * @brief Check if FIPS module is available
+     * @return true if FIPS provider is available, false otherwise
+     *
+     * @note Must call init_fips_mode() first
+     */
+    [[nodiscard]] static bool is_fips_available();
+
+    /**
+     * @brief Check if FIPS mode is currently enabled
+     * @return true if FIPS mode is active, false otherwise
+     *
+     * @note Must call init_fips_mode() first
+     */
+    [[nodiscard]] static bool is_fips_enabled();
+
+    /**
+     * @brief Enable or disable FIPS mode at runtime
+     * @param enable If true, enable FIPS mode; if false, use default provider
+     * @return true if mode change successful, false on error
+     *
+     * Changes the active OpenSSL provider. FIPS mode enforces stricter
+     * cryptographic requirements and may reject non-compliant operations.
+     *
+     * @note Requires init_fips_mode() to have been called first
+     * @note May require application restart for full effect
+     * @security Enabling FIPS mode is irreversible in some configurations
+     */
+    [[nodiscard]] static bool set_fips_mode(bool enable);
 
     // Account operations
 
@@ -698,6 +745,11 @@ private:
 
     // Current vault PBKDF2 iterations (configurable per vault)
     int m_pbkdf2_iterations;
+
+    // FIPS-140-3 mode state
+    static std::atomic<bool> s_fips_mode_initialized;
+    static std::atomic<bool> s_fips_mode_available;
+    static std::atomic<bool> s_fips_mode_enabled;
 };
 
 #endif // VAULTMANAGER_H
