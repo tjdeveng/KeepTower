@@ -156,6 +156,15 @@ jobs:
         restore-keys: |
           libcorrect-lint-
 
+    - name: Cache OpenSSL 3.5
+      id: cache-openssl
+      uses: actions/cache@v4
+      with:
+        path: /tmp/openssl-install
+        key: openssl-3.5.0-lint-${{ hashFiles('.github/openssl-version.txt') }}
+        restore-keys: |
+          openssl-3.5.0-lint-
+
     - name: Install dependencies
       run: |
         sudo apt-get update
@@ -187,6 +196,22 @@ jobs:
         fi
         sudo cp -r /tmp/libcorrect-install/* /usr/
         sudo ldconfig
+
+    - name: Build OpenSSL 3.5 with FIPS
+      run: |
+        if [ "${{ steps.cache-openssl.outputs.cache-hit }}" != "true" ]; then
+          echo "Building OpenSSL 3.5.0 with FIPS support..."
+          bash scripts/build-openssl-3.5.sh /tmp/openssl-build /tmp/openssl-install
+        else
+          echo "Using cached OpenSSL 3.5.0"
+        fi
+
+    - name: Setup OpenSSL environment
+      run: |
+        echo "PKG_CONFIG_PATH=/tmp/openssl-install/lib/pkgconfig:$PKG_CONFIG_PATH" >> $GITHUB_ENV
+        echo "LD_LIBRARY_PATH=/tmp/openssl-install/lib64:/tmp/openssl-install/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+        echo "OpenSSL version:"
+        PKG_CONFIG_PATH=/tmp/openssl-install/lib/pkgconfig:$PKG_CONFIG_PATH pkg-config --modversion openssl
 
     - name: Configure build
       run: meson setup build
