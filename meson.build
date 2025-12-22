@@ -58,35 +58,31 @@ if not openssl_dep.found()
     message('Found existing local OpenSSL build')
   endif
 
-  # Try to use the local build with explicit paths
-  openssl_dep = dependency('openssl', version: '>= 3.5.0', required: false,
-                          dirs: [local_openssl_root / 'lib' / 'pkgconfig'])
+  # Use pkg-config to verify the local build
+  pkgconfig = find_program('pkg-config')
+  result = run_command(pkgconfig, '--modversion', 'openssl',
+                      env: {'PKG_CONFIG_PATH': local_openssl_root / 'lib' / 'pkgconfig'},
+                      check: false)
 
-  if not openssl_dep.found()
-    # Fallback: try with pkg-config directly
-    pkgconfig = find_program('pkg-config')
-    result = run_command(pkgconfig, '--modversion', 'openssl',
-                        env: {'PKG_CONFIG_PATH': local_openssl_root / 'lib' / 'pkgconfig'},
-                        check: false)
+  if result.returncode() == 0
+    openssl_version = result.stdout().strip()
+    message('Detected locally built OpenSSL @0@'.format(openssl_version))
 
-    if result.returncode() == 0
-      openssl_version = result.stdout().strip()
-      message('Detected locally built OpenSSL @0@'.format(openssl_version))
+    # Manually create dependency with local paths
+    # Use relative path from source root
+    openssl_dep = declare_dependency(
+      include_directories: include_directories('build/openssl-install/include'),
+      dependencies: [
+        cc.find_library('ssl', dirs: local_openssl_root / 'lib'),
+        cc.find_library('crypto', dirs: local_openssl_root / 'lib')
+      ],
+      link_args: ['-L' + local_openssl_root / 'lib'],
+    )
 
-      # Manually create dependency with local paths
-      openssl_dep = declare_dependency(
-        include_directories: include_directories(local_openssl_root / 'include'),
-        dependencies: [
-          cc.find_library('ssl', dirs: [local_openssl_root / 'lib']),
-          cc.find_library('crypto', dirs: [local_openssl_root / 'lib'])
-        ],
-        link_args: ['-L' + local_openssl_root / 'lib'],
-      )
-
-      # Set runtime path for the locally built OpenSSL
-      add_project_link_arguments('-Wl,-rpath,' + local_openssl_root / 'lib', language: 'cpp')
-    else
-      error('''
+    # Set runtime path for the locally built OpenSSL
+    add_project_link_arguments('-Wl,-rpath,' + local_openssl_root / 'lib', language: 'cpp')
+  else
+    error('''
 Failed to locate OpenSSL 3.5 after build attempt.
 
 Please try building manually:
@@ -94,8 +90,7 @@ Please try building manually:
 
 Then configure with:
   PKG_CONFIG_PATH="$(pwd)/build/openssl-install/lib/pkgconfig:$PKG_CONFIG_PATH" meson setup build
-      ''')
-    endif
+    ''')
   endif
 
   message('Using locally built OpenSSL 3.5+ (FIPS-140-3 capable)')
