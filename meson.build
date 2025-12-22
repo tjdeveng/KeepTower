@@ -21,26 +21,23 @@ sigcxx_dep = dependency('sigc++-3.0')
 protobuf_dep = dependency('protobuf', version: '>= 3.0')
 
 # OpenSSL 3.5+ required for FIPS-140-3 support
-# Build from source if not available: scripts/build-openssl-3.5.sh
 openssl_dep = dependency('openssl', version: '>= 3.5.0', required: false)
 
 if not openssl_dep.found()
   error('''
-OpenSSL 3.5.0 or later is required for FIPS-140-3 compliance.
+OpenSSL 3.5.0+ is required for FIPS-140-3 compliance.
 
-Your system has an older version of OpenSSL. To build KeepTower, you must:
+To build OpenSSL 3.5 with FIPS support:
+  bash scripts/build-openssl-3.5.sh
 
-1. Build OpenSSL 3.5 from source (recommended):
-   bash scripts/build-openssl-3.5.sh /tmp/openssl-build /tmp/openssl-install
+Then configure with:
+  PKG_CONFIG_PATH="$(pwd)/build/openssl-install/lib/pkgconfig:$PKG_CONFIG_PATH" meson setup build
 
-2. Set PKG_CONFIG_PATH to find it:
-   export PKG_CONFIG_PATH="/tmp/openssl-install/lib/pkgconfig:$PKG_CONFIG_PATH"
-
-3. Run meson setup again:
-   meson setup build
-
-For more information, see: OPENSSL_35_MIGRATION.md
+The build script will cache the build for subsequent runs.
+See OPENSSL_35_MIGRATION.md for details.
   ''')
+else
+  message('Using OpenSSL @0@ (FIPS-140-3 capable)'.format(openssl_dep.version()))
 endif
 
 # Find libcorrect using compiler find_library

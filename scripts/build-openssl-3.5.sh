@@ -9,8 +9,10 @@ set -e
 
 OPENSSL_VERSION="3.5.0"
 OPENSSL_URL="https://github.com/openssl/openssl/releases/download/openssl-${OPENSSL_VERSION}/openssl-${OPENSSL_VERSION}.tar.gz"
-BUILD_DIR="${1:-/tmp/openssl-build}"
-INSTALL_PREFIX="${2:-/tmp/openssl-install}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+BUILD_DIR="${1:-${PROJECT_ROOT}/build/openssl-build}"
+INSTALL_PREFIX="${2:-${PROJECT_ROOT}/build/openssl-install}"
 
 echo "=== Building OpenSSL ${OPENSSL_VERSION} with FIPS 140-3 support ==="
 echo "Build directory: ${BUILD_DIR}"
