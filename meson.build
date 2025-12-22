@@ -19,7 +19,23 @@ application_id = 'com.tjdeveng.keeptower'
 gtkmm_dep = dependency('gtkmm-4.0', version: '>= 4.10')
 sigcxx_dep = dependency('sigc++-3.0')
 protobuf_dep = dependency('protobuf', version: '>= 3.0')
-openssl_dep = dependency('openssl', version: '>= 1.1.0')
+
+# OpenSSL dependency - prefer 3.5+ for FIPS 140-3 support
+openssl_dep = dependency('openssl', version: '>= 3.5.0', required: false)
+if not openssl_dep.found()
+  # Fall back to OpenSSL 3.0+ (FIPS support unavailable)
+  openssl_dep = dependency('openssl', version: '>= 3.0.0', required: false)
+  if not openssl_dep.found()
+    # Final fallback to OpenSSL 1.1+ (legacy)
+    openssl_dep = dependency('openssl', version: '>= 1.1.0', required: true)
+    warning('OpenSSL 3.5+ not found - FIPS 140-3 support will be unavailable')
+    warning('Consider building OpenSSL 3.5 from source using scripts/build-openssl-3.5.sh')
+  else
+    warning('OpenSSL 3.0-3.4 found - FIPS 140-3 support requires OpenSSL 3.5+')
+  endif
+else
+  message('OpenSSL 3.5+ found - FIPS 140-3 support available')
+endif
 
 # Find libcorrect using compiler find_library
 cc = meson.get_compiler('cpp')
