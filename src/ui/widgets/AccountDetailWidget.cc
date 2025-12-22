@@ -353,7 +353,7 @@ void AccountDetailWidget::remove_tag_chip(const std::string& tag) {
         if (auto* flow_child = dynamic_cast<Gtk::FlowBoxChild*>(child)) {
             if (auto* box = dynamic_cast<Gtk::Box*>(flow_child->get_child())) {
                 if (auto* label = dynamic_cast<Gtk::Label*>(box->get_first_child())) {
-                    if (label->get_text() == tag) {
+                    if (label->get_text().raw() == tag) {
                         m_tags_flowbox.remove(*flow_child);
                         break;
                     }
