@@ -248,6 +248,6 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        gh release upload v${{ needs.create-release.outputs.version }} \
+        gh release upload ${{ needs.create-release.outputs.version }} \
           keeptower-${{ needs.create-release.outputs.version }}-docs.tar.gz \
           --clobber
