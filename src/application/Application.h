@@ -1,3 +1,4 @@
+#include <gtkmm/application.h>
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2025 tjdeveng
 
@@ -9,7 +10,6 @@
 #ifndef APPLICATION_H
 #define APPLICATION_H
 
-#include <gtkmm.h>
 #include <memory>
 
 class MainWindow;

@@ -1,7 +1,10 @@
+#include <sigc++/signal.h>
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2025 tjdeveng
 
 #include "MainWindow.h"
+#include "../widgets/AccountTreeWidget.h"
+#include "../widgets/AccountDetailWidget.h"
 #include "../dialogs/CreatePasswordDialog.h"
 #include "../dialogs/PasswordDialog.h"
 #include "../dialogs/PreferencesDialog.h"
@@ -13,9 +16,12 @@
 #include "../../utils/SettingsValidator.h"
 #include "../../utils/ImportExport.h"
 #include "../../utils/helpers/FuzzyMatch.h"
+#include "../../utils/StringHelpers.h"
 #include "../../utils/Log.h"
 #include "config.h"
 #include <cstring>  // For memset
+
+using KeepTower::safe_ustring_to_string;
 #ifdef HAVE_YUBIKEY_SUPPORT
 #include "../../core/YubiKeyManager.h"
 #include "../dialogs/YubiKeyManagerDialog.h"
@@ -32,17 +38,6 @@ MainWindow::MainWindow()
     : m_main_box(Gtk::Orientation::VERTICAL, 0),
       m_search_box(Gtk::Orientation::HORIZONTAL, 12),
       m_paned(Gtk::Orientation::HORIZONTAL),
-      m_details_box(Gtk::Orientation::VERTICAL, 12),
-      m_details_paned(Gtk::Orientation::HORIZONTAL),
-      m_details_fields_box(Gtk::Orientation::VERTICAL, 12),
-      m_account_name_label("Account Name:"),
-      m_user_name_label("User Name:"),
-      m_password_label("Password:"),
-      m_show_password_button(""),
-      m_copy_password_button("Copy"),
-      m_email_label("Email:"),
-      m_website_label("Website:"),
-      m_notes_label("Notes:"),
       m_status_label("No vault open"),
       m_vault_open(false),
       m_updating_selection(false),
@@ -88,6 +83,24 @@ MainWindow::MainWindow()
     add_action("import-csv", sigc::mem_fun(*this, &MainWindow::on_import_from_csv));
     add_action("export-csv", sigc::mem_fun(*this, &MainWindow::on_export_to_csv));
     add_action("delete-account", sigc::mem_fun(*this, &MainWindow::on_delete_account));
+    add_action("create-group", sigc::mem_fun(*this, &MainWindow::on_create_group));
+    add_action("rename-group", [this]() {
+        if (!m_context_menu_group_id.empty() && m_vault_manager) {
+            // Find the group name
+            auto groups = m_vault_manager->get_all_groups();
+            for (const auto& group : groups) {
+                if (group.group_id() == m_context_menu_group_id) {
+                    on_rename_group(m_context_menu_group_id, group.group_name());
+                    break;
+                }
+            }
+        }
+    });
+    add_action("delete-group", [this]() {
+        if (!m_context_menu_group_id.empty()) {
+            on_delete_group(m_context_menu_group_id);
+        }
+    });
     add_action("undo", sigc::mem_fun(*this, &MainWindow::on_undo));
     add_action("redo", sigc::mem_fun(*this, &MainWindow::on_redo));
 #ifdef HAVE_YUBIKEY_SUPPORT
@@ -99,8 +112,8 @@ MainWindow::MainWindow()
     auto app = get_application();
     if (app) {
         app->set_accel_for_action("win.preferences", "<Ctrl>comma");
-        app->set_accel_for_action("win.undo", "<Ctrl>z");
-        app->set_accel_for_action("win.redo", "<Ctrl><Shift>z");
+        app->set_accel_for_action("win.undo", "<Ctrl>Z");
+        app->set_accel_for_action("win.redo", "<Ctrl><Shift>Z");
     }
 
     // Setup undo/redo state change callback
@@ -210,140 +223,48 @@ MainWindow::MainWindow()
 
     m_main_box.append(m_search_box);
 
-    // Setup split pane for accounts and details
+    // Setup split pane for accounts and details using new widgets
     m_paned.set_vexpand(true);
-    m_paned.set_wide_handle(true);  // Make drag handle more visible
+    m_paned.set_wide_handle(true);
     constexpr int account_list_width = UI::ACCOUNT_LIST_WIDTH;
-    m_paned.set_position(account_list_width);  // Initial left panel width
-    m_paned.set_resize_start_child(false);  // Left side (list) doesn't resize with window
-    m_paned.set_resize_end_child(true);  // Right side (details) resizes with window
-    m_paned.set_shrink_start_child(false);  // Don't allow left side to shrink below min
-    m_paned.set_shrink_end_child(false);  // Don't allow right side to shrink below min
+    m_paned.set_position(account_list_width);
+    m_paned.set_resize_start_child(false);
+    m_paned.set_resize_end_child(true);
+    m_paned.set_shrink_start_child(false);
+    m_paned.set_shrink_end_child(false);
 
-    // Setup account list with groups (left side)
-    m_account_list_store = Gtk::TreeStore::create(m_columns);
-    m_account_tree_view.set_model(m_account_list_store);
+    // Instantiate new widgets
+    m_account_tree_widget = std::make_unique<AccountTreeWidget>();
+    m_account_detail_widget = std::make_unique<AccountDetailWidget>();
 
-    // Add star column for favorites (clickable) - using GTK symbolic icons
-    auto* star_renderer = Gtk::make_managed<Gtk::CellRendererPixbuf>();
-    int star_col_num = m_account_tree_view.append_column("", *star_renderer);
-    if (auto* column = m_account_tree_view.get_column(star_col_num - 1)) {
-        column->set_cell_data_func(*star_renderer, [](Gtk::CellRenderer* cell, const Gtk::TreeModel::const_iterator& iter) {
-            if (auto* pixbuf_cell = dynamic_cast<Gtk::CellRendererPixbuf*>(cell)) {
-                bool is_favorite = false;
-                iter->get_value(0, is_favorite);
-                pixbuf_cell->property_icon_name() = is_favorite ? "starred-symbolic" : "non-starred-symbolic";
-            }
-        });
-        column->set_fixed_width(32);
-        column->set_sizing(Gtk::TreeViewColumn::Sizing::FIXED);
+    // Connect AccountDetailWidget signals
+    if (m_account_detail_widget) {
+        // Note: We no longer save on every keystroke (signal_modified)
+        // Instead, we save when switching accounts or closing the vault
+        // This prevents password validation from running on every keystroke
+
+        m_signal_connections.push_back(
+            m_account_detail_widget->signal_delete_requested().connect([this]() {
+                on_delete_account();
+            })
+        );
+
+        m_signal_connections.push_back(
+            m_account_detail_widget->signal_generate_password().connect([this]() {
+                on_generate_password();
+            })
+        );
+
+        m_signal_connections.push_back(
+            m_account_detail_widget->signal_copy_password().connect([this]() {
+                on_copy_password();
+            })
+        );
     }
 
-    m_account_tree_view.append_column("Account", m_columns.m_col_account_name);
-    m_account_tree_view.append_column("Username", m_columns.m_col_user_name);
-
-    // Setup drag-and-drop for account reordering
-    setup_drag_and_drop();
-
-    m_list_scrolled.set_policy(Gtk::PolicyType::AUTOMATIC, Gtk::PolicyType::AUTOMATIC);
-    m_list_scrolled.set_child(m_account_tree_view);
-    m_paned.set_start_child(m_list_scrolled);
-
-    // Setup account details (right side)
-    m_details_box.set_margin_start(18);
-    m_details_box.set_margin_end(18);
-    m_details_box.set_margin_top(18);
-    m_details_box.set_margin_bottom(18);
-
-    // Left side: Input fields
-    m_account_name_label.set_xalign(0.0);
-    m_account_name_entry.set_margin_bottom(12);
-
-    m_user_name_label.set_xalign(0.0);
-    m_user_name_entry.set_margin_bottom(12);
-
-    m_password_label.set_xalign(0.0);
-    auto* password_box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 6);
-    m_password_entry.set_hexpand(true);
-    m_password_entry.set_visibility(false);
-    password_box->append(m_password_entry);
-    password_box->append(m_generate_password_button);
-    password_box->append(m_show_password_button);
-    password_box->append(m_copy_password_button);
-
-    m_email_label.set_xalign(0.0);
-    m_email_entry.set_margin_bottom(12);
-
-    m_website_label.set_xalign(0.0);
-    m_website_entry.set_margin_bottom(12);
-
-    // Tags configuration
-    m_tags_label.set_xalign(0.0);
-    m_tags_entry.set_placeholder_text("Add tag (press Enter)");
-    m_tags_entry.set_margin_bottom(6);
-    m_tags_scrolled.set_policy(Gtk::PolicyType::AUTOMATIC, Gtk::PolicyType::NEVER);
-    m_tags_scrolled.set_min_content_height(40);
-    m_tags_scrolled.set_max_content_height(120);
-    m_tags_scrolled.set_child(m_tags_flowbox);
-    m_tags_scrolled.set_margin_bottom(12);
-    m_tags_flowbox.set_selection_mode(Gtk::SelectionMode::NONE);
-    m_tags_flowbox.set_max_children_per_line(10);
-    m_tags_flowbox.set_homogeneous(false);
-
-    // Build left side fields box
-    m_details_fields_box.append(m_account_name_label);
-    m_details_fields_box.append(m_account_name_entry);
-    m_details_fields_box.append(m_user_name_label);
-    m_details_fields_box.append(m_user_name_entry);
-    m_details_fields_box.append(m_password_label);
-    m_details_fields_box.append(*password_box);
-    m_details_fields_box.append(m_email_label);
-    m_details_fields_box.append(m_email_entry);
-    m_details_fields_box.append(m_website_label);
-    m_details_fields_box.append(m_website_entry);
-    m_details_fields_box.append(m_tags_label);
-    m_details_fields_box.append(m_tags_entry);
-    m_details_fields_box.append(m_tags_scrolled);
-
-    // Add margins to fields box for spacing within the paned split
-    m_details_fields_box.set_margin_end(12);  // Spacing from paned divider
-
-    // Right side: Notes (with label above)
-    auto* notes_box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 0);
-    notes_box->set_margin_start(12);  // Spacing from paned divider
-    m_notes_label.set_xalign(0.0);
-    m_notes_label.set_margin_bottom(6);
-    m_notes_scrolled.set_policy(Gtk::PolicyType::AUTOMATIC, Gtk::PolicyType::AUTOMATIC);
-    m_notes_scrolled.set_vexpand(true);
-    m_notes_scrolled.set_hexpand(true);
-    m_notes_scrolled.set_child(m_notes_view);
-    notes_box->append(m_notes_label);
-    notes_box->append(m_notes_scrolled);
-
-    // Configure horizontal resizable split: fields on left, notes on right
-    m_details_paned.set_wide_handle(true);  // Make drag handle more visible
-    m_details_paned.set_position(400);  // Initial split position (adjust as needed)
-    m_details_paned.set_resize_start_child(false);  // Fields don't resize with window
-    m_details_paned.set_resize_end_child(true);  // Notes resize with window
-    m_details_paned.set_shrink_start_child(false);  // Don't shrink fields below min
-    m_details_paned.set_shrink_end_child(false);  // Don't shrink notes below min
-    m_details_paned.set_start_child(m_details_fields_box);
-    m_details_paned.set_end_child(*notes_box);
-
-    // Main details box: resizable split + delete button at bottom
-    m_details_box.append(m_details_paned);
-
-    // Delete button at bottom (HIG compliant placement)
-    m_delete_account_button.set_label("Delete Account");
-    m_delete_account_button.set_icon_name("user-trash-symbolic");
-    m_delete_account_button.add_css_class("destructive-action");
-    m_delete_account_button.set_sensitive(false);
-    m_delete_account_button.set_margin_top(12);
-    m_details_box.append(m_delete_account_button);
-
-    m_details_scrolled.set_policy(Gtk::PolicyType::AUTOMATIC, Gtk::PolicyType::AUTOMATIC);
-    m_details_scrolled.set_child(m_details_box);
-    m_paned.set_end_child(m_details_scrolled);
+    // Add new widgets to the paned split
+    m_paned.set_start_child(*m_account_tree_widget);
+    m_paned.set_end_child(*m_account_detail_widget);
 
     m_main_box.append(m_paned);
 
@@ -387,104 +308,120 @@ MainWindow::MainWindow()
     m_close_button.set_sensitive(false);
     m_add_account_button.set_sensitive(false);
 
-    // Set remaining button icons
-    m_generate_password_button.set_icon_name("view-refresh-symbolic");
-    m_generate_password_button.set_tooltip_text("Generate Password");
-    m_show_password_button.set_icon_name("view-reveal-symbolic");
-    m_show_password_button.set_tooltip_text("Show/Hide Password");
-    m_copy_password_button.set_icon_name("edit-copy-symbolic");
-    m_copy_password_button.set_tooltip_text("Copy Password");
-
     // Connect signals
-    m_new_button.signal_clicked().connect(
-        sigc::mem_fun(*this, &MainWindow::on_new_vault)
+    m_signal_connections.push_back(
+        m_new_button.signal_clicked().connect(
+            sigc::mem_fun(*this, &MainWindow::on_new_vault)
+        )
     );
-    m_open_button.signal_clicked().connect(
-        sigc::mem_fun(*this, &MainWindow::on_open_vault)
+    m_signal_connections.push_back(
+        m_open_button.signal_clicked().connect(
+            sigc::mem_fun(*this, &MainWindow::on_open_vault)
+        )
     );
-    m_save_button.signal_clicked().connect(
-        sigc::mem_fun(*this, &MainWindow::on_save_vault)
+    m_signal_connections.push_back(
+        m_save_button.signal_clicked().connect(
+            sigc::mem_fun(*this, &MainWindow::on_save_vault)
+        )
     );
-    m_close_button.signal_clicked().connect(
-        sigc::mem_fun(*this, &MainWindow::on_close_vault)
+    m_signal_connections.push_back(
+        m_close_button.signal_clicked().connect(
+            sigc::mem_fun(*this, &MainWindow::on_close_vault)
+        )
     );
-    m_add_account_button.signal_clicked().connect(
-        sigc::mem_fun(*this, &MainWindow::on_add_account)
+    m_signal_connections.push_back(
+        m_add_account_button.signal_clicked().connect(
+            sigc::mem_fun(*this, &MainWindow::on_add_account)
+        )
     );
-    m_delete_account_button.signal_clicked().connect(
-        sigc::mem_fun(*this, &MainWindow::on_delete_account)
+    m_signal_connections.push_back(
+        m_search_entry.signal_changed().connect(
+            sigc::mem_fun(*this, &MainWindow::on_search_changed)
+        )
     );
-    m_generate_password_button.signal_clicked().connect(
-        sigc::mem_fun(*this, &MainWindow::on_generate_password)
+    m_signal_connections.push_back(
+        m_field_filter_dropdown.property_selected().signal_changed().connect(
+            sigc::mem_fun(*this, &MainWindow::on_field_filter_changed)
+        )
     );
-    m_show_password_button.signal_clicked().connect(
-        sigc::mem_fun(*this, &MainWindow::on_toggle_password_visibility)
-    );
-    m_copy_password_button.signal_clicked().connect(
-        sigc::mem_fun(*this, &MainWindow::on_copy_password)
-    );
-    m_search_entry.signal_changed().connect(
-        sigc::mem_fun(*this, &MainWindow::on_search_changed)
-    );
-    m_field_filter_dropdown.property_selected().signal_changed().connect(
-        sigc::mem_fun(*this, &MainWindow::on_field_filter_changed)
-    );
-    m_tags_entry.signal_activate().connect(
-        sigc::mem_fun(*this, &MainWindow::on_tags_entry_activate)
-    );
-    m_tag_filter_dropdown.property_selected().signal_changed().connect(
-        sigc::mem_fun(*this, &MainWindow::on_tag_filter_changed)
-    );
-
-    // Prevent Enter key from propagating to parent and selecting next account
-    auto key_controller = Gtk::EventControllerKey::create();
-    key_controller->signal_key_pressed().connect([this](guint keyval, guint, Gdk::ModifierType) {
-        if (keyval == GDK_KEY_Return || keyval == GDK_KEY_KP_Enter) {
-            return true;  // Stop propagation
-        }
-        return false;
-    }, false);
-    m_tags_entry.add_controller(key_controller);
-
-    // Connect to selection changed signal to handle account switching
-    m_account_tree_view.get_selection()->signal_changed().connect(
-        sigc::mem_fun(*this, &MainWindow::on_selection_changed)
+    m_signal_connections.push_back(
+        m_tag_filter_dropdown.property_selected().signal_changed().connect(
+            sigc::mem_fun(*this, &MainWindow::on_tag_filter_changed)
+        )
     );
 
-    // Setup context menu for account list - use GestureClick for right-click
-    auto gesture = Gtk::GestureClick::create();
-    gesture->set_button(GDK_BUTTON_SECONDARY);  // Right-click
-    gesture->signal_released().connect([this](int n_press, double x, double y) {
-        // Convert coordinates from widget-relative to bin_window-relative
-        // TreeView coordinates need to account for headers
-        int bin_x, bin_y;
-        m_account_tree_view.convert_widget_to_bin_window_coords(
-            static_cast<int>(x), static_cast<int>(y), bin_x, bin_y);
+    // Connect AccountTreeWidget signals to MainWindow handlers
+    if (m_account_tree_widget) {
+        m_signal_connections.push_back(
+            m_account_tree_widget->signal_account_selected().connect(
+                [this](const std::string& account_id) {
+                    // Save current account BEFORE switching to new one
+                    if (m_selected_account_index >= 0 && m_vault_open) {
+                        save_current_account();
+                    }
 
-        on_account_right_click(n_press, static_cast<double>(bin_x), static_cast<double>(bin_y));
-    });
-    m_account_tree_view.add_controller(gesture);
+                    int idx = find_account_index_by_id(account_id);
+                    if (idx >= 0) {
+                        display_account_details(idx);
+                        update_tag_filter_dropdown();
+                    } else {
+                        g_warning("MainWindow: Could not find account with id: %s", account_id.c_str());
+                    }
+                }
+            )
+        );
 
-    // Setup click handler for star column (favorite toggle)
-    auto star_gesture = Gtk::GestureClick::create();
-    star_gesture->set_button(GDK_BUTTON_PRIMARY);  // Left-click
-    star_gesture->signal_released().connect([this](int /* n_press */, double x, double y) {
-        int bin_x, bin_y;
-        m_account_tree_view.convert_widget_to_bin_window_coords(
-            static_cast<int>(x), static_cast<int>(y), bin_x, bin_y);
+        m_signal_connections.push_back(
+            m_account_tree_widget->signal_group_selected().connect(
+                [this](const std::string& group_id) {
+                    filter_accounts_by_group(group_id);
+                }
+            )
+        );
 
-        Gtk::TreeModel::Path path;
-        Gtk::TreeViewColumn* column = nullptr;
-        int cell_x, cell_y;
+        m_signal_connections.push_back(
+            m_account_tree_widget->signal_favorite_toggled().connect(
+                [this](const std::string& account_id) {
+                    int idx = find_account_index_by_id(account_id);
+                    if (idx >= 0) {
+                        on_favorite_toggled(idx);
+                    }
+                }
+            )
+        );
 
-        if (m_account_tree_view.get_path_at_pos(bin_x, bin_y, path, column, cell_x, cell_y)) {
-            // Check if click was in the first column (star column)
-            if (column == m_account_tree_view.get_column(0)) {
-                on_star_column_clicked(path);
-            }
-        }
-    });
-    m_account_tree_view.add_controller(star_gesture);
+        m_signal_connections.push_back(
+            m_account_tree_widget->signal_account_right_click().connect(
+                [this](const std::string& account_id, Gtk::Widget* widget, double x, double y) {
+                    show_account_context_menu(account_id, widget, x, y);
+                }
+            )
+        );
+
+        m_signal_connections.push_back(
+            m_account_tree_widget->signal_group_right_click().connect(
+                [this](const std::string& group_id, Gtk::Widget* widget, double x, double y) {
+                    show_group_context_menu(group_id, widget, x, y);
+                }
+            )
+        );
+
+        m_signal_connections.push_back(
+            m_account_tree_widget->signal_account_reordered().connect(
+                [this](const std::string& account_id, const std::string& target_group_id, int new_index) {
+                    on_account_reordered(account_id, target_group_id, new_index);
+                }
+            )
+        );
+        m_signal_connections.push_back(
+            m_account_tree_widget->signal_group_reordered().connect(
+                [this](const std::string& group_id, int new_index) {
+                    on_group_reordered(group_id, new_index);
+                }
+            )
+        );
+    }
+        // [REMOVED] Legacy TreeView star column click logic (migrated to AccountTreeWidget)
 
     // Setup activity monitoring for auto-lock
     setup_activity_monitoring();
@@ -495,6 +432,14 @@ MainWindow::MainWindow()
 }
 
 MainWindow::~MainWindow() {
+    // Disconnect all persistent widget signal connections
+    for (auto& conn : m_signal_connections) {
+        if (conn.connected()) {
+            conn.disconnect();
+        }
+    }
+    m_signal_connections.clear();
+
     // Clear clipboard if password was copied
     if (m_clipboard_timeout.connected()) {
         m_clipboard_timeout.disconnect();
@@ -573,7 +518,7 @@ void MainWindow::on_new_vault() {
 #endif
 
                     // Create encrypted vault file with password (and optionally YubiKey)
-                    auto result = m_vault_manager->create_vault(vault_path.raw(), password, require_yubikey);
+                    auto result = m_vault_manager->create_vault(safe_ustring_to_string(vault_path, "vault_path"), password, require_yubikey);
 
 #ifdef HAVE_YUBIKEY_SUPPORT
                     if (touch_dialog) {
@@ -649,7 +594,7 @@ void MainWindow::on_open_vault() {
 #ifdef HAVE_YUBIKEY_SUPPORT
             // Check if vault requires YubiKey
             std::string yubikey_serial;
-            bool yubikey_required = m_vault_manager->check_vault_requires_yubikey(vault_path.raw(), yubikey_serial);
+            bool yubikey_required = m_vault_manager->check_vault_requires_yubikey(safe_ustring_to_string(vault_path, "vault_path"), yubikey_serial);
 
             if (yubikey_required) {
                 // Check if YubiKey is present
@@ -687,7 +632,7 @@ void MainWindow::on_open_vault() {
 #ifdef HAVE_YUBIKEY_SUPPORT
                     // Check again if YubiKey is required (for touch prompt)
                     std::string yubikey_serial;
-                    bool yubikey_required = m_vault_manager->check_vault_requires_yubikey(vault_path.raw(), yubikey_serial);
+                    bool yubikey_required = m_vault_manager->check_vault_requires_yubikey(safe_ustring_to_string(vault_path, "vault_path"), yubikey_serial);
 
                     YubiKeyPromptDialog* touch_dialog = nullptr;
                     if (yubikey_required) {
@@ -710,7 +655,7 @@ void MainWindow::on_open_vault() {
                     }
 #endif
 
-                    auto result = m_vault_manager->open_vault(vault_path.raw(), password);
+                    auto result = m_vault_manager->open_vault(safe_ustring_to_string(vault_path, "vault_path"), password);
 
 #ifdef HAVE_YUBIKEY_SUPPORT
                     // Hide touch prompt if it was shown
@@ -729,7 +674,7 @@ void MainWindow::on_open_vault() {
                         m_search_entry.set_sensitive(true);
 
                         // Cache password for auto-lock/unlock
-                        m_cached_master_password = password.raw();
+                        m_cached_master_password = safe_ustring_to_string(password, "master_password");
 
                         update_account_list();
                         update_tag_filter_dropdown();
@@ -829,7 +774,10 @@ void MainWindow::on_close_vault() {
     m_add_account_button.set_sensitive(false);
     m_search_entry.set_sensitive(false);
     m_search_entry.set_text("");
-    m_account_list_store->clear();
+    // Clear widget-based UI
+    if (m_account_tree_widget) {
+        m_account_tree_widget->set_data({}, {});
+    }
     clear_account_details();
     m_status_label.set_text("No vault open");
 }
@@ -860,37 +808,28 @@ void MainWindow::on_add_account() {
         // Clear search filter so new account is visible
         m_search_entry.set_text("");
 
-        // Clear selection before updating list to avoid stale index issues
-        clear_account_details();
-
-        // Update the display
+        // Update the display first
         update_account_list();
 
         // Select the newly added account (it will be at the end)
         auto accounts = m_vault_manager->get_all_accounts();
-        int new_index = accounts.size() - 1;
+        if (!accounts.empty()) {
+            int new_index = accounts.size() - 1;
 
-        // Find the row in the tree view and select it
-        auto children = m_account_list_store->children();
-        for (auto iter = children.begin(); iter != children.end(); ++iter) {
-            int stored_index = (*iter)[m_columns.m_col_index];
-            if (stored_index == new_index) {
-                // Select the row
-                m_account_tree_view.get_selection()->select(iter);
+            // Display the account details
+            display_account_details(new_index);
 
-                // Explicitly display the account details
-                display_account_details(new_index);
-
-                // Focus the name field and select all text for easy editing
-                Glib::signal_idle().connect_once([this]() {
-                    m_account_name_entry.grab_focus();
-                    m_account_name_entry.select_region(0, -1);
-                });
-
-                m_status_label.set_text("New account added - please enter details");
-                break;
-            }
+            // Focus the name field and select all text for easy editing (only on first add, not redo)
+            Glib::signal_idle().connect_once([this]() {
+                if (m_account_detail_widget && m_selected_account_index >= 0) {
+                    m_account_detail_widget->focus_account_name_entry();
+                }
+            });
+        } else {
+            clear_account_details();
         }
+
+        m_status_label.set_text("Account added");
     };
 
     auto command = std::make_unique<AddAccountCommand>(
@@ -912,8 +851,10 @@ void MainWindow::on_add_account() {
             m_status_label.set_text(std::string{error_msg});
         }
     }
-}void MainWindow::on_copy_password() {
-    const Glib::ustring password = m_password_entry.get_text();
+}
+
+void MainWindow::on_copy_password() {
+    const std::string password = m_account_detail_widget->get_password();
 
     if (password.empty()) {
         constexpr std::string_view no_password_msg{"No password to copy"};
@@ -950,65 +891,25 @@ void MainWindow::on_add_account() {
 }
 
 void MainWindow::on_toggle_password_visibility() {
-    bool current_visibility = m_password_entry.get_visibility();
-    m_password_entry.set_visibility(!current_visibility);
-
-    // Update icon based on visibility state
-    if (current_visibility) {
-        // Now hidden, show "reveal" icon
-        m_show_password_button.set_icon_name("view-reveal-symbolic");
-    } else {
-        // Now visible, show "conceal" icon
-        m_show_password_button.set_icon_name("view-conceal-symbolic");
-    }
+    // This functionality is now handled by AccountDetailWidget internally
 }
 
-void MainWindow::on_star_column_clicked(const Gtk::TreeModel::Path& path) {
+void MainWindow::on_star_column_clicked(const Gtk::TreeModel::Path& /*path*/) {
+    // [LEGACY METHOD - REPLACED BY AccountTreeWidget signal handlers]
+    // This method handled TreeView star column clicks
+    // Now handled by AccountRowWidget's favorite_toggled signal via on_favorite_toggled()
+    return;
+}
+
+void MainWindow::on_favorite_toggled(int account_index) {
     if (!m_vault_open) {
         return;
     }
 
-    auto iter = m_account_list_store->get_iter(path);
-    if (!iter) {
-        return;
-    }
-
-    // Ignore clicks on group headers
-    const bool is_group = (*iter)[m_columns.m_col_is_group];
-    if (is_group) {
-        return;
-    }
-
-    int account_index = (*iter)[m_columns.m_col_index];
-
     // Create command with UI callback
-    auto ui_callback = [this, account_index]() {
-        // Refresh list with current search/filter (preserves search state)
-        int current_selection = m_selected_account_index;
-        filter_accounts(m_search_entry.get_text());
-
-        // Re-select the current account if one was selected (search recursively)
-        if (current_selection >= 0) {
-            m_updating_selection = true;
-
-            std::function<bool(Gtk::TreeModel::Children)> find_and_select;
-            find_and_select = [&](Gtk::TreeModel::Children children) -> bool {
-                for (auto child_iter = children.begin(); child_iter != children.end(); ++child_iter) {
-                    if ((*child_iter)[m_columns.m_col_index] == current_selection) {
-                        m_account_tree_view.set_cursor(m_account_list_store->get_path(child_iter));
-                        return true;
-                    }
-                    // Recursively search children
-                    if (child_iter->children().size() > 0 && find_and_select(child_iter->children())) {
-                        return true;
-                    }
-                }
-                return false;
-            };
-
-            find_and_select(m_account_list_store->children());
-            m_updating_selection = false;
-        }
+    auto ui_callback = [this]() {
+        // Refresh the account list to show updated favorite status
+        update_account_list();
     };
 
     auto command = std::make_unique<ToggleFavoriteCommand>(
@@ -1037,326 +938,35 @@ void MainWindow::on_selection_changed() {
         return;
     }
 
-    auto selection = m_account_tree_view.get_selection();
-    if (!selection) {
-        return;
-    }
-
-    auto iter = selection->get_selected();
-    if (!iter) {
-        return;
-    }
-
-    // Check if selected row is a group header
-    const bool is_group = (*iter)[m_columns.m_col_is_group];
-    if (is_group) {
-        // Don't show details for group headers
-        return;
-    }
-
-    const int new_index = (*iter)[m_columns.m_col_index];
-
-    // Bounds checking for safety
-    if (new_index < 0) {
-        return;
-    }
-
-    // Only save if we're switching to a different account
-    if (new_index != m_selected_account_index) {
-        if (!save_current_account()) {
-            // Validation failed, revert to previous selection without triggering display update
-            m_updating_selection = true;
-
-            // Search recursively through tree for previous account
-            std::function<bool(Gtk::TreeModel::Children)> find_and_select;
-            find_and_select = [&](Gtk::TreeModel::Children children) -> bool {
-                for (auto group_iter = children.begin(); group_iter != children.end(); ++group_iter) {
-                    if ((*group_iter)[m_columns.m_col_index] == m_selected_account_index) {
-                        selection->select(group_iter);
-                        return true;
-                    }
-                    // Recursively check children of this row
-                    if (group_iter->children().size() > 0 && find_and_select(group_iter->children())) {
-                        return true;
-                    }
-                }
-                return false;
-            };
-
-            find_and_select(m_account_list_store->children());
-            m_updating_selection = false;
-            return;
-        }
-    }
-
-    display_account_details(new_index);
+    // [LEGACY METHOD - REPLACED BY AccountTreeWidget signal handlers]
+    // This method handled TreeView selection changes
+    // Now handled by m_account_tree_widget->signal_account_selected()
+    return;
 }
 
-void MainWindow::on_account_selected(const Gtk::TreeModel::Path& path, Gtk::TreeViewColumn* /* column */) {
-    auto iter = m_account_list_store->get_iter(path);
-    if (iter) {
-        // Check if selected row is a group header
-        const bool is_group = (*iter)[m_columns.m_col_is_group];
-        if (is_group) {
-            // Toggle expansion of group on double-click
-            if (m_account_tree_view.row_expanded(path)) {
-                m_account_tree_view.collapse_row(path);
-            } else {
-                m_account_tree_view.expand_row(path, false);
-            }
-            return;
-        }
+// [REMOVED] Legacy on_account_selected (migrated to AccountTreeWidget)
 
-        int new_index = (*iter)[m_columns.m_col_index];
-
-        // Only save if we're switching to a different account
-        if (new_index != m_selected_account_index) {
-            if (!save_current_account()) {
-                // Validation failed, stay on current account
-                return;
-            }
-        }
-
-        display_account_details(new_index);
-    }
-}
-
-void MainWindow::on_account_right_click([[maybe_unused]] int n_press, double x, double y) {
-    if (!m_vault_open) {
-        return;
-    }
-
-    // Get the path at the click position
-    Gtk::TreeModel::Path path;
-    Gtk::TreeViewColumn* column = nullptr;
-    int cell_x{}, cell_y{};  // C++23: uniform initialization
-
-    bool clicked_on_item = m_account_tree_view.get_path_at_pos(
-        static_cast<int>(x), static_cast<int>(y), path, column, cell_x, cell_y);
-
-    // Create context menu - HIG: no margins on popover content
-    auto popover = Gtk::make_managed<Gtk::Popover>();
-    auto box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL);
-    box->add_css_class("menu");
-
-    if (clicked_on_item) {
-        // Select the item that was right-clicked
-        m_account_tree_view.get_selection()->select(path);
-
-        auto iter = m_account_list_store->get_iter(path);
-        if (!iter) {
-            return;
-        }
-
-        bool is_group = (*iter)[m_columns.m_col_is_group];
-
-        if (is_group) {
-            // Right-clicked on a group header
-            std::string group_id = (*iter)[m_columns.m_col_group_id];
-            Glib::ustring group_name = (*iter)[m_columns.m_col_account_name];
-
-            // Can't delete system groups
-            bool is_system = (group_id == "favorites" || group_id == "all");
-
-            // HIG: Regular actions first
-            auto create_group_btn = Gtk::make_managed<Gtk::Button>("New Group…");  // HIG: Use ellipsis for actions that open dialogs
-            create_group_btn->add_css_class("flat");
-            create_group_btn->signal_clicked().connect([this, popover]() {
-                popover->popdown();
-                on_create_group();
-            });
-            box->append(*create_group_btn);
-
-            // Rename group (not for system groups)
-            if (!is_system) {
-                auto rename_group_btn = Gtk::make_managed<Gtk::Button>("Rename Group…");
-                rename_group_btn->add_css_class("flat");
-                rename_group_btn->signal_clicked().connect([this, popover, group_id, group_name]() {
-                    popover->popdown();
-                    on_rename_group(group_id, group_name);
-                });
-                box->append(*rename_group_btn);
-
-                // Group reordering (Move Up/Down) - not for system groups
-                // System groups always stay at display_order=0 (first position)
-                auto groups = m_vault_manager->get_all_groups();
-                auto it = std::find_if(groups.begin(), groups.end(),
-                                      [&](const auto& g) { return g.group_id() == group_id; });
-
-                if (it != groups.end()) {
-                    int current_order = it->display_order();
-
-                    auto move_up_btn = Gtk::make_managed<Gtk::Button>("Move Up");
-                    move_up_btn->add_css_class("flat");
-                    move_up_btn->signal_clicked().connect([this, popover, group_id, current_order]() {
-                        popover->popdown();
-                        if (current_order > 1) {  // Can't go below 1 (0 is reserved for system groups)
-                            if (m_vault_manager->reorder_group(group_id, current_order - 1)) {
-                                update_account_list();
-                                m_status_label.set_text("Group moved up");
-                            }
-                        }
-                    });
-                    box->append(*move_up_btn);
-
-                    auto move_down_btn = Gtk::make_managed<Gtk::Button>("Move Down");
-                    move_down_btn->add_css_class("flat");
-                    move_down_btn->signal_clicked().connect([this, popover, group_id, current_order]() {
-                        popover->popdown();
-                        if (m_vault_manager->reorder_group(group_id, current_order + 1)) {
-                            update_account_list();
-                            m_status_label.set_text("Group moved down");
-                        }
-                    });
-                    box->append(*move_down_btn);
-                }
-            }
-
-            // HIG: Destructive actions in separate section at bottom
-            if (!is_system) {
-                auto separator = Gtk::make_managed<Gtk::Separator>(Gtk::Orientation::HORIZONTAL);
-                box->append(*separator);
-
-                auto delete_group_btn = Gtk::make_managed<Gtk::Button>("Delete Group");
-                delete_group_btn->add_css_class("flat");
-                delete_group_btn->add_css_class("destructive-action");
-                delete_group_btn->signal_clicked().connect([this, popover, group_id]() {
-                    popover->popdown();
-                    on_delete_group(group_id);
-                });
-                box->append(*delete_group_btn);
-            }
-
-        } else {
-            // Right-clicked on an account
-            int account_index = (*iter)[m_columns.m_col_index];
-
-            // Get all groups
-            auto groups = m_vault_manager->get_all_groups();
-
-            // HIG: Group-related actions first, organized by function
-            bool has_group_actions = false;
-
-            // Add to group actions
-            for (const auto& group : groups) {
-                // Skip if already in group
-                if (m_vault_manager->is_account_in_group(account_index, group.group_id())) {
-                    continue;
-                }
-
-                auto add_btn = Gtk::make_managed<Gtk::Button>("Add to " + group.group_name());
-                add_btn->add_css_class("flat");
-                std::string group_id = group.group_id();
-                add_btn->signal_clicked().connect([this, popover, account_index, group_id]() {
-                    popover->popdown();
-                    on_add_account_to_group(account_index, group_id);
-                });
-                box->append(*add_btn);
-                has_group_actions = true;
-            }
-
-            // Check which groups this account belongs to
-            std::vector<std::pair<std::string, std::string>> account_groups;  // id, name
-            for (const auto& group : groups) {
-                if (m_vault_manager->is_account_in_group(account_index, group.group_id())) {
-                    account_groups.push_back({group.group_id(), group.group_name()});
-                }
-            }
-
-            // Remove from group actions
-            for (const auto& [group_id, group_name] : account_groups) {
-                auto remove_btn = Gtk::make_managed<Gtk::Button>("Remove from " + group_name);
-                remove_btn->add_css_class("flat");
-                remove_btn->signal_clicked().connect([this, popover, account_index, group_id]() {
-                    popover->popdown();
-                    on_remove_account_from_group(account_index, group_id);
-                });
-                box->append(*remove_btn);
-                has_group_actions = true;
-            }
-
-            // Separator before create group action
-            if (has_group_actions) {
-                auto separator = Gtk::make_managed<Gtk::Separator>(Gtk::Orientation::HORIZONTAL);
-                box->append(*separator);
-            }
-
-            // Create new group
-            auto create_group_btn = Gtk::make_managed<Gtk::Button>("New Group…");  // HIG: ellipsis for dialog-opening actions
-            create_group_btn->add_css_class("flat");
-            create_group_btn->signal_clicked().connect([this, popover]() {
-                popover->popdown();
-                on_create_group();
-            });
-            box->append(*create_group_btn);
-
-            // HIG: Destructive actions in separate section at bottom
-            auto separator2 = Gtk::make_managed<Gtk::Separator>(Gtk::Orientation::HORIZONTAL);
-            box->append(*separator2);
-
-            // Delete account
-            auto delete_button = Gtk::make_managed<Gtk::Button>("Delete Account");
-            delete_button->add_css_class("flat");
-            delete_button->add_css_class("destructive-action");
-            delete_button->signal_clicked().connect([this, popover]() {
-                popover->popdown();
-                on_delete_account();
-            });
-            box->append(*delete_button);
-        }
-    } else {
-        // Right-clicked on empty space
-        auto create_group_btn = Gtk::make_managed<Gtk::Button>("New Group…");  // HIG: ellipsis for dialog-opening actions
-        create_group_btn->add_css_class("flat");
-        create_group_btn->signal_clicked().connect([this, popover]() {
-            popover->popdown();
-            on_create_group();
-        });
-        box->append(*create_group_btn);
-    }
-
-    popover->set_child(*box);
-    popover->set_parent(*this);
-    popover->set_autohide(true);
-
-    // Get TreeView position in window
-    double tree_x{}, tree_y{};  // C++23: uniform initialization
-    if (!m_account_tree_view.translate_coordinates(*this, 0, 0, tree_x, tree_y)) {
-        return;
-    }
-
-    // Calculate absolute position with header offset
-    constexpr double header_offset = 25.0;  // TreeView header height
-    const double abs_x = tree_x + x;
-    const double abs_y = tree_y + y + header_offset;
-
-    // Bounds check to ensure positive coordinates
-    if (abs_x < 0.0 || abs_y < 0.0) {
-        return;
-    }
-
-    Gdk::Rectangle pointing_rect;
-    pointing_rect.set_x(static_cast<int>(abs_x));
-    pointing_rect.set_y(static_cast<int>(abs_y));
-    pointing_rect.set_width(1);
-    pointing_rect.set_height(1);
-
-    popover->set_pointing_to(pointing_rect);
-
-    // Unparent when closed to prevent widget hierarchy issues
-    popover->signal_closed().connect([popover]() {
-        popover->unparent();
-    });
-
-    popover->popup();
-}
+// [REMOVED] Legacy on_account_right_click (migrated to AccountTreeWidget)
 
 void MainWindow::update_account_list() {
-    m_account_list_store->clear();
-    m_filtered_indices.clear();
+    // Widget-based UI update
+    if (!m_vault_manager || !m_account_tree_widget) {
+        return;
+    }
 
     auto accounts = m_vault_manager->get_all_accounts();
     auto groups = m_vault_manager->get_all_groups();
+
+    m_account_tree_widget->set_data(groups, accounts);
+
+    m_status_label.set_text("Vault opened: " + m_current_vault_path +
+                           " (" + std::to_string(accounts.size()) + " accounts)");
+    return;
+
+    // [LEGACY TreeView code below - kept for reference, no longer executed]
+    /*
+    m_account_list_store->clear();
+    m_filtered_indices.clear();
 
     // Add "Favorites" group with favorited accounts
     std::vector<size_t> favorite_indices;
@@ -1479,176 +1089,35 @@ void MainWindow::update_account_list() {
 
     m_status_label.set_text("Vault opened: " + m_current_vault_path +
                            " (" + std::to_string(accounts.size()) + " accounts)");
+    */
 }
 
 void MainWindow::filter_accounts(const Glib::ustring& search_text) {
-    m_account_list_store->clear();
-    m_filtered_indices.clear();
-
-    const auto accounts = m_vault_manager->get_all_accounts();
-
-    // If both search and tag filter are empty, show all accounts
-    if (search_text.empty() && m_selected_tag_filter.empty()) {
-        update_account_list();
+    if (!m_account_tree_widget) {
         return;
     }
 
-    const bool has_text_filter = !search_text.empty();
-    const std::string query = search_text.lowercase().raw();
-
-    // Get selected field filter
+    // Get current field filter selection
     const guint field_filter = m_field_filter_dropdown.get_selected();
     // 0=All, 1=Account Name, 2=Username, 3=Email, 4=Website, 5=Notes, 6=Tags
 
-    // Try regex first (for advanced users), fall back to fuzzy if it fails
-    std::regex search_regex;
-    bool use_regex = false;
-    if (has_text_filter) {
-        try {
-            std::string pattern = ".*" + query + ".*";
-            search_regex = std::regex(pattern, std::regex::icase);
-            use_regex = true;
-        } catch (const std::regex_error&) {
-            // Fall back to fuzzy matching
-            use_regex = false;
-        }
-    }
-
-    // Structure to hold index and match score
-    struct FilterResult {
-        size_t index;
-        int score;
-    };
-    std::vector<FilterResult> filtered_results;
-
-    // Filter accounts with scoring
-    for (size_t i = 0; i < accounts.size(); ++i) {
-        const auto& account = accounts[i];
-
-        // Check tag filter first (no scoring needed)
-        bool tag_match = m_selected_tag_filter.empty();
-        if (!m_selected_tag_filter.empty()) {
-            for (int j = 0; j < account.tags_size(); ++j) {
-                if (account.tags(j) == m_selected_tag_filter) {
-                    tag_match = true;
-                    break;
-                }
-            }
-        }
-
-        if (!tag_match) continue;
-
-        // If no text filter, include all tag-matched accounts
-        if (!has_text_filter) {
-            filtered_results.push_back({i, 100});  // Perfect score when no search
-            continue;
-        }
-
-        // Calculate match score based on field filter
-        int best_score = 0;
-
-        auto check_field = [&](std::string_view field_value, int field_boost = 0) {
-            if (use_regex) {
-                if (std::regex_search(std::string(field_value), search_regex)) {
-                    return 100 + field_boost;  // Regex match gets perfect score
-                }
-                return 0;
-            } else {
-                int score = KeepTower::FuzzyMatch::fuzzy_score(query, field_value);
-                return score > 0 ? score + field_boost : 0;
-            }
-        };
-
-        // Check selected field(s) with boost for specific field matches
-        if (field_filter == 0 || field_filter == 1) {
-            best_score = std::max(best_score, check_field(account.account_name(), 10));
-        }
-        if (field_filter == 0 || field_filter == 2) {
-            best_score = std::max(best_score, check_field(account.user_name(), 5));
-        }
-        if (field_filter == 0 || field_filter == 3) {
-            best_score = std::max(best_score, check_field(account.email(), 5));
-        }
-        if (field_filter == 0 || field_filter == 4) {
-            best_score = std::max(best_score, check_field(account.website(), 5));
-        }
-        if (field_filter == 0 || field_filter == 5) {
-            best_score = std::max(best_score, check_field(account.notes(), 0));
-        }
-        if (field_filter == 0 || field_filter == 6) {
-            for (int j = 0; j < account.tags_size(); ++j) {
-                best_score = std::max(best_score, check_field(account.tags(j), 8));
-            }
-        }
-
-        // Include account if score meets threshold (30)
-        if (best_score >= 30) {
-            filtered_results.push_back({i, best_score});
-        }
-    }
-
-    // Sort by: 1) favorites first, 2) score (descending), 3) alphabetically
-    std::sort(filtered_results.begin(), filtered_results.end(),
-        [&accounts](const FilterResult& a, const FilterResult& b) {
-            const bool a_fav = accounts[a.index].is_favorite();
-            const bool b_fav = accounts[b.index].is_favorite();
-
-            if (a_fav != b_fav) {
-                return a_fav > b_fav;  // Favorites first
-            }
-            if (a.score != b.score) {
-                return a.score > b.score;  // Higher score first
-            }
-            return accounts[a.index].account_name() < accounts[b.index].account_name();
-        });
-
-    // Populate list store and filtered indices
-    for (const auto& result : filtered_results) {
-        m_filtered_indices.push_back(result.index);
-        const auto& account = accounts[result.index];
-        auto row = *(m_account_list_store->append());
-        row[m_columns.m_col_is_favorite] = account.is_favorite();
-        row[m_columns.m_col_account_name] = account.account_name();
-        row[m_columns.m_col_user_name] = account.user_name();
-        row[m_columns.m_col_index] = result.index;
-    }
+    // Apply filters to the tree widget
+    m_account_tree_widget->set_filters(
+        safe_ustring_to_string(search_text, "search_text"),
+        m_selected_tag_filter,
+        static_cast<int>(field_filter)
+    );
 }
 
 void MainWindow::clear_account_details() {
-    m_account_name_entry.set_text("");
-    m_user_name_entry.set_text("");
-    m_password_entry.set_text("");
-    m_email_entry.set_text("");
-    m_website_entry.set_text("");
-    m_notes_view.get_buffer()->set_text("");
-
-    // Clear tags
-    auto child = m_tags_flowbox.get_first_child();
-    while (child) {
-        auto next = child->get_next_sibling();
-        m_tags_flowbox.remove(*child);
-        child = next;
-    }
-    m_tags_entry.set_text("");
-
-    m_account_name_entry.set_sensitive(false);
-    m_user_name_entry.set_sensitive(false);
-    m_password_entry.set_sensitive(false);
-    m_email_entry.set_sensitive(false);
-    m_website_entry.set_sensitive(false);
-    m_notes_view.set_sensitive(false);
-    m_tags_entry.set_sensitive(false);
-    m_generate_password_button.set_sensitive(false);
-    m_show_password_button.set_sensitive(false);
-    m_copy_password_button.set_sensitive(false);
-    m_delete_account_button.set_sensitive(false);
-
+    m_account_detail_widget->clear();
     m_selected_account_index = -1;
 }
 
 void MainWindow::display_account_details(int index) {
     // Bounds checking for safety
     if (index < 0) {
+        m_account_detail_widget->clear();
         return;
     }
 
@@ -1657,38 +1126,22 @@ void MainWindow::display_account_details(int index) {
     // Load account from VaultManager
     const auto* account = m_vault_manager->get_account(index);
     if (!account) {
+        g_warning("MainWindow::display_account_details - account is null at index %d", index);
+        m_account_detail_widget->clear();
         return;
     }
 
-    m_account_name_entry.set_text(account->account_name());
-    m_user_name_entry.set_text(account->user_name());
-    m_password_entry.set_text(account->password());
-    m_email_entry.set_text(account->email());
-    m_website_entry.set_text(account->website());
-    m_notes_view.get_buffer()->set_text(account->notes());
-
-    // Update tags display
-    update_tags_display();
-
-    // Enable fields for editing
-    m_account_name_entry.set_sensitive(true);
-    m_user_name_entry.set_sensitive(true);
-    m_password_entry.set_sensitive(true);
-    m_email_entry.set_sensitive(true);
-    m_website_entry.set_sensitive(true);
-    m_notes_view.set_sensitive(true);
-    m_tags_entry.set_sensitive(true);
-    m_generate_password_button.set_sensitive(true);
-    m_show_password_button.set_sensitive(true);
-    m_copy_password_button.set_sensitive(true);
-    m_delete_account_button.set_sensitive(true);
+    // Display in the detail widget
+    m_account_detail_widget->display_account(account);
 }
 
 bool MainWindow::save_current_account() {
     // Only save if we have a valid account selected
     if (m_selected_account_index < 0 || !m_vault_open) {
         return true;  // Nothing to save, allow continue
-    }    // Validate the index is within bounds
+    }
+
+    // Validate the index is within bounds
     const auto accounts = m_vault_manager->get_all_accounts();
     if (m_selected_account_index >= static_cast<int>(accounts.size())) {
         g_warning("Invalid account index %d (total accounts: %zu)",
@@ -1696,34 +1149,47 @@ bool MainWindow::save_current_account() {
         return true;  // Invalid state, but don't block navigation
     }
 
+    // Get values from detail widget
+    const auto account_name = m_account_detail_widget->get_account_name();
+    const auto user_name = m_account_detail_widget->get_user_name();
+    const auto password = m_account_detail_widget->get_password();
+    const auto email = m_account_detail_widget->get_email();
+    const auto website = m_account_detail_widget->get_website();
+    const auto notes = m_account_detail_widget->get_notes();
+
+    // Convert to Glib::ustring for validation functions
+    const Glib::ustring account_name_u(account_name);
+    const Glib::ustring user_name_u(user_name);
+    const Glib::ustring password_u(password);
+    const Glib::ustring email_u(email);
+    const Glib::ustring website_u(website);
+    const Glib::ustring notes_u(notes);
+
     // Validate field lengths before saving
-    if (!validate_field_length("Account Name", m_account_name_entry.get_text(), UI::MAX_ACCOUNT_NAME_LENGTH)) {
+    if (!validate_field_length("Account Name", account_name_u, UI::MAX_ACCOUNT_NAME_LENGTH)) {
         return false;
     }
-    if (!validate_field_length("Username", m_user_name_entry.get_text(), UI::MAX_USERNAME_LENGTH)) {
+    if (!validate_field_length("Username", user_name_u, UI::MAX_USERNAME_LENGTH)) {
         return false;
     }
-    if (!validate_field_length("Password", m_password_entry.get_text(), UI::MAX_PASSWORD_LENGTH)) {
+    if (!validate_field_length("Password", password_u, UI::MAX_PASSWORD_LENGTH)) {
         return false;
     }
 
     // Validate email format if not empty
-    const auto email_text = m_email_entry.get_text();
-    if (!email_text.empty() && !validate_email_format(email_text)) {
+    if (!email.empty() && !validate_email_format(email_u)) {
         return false;
     }
 
-    if (!validate_field_length("Email", email_text, UI::MAX_EMAIL_LENGTH)) {
+    if (!validate_field_length("Email", email_u, UI::MAX_EMAIL_LENGTH)) {
         return false;
     }
-    if (!validate_field_length("Website", m_website_entry.get_text(), UI::MAX_WEBSITE_LENGTH)) {
+    if (!validate_field_length("Website", website_u, UI::MAX_WEBSITE_LENGTH)) {
         return false;
     }
 
     // Validate notes length
-    const auto buffer = m_notes_view.get_buffer();
-    const auto notes_text = buffer->get_text();
-    if (!validate_field_length("Notes", notes_text, UI::MAX_NOTES_LENGTH)) {
+    if (!validate_field_length("Notes", notes_u, UI::MAX_NOTES_LENGTH)) {
         return false;
     }
 
@@ -1737,7 +1203,7 @@ bool MainWindow::save_current_account() {
     // Store the old account name to detect if it changed
     const std::string old_name = account->account_name();
     const std::string old_password = account->password();
-    const std::string new_password = m_password_entry.get_text().raw();
+    const std::string new_password = password;
 
     // Check password history settings
     auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
@@ -1774,20 +1240,16 @@ bool MainWindow::save_current_account() {
     }
 
     // Update the account with current field values
-    account->set_account_name(m_account_name_entry.get_text().raw());
-    account->set_user_name(m_user_name_entry.get_text().raw());
+    account->set_account_name(account_name);
+    account->set_user_name(user_name);
     account->set_password(new_password);
-    account->set_email(m_email_entry.get_text().raw());
-    account->set_website(m_website_entry.get_text().raw());
-    account->set_notes(notes_text.raw());
-
-    // Debug: Log what we're saving
-    g_debug("Saved account '%s' (index %d): notes length = %zu",
-            account->account_name().c_str(), m_selected_account_index, notes_text.length());
+    account->set_email(email);
+    account->set_website(website);
+    account->set_notes(notes);
 
     // Update tags
     account->clear_tags();
-    auto current_tags = get_current_tags();
+    auto current_tags = m_account_detail_widget->get_all_tags();
     for (const auto& tag : current_tags) {
         account->add_tags(tag);
     }
@@ -1795,18 +1257,9 @@ bool MainWindow::save_current_account() {
     // Update modification timestamp
     account->set_modified_at(std::time(nullptr));
 
-    // Only refresh the list if the account name changed
+    // Refresh the account list if the name changed
     if (old_name != account->account_name()) {
-        // Find and update just this account's row in the list
-        auto iter = m_account_list_store->children().begin();
-        while (iter != m_account_list_store->children().end()) {
-            if ((*iter)[m_columns.m_col_index] == m_selected_account_index) {
-                (*iter)[m_columns.m_col_account_name] = account->account_name();
-                (*iter)[m_columns.m_col_user_name] = account->user_name();
-                break;
-            }
-            ++iter;
-        }
+        update_account_list();
     }
 
     return true;  // Save successful
@@ -1844,7 +1297,7 @@ bool MainWindow::validate_email_format(const Glib::ustring& email) {
     );
 
     try {
-        if (!std::regex_match(email.raw(), email_pattern)) {
+        if (!std::regex_match(safe_ustring_to_string(email, "email"), email_pattern)) {
             show_error_dialog(
                 "Invalid email format.\n\n"
                 "Email must be in the format: user@domain.ext\n\n"
@@ -1898,10 +1351,10 @@ void MainWindow::on_tag_filter_changed() {
     } else {
         // Specific tag selected (index - 1 because "All tags" is at index 0)
         auto item = m_tag_filter_model->get_string(selected);
-        m_selected_tag_filter = item.raw();
+        m_selected_tag_filter = safe_ustring_to_string(item, "tag_filter");
     }
 
-    // Re-apply current search with tag filter
+    // Re-apply current search with new tag filter
     filter_accounts(m_search_entry.get_text());
 }
 
@@ -1924,172 +1377,25 @@ void MainWindow::show_error_dialog(const Glib::ustring& message) {
 }
 
 void MainWindow::on_tags_entry_activate() {
-    Glib::ustring tag_text = m_tags_entry.get_text();
-
-    // Trim whitespace
-    size_t start = tag_text.find_first_not_of(" \t\n\r");
-    size_t end = tag_text.find_last_not_of(" \t\n\r");
-    if (start == Glib::ustring::npos) {
-        return;  // Empty or only whitespace
-    }
-    tag_text = tag_text.substr(start, end - start + 1);
-
-    if (tag_text.empty()) {
-        return;
-    }
-
-    // Validate tag (no commas, max 50 chars)
-    if (tag_text.find(',') != Glib::ustring::npos) {
-        show_error_dialog("Tags cannot contain commas.");
-        return;
-    }
-
-    if (tag_text.length() > 50) {
-        show_error_dialog("Tag is too long (maximum 50 characters).");
-        return;
-    }
-
-    // Check for duplicates
-    auto current_tags = get_current_tags();
-    std::string tag_str = tag_text.raw();
-    if (std::find(current_tags.begin(), current_tags.end(), tag_str) != current_tags.end()) {
-        m_tags_entry.set_text("");
-        return;  // Tag already exists, silently ignore
-    }
-
-    // Add the tag chip
-    add_tag_chip(tag_str);
-
-    // Clear the entry
-    m_tags_entry.set_text("");
-
-    // Mark vault as modified
-    if (m_vault_manager && m_selected_account_index >= 0) {
-        save_current_account();
-        update_tag_filter_dropdown();
-    }
-
-    // Keep focus on tags entry to prevent selection jump
-    m_tags_entry.grab_focus();
+    // This functionality is now handled by AccountDetailWidget internally
 }
 
-void MainWindow::add_tag_chip(const std::string& tag) {
-    // Create a box for the tag chip
-    auto chip_box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 4);
-    chip_box->set_margin_start(4);
-    chip_box->set_margin_end(4);
-    chip_box->set_margin_top(4);
-    chip_box->set_margin_bottom(4);
-    chip_box->add_css_class("tag-chip");
-
-    // Add tag label
-    auto label = Gtk::make_managed<Gtk::Label>(tag);
-    label->set_margin_start(8);
-    chip_box->append(*label);
-
-    // Add remove button
-    auto remove_button = Gtk::make_managed<Gtk::Button>();
-    remove_button->set_icon_name("window-close-symbolic");
-    remove_button->add_css_class("flat");
-    remove_button->add_css_class("circular");
-    remove_button->set_margin_end(4);
-    remove_button->set_tooltip_text("Remove tag");
-
-    // Connect remove button signal - capture tag by value
-    std::string tag_copy = tag;
-    remove_button->signal_clicked().connect([this, tag_copy]() {
-        remove_tag_chip(tag_copy);
-    });
-
-    chip_box->append(*remove_button);
-
-    // Add to flowbox
-    m_tags_flowbox.append(*chip_box);
+void MainWindow::add_tag_chip(const std::string& /*tag*/) {
+    // This functionality is now handled by AccountDetailWidget internally
 }
 
-void MainWindow::remove_tag_chip(const std::string& tag) {
-    // Find and remove the chip with matching tag from flowbox
-    auto child = m_tags_flowbox.get_first_child();
-    while (child) {
-        auto next = child->get_next_sibling();
-
-        // FlowBox wraps our widgets in FlowBoxChild, so we need to get the actual child
-        Gtk::Widget* actual_child = nullptr;
-        if (auto* flowbox_child = dynamic_cast<Gtk::FlowBoxChild*>(child)) {
-            actual_child = flowbox_child->get_child();
-        } else {
-            actual_child = child;
-        }
-
-        // Each child should be a Box containing a Label and Button
-        if (actual_child) {
-            if (auto* box = dynamic_cast<Gtk::Box*>(actual_child)) {
-                // Get the first child which should be the label
-                if (auto* label = dynamic_cast<Gtk::Label*>(box->get_first_child())) {
-                    if (label->get_text().raw() == tag) {
-                        m_tags_flowbox.remove(*child);
-                        break;
-                    }
-                }
-            }
-        }
-        child = next;
-    }
-    // Save the changes
-    if (m_vault_manager && m_selected_account_index >= 0) {
-        save_current_account();
-        update_tag_filter_dropdown();
-    }
+void MainWindow::remove_tag_chip(const std::string& /*tag*/) {
+    // This functionality is now handled by AccountDetailWidget internally
 }
 
 void MainWindow::update_tags_display() {
-    // Clear existing tags
-    auto child = m_tags_flowbox.get_first_child();
-    while (child) {
-        auto next = child->get_next_sibling();
-        m_tags_flowbox.remove(*child);
-        child = next;
-    }
-
-    // Load tags from current account
-    if (m_vault_manager && m_selected_account_index >= 0) {
-        const auto* account = m_vault_manager->get_account(m_selected_account_index);
-        if (account) {
-            for (int i = 0; i < account->tags_size(); ++i) {
-                add_tag_chip(account->tags(i));
-            }
-        }
-    }
+    // This functionality is now handled by AccountDetailWidget internally
 }
 
 std::vector<std::string> MainWindow::get_current_tags() {
-    std::vector<std::string> tags;
-
-    // Iterate through flowbox children
-    // Note: FlowBox wraps children in FlowBoxChild widgets
-    auto child = m_tags_flowbox.get_first_child();
-    while (child) {
-        // FlowBox wraps our widgets in FlowBoxChild, so we need to get the actual child
-        Gtk::Widget* actual_child = nullptr;
-        if (auto* flowbox_child = dynamic_cast<Gtk::FlowBoxChild*>(child)) {
-            actual_child = flowbox_child->get_child();
-        } else {
-            actual_child = child;
-        }
-
-        // Each child should be a Box containing a Label and Button
-        if (actual_child) {
-            if (auto* box = dynamic_cast<Gtk::Box*>(actual_child)) {
-                // Get the first child which should be the label
-                if (auto* label = dynamic_cast<Gtk::Label*>(box->get_first_child())) {
-                    tags.push_back(label->get_text().raw());
-                }
-            }
-        }
-        child = child->get_next_sibling();
-    }
-
-    return tags;
+    // Tags are now managed by AccountDetailWidget
+    // This is a compatibility stub - consider refactoring callers
+    return {};
 }
 
 bool MainWindow::prompt_save_if_modified() {
@@ -2192,12 +1498,23 @@ void MainWindow::on_preferences() {
 }
 
 void MainWindow::on_delete_account() {
-    if (m_selected_account_index < 0 || !m_vault_open) {
+    // Determine which account to delete: context menu or selected account
+    int account_index = -1;
+
+    if (!m_context_menu_account_id.empty()) {
+        // Context menu delete
+        account_index = find_account_index_by_id(m_context_menu_account_id);
+    } else if (m_selected_account_index >= 0) {
+        // Button/keyboard delete
+        account_index = m_selected_account_index;
+    }
+
+    if (account_index < 0 || !m_vault_open) {
         return;
     }
 
     // Get account name for confirmation dialog
-    const auto* account = m_vault_manager->get_account(m_selected_account_index);
+    const auto* account = m_vault_manager->get_account(account_index);
     if (!account) {
         return;
     }
@@ -2229,7 +1546,7 @@ void MainWindow::on_delete_account() {
     auto delete_button = dialog->add_button("Delete", Gtk::ResponseType::OK);
     delete_button->add_css_class("destructive-action");
 
-    dialog->signal_response().connect([this, dialog](int response) {
+    dialog->signal_response().connect([this, dialog, account_index](int response) {
         if (response == Gtk::ResponseType::OK) {
             // Create command with UI callback
             auto ui_callback = [this]() {
@@ -2240,7 +1557,7 @@ void MainWindow::on_delete_account() {
 
             auto command = std::make_unique<DeleteAccountCommand>(
                 m_vault_manager.get(),
-                m_selected_account_index,
+                account_index,
                 ui_callback
             );
 
@@ -2256,6 +1573,9 @@ void MainWindow::on_delete_account() {
                 }
             }
         }
+
+        // Clear context menu state
+        m_context_menu_account_id.clear();
         dialog->hide();
     });
 
@@ -2862,7 +2182,7 @@ void MainWindow::on_generate_password() {
                 password += charset[dis(gen)];
             }
 
-            m_password_entry.set_text(password);
+            m_account_detail_widget->set_password(password);
             m_status_label.set_text(std::format("Generated {}-character password", length));
         }
         dialog->hide();
@@ -2952,7 +2272,6 @@ void MainWindow::lock_vault() {
     m_add_account_button.set_sensitive(false);
     m_save_button.set_sensitive(false);
     m_search_entry.set_sensitive(false);
-    m_delete_account_button.set_sensitive(false);
     clear_account_details();
 
     // Clear clipboard
@@ -2968,13 +2287,10 @@ void MainWindow::lock_vault() {
     // Hide account details for security (clears fields and sets m_selected_account_index = -1)
     clear_account_details();
 
-    // Clear tree view selection to prevent any stale selection
-    m_account_tree_view.get_selection()->unselect_all();
-
-    // Clear and hide account list for security
-    m_account_list_store->clear();
-    m_filtered_indices.clear();
-    m_list_scrolled.set_visible(false);
+    // Clear widget-based UI
+    if (m_account_tree_widget) {
+        m_account_tree_widget->set_data({}, {});
+    }
 
     // Create unlock dialog using Gtk::Window for full control
     auto* dialog = Gtk::make_managed<Gtk::Window>();
@@ -3033,7 +2349,7 @@ void MainWindow::lock_vault() {
 
     // Handle OK button
     ok_button->signal_clicked().connect([this, dialog, password_entry]() {
-        const std::string entered_password{password_entry->get_text().raw()};
+        const std::string entered_password{safe_ustring_to_string(password_entry->get_text(), "unlock_password")};
 
 #ifdef HAVE_YUBIKEY_SUPPORT
         // Check if YubiKey is required for this vault
@@ -3075,9 +2391,6 @@ void MainWindow::lock_vault() {
             m_add_account_button.set_sensitive(true);
             m_save_button.set_sensitive(true);
             m_search_entry.set_sensitive(true);
-
-            // Show account list again
-            m_list_scrolled.set_visible(true);
 
             // Restore account list and selection
             update_account_list();
@@ -3365,64 +2678,7 @@ bool MainWindow::is_undo_redo_enabled() const {
  *
  * @note This method should be called after the TreeView model is set up
  */
-void MainWindow::setup_drag_and_drop() {
-    // Security: Disable reordering during search/filter to prevent confusion
-    // between visual order and actual vault order
-    if (!m_search_entry.get_text().empty() || !m_selected_tag_filter.empty()) {
-        m_account_tree_view.set_reorderable(false);
-        return;
-    }
-
-    // Disconnect any existing signal connection to prevent duplicates
-    if (m_row_inserted_conn.connected()) {
-        m_row_inserted_conn.disconnect();
-    }
-
-    // Enable built-in drag-and-drop reordering
-    // Note: set_reorderable() is deprecated in GTK4.10+ but remains the most
-    // stable approach for TreeView. Future migration to ListView recommended.
-    m_account_tree_view.set_reorderable(true);
-
-    // Connect to row-inserted signal to detect when drag-and-drop reordering occurs
-    // The TreeModel emits row-inserted after a row is moved via drag-and-drop
-    m_row_inserted_conn = m_account_list_store->signal_row_inserted().connect(
-        [this](const Gtk::TreeModel::Path& path, const Gtk::TreeModel::iterator& iter) {
-            // Ignore insertions during initial list population
-            if (!m_vault_open) {
-                return;
-            }
-
-            // Ignore insertions during search/filter (shouldn't happen, but safety check)
-            if (!m_search_entry.get_text().empty() || !m_selected_tag_filter.empty()) {
-                return;
-            }
-
-            // Get the account index from the iterator
-            const int account_index = (*iter)[m_columns.m_col_index];
-            const int new_position = path[0];  // Path[0] is the row number
-
-            // Validate indices for security
-            const auto account_count = m_vault_manager->get_account_count();
-            if (account_index < 0 || static_cast<size_t>(account_index) >= account_count) {
-                return;
-            }
-            if (new_position < 0 || static_cast<size_t>(new_position) >= account_count) {
-                return;
-            }
-
-            // Persist the reorder to vault
-            // Note: This will trigger save_vault() internally
-            if (m_vault_manager->reorder_account(
-                    static_cast<size_t>(account_index),
-                    static_cast<size_t>(new_position))) {
-                m_status_label.set_text("Account reordered");
-
-                // TODO: Create ReorderAccountCommand for undo/redo support
-                // For now, reordering works but isn't undoable
-            }
-        }
-    );
-}
+// [REMOVED] Legacy setup_drag_and_drop (migrated to AccountTreeWidget)
 
 // Account Groups Implementation
 // ============================================================================
@@ -3449,7 +2705,7 @@ void MainWindow::on_create_group() {
         }
 
         // Create the group
-        std::string group_id = m_vault_manager->create_group(group_name.raw());
+        std::string group_id = m_vault_manager->create_group(safe_ustring_to_string(group_name, "group_name"));
         if (group_id.empty()) {
             show_error_dialog("Failed to create group. The name may already exist or be invalid.");
             return;
@@ -3479,18 +2735,15 @@ void MainWindow::on_rename_group(const std::string& group_id, const Glib::ustrin
         }
 
         auto new_name = dialog->get_group_name();
-        if (new_name.empty() || new_name == current_name) {
-            return;  // No change
-        }
+        // [REMOVED] Legacy account list update logic (migrated to AccountTreeWidget)
 
-        // Rename the group
-        if (!m_vault_manager->rename_group(group_id, new_name.raw())) {
-            show_error_dialog("Failed to rename group. The name may already exist, be invalid, or this is a system group.");
-            return;
+        // Rename the group in vault manager
+        if (m_vault_manager->rename_group(group_id, safe_ustring_to_string(new_name, "group_name"))) {
+            m_status_label.set_text("Group renamed");
+            update_account_list();
+        } else {
+            show_error_dialog("Failed to rename group");
         }
-
-        m_status_label.set_text("Group renamed to: " + new_name);
-        update_account_list();
     });
 
     dialog->present();
@@ -3501,86 +2754,267 @@ void MainWindow::on_delete_group(const std::string& group_id) {
         return;
     }
 
-    // Find group name
-    auto groups = m_vault_manager->get_all_groups();
-    std::string group_name;
-    for (const auto& group : groups) {
-        if (group.group_id() == group_id) {
-            group_name = group.group_name();
-            break;
-        }
-    }
-
-    if (group_name.empty()) {
-        return;
-    }
-
-    // Confirm deletion - GTK4: use Gtk::make_managed for proper lifecycle
-    auto* confirm_dialog = Gtk::make_managed<Gtk::MessageDialog>(
+    // Confirm deletion
+    auto dialog = std::make_unique<Gtk::MessageDialog>(
         *this,
-        "Delete Group?",
+        "Delete this group?",
         false,
         Gtk::MessageType::QUESTION,
         Gtk::ButtonsType::YES_NO,
         true
     );
-    confirm_dialog->set_modal(true);
-    confirm_dialog->set_hide_on_close(true);
-    confirm_dialog->set_secondary_text(
-        "Are you sure you want to delete '" + group_name + "'? Accounts will not be deleted."
-    );
+    dialog->set_secondary_text("Accounts in this group will not be deleted.");
 
-    confirm_dialog->signal_response().connect([this, confirm_dialog, group_id, group_name](int response) {
-        if (response == Gtk::ResponseType::YES) {
+    dialog->signal_response().connect([this, dialog_ptr = dialog.get(), group_id](int response) {
+        if (response == static_cast<int>(Gtk::ResponseType::YES)) {
             if (m_vault_manager->delete_group(group_id)) {
-                m_status_label.set_text("Group deleted: " + group_name);
+                m_status_label.set_text("Group deleted");
                 update_account_list();
             } else {
-                show_error_dialog("Failed to delete group.");
+                show_error_dialog("Failed to delete group");
             }
         }
-        confirm_dialog->hide();
+        dialog_ptr->hide();
     });
 
-    confirm_dialog->present();
+    dialog->set_modal(true);
+    dialog->show();
+    dialog.release(); // Dialog will delete itself
 }
 
-void MainWindow::on_add_account_to_group(int account_index, const std::string& group_id) {
-    if (!m_vault_open || account_index < 0 || group_id.empty()) {
+// Helper methods for widget-based UI
+int MainWindow::find_account_index_by_id(const std::string& account_id) const {
+    if (!m_vault_manager) return -1;
+    const auto& accounts = m_vault_manager->get_all_accounts();
+    for (size_t i = 0; i < accounts.size(); ++i) {
+        if (accounts[i].id() == account_id) return static_cast<int>(i);
+    }
+    return -1;
+}
+
+void MainWindow::filter_accounts_by_group(const std::string& group_id) {
+    if (!m_vault_manager) return;
+    const auto& groups = m_vault_manager->get_all_groups();
+    const auto& accounts = m_vault_manager->get_all_accounts();
+    if (group_id.empty()) {
+        // Show all accounts
+        m_account_tree_widget->set_data(groups, accounts);
         return;
     }
-
-    if (m_vault_manager->add_account_to_group(account_index, group_id)) {
-        // Find group name
-        auto groups = m_vault_manager->get_all_groups();
-        for (const auto& group : groups) {
-            if (group.group_id() == group_id) {
-                m_status_label.set_text("Added to " + group.group_name());
+    // Filter accounts belonging to the selected group
+    std::vector<keeptower::AccountRecord> filtered_accounts;
+    for (const auto& account : accounts) {
+        for (int i = 0; i < account.groups_size(); ++i) {
+            if (account.groups(i).group_id() == group_id) {
+                filtered_accounts.push_back(account);
                 break;
             }
         }
-        update_account_list();
-    } else {
-        show_error_dialog("Failed to add account to group.");
     }
+    m_account_tree_widget->set_data(groups, filtered_accounts);
 }
 
-void MainWindow::on_remove_account_from_group(int account_index, const std::string& group_id) {
-    if (!m_vault_open || account_index < 0 || group_id.empty()) {
+// Handle account drag-and-drop reorder
+void MainWindow::on_account_reordered(const std::string& account_id, const std::string& target_group_id, int new_index) {
+    if (!m_vault_manager) return;
+    int idx = find_account_index_by_id(account_id);
+    if (idx < 0) return;
+
+    g_debug("MainWindow::on_account_reordered - account_id=%s, target_group_id='%s', index=%d",
+            account_id.c_str(), target_group_id.c_str(), new_index);
+
+    // Handle group membership changes
+    if (target_group_id.empty()) {
+        // Empty group_id means dropped into "All Accounts" view
+        // This is just a view of all accounts, not a group container
+        // Don't change group membership - use context menu to remove from groups
+        g_debug("  Dropped into All Accounts - no group membership changes");
+        return;  // No-op
+    } else {
+        // Adding to a group - just add without removing from other groups
+        // This allows accounts to be members of multiple groups
+        if (!m_vault_manager->is_account_in_group(idx, target_group_id)) {
+            m_vault_manager->add_account_to_group(idx, target_group_id);
+        }
+    }
+
+    // Defer UI refresh until after drag operation completes (next idle cycle)
+    // This prevents destroying widgets while drag is still in progress
+    Glib::signal_idle().connect_once([this]() {
+        if (m_vault_manager && m_account_tree_widget) {
+            const auto& groups = m_vault_manager->get_all_groups();
+            const auto& accounts = m_vault_manager->get_all_accounts();
+            m_account_tree_widget->set_data(groups, accounts);
+        }
+    });
+}
+
+// Handle group drag-and-drop reorder
+void MainWindow::on_group_reordered(const std::string& group_id, int new_index) {
+    if (!m_vault_manager) return;
+    m_vault_manager->reorder_group(group_id, new_index);
+
+    // Defer UI refresh until after drag operation completes
+    Glib::signal_idle().connect_once([this]() {
+        if (m_vault_manager && m_account_tree_widget) {
+            const auto& groups = m_vault_manager->get_all_groups();
+            const auto& accounts = m_vault_manager->get_all_accounts();
+            m_account_tree_widget->set_data(groups, accounts);
+        }
+    });
+}
+
+void MainWindow::show_account_context_menu(const std::string& account_id, Gtk::Widget* widget, double x, double y) {
+    // Find the account index
+    int account_index = find_account_index_by_id(account_id);
+    if (account_index < 0) {
         return;
     }
 
-    if (m_vault_manager->remove_account_from_group(account_index, group_id)) {
-        // Find group name
+    // Store account_id for use by action handlers
+    m_context_menu_account_id = account_id;
+
+    // Create main menu
+    auto menu = Gio::Menu::create();
+
+    // Add "Add to Group" submenu if there are groups
+    if (m_vault_manager) {
         auto groups = m_vault_manager->get_all_groups();
-        for (const auto& group : groups) {
-            if (group.group_id() == group_id) {
-                m_status_label.set_text("Removed from " + group.group_name());
-                break;
+        auto accounts = m_vault_manager->get_all_accounts();
+
+        if (account_index < accounts.size()) {
+            const auto& account = accounts[account_index];
+
+            // Build "Add to Group" submenu
+            if (!groups.empty()) {
+                auto groups_menu = Gio::Menu::create();
+                for (const auto& group : groups) {
+                    if (group.group_id() != "favorites") {  // Skip system groups
+                        // Create a simple action for this specific group
+                        std::string action_name = "add-to-group-" + group.group_id();
+                        remove_action(action_name);  // Remove if it exists
+                        add_action(action_name, [this, gid = group.group_id()]() {
+                            if (!m_context_menu_account_id.empty() && m_vault_manager) {
+                                int idx = find_account_index_by_id(m_context_menu_account_id);
+                                if (idx >= 0) {
+                                    m_vault_manager->add_account_to_group(idx, gid);
+                                    update_account_list();
+                                }
+                            }
+                        });
+                        groups_menu->append(group.group_name(), "win." + action_name);
+                    }
+                }
+                if (groups_menu->get_n_items() > 0) {
+                    menu->append_submenu("Add to Group", groups_menu);
+                }
+            }
+
+            // Build "Remove from Group" submenu if account belongs to any groups
+            std::vector<std::string> account_groups;
+            for (int i = 0; i < account.groups_size(); ++i) {
+                account_groups.push_back(account.groups(i).group_id());
+            }
+
+            if (!account_groups.empty()) {
+                auto remove_groups_menu = Gio::Menu::create();
+                for (const auto& gid : account_groups) {
+                    // Find the group name
+                    std::string group_name = gid;
+                    for (const auto& group : groups) {
+                        if (group.group_id() == gid) {
+                            group_name = group.group_name();
+                            break;
+                        }
+                    }
+
+                    // Create action for removing from this group
+                    std::string action_name = "remove-from-group-" + gid;
+                    remove_action(action_name);  // Remove if it exists
+                    add_action(action_name, [this, gid]() {
+                        if (!m_context_menu_account_id.empty() && m_vault_manager) {
+                            int idx = find_account_index_by_id(m_context_menu_account_id);
+                            if (idx >= 0) {
+                                m_vault_manager->remove_account_from_group(idx, gid);
+                                update_account_list();
+                            }
+                        }
+                    });
+                    remove_groups_menu->append(group_name, "win." + action_name);
+                }
+                menu->append_submenu("Remove from Group", remove_groups_menu);
             }
         }
-        update_account_list();
-    } else {
-        show_error_dialog("Failed to remove account from group.");
     }
+
+    // Add separator and destructive delete action
+    auto delete_section = Gio::Menu::create();
+    delete_section->append("Delete Account", "win.delete-account");
+    menu->append_section(delete_section);
+
+    // Create managed popover that persists until hidden
+    auto popover = Gtk::make_managed<Gtk::PopoverMenu>();
+    popover->set_menu_model(menu);
+    popover->set_parent(*widget);
+    popover->set_has_arrow(true);
+    popover->set_autohide(true);
+
+    // Position at click location (widget-relative coordinates)
+    Gdk::Rectangle rect;
+    rect.set_x(static_cast<int>(x));
+    rect.set_y(static_cast<int>(y));
+    rect.set_width(1);
+    rect.set_height(1);
+    popover->set_pointing_to(rect);
+
+    popover->popup();
+}
+
+void MainWindow::show_group_context_menu(const std::string& group_id, Gtk::Widget* widget, double x, double y) {
+    // Don't show menu for Favorites (it's fully system-managed)
+    if (group_id == "favorites") {
+        return;
+    }
+
+    // Store group_id for use by action handlers
+    m_context_menu_group_id = group_id;
+
+    // Create a popover menu with group actions
+    auto menu = Gio::Menu::create();
+
+    // For "All Accounts", only show "New Group" option
+    // For user groups, show all options
+    auto actions_section = Gio::Menu::create();
+    actions_section->append("New Group...", "win.create-group");
+
+    if (group_id != "all") {
+        // Only show rename/delete for user-created groups
+        actions_section->append("Rename Group...", "win.rename-group");
+        menu->append_section(actions_section);
+
+        // Destructive delete action in separate section
+        auto delete_section = Gio::Menu::create();
+        delete_section->append("Delete Group...", "win.delete-group");
+        menu->append_section(delete_section);
+    } else {
+        // For "All Accounts", just show the create option
+        menu->append_section(actions_section);
+    }
+
+    // Create managed popover that persists until hidden
+    auto popover = Gtk::make_managed<Gtk::PopoverMenu>();
+    popover->set_menu_model(menu);
+    popover->set_parent(*widget);
+    popover->set_has_arrow(true);
+    popover->set_autohide(true);
+
+    // Position at click location (widget-relative coordinates)
+    Gdk::Rectangle rect;
+    rect.set_x(static_cast<int>(x));
+    rect.set_y(static_cast<int>(y));
+    rect.set_width(1);
+    rect.set_height(1);
+    popover->set_pointing_to(rect);
+
+    popover->popup();
 }
