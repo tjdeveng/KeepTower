@@ -400,36 +400,36 @@ void PreferencesDialog::setup_security_page() {
     fips_section->append(m_fips_mode_check);
 
     // FIPS provider availability status label
-    // Shows checkmark (✓) if available, warning (⚠️) if not
+    // Only shown when FIPS is NOT available (warning message)
     m_fips_status_label.set_halign(Gtk::Align::START);
     m_fips_status_label.set_wrap(true);
     m_fips_status_label.set_max_width_chars(60);
-    m_fips_status_label.add_css_class("dim-label");
     m_fips_status_label.set_margin_start(24);  // Indent under checkbox
     m_fips_status_label.set_margin_top(6);
+
+    // Restart warning label
+    // Only shown when FIPS is available (can be toggled)
+    m_fips_restart_warning.set_halign(Gtk::Align::START);
+    m_fips_restart_warning.set_wrap(true);
+    m_fips_restart_warning.set_max_width_chars(60);
+    m_fips_restart_warning.set_margin_start(24);  // Indent under checkbox
+    m_fips_restart_warning.set_margin_top(6);
 
     // Dynamic availability detection using VaultManager API
     // This query happens once at dialog creation time
     if (VaultManager::is_fips_available()) {
-        // FIPS provider loaded successfully - allow user to enable
-        m_fips_status_label.set_markup("<span size='small'>✓ FIPS module available and ready</span>");
+        // FIPS provider loaded successfully - show restart warning
+        m_fips_restart_warning.set_markup("<span size='small'>⚠️  Changes require application restart to take effect</span>");
+        m_fips_restart_warning.add_css_class("warning");
+        fips_section->append(m_fips_restart_warning);
+        // Don't show status label when FIPS is available
     } else {
-        // FIPS provider not available - disable checkbox and explain why
-        m_fips_status_label.set_markup("<span size='small'>⚠️  FIPS module not available (requires OpenSSL FIPS configuration)</span>");
+        // FIPS provider not available - show warning (NOT dimmed) and disable checkbox
+        m_fips_status_label.set_markup("<span size='small' foreground='#e01b24'>⚠️  FIPS module not available (requires OpenSSL FIPS configuration)</span>");
+        fips_section->append(m_fips_status_label);
         m_fips_mode_check.set_sensitive(false);  // Prevent enabling unsupported mode
+        // Don't show restart warning when FIPS is not available
     }
-    fips_section->append(m_fips_status_label);
-
-    // Restart warning label - always visible
-    // Users need to see this before making changes
-    m_fips_restart_warning.set_markup("<span size='small'>⚠️  Changes require application restart to take effect</span>");
-    m_fips_restart_warning.set_halign(Gtk::Align::START);
-    m_fips_restart_warning.set_wrap(true);
-    m_fips_restart_warning.set_max_width_chars(60);
-    m_fips_restart_warning.add_css_class("warning");
-    m_fips_restart_warning.set_margin_start(24);  // Indent under checkbox
-    m_fips_restart_warning.set_margin_top(6);
-    fips_section->append(m_fips_restart_warning);
 
     m_security_box.append(*fips_section);
 
@@ -666,7 +666,16 @@ void PreferencesDialog::load_settings() {
      * @see Application::on_startup() for FIPS initialization from settings
      */
     bool fips_enabled = m_settings->get_boolean("fips-mode-enabled");
-    m_fips_mode_check.set_active(fips_enabled);
+
+    // Only set checkbox state if FIPS is available
+    // If FIPS unavailable, checkbox is disabled in setup_ui()
+    if (VaultManager::is_fips_available()) {
+        m_fips_mode_check.set_active(fips_enabled);
+    } else {
+        // FIPS not available - ensure checkbox is disabled and unchecked
+        m_fips_mode_check.set_sensitive(false);
+        m_fips_mode_check.set_active(false);
+    }
 }
 
 void PreferencesDialog::save_settings() {
