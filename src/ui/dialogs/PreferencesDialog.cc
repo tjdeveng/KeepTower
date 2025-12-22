@@ -29,6 +29,7 @@ PreferencesDialog::PreferencesDialog(Gtk::Window& parent, VaultManager* vault_ma
       m_undo_history_limit_box(Gtk::Orientation::HORIZONTAL, 12),
       m_undo_history_limit_label("Keep up to"),
       m_undo_history_limit_suffix(" operations"),
+      m_fips_mode_check("Enable FIPS-140-3 mode (requires restart)"),
       m_storage_box(Gtk::Orientation::VERTICAL, 18),
       m_rs_section_title("<b>Error Correction</b>"),
       m_rs_description("Protect vault files from corruption on unreliable storage"),
@@ -335,6 +336,52 @@ void PreferencesDialog::setup_security_page() {
 
     m_security_box.append(*undo_redo_section);
 
+    // FIPS-140-3 section
+    auto* fips_section = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 6);
+    fips_section->set_margin_top(24);
+
+    auto* fips_title = Gtk::make_managed<Gtk::Label>("FIPS-140-3 Compliance");
+    fips_title->set_halign(Gtk::Align::START);
+    fips_title->add_css_class("heading");
+    fips_section->append(*fips_title);
+
+    auto* fips_desc = Gtk::make_managed<Gtk::Label>("Use FIPS-140-3 validated cryptographic operations");
+    fips_desc->set_halign(Gtk::Align::START);
+    fips_desc->add_css_class("dim-label");
+    fips_desc->set_wrap(true);
+    fips_section->append(*fips_desc);
+
+    fips_section->append(m_fips_mode_check);
+
+    // FIPS status label
+    m_fips_status_label.set_halign(Gtk::Align::START);
+    m_fips_status_label.set_wrap(true);
+    m_fips_status_label.set_max_width_chars(60);
+    m_fips_status_label.add_css_class("dim-label");
+    m_fips_status_label.set_margin_start(24);
+    m_fips_status_label.set_margin_top(6);
+
+    // Update FIPS status based on current availability
+    if (VaultManager::is_fips_available()) {
+        m_fips_status_label.set_markup("<span size='small'>✓ FIPS module available and ready</span>");
+    } else {
+        m_fips_status_label.set_markup("<span size='small'>⚠️  FIPS module not available (requires OpenSSL FIPS configuration)</span>");
+        m_fips_mode_check.set_sensitive(false);
+    }
+    fips_section->append(m_fips_status_label);
+
+    // FIPS restart warning
+    m_fips_restart_warning.set_markup("<span size='small'>⚠️  Changes require application restart to take effect</span>");
+    m_fips_restart_warning.set_halign(Gtk::Align::START);
+    m_fips_restart_warning.set_wrap(true);
+    m_fips_restart_warning.set_max_width_chars(60);
+    m_fips_restart_warning.add_css_class("warning");
+    m_fips_restart_warning.set_margin_start(24);
+    m_fips_restart_warning.set_margin_top(6);
+    fips_section->append(m_fips_restart_warning);
+
+    m_security_box.append(*fips_section);
+
     // Add page to stack
     m_stack.add(m_security_box, "security", "Security");
 }
@@ -544,6 +591,10 @@ void PreferencesDialog::load_settings() {
     m_undo_history_limit_label.set_sensitive(undo_redo_enabled);
     m_undo_history_limit_spin.set_sensitive(undo_redo_enabled);
     m_undo_history_limit_suffix.set_sensitive(undo_redo_enabled);
+
+    // Load FIPS mode setting
+    bool fips_enabled = m_settings->get_boolean("fips-mode-enabled");
+    m_fips_mode_check.set_active(fips_enabled);
 }
 
 void PreferencesDialog::save_settings() {
@@ -631,6 +682,10 @@ void PreferencesDialog::save_settings() {
         100
     );
     m_settings->set_int("undo-history-limit", undo_history_limit);
+
+    // Save FIPS mode setting
+    const bool fips_enabled = m_fips_mode_check.get_active();
+    m_settings->set_boolean("fips-mode-enabled", fips_enabled);
 }
 
 void PreferencesDialog::apply_color_scheme(const Glib::ustring& scheme) {

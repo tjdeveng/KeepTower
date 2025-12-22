@@ -100,6 +100,9 @@ private:
     Gtk::SpinButton m_undo_history_limit_spin;
     Gtk::Label m_undo_history_limit_suffix;
     Gtk::Label m_undo_redo_warning;
+    Gtk::CheckButton m_fips_mode_check;
+    Gtk::Label m_fips_status_label;
+    Gtk::Label m_fips_restart_warning;
 
     // Storage page (Reed-Solomon + Backups)
     Gtk::Box m_storage_box;

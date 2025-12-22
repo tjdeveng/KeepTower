@@ -98,12 +98,16 @@ For CI environments and users requiring FIPS support:
 - [x] 11 FIPS-specific tests, all passing
 - [x] Existing tests still pass (18/19 - unrelated failure)
 
-### Phase 4: Configuration
-- [ ] Add FIPS mode preference to settings
-- [ ] Document FIPS mode activation
-- [ ] Add FIPS status indicator in UI
-- [ ] Create FIPS configuration guide
-- [ ] Add runtime FIPS verification
+### Phase 4: Configuration ✅
+- [x] Add FIPS mode preference to settings
+- [x] Add GSettings schema key (fips-mode-enabled)
+- [x] Add FIPS controls to PreferencesDialog (Security page)
+- [x] Read FIPS preference at application startup
+- [x] Add FIPS status indicator in UI
+- [x] Show FIPS status in About dialog
+- [x] Display FIPS availability in preferences
+- [x] Add restart warning for FIPS changes
+- [x] Add runtime FIPS verification
 
 ### Phase 5: Documentation
 - [ ] Update README with FIPS requirements

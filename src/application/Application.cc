@@ -9,6 +9,7 @@
 #include "../core/VaultManager.h"
 #include "../utils/Log.h"
 #include "../config.h"
+#include <giomm/settings.h>
 #include <memory>
 
 Application::Application()
@@ -22,9 +23,18 @@ Glib::RefPtr<Application> Application::create() {
 void Application::on_startup() {
     Gtk::Application::on_startup();
 
+    // Read FIPS preference from GSettings
+    bool enable_fips = false;
+    try {
+        auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
+        enable_fips = settings->get_boolean("fips-mode-enabled");
+        KeepTower::Log::info("FIPS mode preference: {}", enable_fips ? "enabled" : "disabled");
+    } catch (const Glib::Error& e) {
+        KeepTower::Log::warning("Failed to read FIPS preference: {} - defaulting to disabled", e.what());
+        enable_fips = false;
+    }
+
     // Initialize FIPS mode
-    // TODO: Read FIPS preference from GSettings
-    bool enable_fips = false;  // Default to disabled for now
     if (!VaultManager::init_fips_mode(enable_fips)) {
         KeepTower::Log::error("Failed to initialize FIPS mode");
         // Continue anyway - VaultManager will use default provider
@@ -84,7 +94,20 @@ void Application::on_action_about() {
 
     dialog->set_program_name(PROJECT_NAME);
     dialog->set_version(VERSION);
-    dialog->set_comments("Secure password manager with AES-256-GCM encryption and Reed-Solomon error correction");
+
+    // Build comments with FIPS status
+    std::string comments = "Secure password manager with AES-256-GCM encryption and Reed-Solomon error correction";
+    if (VaultManager::is_fips_available()) {
+        if (VaultManager::is_fips_enabled()) {
+            comments += "\n\nFIPS-140-3: Enabled ✓";
+        } else {
+            comments += "\n\nFIPS-140-3: Available (not enabled)";
+        }
+    } else {
+        comments += "\n\nFIPS-140-3: Not available";
+    }
+    dialog->set_comments(comments);
+
     dialog->set_copyright("Copyright © 2025 TJDev");
     dialog->set_license_type(Gtk::License::GPL_3_0);
     dialog->set_website("https://github.com/tjdeveng/KeepTower");

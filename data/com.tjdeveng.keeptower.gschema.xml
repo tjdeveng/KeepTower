@@ -102,5 +102,11 @@
       <summary>Undo history limit</summary>
       <description>Maximum number of operations to keep in undo history (1-100). Lower values reduce memory usage.</description>
     </key>
+
+    <key name="fips-mode-enabled" type="b">
+      <default>false</default>
+      <summary>Enable FIPS-140-3 mode</summary>
+      <description>Enable FIPS-140-3 compliant cryptographic operations using OpenSSL FIPS module. Requires application restart to take effect. Only available if OpenSSL FIPS provider is properly configured.</description>
+    </key>
   </schema>
 </schemalist>
