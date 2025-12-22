@@ -87,93 +87,175 @@ After installing OpenSSL 3.5, verify the FIPS module exists:
 ```bash
 # Check for FIPS module (location varies)
 ls -la /usr/local/ssl/lib64/ossl-modules/fips.so
-# or
-ls -la /usr/lib64/ossl-modules/fips.so
+## FIPS Module Configuration
+
+### Two Configuration Scenarios
+
+**Scenario A: Using KeepTower's Built OpenSSL** (automatic - recommended)
+- OpenSSL built by `scripts/build-openssl-3.5.sh`
+- Configuration already done automatically
+- Only affects KeepTower, not system OpenSSL
+- Location: `build/openssl-install/ssl/openssl.cnf`
+
+**Scenario B: Using System OpenSSL** (manual configuration needed)
+- System-provided OpenSSL 3.5+ (e.g., Fedora 40+)
+- Requires manual FIPS configuration
+- Affects system-wide OpenSSL behavior
+- Location: `/etc/ssl/openssl.cnf` or `/usr/local/ssl/openssl.cnf`
+
+---
+
+### Scenario A: KeepTower's Built OpenSSL (Automatic)
+
+If you used the automatic build system or ran `scripts/build-openssl-3.5.sh`, FIPS is **already configured**.
+
+**Verify Configuration:**
+```bash
+# Check if FIPS module exists
+ls -la build/openssl-install/ssl/fipsmodule.cnf
+
+# Check if openssl.cnf has FIPS enabled
+grep "^.include fipsmodule.cnf" build/openssl-install/ssl/openssl.cnf
 ```
 
-### 2. Generate FIPS Configuration (If Not Present)
+**Use with KeepTower:**
+```bash
+# Set environment to use local OpenSSL config
+export OPENSSL_CONF="$(pwd)/build/openssl-install/ssl/openssl.cnf"
+
+# Run KeepTower
+./build/src/keeptower
+```
+
+This configuration does NOT affect your system's OpenSSL - only KeepTower uses it.
+
+---
+
+### Scenario B: System OpenSSL (Manual Configuration)
+
+If using system OpenSSL 3.5+, you need to configure FIPS manually.
+
+#### Step 1: Locate Your OpenSSL Configuration
+
+Find your system's `openssl.cnf`:
+```bash
+# Common locations (in order):
+openssl version -d   # Shows: OPENSSLDIR: "/path/to/ssl"
+
+# Typical paths:
+# - Fedora/RHEL: /etc/ssl/openssl.cnf
+# - Ubuntu/Debian: /etc/ssl/openssl.cnf or /usr/lib/ssl/openssl.cnf
+# - Manual install: /usr/local/ssl/openssl.cnf
+```
+
+#### Step 2: Verify FIPS Module Exists
+
+```bash
+# Check for FIPS module (location varies by distro)
+ls -la /usr/lib64/ossl-modules/fips.so  # Fedora/RHEL
+# or
+ls -la /usr/lib/x86_64-linux-gnu/ossl-modules/fips.so  # Ubuntu/Debian
+```
+
+#### Step 3: Generate FIPS Configuration
 
 If `fipsmodule.cnf` doesn't exist, generate it:
 
 ```bash
-openssl fipsinstall -out /usr/local/ssl/fipsmodule.cnf \
-    -module /usr/local/ssl/lib64/ossl-modules/fips.so
+# Find your OpenSSL directory
+OPENSSLDIR=$(openssl version -d | cut -d'"' -f2)
+
+# Find FIPS module
+FIPS_MODULE=$(find /usr/lib* -name "fips.so" 2>/dev/null | head -1)
+
+# Generate FIPS config
+sudo openssl fipsinstall \
+    -out "${OPENSSLDIR}/fipsmodule.cnf" \
+    -module "${FIPS_MODULE}"
 ```
 
-This runs FIPS self-tests and creates the configuration file.
+This runs 35 Known Answer Tests (KATs) and creates the FIPS configuration.
 
-### 3. Configure OpenSSL to Use FIPS Module
+#### Step 4: Configure OpenSSL for FIPS
 
-Create or edit `/usr/local/ssl/openssl.cnf`:
+Edit your system's `openssl.cnf` (requires sudo):
 
+```bash
+# Locate config file
+OPENSSL_CNF=$(openssl version -d | cut -d'"' -f2)/openssl.cnf
+
+# Backup original
+sudo cp "${OPENSSL_CNF}" "${OPENSSL_CNF}.backup"
+
+# Edit the file
+sudo nano "${OPENSSL_CNF}"  # or vim, etc.
+```
+
+**Find and uncomment these lines:**
 ```ini
-config_diagnostics = 1
+# Near the top of the file, uncomment:
+.include fipsmodule.cnf
 
-openssl_conf = openssl_init
+# In the [provider_sect] section, uncomment:
+fips = fips_sect
+```
 
-[openssl_init]
-providers = provider_sect
+**Example before:**
+```ini
+# .include fipsmodule.cnf
+
+[provider_sect]
+# fips = fips_sect
+default = default_sect
+```
+
+**Example after:**
+```ini
+.include fipsmodule.cnf
 
 [provider_sect]
 fips = fips_sect
-base = base_sect
-
-[base_sect]
-activate = 1
-
-[fips_sect]
-activate = 1
-module = /usr/local/ssl/lib64/ossl-modules/fips.so
+default = default_sect
 ```
 
-### 4. Set OpenSSL Configuration Environment Variable
+#### Step 5: Verify System FIPS Configuration
 
 ```bash
-export OPENSSL_CONF=/usr/local/ssl/openssl.cnf
-```
-
-Add to `~/.bashrc` or `~/.profile` for persistence.
-
-### 5. Verify FIPS Provider
-
-Test that OpenSSL recognizes the FIPS provider:
-
-```bash
+# Test FIPS provider is available
 openssl list -providers
-```
 
-Expected output should include:
-```
-Providers:
-  base
-    name: OpenSSL Base Provider
-    ...
-  fips
-    name: OpenSSL FIPS Provider
-    ...
-```
+# Should show:
+#   Providers:
+#     base
+#     fips
+#     default
+---
 
 ## Building KeepTower with FIPS Support
 
-### Configure Build
+The build system automatically handles OpenSSL 3.5:
 
 ```bash
 cd /path/to/KeepTower
 
-# Set up build with PKG_CONFIG_PATH pointing to OpenSSL 3.5
-export PKG_CONFIG_PATH=/usr/local/ssl/lib64/pkgconfig:$PKG_CONFIG_PATH
+# Build (automatically builds OpenSSL 3.5 if needed)
 meson setup build
+meson compile -C build
 ```
 
-Meson will detect OpenSSL 3.5 and configure accordingly. Check build output:
+**What happens automatically:**
+1. Checks for system OpenSSL 3.5+
+2. If not found, automatically runs `scripts/build-openssl-3.5.sh`
+3. Configures FIPS module (local build only - doesn't affect system)
+4. Links KeepTower against OpenSSL 3.5+
 
-```
-Found OpenSSL 3.5.0: YES
-```
-
-### Compile
-
+**Manual OpenSSL build** (optional):
 ```bash
+# Pre-build OpenSSL if desired
+bash scripts/build-openssl-3.5.sh
+
+# Then build KeepTower
+meson setup build
 meson compile -C build
 ```
 

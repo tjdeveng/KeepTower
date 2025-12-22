@@ -76,6 +76,23 @@ if [ -f "${INSTALL_PREFIX}/lib64/ossl-modules/fips.so" ] || [ -f "${INSTALL_PREF
         echo "✗ WARNING: FIPS module self-test failed"
     }
     echo "✓ FIPS module passed all KATs (Known Answer Tests)"
+
+    # Configure openssl.cnf to enable FIPS provider
+    echo "Configuring openssl.cnf for FIPS mode..."
+    OPENSSL_CNF="${INSTALL_PREFIX}/ssl/openssl.cnf"
+
+    # Backup original
+    cp "${OPENSSL_CNF}" "${OPENSSL_CNF}.backup"
+
+    # Enable FIPS module include (uncomment the line)
+    sed -i 's|^# \.include fipsmodule\.cnf|.include fipsmodule.cnf|' "${OPENSSL_CNF}"
+
+    # Enable FIPS provider in provider_sect (uncomment the line)
+    sed -i 's|^# fips = fips_sect|fips = fips_sect|' "${OPENSSL_CNF}"
+
+    echo "✓ OpenSSL configuration updated for FIPS mode"
+    echo "  Config file: ${OPENSSL_CNF}"
+    echo "  FIPS module config: ${INSTALL_PREFIX}/ssl/fipsmodule.cnf"
 else
     echo "✗ WARNING: FIPS module not found"
 fi
@@ -134,10 +151,17 @@ echo ""
 echo "=== OpenSSL ${OPENSSL_VERSION} build complete ==="
 echo "Installation directory: ${INSTALL_PREFIX}"
 echo ""
-echo "To use this OpenSSL with meson:"
-echo "  export PKG_CONFIG_PATH=\"${INSTALL_PREFIX}/lib/pkgconfig:\$PKG_CONFIG_PATH\""
-echo "  export LD_LIBRARY_PATH=\"${LIBDIR}:\$LD_LIBRARY_PATH\""
+echo "To use this OpenSSL with KeepTower:"
+echo "  1. The build system will automatically detect and use it"
+echo "  2. Or manually set: PKG_CONFIG_PATH=\"${INSTALL_PREFIX}/lib/pkgconfig:\$PKG_CONFIG_PATH\""
+echo "  3. Runtime: LD_LIBRARY_PATH=\"${LIBDIR}:\$LD_LIBRARY_PATH\""
 echo ""
-echo "FIPS mode can be enabled at runtime with:"
-echo "  export OPENSSL_CONF=${INSTALL_PREFIX}/ssl/openssl.cnf"
-echo "  (after configuring fips section in openssl.cnf)"
+echo "FIPS configuration:"
+echo "  ✓ OpenSSL config: ${INSTALL_PREFIX}/ssl/openssl.cnf (FIPS enabled)"
+echo "  ✓ FIPS module config: ${INSTALL_PREFIX}/ssl/fipsmodule.cnf"
+echo "  ✓ This config only affects KeepTower, not your system OpenSSL"
+echo ""
+echo "To enable FIPS mode in KeepTower:"
+echo "  1. Set environment: export OPENSSL_CONF=${INSTALL_PREFIX}/ssl/openssl.cnf"
+echo "  2. Run KeepTower with above environment variable"
+echo "  3. Or enable via Preferences → Security → FIPS-140-3 mode"
