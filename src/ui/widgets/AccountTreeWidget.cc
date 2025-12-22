@@ -72,8 +72,10 @@ sigc::signal<void(std::string, int)>& AccountTreeWidget::signal_group_reordered(
 
 void AccountTreeWidget::rebuild_rows(const std::vector<keeptower::AccountGroup>& groups,
                                      const std::vector<keeptower::AccountRecord>& accounts) {
-    // Clear previous widgets
-    m_list_box.remove_all();
+    // Clear previous widgets (compatible with GTK 4.10+)
+    while (auto child = m_list_box.get_first_child()) {
+        m_list_box.remove(*child);
+    }
     m_group_rows.clear();
     m_account_rows.clear();
 
@@ -283,7 +285,7 @@ void AccountTreeWidget::rebuild_rows(const std::vector<keeptower::AccountGroup>&
                 m_signal_favorite_toggled.emit(account_id);
             });
         account_row->signal_account_dropped_on_account().connect(
-            [this](const std::string& dragged_id, const std::string& target_id) {
+            [this](const std::string& dragged_id, const std::string& /* target_id */) {
                 // In 'All Accounts', just emit to remove from all groups
                 // Don't calculate index since accounts are sorted alphabetically
                 m_signal_account_reordered.emit(dragged_id, "", 0);
