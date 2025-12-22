@@ -40,7 +40,7 @@ This document outlines the planned features and improvements for KeepTower, orga
 - [x] Advanced search (fuzzy search, filters by field) - **v0.2.7-beta**
 - [x] Undo/redo support for vault operations - **v0.2.7-beta**
 - [x] Drag-and-drop to move accounts between groups - **v0.2.8-beta**
-- [ ] Sort accounts and groups (alphabetically A-Z/Z-A, by date, vault order)
+- [x] Sort accounts alphabetically (A-Z/Z-A toggle with persistent preference) - **v0.2.9-beta**
 
 ### Data Features
 - [ ] Custom fields per account (key-value pairs)

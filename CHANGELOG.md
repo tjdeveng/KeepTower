@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.9-beta] - 2025-12-22
+
+### Added
+- **Account Sorting Feature:**
+  - A-Z/Z-A alphabetical sort toggle button in search panel
+  - Visual feedback with ascending/descending icons
+  - Persistent sort preference using GSettings (survives app restart)
+  - Applies to all account views: Favorites, Groups, and All Accounts
+  - Works seamlessly with existing search and filter features
+  - No impact on drag-and-drop functionality
+
+### Changed
+- Account lists now default to alphabetical A-Z sorting
+- Sort order maintained across filtering and search operations
+
 ## [0.2.8-beta] - 2025-12-15
 
 ### Added

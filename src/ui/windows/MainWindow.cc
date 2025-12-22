@@ -221,6 +221,12 @@ MainWindow::MainWindow()
     m_tag_filter_dropdown.set_margin_start(6);
     m_search_box.append(m_tag_filter_dropdown);
 
+    // Setup sort button (A-Z / Z-A toggle)
+    m_sort_button.set_icon_name("view-sort-ascending-symbolic");
+    m_sort_button.set_tooltip_text("Sort accounts A-Z");
+    m_sort_button.set_margin_start(6);
+    m_search_box.append(m_sort_button);
+
     m_main_box.append(m_search_box);
 
     // Setup split pane for accounts and details using new widgets
@@ -236,6 +242,24 @@ MainWindow::MainWindow()
     // Instantiate new widgets
     m_account_tree_widget = std::make_unique<AccountTreeWidget>();
     m_account_detail_widget = std::make_unique<AccountDetailWidget>();
+
+    // Load and apply sort direction from settings
+    {
+        auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
+        Glib::ustring sort_dir = settings->get_string("sort-direction");
+        SortDirection direction = (sort_dir == "descending")
+            ? SortDirection::DESCENDING : SortDirection::ASCENDING;
+        m_account_tree_widget->set_sort_direction(direction);
+
+        // Update button to match loaded direction
+        if (direction == SortDirection::ASCENDING) {
+            m_sort_button.set_icon_name("view-sort-ascending-symbolic");
+            m_sort_button.set_tooltip_text("Sort accounts A-Z");
+        } else {
+            m_sort_button.set_icon_name("view-sort-descending-symbolic");
+            m_sort_button.set_tooltip_text("Sort accounts Z-A");
+        }
+    }
 
     // Connect AccountDetailWidget signals
     if (m_account_detail_widget) {
@@ -347,6 +371,11 @@ MainWindow::MainWindow()
     m_signal_connections.push_back(
         m_tag_filter_dropdown.property_selected().signal_changed().connect(
             sigc::mem_fun(*this, &MainWindow::on_tag_filter_changed)
+        )
+    );
+    m_signal_connections.push_back(
+        m_sort_button.signal_clicked().connect(
+            sigc::mem_fun(*this, &MainWindow::on_sort_button_clicked)
         )
     );
 
@@ -1361,6 +1390,30 @@ void MainWindow::on_tag_filter_changed() {
 void MainWindow::on_field_filter_changed() {
     // Re-apply current search with new field filter
     filter_accounts(m_search_entry.get_text());
+}
+
+void MainWindow::on_sort_button_clicked() {
+    if (!m_account_tree_widget) {
+        return;
+    }
+
+    // Toggle sort direction
+    m_account_tree_widget->toggle_sort_direction();
+
+    // Update button icon and tooltip based on new direction
+    SortDirection direction = m_account_tree_widget->get_sort_direction();
+    if (direction == SortDirection::ASCENDING) {
+        m_sort_button.set_icon_name("view-sort-ascending-symbolic");
+        m_sort_button.set_tooltip_text("Sort accounts A-Z");
+    } else {
+        m_sort_button.set_icon_name("view-sort-descending-symbolic");
+        m_sort_button.set_tooltip_text("Sort accounts Z-A");
+    }
+
+    // Save preference to GSettings
+    auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
+    settings->set_string("sort-direction",
+        (direction == SortDirection::ASCENDING) ? "ascending" : "descending");
 }
 
 void MainWindow::show_error_dialog(const Glib::ustring& message) {

@@ -108,5 +108,11 @@
       <summary>Enable FIPS-140-3 mode</summary>
       <description>Enable FIPS-140-3 validated cryptographic operations using the NIST-certified OpenSSL FIPS module. Requires application restart to take effect. Only available if OpenSSL FIPS provider is properly configured. Note: KeepTower uses FIPS-validated modules but is not itself FIPS-certified.</description>
     </key>
+
+    <key name="sort-direction" type="s">
+      <default>'ascending'</default>
+      <summary>Account sort direction</summary>
+      <description>Direction to sort accounts: 'ascending' for A-Z, 'descending' for Z-A.</description>
+    </key>
   </schema>
 </schemalist>

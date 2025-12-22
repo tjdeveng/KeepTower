@@ -70,6 +70,29 @@ sigc::signal<void(std::string, int)>& AccountTreeWidget::signal_group_reordered(
     return m_signal_group_reordered;
 }
 
+sigc::signal<void(SortDirection)>& AccountTreeWidget::signal_sort_direction_changed() {
+    return m_signal_sort_direction_changed;
+}
+
+void AccountTreeWidget::set_sort_direction(SortDirection direction) {
+    if (m_sort_direction != direction) {
+        m_sort_direction = direction;
+        m_signal_sort_direction_changed.emit(direction);
+        // Rebuild with current data to apply new sort
+        rebuild_rows(m_all_groups, m_all_accounts);
+    }
+}
+
+SortDirection AccountTreeWidget::get_sort_direction() const {
+    return m_sort_direction;
+}
+
+void AccountTreeWidget::toggle_sort_direction() {
+    SortDirection new_direction = (m_sort_direction == SortDirection::ASCENDING)
+        ? SortDirection::DESCENDING : SortDirection::ASCENDING;
+    set_sort_direction(new_direction);
+}
+
 void AccountTreeWidget::rebuild_rows(const std::vector<keeptower::AccountGroup>& groups,
                                      const std::vector<keeptower::AccountRecord>& accounts) {
     // Clear previous widgets (compatible with GTK 4.10+)
@@ -117,10 +140,11 @@ void AccountTreeWidget::rebuild_rows(const std::vector<keeptower::AccountGroup>&
 
         m_group_rows.push_back(group_row);
 
-        // Sort favorites alphabetically
+        // Sort favorites alphabetically based on sort direction
         std::sort(favorite_indices.begin(), favorite_indices.end(),
-            [&accounts](size_t a, size_t b) {
-                return accounts[a].account_name() < accounts[b].account_name();
+            [&accounts, direction = m_sort_direction](size_t a, size_t b) {
+                bool less_than = accounts[a].account_name() < accounts[b].account_name();
+                return (direction == SortDirection::ASCENDING) ? less_than : !less_than;
             });
 
         // Add favorite accounts as children of the group
@@ -191,10 +215,11 @@ void AccountTreeWidget::rebuild_rows(const std::vector<keeptower::AccountGroup>&
 
         m_group_rows.push_back(group_row);
 
-        // Sort accounts alphabetically
+        // Sort accounts alphabetically based on sort direction
         std::sort(group_account_indices.begin(), group_account_indices.end(),
-            [&accounts](size_t a, size_t b) {
-                return accounts[a].account_name() < accounts[b].account_name();
+            [&accounts, direction = m_sort_direction](size_t a, size_t b) {
+                bool less_than = accounts[a].account_name() < accounts[b].account_name();
+                return (direction == SortDirection::ASCENDING) ? less_than : !less_than;
             });
 
         // Add accounts as children of this group
@@ -263,10 +288,11 @@ void AccountTreeWidget::rebuild_rows(const std::vector<keeptower::AccountGroup>&
         all_indices.push_back(i);
     }
 
-    // Sort all accounts alphabetically
+    // Sort all accounts alphabetically based on sort direction
     std::sort(all_indices.begin(), all_indices.end(),
-        [&accounts](size_t a, size_t b) {
-            return accounts[a].account_name() < accounts[b].account_name();
+        [&accounts, direction = m_sort_direction](size_t a, size_t b) {
+            bool less_than = accounts[a].account_name() < accounts[b].account_name();
+            return (direction == SortDirection::ASCENDING) ? less_than : !less_than;
         });
 
     // Add all accounts as children of the group

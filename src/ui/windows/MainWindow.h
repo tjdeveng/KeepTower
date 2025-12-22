@@ -117,6 +117,7 @@ protected:
     void update_tag_filter_dropdown();  ///< Update tag filter dropdown with all unique tags
     void on_tag_filter_changed();  ///< Handle tag filter selection change
     void on_field_filter_changed();  ///< Handle search field filter selection change
+    void on_sort_button_clicked();  ///< Toggle sort direction between A-Z and Z-A
 
     // Account list handlers
     void on_search_changed(); ///< Filter accounts by search
@@ -180,6 +181,7 @@ protected:
     Gtk::DropDown m_tag_filter_dropdown;
     Glib::RefPtr<Gtk::StringList> m_tag_filter_model;
     std::string m_selected_tag_filter;  // Empty for "All", otherwise the tag to filter by
+    Gtk::Button m_sort_button;  // Toggle A-Z / Z-A sorting
 
     // Split view: account list | details
     Gtk::Paned m_paned;       // Splits accounts from details

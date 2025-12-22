@@ -14,6 +14,11 @@
 #include "AccountRowWidget.h"
 #include "record.pb.h"
 
+enum class SortDirection {
+    ASCENDING,  // A-Z
+    DESCENDING  // Z-A
+};
+
 class AccountTreeWidget : public Gtk::Box {
 public:
     AccountTreeWidget();
@@ -27,6 +32,11 @@ public:
     void set_filters(const std::string& search_text, const std::string& tag_filter, int field_filter);
     void clear_filters();
 
+    // Sorting: set sort direction and toggle
+    void set_sort_direction(SortDirection direction);
+    SortDirection get_sort_direction() const;
+    void toggle_sort_direction();
+
     // Signal: emitted when an account row is right-clicked
     sigc::signal<void(std::string, Gtk::Widget*, double, double)>& signal_account_right_click();
     sigc::signal<void(std::string, Gtk::Widget*, double, double)>& signal_group_right_click();
@@ -35,6 +45,7 @@ public:
     sigc::signal<void(std::string)>& signal_favorite_toggled();
     sigc::signal<void(std::string, std::string, int)>& signal_account_reordered();
     sigc::signal<void(std::string, int)>& signal_group_reordered();
+    sigc::signal<void(SortDirection)>& signal_sort_direction_changed();
 
 private:
     // Internal widgets
@@ -49,6 +60,9 @@ private:
     std::string m_search_text;
     std::string m_tag_filter;
     int m_field_filter = 0; // 0=All, 1=Account Name, 2=Username, 3=Email, 4=Website, 5=Notes, 6=Tags
+
+    // Sort state
+    SortDirection m_sort_direction = SortDirection::ASCENDING;
 
     // Cached data for filtering
     std::vector<keeptower::AccountGroup> m_all_groups;
@@ -70,4 +84,5 @@ private:
     sigc::signal<void(std::string)> m_signal_favorite_toggled;
     sigc::signal<void(std::string, std::string, int)> m_signal_account_reordered;
     sigc::signal<void(std::string, int)> m_signal_group_reordered;
+    sigc::signal<void(SortDirection)> m_signal_sort_direction_changed;
 };
