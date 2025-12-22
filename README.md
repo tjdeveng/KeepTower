@@ -89,9 +89,16 @@ A secure, modern password manager built with C++23 and GTK4.
 
 ### Compile
 
+**Note:** If OpenSSL 3.5+ is not found on your system, the build system will automatically download and compile it (takes 5-10 minutes on first build, then cached).
+
 ```bash
 meson setup build
 meson compile -C build
+```
+
+You can also manually pre-build OpenSSL 3.5:
+```bash
+bash scripts/build-openssl-3.5.sh
 ```
 
 ### Run Tests

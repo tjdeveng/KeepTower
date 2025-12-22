@@ -11,6 +11,9 @@ project('keeptower', 'cpp',
   meson_version: '>= 0.59.0'
 )
 
+# Import modules
+fs = import('fs')
+
 # Project information
 project_name = 'keeptower'
 application_id = 'com.tjdeveng.keeptower'
@@ -20,28 +23,87 @@ gtkmm_dep = dependency('gtkmm-4.0', version: '>= 4.10')
 sigcxx_dep = dependency('sigc++-3.0')
 protobuf_dep = dependency('protobuf', version: '>= 3.0')
 
+# Get compiler for library checks
+cc = meson.get_compiler('cpp')
+
 # OpenSSL 3.5+ required for FIPS-140-3 support
+# First, try to find OpenSSL 3.5+ on the system
 openssl_dep = dependency('openssl', version: '>= 3.5.0', required: false)
 
 if not openssl_dep.found()
-  error('''
-OpenSSL 3.5.0+ is required for FIPS-140-3 compliance.
+  message('OpenSSL 3.5.0+ not found on system')
 
-To build OpenSSL 3.5 with FIPS support:
+  # Check if we have a local build already
+  local_openssl_root = meson.project_source_root() / 'build' / 'openssl-install'
+  local_openssl_pc = local_openssl_root / 'lib' / 'pkgconfig' / 'openssl.pc'
+
+  if not fs.exists(local_openssl_pc)
+    message('========================================')
+    message('Building OpenSSL 3.5 with FIPS support')
+    message('This will take 5-10 minutes on first build')
+    message('Subsequent builds will use the cached version')
+    message('========================================')
+
+    # Run the OpenSSL build script
+    build_script = find_program('bash')
+    script_path = meson.project_source_root() / 'scripts' / 'build-openssl-3.5.sh'
+    result = run_command(build_script, script_path, check: false, capture: false)
+
+    if result.returncode() != 0
+      error('Failed to build OpenSSL 3.5. Please check the error messages above.')
+    endif
+
+    message('OpenSSL 3.5 build completed successfully!')
+  else
+    message('Found existing local OpenSSL build')
+  endif
+
+  # Try to use the local build with explicit paths
+  openssl_dep = dependency('openssl', version: '>= 3.5.0', required: false,
+                          dirs: [local_openssl_root / 'lib' / 'pkgconfig'])
+
+  if not openssl_dep.found()
+    # Fallback: try with pkg-config directly
+    pkgconfig = find_program('pkg-config')
+    result = run_command(pkgconfig, '--modversion', 'openssl',
+                        env: {'PKG_CONFIG_PATH': local_openssl_root / 'lib' / 'pkgconfig'},
+                        check: false)
+
+    if result.returncode() == 0
+      openssl_version = result.stdout().strip()
+      message('Detected locally built OpenSSL @0@'.format(openssl_version))
+
+      # Manually create dependency with local paths
+      openssl_dep = declare_dependency(
+        include_directories: include_directories(local_openssl_root / 'include'),
+        dependencies: [
+          cc.find_library('ssl', dirs: [local_openssl_root / 'lib']),
+          cc.find_library('crypto', dirs: [local_openssl_root / 'lib'])
+        ],
+        link_args: ['-L' + local_openssl_root / 'lib'],
+      )
+
+      # Set runtime path for the locally built OpenSSL
+      add_project_link_arguments('-Wl,-rpath,' + local_openssl_root / 'lib', language: 'cpp')
+    else
+      error('''
+Failed to locate OpenSSL 3.5 after build attempt.
+
+Please try building manually:
   bash scripts/build-openssl-3.5.sh
 
 Then configure with:
   PKG_CONFIG_PATH="$(pwd)/build/openssl-install/lib/pkgconfig:$PKG_CONFIG_PATH" meson setup build
+      ''')
+    endif
+  endif
 
-The build script will cache the build for subsequent runs.
-See OPENSSL_35_MIGRATION.md for details.
-  ''')
+  message('Using locally built OpenSSL 3.5+ (FIPS-140-3 capable)')
 else
-  message('Using OpenSSL @0@ (FIPS-140-3 capable)'.format(openssl_dep.version()))
+  message('Using system OpenSSL @0@ (FIPS-140-3 capable)'.format(openssl_dep.version()))
 endif
 
 # Find libcorrect using compiler find_library
-cc = meson.get_compiler('cpp')
 libcorrect_lib = cc.find_library('correct', required: true)
 libcorrect_dep = declare_dependency(
   dependencies: libcorrect_lib
