@@ -146,7 +146,15 @@ jobs:
               ykpers-devel \
               libyubikey-devel \
               desktop-file-utils \
-              gettext && \
+              gettext \
+              perl \
+              make \
+              curl && \
+            echo 'Building OpenSSL 3.5.0 with FIPS support...' && \
+            bash scripts/build-openssl-3.5.sh /tmp/openssl-build /tmp/openssl-install && \
+            export PKG_CONFIG_PATH=\"/tmp/openssl-install/lib/pkgconfig:\$PKG_CONFIG_PATH\" && \
+            export LD_LIBRARY_PATH=\"/tmp/openssl-install/lib64:/tmp/openssl-install/lib:\$LD_LIBRARY_PATH\" && \
+            pkg-config --modversion openssl && \
             meson setup build --buildtype=release --prefix=/usr && \
             meson compile -C build && \
             mkdir -p dist && \
@@ -195,7 +203,17 @@ jobs:
               desktop-file-utils \
               wget \
               file \
-              fuse-libs
+              fuse-libs \
+              perl \
+              make \
+              curl
+
+            # Build OpenSSL 3.5.0 with FIPS support
+            echo 'Building OpenSSL 3.5.0 with FIPS support...'
+            bash scripts/build-openssl-3.5.sh /tmp/openssl-build /tmp/openssl-install
+            export PKG_CONFIG_PATH=\"/tmp/openssl-install/lib/pkgconfig:\$PKG_CONFIG_PATH\"
+            export LD_LIBRARY_PATH=\"/tmp/openssl-install/lib64:/tmp/openssl-install/lib:\$LD_LIBRARY_PATH\"
+            pkg-config --modversion openssl
 
             # Build application
             meson setup build --buildtype=release --prefix=/usr
