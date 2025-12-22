@@ -20,21 +20,27 @@ gtkmm_dep = dependency('gtkmm-4.0', version: '>= 4.10')
 sigcxx_dep = dependency('sigc++-3.0')
 protobuf_dep = dependency('protobuf', version: '>= 3.0')
 
-# OpenSSL dependency - prefer 3.5+ for FIPS 140-3 support
+# OpenSSL 3.5+ required for FIPS-140-3 support
+# Build from source if not available: scripts/build-openssl-3.5.sh
 openssl_dep = dependency('openssl', version: '>= 3.5.0', required: false)
+
 if not openssl_dep.found()
-  # Fall back to OpenSSL 3.0+ (FIPS support unavailable)
-  openssl_dep = dependency('openssl', version: '>= 3.0.0', required: false)
-  if not openssl_dep.found()
-    # Final fallback to OpenSSL 1.1+ (legacy)
-    openssl_dep = dependency('openssl', version: '>= 1.1.0', required: true)
-    warning('OpenSSL 3.5+ not found - FIPS 140-3 support will be unavailable')
-    warning('Consider building OpenSSL 3.5 from source using scripts/build-openssl-3.5.sh')
-  else
-    warning('OpenSSL 3.0-3.4 found - FIPS 140-3 support requires OpenSSL 3.5+')
-  endif
-else
-  message('OpenSSL 3.5+ found - FIPS 140-3 support available')
+  error('''
+OpenSSL 3.5.0 or later is required for FIPS-140-3 compliance.
+
+Your system has an older version of OpenSSL. To build KeepTower, you must:
+
+1. Build OpenSSL 3.5 from source (recommended):
+   bash scripts/build-openssl-3.5.sh /tmp/openssl-build /tmp/openssl-install
+
+2. Set PKG_CONFIG_PATH to find it:
+   export PKG_CONFIG_PATH="/tmp/openssl-install/lib/pkgconfig:$PKG_CONFIG_PATH"
+
+3. Run meson setup again:
+   meson setup build
+
+For more information, see: OPENSSL_35_MIGRATION.md
+  ''')
 endif
 
 # Find libcorrect using compiler find_library

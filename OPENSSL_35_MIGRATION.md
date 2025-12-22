@@ -16,10 +16,10 @@ This document outlines the migration strategy for upgrading KeepTower to OpenSSL
 
 ## Target State
 
-- **OpenSSL Version**: 3.5.0+
+- **OpenSSL Version**: 3.5.0+ (REQUIRED)
 - **FIPS Status**: FIPS-140-3 ready (optional runtime activation)
-- **Provider Architecture**: Migrate to OpenSSL 3.5 provider model
-- **Backward Compatibility**: Maintain compatibility with OpenSSL 3.0+
+- **Provider Architecture**: OpenSSL 3.5 provider model
+- **Backward Compatibility**: OpenSSL 3.5+ only - no legacy support
 
 ## FIPS-140-3 Requirements
 
@@ -41,16 +41,13 @@ This document outlines the migration strategy for upgrading KeepTower to OpenSSL
 ### System OpenSSL Detection
 
 ```meson
-# Check for OpenSSL >= 3.5.0
-openssl_dep = dependency('openssl', version: '>= 3.5.0', required: false)
-
-if not openssl_dep.found()
-  # Fall back to OpenSSL 3.0+ for now
-  openssl_dep = dependency('openssl', version: '>= 3.0.0', required: true)
-  warning('OpenSSL 3.5+ not found, FIPS-140-3 support disabled')
-  warning('Install OpenSSL 3.5+ for FIPS-140-3 compliance')
-endif
+# OpenSSL 3.5+ required for FIPS-140-3 support
+# Build from source if not available: scripts/build-openssl-3.5.sh
+openssl_dep = dependency('openssl', version: '>= 3.5.0', required: true)
 ```
+
+**No fallback support** - OpenSSL 3.5+ is mandatory. Systems without OpenSSL 3.5+
+must build from source using the provided build script.
 
 ### Custom Build Option
 
@@ -168,9 +165,12 @@ Add new "Security" → "FIPS Compliance" section:
 
 | OpenSSL Version | FIPS Support | Status |
 |-----------------|--------------|--------|
-| 3.0.x - 3.4.x   | ❌ No        | Legacy support |
-| 3.5.0+          | ✅ Yes       | Recommended |
-| 1.1.1           | ❌ No        | Deprecated |
+| 3.5.0+          | ✅ Yes       | **REQUIRED** |
+| 3.0.x - 3.4.x   | ❌ No        | ❌ Not Supported |
+| 1.1.1           | ❌ No        | ❌ Not Supported |
+
+**Note**: KeepTower requires OpenSSL 3.5+ for FIPS-140-3 compliance.
+Older versions are not supported.
 
 ## Testing Strategy
 
