@@ -30,6 +30,15 @@ jobs:
         restore-keys: |
           libcorrect-${{ runner.os }}-
 
+    - name: Cache OpenSSL 3.5
+      id: cache-openssl
+      uses: actions/cache@v4
+      with:
+        path: /tmp/openssl-install
+        key: openssl-3.5.0-${{ runner.os }}-${{ hashFiles('.github/openssl-version.txt') }}
+        restore-keys: |
+          openssl-3.5.0-${{ runner.os }}-
+
     - name: Install dependencies (Ubuntu)
       if: runner.os == 'Linux'
       run: |
@@ -87,6 +96,20 @@ jobs:
       run: |
         sudo cp -r /tmp/libcorrect-install/* /usr/
         sudo ldconfig
+
+    - name: Build OpenSSL 3.5 with FIPS
+      if: runner.os == 'Linux' && steps.cache-openssl.outputs.cache-hit != 'true'
+      run: |
+        echo "Building OpenSSL 3.5.0 with FIPS support..."
+        bash scripts/build-openssl-3.5.sh /tmp/openssl-build /tmp/openssl-install
+
+    - name: Setup OpenSSL environment
+      if: runner.os == 'Linux'
+      run: |
+        echo "PKG_CONFIG_PATH=/tmp/openssl-install/lib/pkgconfig:$PKG_CONFIG_PATH" >> $GITHUB_ENV
+        echo "LD_LIBRARY_PATH=/tmp/openssl-install/lib64:/tmp/openssl-install/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+        echo "OpenSSL version:"
+        PKG_CONFIG_PATH=/tmp/openssl-install/lib/pkgconfig:$PKG_CONFIG_PATH pkg-config --modversion openssl
 
     - name: Configure build
       run: meson setup build
