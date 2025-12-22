@@ -140,7 +140,7 @@ This document outlines the planned features and improvements for KeepTower, orga
 - [ ] Full screen reader support
 - [ ] Comprehensive keyboard navigation
 - [ ] Internationalization (i18n) framework
-- [ ] Translations (Spanish, French, German, Japanese, Chinese)
+- [ ] Translations (Spanish, French, German - volunteer contributors welcome)
 - [x] Complete API documentation (Doxygen)
 - [ ] User manual and help system
 - [ ] Video tutorials and screencasts
