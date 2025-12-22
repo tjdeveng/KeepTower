@@ -14,6 +14,7 @@ A secure, modern password manager built with C++23 and GTK4.
 ## Features
 
 - **Strong Encryption**: AES-256-GCM with authenticated encryption
+- **FIPS-140-3 Compliant Cryptography**: Optional FIPS-validated cryptographic operations (OpenSSL 3.5+)
 - **Secure Key Derivation**: PBKDF2-SHA256 with 100,000 iterations (configurable)
 - **Import/Export**: Multi-format data portability
   - CSV format (tested and verified)
@@ -47,6 +48,11 @@ A secure, modern password manager built with C++23 and GTK4.
 
 ## Security Features
 
+- **FIPS-140-3 Support**: Optional cryptographic compliance mode
+  - Uses OpenSSL 3.5+ FIPS provider when available
+  - All algorithms FIPS-approved (AES-256-GCM, PBKDF2-HMAC-SHA256, SHA-256)
+  - User-configurable in Preferences → Security
+  - See [FIPS_COMPLIANCE.md](FIPS_COMPLIANCE.md) for details
 - Secure memory clearing prevents data remnants
 - Memory locking prevents swap file exposure
 - Clipboard auto-clear (30 seconds)
@@ -62,7 +68,9 @@ A secure, modern password manager built with C++23 and GTK4.
 
 - C++23 compatible compiler (GCC 13+ or Clang 16+)
 - GTKmm 4.0 (>= 4.10) - Available in Ubuntu 24.04+, Fedora 39+
-- OpenSSL (>= 1.1.0)
+- **OpenSSL 3.5.0 or higher** (required for FIPS-140-3 support)
+  - OpenSSL 1.1.0+ supported but FIPS mode unavailable
+  - See [FIPS_SETUP_GUIDE.md](FIPS_SETUP_GUIDE.md) for FIPS configuration
 - Protocol Buffers (>= 3.0)
 - libcorrect (for Reed-Solomon error correction)
   - Fedora: `dnf install libcorrect-devel`

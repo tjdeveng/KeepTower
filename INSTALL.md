@@ -11,6 +11,8 @@ sudo dnf install gcc-c++ meson ninja-build pkg-config \
   libcorrect-devel gtest-devel desktop-file-utils appstream
 ```
 
+**Note:** For FIPS-140-3 support, OpenSSL 3.5.0+ is required. See [FIPS Build](#fips-140-3-support) below.
+
 **Ubuntu 24.04+:**
 ```bash
 sudo apt-get install build-essential meson ninja-build pkg-config \
@@ -26,6 +28,8 @@ make -j$(nproc)
 sudo make install
 sudo ldconfig
 ```
+
+**Note:** For FIPS-140-3 support, OpenSSL 3.5.0+ is required. See [FIPS Build](#fips-140-3-support) below.
 
 ### Build and Install
 
@@ -202,6 +206,161 @@ Check file permissions:
 ls -l /usr/bin/keeptower
 # Should show: -rwxr-xr-x (executable)
 ```
+
+## FIPS-140-3 Support
+
+### Overview
+
+KeepTower supports optional FIPS-140-3 compliant cryptographic operations using OpenSSL 3.5.0+ with the FIPS module. **This is optional and not required for normal use.**
+
+**FIPS mode is recommended for:**
+- Government and military organizations
+- Financial institutions
+- Healthcare providers (HIPAA compliance)
+- Environments requiring cryptographic validation
+
+### Quick FIPS Setup
+
+**1. Build OpenSSL 3.5 with FIPS Module:**
+
+KeepTower provides an automated script:
+
+```bash
+cd /path/to/KeepTower
+./scripts/build-openssl-3.5.sh
+```
+
+This will:
+- Download OpenSSL 3.5.0 source
+- Compile with FIPS module enabled
+- Run FIPS self-tests (35 Known Answer Tests)
+- Install to `/usr/local/ssl`
+- Generate FIPS configuration files
+
+**Build time:** 5-10 minutes on modern hardware
+
+**2. Configure Environment:**
+
+Add to `~/.bashrc` or `~/.profile`:
+
+```bash
+export PKG_CONFIG_PATH=/usr/local/ssl/lib64/pkgconfig:$PKG_CONFIG_PATH
+export LD_LIBRARY_PATH=/usr/local/ssl/lib64:$LD_LIBRARY_PATH
+export OPENSSL_CONF=/usr/local/ssl/openssl.cnf
+```
+
+Then reload:
+```bash
+source ~/.bashrc
+```
+
+**3. Build KeepTower with FIPS Support:**
+
+```bash
+cd /path/to/KeepTower
+
+# Configure build (will detect OpenSSL 3.5)
+meson setup build --prefix=/usr
+
+# Compile
+meson compile -C build
+
+# Run FIPS tests
+meson test -C build "FIPS Mode Tests"
+
+# Install
+sudo meson install -C build
+```
+
+**4. Enable FIPS Mode in KeepTower:**
+
+Launch KeepTower and:
+1. Open **Preferences** (hamburger menu)
+2. Go to **Security** tab
+3. Check **"Enable FIPS-140-3 mode (requires restart)"**
+4. Click **Apply**
+5. **Restart KeepTower**
+
+**5. Verify FIPS Mode:**
+
+Open **Help → About KeepTower** and check for:
+```
+FIPS-140-3: Enabled ✓
+```
+
+### Comprehensive FIPS Documentation
+
+For detailed FIPS setup, troubleshooting, and compliance information:
+
+- **[FIPS_SETUP_GUIDE.md](FIPS_SETUP_GUIDE.md)** - Complete setup instructions
+- **[FIPS_COMPLIANCE.md](FIPS_COMPLIANCE.md)** - Compliance documentation
+- **[OPENSSL_35_MIGRATION.md](OPENSSL_35_MIGRATION.md)** - Technical details
+
+### FIPS Build Verification
+
+Verify FIPS support after building:
+
+```bash
+# Check OpenSSL version
+openssl version
+# Should show: OpenSSL 3.5.0 or higher
+
+# Check FIPS provider is available
+openssl list -providers
+# Should list both 'base' and 'fips' providers
+
+# Run FIPS tests
+meson test -C build "FIPS Mode Tests"
+# Should show: Ok: 11
+```
+
+### FIPS Mode Status
+
+Check FIPS status:
+
+```bash
+# Check if FIPS mode is enabled
+gsettings get com.tjdeveng.keeptower fips-mode-enabled
+
+# Check runtime status in application logs
+keeptower 2>&1 | grep -i fips
+```
+
+### Disabling FIPS Mode
+
+To disable FIPS mode:
+
+1. Open **Preferences → Security**
+2. Uncheck **"Enable FIPS-140-3 mode"**
+3. Click **Apply**
+4. **Restart KeepTower**
+
+Or via command line:
+```bash
+gsettings set com.tjdeveng.keeptower fips-mode-enabled false
+```
+
+### FIPS Troubleshooting
+
+**"FIPS module not available" in Preferences:**
+
+1. Verify OpenSSL 3.5 installed:
+   ```bash
+   openssl version
+   ```
+
+2. Check FIPS provider:
+   ```bash
+   openssl list -providers
+   ```
+
+3. Verify environment variables:
+   ```bash
+   echo $OPENSSL_CONF
+   echo $LD_LIBRARY_PATH
+   ```
+
+4. See [FIPS_SETUP_GUIDE.md](FIPS_SETUP_GUIDE.md) for detailed troubleshooting
 
 ## Support
 
