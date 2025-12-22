@@ -247,51 +247,272 @@ public:
      */
     [[nodiscard]] bool close_vault();
 
-    // FIPS-140-3 mode management
+    /** @name FIPS-140-3 Cryptographic Mode Management
+     * @brief OpenSSL FIPS provider initialization and control
+     *
+     * These methods manage FIPS-140-3 compliant cryptographic operations using
+     * the OpenSSL 3.5+ FIPS provider. FIPS mode ensures all cryptographic
+     * operations meet NIST FIPS 140-3 validation requirements.
+     *
+     * @section fips_usage Usage Pattern
+     * @code
+     * // At application startup (before any crypto operations)
+     * bool enable_fips = settings->get_boolean("fips-mode-enabled");
+     * if (!VaultManager::init_fips_mode(enable_fips)) {
+     *     Log::error("Failed to initialize FIPS mode");
+     * }
+     *
+     * // Check availability and status
+     * if (VaultManager::is_fips_available()) {
+     *     Log::info("FIPS mode: {}", VaultManager::is_fips_enabled() ? "enabled" : "disabled");
+     * }
+     * @endcode
+     *
+     * @section fips_requirements Requirements
+     * - OpenSSL 3.5.0 or higher
+     * - FIPS module installed and configured (fipsmodule.cnf)
+     * - Valid FIPS provider configuration in openssl.cnf or via environment
+     *
+     * @section fips_compliance Compliance
+     * All KeepTower cryptographic algorithms are FIPS-approved:
+     * - AES-256-GCM (encryption)
+     * - PBKDF2-HMAC-SHA256 (key derivation, 100K+ iterations)
+     * - SHA-256 (hashing)
+     * - RAND_bytes (DRBG random number generation)
+     *
+     * @{
+     */
 
     /**
-     * @brief Initialize FIPS mode provider
+     * @brief Initialize OpenSSL FIPS provider and set cryptographic mode
+     *
+     * Initializes the OpenSSL provider system and optionally enables FIPS-140-3
+     * validated cryptographic operations. This method must be called once at
+     * application startup before any cryptographic operations are performed.
+     *
+     * **Initialization Behavior:**
+     * - If `enable = true` and FIPS provider available: Loads FIPS provider
+     * - If `enable = true` and FIPS provider unavailable: Falls back to default provider
+     * - If `enable = false`: Uses default OpenSSL provider
+     * - Subsequent calls are no-ops (thread-safe, single initialization guarantee)
+     *
+     * **Thread Safety:**
+     * Uses atomic compare-and-exchange to ensure single initialization across
+     * all threads. Safe to call from multiple threads simultaneously.
+     *
      * @param enable If true, attempts to enable FIPS mode; if false, uses default provider
-     * @return true if initialization successful, false on error
      *
-     * This must be called before performing any cryptographic operations.
-     * FIPS mode requires OpenSSL 3.5+ with the FIPS module installed.
+     * @return true if initialization successful (provider loaded), false on error
+     * @retval true FIPS provider loaded successfully (if requested and available)
+     * @retval true Default provider loaded (fallback or when FIPS not requested)
+     * @retval false Provider loading failed (rare, indicates OpenSSL corruption)
      *
-     * @note This is a static method and affects all VaultManager instances
-     * @note Can only be called once per process lifetime
-     * @security FIPS-140-3 compliance requires FIPS mode to be enabled
+     * @note **Process Lifetime:** Can only be called once per process. Subsequent
+     *       calls return cached result without performing initialization.
+     * @note **Global State:** Affects all VaultManager instances and all OpenSSL
+     *       operations in the process.
+     * @note **Restart Required:** Changing FIPS mode typically requires application
+     *       restart for consistent behavior across all cryptographic contexts.
+     *
+     * @warning Do not call this method after performing any cryptographic operations.
+     *          Provider initialization must occur before first crypto operation.
+     *
+     * @see is_fips_available() to check if FIPS provider was loaded
+     * @see is_fips_enabled() to check current FIPS mode status
+     * @see set_fips_mode() to toggle FIPS mode after initialization
+     *
+     * @par Example:
+     * @code
+     * // At application startup
+     * bool fips_requested = config->get_fips_preference();
+     * if (!VaultManager::init_fips_mode(fips_requested)) {
+     *     Log::error("Cryptographic initialization failed");
+     *     return EXIT_FAILURE;
+     * }
+     *
+     * if (fips_requested && !VaultManager::is_fips_available()) {
+     *     Log::warning("FIPS mode requested but not available - using default provider");
+     * }
+     * @endcode
+     *
+     * @security **FIPS-140-3 Compliance:** Applications requiring FIPS compliance
+     *           must enable FIPS mode and verify `is_fips_enabled()` returns true.
+     *           Operating without FIPS mode when required violates compliance.
      */
     [[nodiscard]] static bool init_fips_mode(bool enable = false);
 
     /**
-     * @brief Check if FIPS module is available
-     * @return true if FIPS provider is available, false otherwise
+     * @brief Check if OpenSSL FIPS provider is available
      *
-     * @note Must call init_fips_mode() first
+     * Queries whether the FIPS cryptographic provider was successfully loaded
+     * during initialization. Availability depends on OpenSSL configuration and
+     * FIPS module installation.
+     *
+     * **FIPS Provider Availability Requirements:**
+     * - OpenSSL 3.5.0+ installed
+     * - FIPS module compiled and installed (libfips.so / fips.dll)
+     * - Valid fipsmodule.cnf configuration file
+     * - Proper openssl.cnf configuration OR OPENSSL_CONF environment variable
+     * - FIPS module self-tests passed during provider load
+     *
+     * **Typical Unavailability Causes:**
+     * - FIPS module not installed
+     * - OpenSSL < 3.5.0 (FIPS 140-3 requires 3.5+)
+     * - Missing or invalid fipsmodule.cnf
+     * - FIPS self-test failures
+     * - Insufficient permissions to load provider
+     *
+     * @return true if FIPS provider is available, false otherwise
+     * @retval true FIPS provider loaded and operational
+     * @retval false FIPS provider not available (using default provider)
+     *
+     * @pre init_fips_mode() must have been called first
+     *
+     * @note This method only checks availability, not whether FIPS mode is active.
+     *       Use is_fips_enabled() to check active status.
+     * @note Returns false if init_fips_mode() hasn't been called yet.
+     *
+     * @see init_fips_mode() to initialize provider system
+     * @see is_fips_enabled() to check if FIPS mode is active
+     *
+     * @par Example:
+     * @code
+     * if (VaultManager::is_fips_available()) {
+     *     ui->show_fips_toggle();  // Enable FIPS checkbox
+     *     ui->set_fips_status("✓ FIPS module available");
+     * } else {
+     *     ui->disable_fips_toggle();  // Disable checkbox
+     *     ui->set_fips_status("⚠️ FIPS module not available");
+     * }
+     * @endcode
      */
     [[nodiscard]] static bool is_fips_available();
 
     /**
-     * @brief Check if FIPS mode is currently enabled
-     * @return true if FIPS mode is active, false otherwise
+     * @brief Check if FIPS-140-3 mode is currently enabled
      *
-     * @note Must call init_fips_mode() first
+     * Queries the current operational status of FIPS mode. When enabled, all
+     * cryptographic operations use FIPS-validated implementations and enforce
+     * FIPS algorithm restrictions.
+     *
+     * **FIPS Enabled Status:**
+     * - `true`: All crypto operations use FIPS provider (compliant mode)
+     * - `false`: Crypto operations use default provider (standard mode)
+     *
+     * **Relationship with is_fips_available():**
+     * - `available = false, enabled = false`: FIPS not installed
+     * - `available = true, enabled = false`: FIPS installed but not active
+     * - `available = true, enabled = true`: FIPS active (compliant)
+     * - `available = false, enabled = true`: Invalid state (cannot occur)
+     *
+     * @return true if FIPS mode is currently active, false otherwise
+     * @retval true All cryptographic operations use FIPS provider
+     * @retval false Using default OpenSSL provider (non-FIPS)
+     *
+     * @pre init_fips_mode() must have been called first
+     *
+     * @note FIPS mode can only be enabled if the FIPS provider is available.
+     * @note Returns false if init_fips_mode() hasn't been called yet.
+     *
+     * @see init_fips_mode() to set initial FIPS mode
+     * @see is_fips_available() to check if FIPS provider is installed
+     * @see set_fips_mode() to change FIPS mode at runtime
+     *
+     * @par Example:
+     * @code
+     * // Display FIPS status in About dialog
+     * std::string status;
+     * if (VaultManager::is_fips_available()) {
+     *     if (VaultManager::is_fips_enabled()) {
+     *         status = "FIPS-140-3: Enabled ✓";
+     *     } else {
+     *         status = "FIPS-140-3: Available (not enabled)";
+     *     }
+     * } else {
+     *     status = "FIPS-140-3: Not available";
+     * }
+     * about_dialog->set_comments(status);
+     * @endcode
+     *
+     * @security Applications under FIPS compliance requirements must verify
+     *           this returns true before processing sensitive data.
      */
     [[nodiscard]] static bool is_fips_enabled();
 
     /**
-     * @brief Enable or disable FIPS mode at runtime
+     * @brief Enable or disable FIPS-140-3 mode at runtime
+     *
+     * Dynamically switches between FIPS and default cryptographic providers.
+     * This allows toggling FIPS mode without reinitializing the entire
+     * cryptographic subsystem.
+     *
+     * **Provider Switching:**
+     * - `enable = true`: Activates FIPS provider for all subsequent operations
+     * - `enable = false`: Activates default provider (standard OpenSSL algorithms)
+     *
+     * **Switching Behavior:**
+     * - Idempotent: Setting same mode returns success without changes
+     * - Thread-safe: Uses atomic operations for state management
+     * - Immediate effect: Next cryptographic operation uses new provider
+     * - Existing contexts: Active encryption/decryption contexts may continue
+     *   using old provider until completion
+     *
+     * **Failure Conditions:**
+     * - init_fips_mode() not called
+     * - FIPS provider not available (when enabling)
+     * - OpenSSL provider switching API failure
+     *
      * @param enable If true, enable FIPS mode; if false, use default provider
+     *
      * @return true if mode change successful, false on error
+     * @retval true FIPS mode successfully changed to requested state
+     * @retval true Already in requested state (no-op, success)
+     * @retval false FIPS not initialized (call init_fips_mode() first)
+     * @retval false FIPS provider unavailable (when trying to enable)
+     * @retval false OpenSSL provider switch failed
      *
-     * Changes the active OpenSSL provider. FIPS mode enforces stricter
-     * cryptographic requirements and may reject non-compliant operations.
+     * @pre init_fips_mode() must have been called
+     * @pre FIPS provider must be available (for enable = true)
      *
-     * @note Requires init_fips_mode() to have been called first
-     * @note May require application restart for full effect
-     * @security Enabling FIPS mode is irreversible in some configurations
+     * @post All new cryptographic operations use the selected provider
+     * @post is_fips_enabled() will return the new state
+     *
+     * @note **Application Restart Recommended:** While runtime switching is
+     *       supported, some cryptographic contexts may not switch immediately.
+     *       For consistent behavior, restart the application after changing mode.
+     * @note **User Experience:** Display a restart warning when changing FIPS mode.
+     *
+     * @warning In some OpenSSL configurations, enabling FIPS mode may be
+     *          irreversible without process restart. Always test runtime
+     *          switching in your deployment environment.
+     *
+     * @see init_fips_mode() to perform initial FIPS initialization
+     * @see is_fips_available() to verify FIPS provider is loaded
+     * @see is_fips_enabled() to query current FIPS state
+     *
+     * @par Example:
+     * @code
+     * // In preferences dialog "Apply" handler
+     * bool fips_enabled = fips_checkbox->get_active();
+     *
+     * if (VaultManager::set_fips_mode(fips_enabled)) {
+     *     settings->set_boolean("fips-mode-enabled", fips_enabled);
+     *     show_info_dialog(
+     *         "FIPS mode will be fully active after restart.\n"
+     *         "Please restart KeepTower now."
+     *     );
+     * } else {
+     *     show_error_dialog("Failed to change FIPS mode");
+     * }
+     * @endcode
+     *
+     * @security **Compliance Impact:** Disabling FIPS mode in a compliance-required
+     *           environment may violate security policy. Implement appropriate
+     *           access controls and audit logging for FIPS mode changes.
      */
     [[nodiscard]] static bool set_fips_mode(bool enable);
+
+    /** @} */ // end of FIPS-140-3 mode management
 
     // Account operations
 
@@ -746,10 +967,57 @@ private:
     // Current vault PBKDF2 iterations (configurable per vault)
     int m_pbkdf2_iterations;
 
-    // FIPS-140-3 mode state
+    /** @name FIPS-140-3 Global State (Thread-Safe)
+     * @brief Process-wide FIPS mode tracking with atomic thread safety
+     *
+     * These static members track the FIPS provider state across all VaultManager
+     * instances. They use std::atomic<bool> for lock-free, thread-safe access.
+     *
+     * **Thread Safety Guarantees:**
+     * - Atomic loads/stores prevent data races
+     * - Compare-exchange ensures single initialization
+     * - Memory ordering: sequential consistency (default)
+     *
+     * **Initialization State Machine:**
+     * 1. **Uninitialized:** All false, init_fips_mode() not called
+     * 2. **Default Provider:** initialized=true, available=false, enabled=false
+     * 3. **FIPS Available:** initialized=true, available=true, enabled=false
+     * 4. **FIPS Enabled:** initialized=true, available=true, enabled=true
+     *
+     * @{
+     */
+
+    /**
+     * @brief Tracks whether FIPS initialization has been performed
+     *
+     * Set to true after first successful call to init_fips_mode().
+     * Used with compare_exchange to ensure single initialization.
+     *
+     * @invariant Once true, remains true for process lifetime
+     */
     static std::atomic<bool> s_fips_mode_initialized;
+
+    /**
+     * @brief Tracks whether OpenSSL FIPS provider is available
+     *
+     * Set to true if FIPS provider loads successfully during init_fips_mode().
+     * Remains false if FIPS module not installed or load fails.
+     *
+     * @invariant Can only be true if s_fips_mode_initialized is true
+     */
     static std::atomic<bool> s_fips_mode_available;
+
+    /**
+     * @brief Tracks whether FIPS mode is currently active
+     *
+     * Set to true when FIPS provider is loaded and enabled.
+     * Can be toggled via set_fips_mode() if provider is available.
+     *
+     * @invariant Can only be true if s_fips_mode_available is true
+     */
     static std::atomic<bool> s_fips_mode_enabled;
+
+    /** @} */ // end of FIPS-140-3 global state
 };
 
 #endif // VAULTMANAGER_H

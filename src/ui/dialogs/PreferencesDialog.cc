@@ -336,47 +336,98 @@ void PreferencesDialog::setup_security_page() {
 
     m_security_box.append(*undo_redo_section);
 
-    // FIPS-140-3 section
+    // ========================================================================
+    // FIPS-140-3 Compliance Section
+    // ========================================================================
+    /**
+     * @brief FIPS-140-3 mode configuration UI
+     *
+     * Provides user interface for enabling/disabling FIPS-140-3 validated
+     * cryptographic operations. FIPS mode requires OpenSSL 3.5+ with the
+     * FIPS module installed and properly configured.
+     *
+     * **Section Components:**
+     * 1. Title: "FIPS-140-3 Compliance"
+     * 2. Description: "Use FIPS-140-3 validated cryptographic operations"
+     * 3. Checkbox: Enable/disable FIPS mode (requires restart)
+     * 4. Status Label: Shows FIPS provider availability (✓ or ⚠️)
+     * 5. Warning Label: Restart requirement notice
+     *
+     * **Dynamic Behavior:**
+     * - Queries VaultManager::is_fips_available() at dialog creation
+     * - If available: Checkbox enabled, shows "✓ FIPS module available"
+     * - If unavailable: Checkbox disabled, shows "⚠️ FIPS module not available"
+     *
+     * **User Workflow:**
+     * 1. User opens Preferences → Security
+     * 2. User sees FIPS availability status
+     * 3. If available, user can check/uncheck FIPS checkbox
+     * 4. User clicks Apply to save preference
+     * 5. User restarts application for FIPS mode to take effect
+     *
+     * **Implementation Details:**
+     * - Status determined once at dialog creation (not dynamic)
+     * - FIPS availability is process-wide and doesn't change at runtime
+     * - Checkbox state loaded from GSettings in load_settings()
+     * - Checkbox state saved to GSettings in save_settings()
+     * - Application.cc reads GSettings and initializes FIPS at startup
+     *
+     * @note FIPS provider availability depends on OpenSSL configuration
+     * @note Changes require application restart for full effect
+     * @see VaultManager::init_fips_mode() for FIPS initialization
+     * @see VaultManager::is_fips_available() for availability check
+     * @see load_settings() for reading FIPS preference
+     * @see save_settings() for persisting FIPS preference
+     */
     auto* fips_section = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 6);
     fips_section->set_margin_top(24);
 
+    // Section title with "heading" CSS class for emphasis
     auto* fips_title = Gtk::make_managed<Gtk::Label>("FIPS-140-3 Compliance");
     fips_title->set_halign(Gtk::Align::START);
     fips_title->add_css_class("heading");
     fips_section->append(*fips_title);
 
+    // Brief description of FIPS mode purpose
     auto* fips_desc = Gtk::make_managed<Gtk::Label>("Use FIPS-140-3 validated cryptographic operations");
     fips_desc->set_halign(Gtk::Align::START);
     fips_desc->add_css_class("dim-label");
     fips_desc->set_wrap(true);
     fips_section->append(*fips_desc);
 
+    // Main FIPS mode toggle checkbox
+    // Label includes "(requires restart)" to set user expectations
     fips_section->append(m_fips_mode_check);
 
-    // FIPS status label
+    // FIPS provider availability status label
+    // Shows checkmark (✓) if available, warning (⚠️) if not
     m_fips_status_label.set_halign(Gtk::Align::START);
     m_fips_status_label.set_wrap(true);
     m_fips_status_label.set_max_width_chars(60);
     m_fips_status_label.add_css_class("dim-label");
-    m_fips_status_label.set_margin_start(24);
+    m_fips_status_label.set_margin_start(24);  // Indent under checkbox
     m_fips_status_label.set_margin_top(6);
 
-    // Update FIPS status based on current availability
+    // Dynamic availability detection using VaultManager API
+    // This query happens once at dialog creation time
     if (VaultManager::is_fips_available()) {
+        // FIPS provider loaded successfully - allow user to enable
         m_fips_status_label.set_markup("<span size='small'>✓ FIPS module available and ready</span>");
     } else {
+        // FIPS provider not available - disable checkbox and explain why
         m_fips_status_label.set_markup("<span size='small'>⚠️  FIPS module not available (requires OpenSSL FIPS configuration)</span>");
-        m_fips_mode_check.set_sensitive(false);
+        m_fips_mode_check.set_sensitive(false);  // Prevent enabling unsupported mode
     }
     fips_section->append(m_fips_status_label);
 
-    // FIPS restart warning
+    // Restart warning label - always visible
+    // Users need to see this before making changes
     m_fips_restart_warning.set_markup("<span size='small'>⚠️  Changes require application restart to take effect</span>");
     m_fips_restart_warning.set_halign(Gtk::Align::START);
     m_fips_restart_warning.set_wrap(true);
     m_fips_restart_warning.set_max_width_chars(60);
     m_fips_restart_warning.add_css_class("warning");
-    m_fips_restart_warning.set_margin_start(24);
+    m_fips_restart_warning.set_margin_start(24);  // Indent under checkbox
     m_fips_restart_warning.set_margin_top(6);
     fips_section->append(m_fips_restart_warning);
 
@@ -592,7 +643,28 @@ void PreferencesDialog::load_settings() {
     m_undo_history_limit_spin.set_sensitive(undo_redo_enabled);
     m_undo_history_limit_suffix.set_sensitive(undo_redo_enabled);
 
-    // Load FIPS mode setting
+    /**
+     * @brief Load FIPS-140-3 mode preference from GSettings
+     *
+     * Reads the user's FIPS mode preference and updates the checkbox state.
+     * This preference is read by Application.cc at startup to initialize
+     * the OpenSSL FIPS provider.
+     *
+     * **GSettings Key:** "fips-mode-enabled" (boolean, default: false)
+     *
+     * **Data Flow:**
+     * 1. User preference stored in GSettings (persistent)
+     * 2. PreferencesDialog reads preference → updates checkbox
+     * 3. Application.cc reads same preference at startup
+     * 4. Application calls VaultManager::init_fips_mode(preference)
+     *
+     * **Default Value:** false (FIPS mode disabled by default)
+     * User must explicitly opt-in to FIPS-140-3 compliance mode.
+     *
+     * @note Checkbox may be disabled if FIPS provider unavailable
+     * @see save_settings() for persisting FIPS preference changes
+     * @see Application::on_startup() for FIPS initialization from settings
+     */
     bool fips_enabled = m_settings->get_boolean("fips-mode-enabled");
     m_fips_mode_check.set_active(fips_enabled);
 }
@@ -683,7 +755,39 @@ void PreferencesDialog::save_settings() {
     );
     m_settings->set_int("undo-history-limit", undo_history_limit);
 
-    // Save FIPS mode setting
+    /**
+     * @brief Save FIPS-140-3 mode preference to GSettings
+     *
+     * Persists the user's FIPS mode preference for use at next application
+     * startup. The preference is read by Application.cc to determine whether
+     * to initialize OpenSSL in FIPS mode.
+     *
+     * **GSettings Key:** "fips-mode-enabled" (boolean)
+     *
+     * **Lifecycle:**
+     * 1. User toggles FIPS checkbox in preferences
+     * 2. User clicks "Apply" button
+     * 3. This method saves checkbox state to GSettings
+     * 4. User sees restart warning
+     * 5. User restarts application
+     * 6. Application.cc reads preference and initializes FIPS accordingly
+     *
+     * **Restart Requirement:**
+     * FIPS mode changes don't take full effect until application restart
+     * because OpenSSL provider initialization must occur before any crypto
+     * operations. While VaultManager::set_fips_mode() supports runtime
+     * switching, restart ensures consistent provider state across all
+     * cryptographic contexts.
+     *
+     * **Security Implications:**
+     * - Enabling FIPS: All crypto uses FIPS-validated algorithms (compliant)
+     * - Disabling FIPS: All crypto uses standard OpenSSL algorithms (default)
+     *
+     * @note Changes are persisted immediately but don't affect current session
+     * @see load_settings() for reading FIPS preference
+     * @see Application::on_startup() for FIPS initialization at startup
+     * @see VaultManager::init_fips_mode() for provider initialization
+     */
     const bool fips_enabled = m_fips_mode_check.get_active();
     m_settings->set_boolean("fips-mode-enabled", fips_enabled);
 }

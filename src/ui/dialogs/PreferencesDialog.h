@@ -100,9 +100,127 @@ private:
     Gtk::SpinButton m_undo_history_limit_spin;
     Gtk::Label m_undo_history_limit_suffix;
     Gtk::Label m_undo_redo_warning;
+
+    /** @name FIPS-140-3 UI Widgets
+     * @brief User interface controls for FIPS mode configuration
+     *
+     * These widgets allow users to enable/disable FIPS-140-3 compliant
+     * cryptographic operations and view FIPS provider availability status.
+     *
+     * **UI Layout in Security Page:**
+     * ```
+     * FIPS-140-3 Compliance
+     * Use FIPS-140-3 validated cryptographic operations
+     *
+     * [ ] Enable FIPS-140-3 mode (requires restart)
+     * ✓ FIPS module available and ready
+     * ⚠️  Changes require application restart to take effect
+     * ```
+     *
+     * **Dynamic Behavior:**
+     * - Checkbox enabled when FIPS provider available
+     * - Checkbox disabled (grayed) when FIPS provider unavailable
+     * - Status label shows availability with icon (✓ or ⚠️)
+     * - Restart warning always visible when FIPS section present
+     *
+     * @see setup_security_page() for widget initialization and layout
+     * @see load_settings() for reading FIPS preference from GSettings
+     * @see save_settings() for persisting FIPS preference to GSettings
+     * @{
+     */
+
+    /**
+     * @brief Checkbox to enable/disable FIPS-140-3 mode
+     *
+     * **Widget Properties:**
+     * - Label: "Enable FIPS-140-3 mode (requires restart)"
+     * - State: Active when FIPS mode enabled in settings
+     * - Sensitivity: Enabled only when VaultManager::is_fips_available() returns true
+     *
+     * **User Interaction:**
+     * - Checking enables FIPS mode (saved to GSettings on Apply)
+     * - Unchecking disables FIPS mode
+     * - Changes require application restart to take full effect
+     *
+     * **Automatic Disabling:**
+     * If FIPS provider not available (module not installed or misconfigured),
+     * this checkbox is automatically disabled in setup_security_page():
+     * @code
+     * if (!VaultManager::is_fips_available()) {
+     *     m_fips_mode_check.set_sensitive(false);
+     * }
+     * @endcode
+     *
+     * @note Disabled state prevents users from enabling unsupported mode
+     * @see m_fips_status_label for availability explanation
+     */
     Gtk::CheckButton m_fips_mode_check;
+
+    /**
+     * @brief Label showing FIPS provider availability status
+     *
+     * **Display States:**
+     * - "✓ FIPS module available and ready" (green/default color)
+     * - "⚠️  FIPS module not available" (gray/insensitive color)
+     *
+     * **Purpose:**
+     * Provides immediate visual feedback about FIPS provider status so users
+     * understand why the checkbox might be disabled. Prevents confusion when
+     * FIPS mode cannot be enabled due to missing FIPS module.
+     *
+     * **Styling:**
+     * Uses Pango markup for icons:
+     * @code
+     * m_fips_status_label.set_markup("✓ FIPS module available");
+     * @endcode
+     *
+     * **Runtime Detection:**
+     * Status determined by calling VaultManager::is_fips_available() during
+     * preferences dialog construction:
+     * @code
+     * if (VaultManager::is_fips_available()) {
+     *     m_fips_status_label.set_markup("✓ FIPS module available and ready");
+     * } else {
+     *     m_fips_status_label.set_markup("⚠️  FIPS module not available");
+     * }
+     * @endcode
+     *
+     * @note Status is determined once at dialog creation (not dynamic)
+     * @note FIPS availability doesn't change during application runtime
+     * @see VaultManager::is_fips_available() for availability logic
+     */
     Gtk::Label m_fips_status_label;
+
+    /**
+     * @brief Warning label about restart requirement
+     *
+     * **Display Text:**
+     * "⚠️  Changes require application restart to take effect"
+     *
+     * **Purpose:**
+     * Reminds users that FIPS mode changes don't take full effect until the
+     * application is restarted. While set_fips_mode() performs runtime switching,
+     * restart is recommended for consistent cryptographic provider state across
+     * all contexts.
+     *
+     * **Visibility:**
+     * Always visible when FIPS section is present. Not dependent on FIPS
+     * availability or enabled state (users need to see this before making changes).
+     *
+     * **Styling:**
+     * Uses style class "dim-label" for subtle appearance:
+     * @code
+     * m_fips_restart_warning.set_text("⚠️  Changes require application restart...");
+     * m_fips_restart_warning.add_css_class("dim-label");
+     * @endcode
+     *
+     * @note Restart requirement applies to both enabling and disabling FIPS mode
+     * @note Warning remains visible even when checkbox is disabled
+     * @see VaultManager::set_fips_mode() for runtime switching limitations
+     */
     Gtk::Label m_fips_restart_warning;
+
+    /** @} */ // end of FIPS-140-3 UI widgets
 
     // Storage page (Reed-Solomon + Backups)
     Gtk::Box m_storage_box;
