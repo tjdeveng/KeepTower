@@ -120,9 +120,8 @@ jobs:
     - name: Setup test environment
       run: |
         # Increase memory lock limit for memory locking tests
-        # CI runners typically don't have CAP_IPC_LOCK, but we can increase the limit
-        ulimit -l 10240  # 10MB
-        echo "Memory lock limit: $(ulimit -l)"
+        # CI runners may not have permission to modify limits, so make this non-fatal
+        ulimit -l 10240 2>/dev/null || echo "Warning: Could not increase memory lock limit ($(ulimit -l) KB)"
 
         # Ensure GSettings schema is compiled
         ls -la build/data/gschemas.compiled || echo "Schema not found"
