@@ -126,6 +126,38 @@ jobs:
         # Ensure GSettings schema is compiled
         ls -la build/data/gschemas.compiled || echo "Schema not found"
 
+    - name: Verify FIPS Configuration
+      run: |
+        echo "=== FIPS-140-3 Configuration Verification ==="
+        
+        # Check OpenSSL version
+        echo "OpenSSL version:"
+        /tmp/openssl-install/bin/openssl version
+        
+        # Check FIPS module exists
+        echo -e "\nFIPS module:"
+        ls -la /tmp/openssl-install/lib*/ossl-modules/fips.so 2>/dev/null || echo "⚠ FIPS module not found"
+        
+        # Check fipsmodule.cnf exists
+        echo -e "\nFIPS module config:"
+        ls -la /tmp/openssl-install/ssl/fipsmodule.cnf || echo "⚠ fipsmodule.cnf not found"
+        
+        # Check openssl.cnf configuration
+        echo -e "\nOpenSSL config file:"
+        ls -la /tmp/openssl-install/ssl/openssl.cnf
+        
+        # Verify FIPS is enabled in config
+        echo -e "\nFIPS configuration in openssl.cnf:"
+        grep -E "^\.include fipsmodule\.cnf|^fips = fips_sect" /tmp/openssl-install/ssl/openssl.cnf || echo "⚠ FIPS not enabled in config"
+        
+        # List available providers
+        echo -e "\nAvailable OpenSSL providers:"
+        export OPENSSL_CONF=/tmp/openssl-install/ssl/openssl.cnf
+        export LD_LIBRARY_PATH=/tmp/openssl-install/lib64:/tmp/openssl-install/lib:$LD_LIBRARY_PATH
+        /tmp/openssl-install/bin/openssl list -providers
+        
+        echo -e "\n✓ FIPS configuration verification complete"
+
     - name: Run tests
       run: |
         # Set GSETTINGS_SCHEMA_DIR for all tests (some may need it)

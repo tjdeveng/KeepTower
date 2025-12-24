@@ -201,6 +201,67 @@ protected:
 };
 
 // ============================================================================
+// FIPS-140-3 Compliance Validation Tests
+// ============================================================================
+
+/**
+ * @test FIPS-140-3 Provider Availability Check
+ *
+ * **FIPS-140-3 Requirement:**
+ * System must be able to load and verify the FIPS cryptographic module.
+ *
+ * **Test Purpose:**
+ * Validates that the OpenSSL FIPS provider is properly installed and
+ * accessible in the CI environment. This is a prerequisite for all
+ * FIPS-140-3 compliance testing.
+ *
+ * **Expected Behavior in CI:**
+ * - With OPENSSL_CONF set: FIPS provider should be available ✅
+ * - Without OPENSSL_CONF: Falls back to default provider (graceful)
+ *
+ * **CI Configuration Requirements:**
+ * - OPENSSL_CONF must point to openssl.cnf with FIPS enabled
+ * - fipsmodule.cnf must exist with valid KAT results
+ * - FIPS module (fips.so) must be loadable
+ *
+ * This test FAILS if FIPS is expected but not available, forcing
+ * investigation of CI configuration issues.
+ */
+TEST_F(FIPSModeTest, FIPS_ProviderAvailability_MustBeConfigured) {
+    // Initialize cryptographic providers
+    bool init_success = VaultManager::init_fips_mode(false);
+    ASSERT_TRUE(init_success) << "Failed to initialize OpenSSL providers";
+
+    // Check if FIPS provider is available
+    bool fips_available = VaultManager::is_fips_available();
+
+    // Check if OPENSSL_CONF is set (indicates FIPS should be available)
+    const char* openssl_conf = std::getenv("OPENSSL_CONF");
+    
+    if (openssl_conf != nullptr) {
+        // OPENSSL_CONF is set - FIPS should be available
+        EXPECT_TRUE(fips_available) 
+            << "FIPS provider not available despite OPENSSL_CONF being set to: " 
+            << openssl_conf << "\n"
+            << "This indicates a CI configuration problem:\n"
+            << "  - Verify fipsmodule.cnf exists and is valid\n"
+            << "  - Verify openssl.cnf includes fipsmodule.cnf\n"
+            << "  - Verify FIPS module (fips.so) is present\n"
+            << "  - Check OpenSSL build included enable-fips flag";
+        
+        if (fips_available) {
+            std::cout << "✓ FIPS-140-3 provider available and configured\n";
+            std::cout << "  OpenSSL config: " << openssl_conf << "\n";
+        }
+    } else {
+        // OPENSSL_CONF not set - FIPS not expected, but log the state
+        std::cout << "⚠ OPENSSL_CONF not set - FIPS provider not configured\n";
+        std::cout << "  FIPS available: " << (fips_available ? "yes" : "no") << "\n";
+        std::cout << "  Using default provider (FIPS not required for this test run)\n";
+    }
+}
+
+// ============================================================================
 // FIPS Initialization Tests
 // ============================================================================
 /**
