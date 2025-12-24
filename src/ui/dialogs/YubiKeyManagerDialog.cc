@@ -110,7 +110,8 @@ void YubiKeyManagerDialog::refresh_key_list() {
             // Name label with safety check
             auto* name_label = Gtk::make_managed<Gtk::Label>();
             std::string name_text = !key.name().empty() ? key.name() : "Unknown YubiKey";
-            name_label->set_markup(std::format("<b>{}</b>", Glib::Markup::escape_text(name_text)));
+            std::string escaped_name = Glib::Markup::escape_text(name_text);
+            name_label->set_markup(std::format("<b>{}</b>", escaped_name));
             name_label->set_xalign(0.0);
             box->append(*name_label);
 
@@ -130,9 +131,11 @@ void YubiKeyManagerDialog::refresh_key_list() {
                 }
             }
 
+            std::string escaped_serial = Glib::Markup::escape_text(serial_text);
+            std::string escaped_time = Glib::Markup::escape_text(time_text);
             info_label->set_markup(std::format("<small>Serial: {} • Added: {}</small>",
-                                              Glib::Markup::escape_text(serial_text),
-                                              Glib::Markup::escape_text(time_text)));
+                                              escaped_serial,
+                                              escaped_time));
             info_label->set_xalign(0.0);
             box->append(*info_label);
 
