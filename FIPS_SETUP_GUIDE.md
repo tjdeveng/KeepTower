@@ -662,6 +662,40 @@ gsettings get com.tjdeveng.keeptower fips-mode-enabled
 keeptower 2>&1 | grep -i fips
 ```
 
+## Important Notes
+
+### CI/CD Environment vs Production
+
+**GitHub Actions CI Runners:**
+- OpenSSL 3.5+ is **built automatically** by the CI workflow ✅
+- FIPS provider module is **available** but not system-configured ⚠️
+- Tests run using **default provider** (not FIPS provider)
+- This is expected behavior - FIPS requires manual configuration
+
+**Production/User Environments:**
+- FIPS **IS fully supported** on Ubuntu 24.04+ ✅
+- Requires one-time FIPS module configuration (see Scenario B above)
+- After configuration, FIPS mode works identically to Fedora/RHEL
+
+**Key Distinction:**
+- **OpenSSL 3.5+**: Built/available automatically everywhere ✅
+- **FIPS provider**: Requires system configuration (not automatic) ⚠️
+- KeepTower **gracefully handles** both scenarios:
+  - FIPS configured → Uses FIPS-validated algorithms
+  - FIPS not configured → Uses default provider (same algorithms, not validated)
+
+### Platform Support Status
+
+| Platform | OpenSSL 3.5+ | FIPS Module | Setup Required | Status |
+|----------|--------------|-------------|----------------|--------|
+| **Ubuntu 24.04+** | Auto-built | Available | Manual config | ✅ Supported |
+| **Fedora 42+** | Auto-built | Available | Manual config | ✅ Supported |
+| **Debian 12+** | Auto-built | Available | Manual config | ✅ Supported |
+| **RHEL 9+** | System/Auto | Available | Manual config | ✅ Supported |
+| **CI Runners** | Auto-built | Available | Not configured | ✅ Works (default provider) |
+
+**Bottom Line:** FIPS-140-3 is fully supported on Ubuntu and all modern Linux distributions. It requires one-time configuration of the FIPS provider module. Without configuration, KeepTower uses the default provider with the same cryptographic algorithms (AES-256-GCM, PBKDF2, etc.) but without FIPS validation.
+
 ## References
 
 - [NIST FIPS 140-3 Standard](https://csrc.nist.gov/publications/detail/fips/140/3/final)
