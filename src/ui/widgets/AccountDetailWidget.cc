@@ -77,6 +77,25 @@ AccountDetailWidget::AccountDetailWidget()
     m_details_fields_box.append(m_tags_entry);
     m_details_fields_box.append(m_tags_scrolled);
 
+    // Privacy controls (V2 multi-user vaults)
+    m_privacy_label.set_markup("<b>Privacy Controls</b> (Multi-User Vaults)");
+    m_privacy_label.set_xalign(0.0);
+    m_privacy_label.set_margin_top(12);
+    m_privacy_label.set_margin_bottom(6);
+    m_admin_only_viewable_check.set_label("Admin-only viewable");
+    m_admin_only_viewable_check.set_tooltip_text(
+        "Only administrators can view/edit this account. "
+        "Standard users will not see this account in the list."
+    );
+    m_admin_only_deletable_check.set_label("Admin-only deletable");
+    m_admin_only_deletable_check.set_tooltip_text(
+        "All users can view/edit, but only admins can delete. "
+        "Prevents accidental deletion of critical accounts."
+    );
+    m_details_fields_box.append(m_privacy_label);
+    m_details_fields_box.append(m_admin_only_viewable_check);
+    m_details_fields_box.append(m_admin_only_deletable_check);
+
     // Right side: Notes (with label above)
     auto* notes_box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 0);
     m_notes_label.set_text("Notes:");
@@ -148,6 +167,12 @@ AccountDetailWidget::AccountDetailWidget()
     m_website_entry.signal_changed().connect(
         sigc::mem_fun(*this, &AccountDetailWidget::on_entry_changed)
     );
+    m_admin_only_viewable_check.signal_toggled().connect(
+        sigc::mem_fun(*this, &AccountDetailWidget::on_entry_changed)
+    );
+    m_admin_only_deletable_check.signal_toggled().connect(
+        sigc::mem_fun(*this, &AccountDetailWidget::on_entry_changed)
+    );
     m_notes_view.get_buffer()->signal_changed().connect(
         sigc::mem_fun(*this, &AccountDetailWidget::on_entry_changed)
     );
@@ -190,6 +215,10 @@ void AccountDetailWidget::display_account(const keeptower::AccountRecord* accoun
         add_tag_chip(tag);
     }
 
+    // Set privacy controls (V2 multi-user vaults)
+    m_admin_only_viewable_check.set_active(account->is_admin_only_viewable());
+    m_admin_only_deletable_check.set_active(account->is_admin_only_deletable());
+
     // Enable widgets
     set_editable(true);
     m_delete_account_button.set_sensitive(true);
@@ -211,6 +240,10 @@ void AccountDetailWidget::clear() {
     while (auto child = m_tags_flowbox.get_first_child()) {
         m_tags_flowbox.remove(*child);
     }
+
+    // Clear privacy controls
+    m_admin_only_viewable_check.set_active(false);
+    m_admin_only_deletable_check.set_active(false);
 
     set_editable(false);
     m_delete_account_button.set_sensitive(false);
@@ -261,6 +294,14 @@ std::vector<std::string> AccountDetailWidget::get_all_tags() const {
     return tags;
 }
 
+bool AccountDetailWidget::get_admin_only_viewable() const {
+    return m_admin_only_viewable_check.get_active();
+}
+
+bool AccountDetailWidget::get_admin_only_deletable() const {
+    return m_admin_only_deletable_check.get_active();
+}
+
 void AccountDetailWidget::set_editable(bool editable) {
     m_account_name_entry.set_sensitive(editable);
     m_user_name_entry.set_sensitive(editable);
@@ -272,6 +313,8 @@ void AccountDetailWidget::set_editable(bool editable) {
     m_generate_password_button.set_sensitive(editable);
     m_show_password_button.set_sensitive(editable);
     m_copy_password_button.set_sensitive(editable);
+    m_admin_only_viewable_check.set_sensitive(editable);
+    m_admin_only_deletable_check.set_sensitive(editable);
 }
 
 void AccountDetailWidget::set_password(const std::string& password) {

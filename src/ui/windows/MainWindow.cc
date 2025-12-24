@@ -7,11 +7,16 @@
 #include "../widgets/AccountDetailWidget.h"
 #include "../dialogs/CreatePasswordDialog.h"
 #include "../dialogs/PasswordDialog.h"
+#include "../dialogs/V2UserLoginDialog.h"
+#include "../dialogs/ChangePasswordDialog.h"
+#include "../dialogs/UserManagementDialog.h"
+#include "../dialogs/VaultMigrationDialog.h"
 #include "../dialogs/PreferencesDialog.h"
 #include "../dialogs/GroupCreateDialog.h"
 #include "../dialogs/GroupRenameDialog.h"
 #include "../dialogs/YubiKeyPromptDialog.h"
 #include "../../core/VaultError.h"
+#include "../../core/VaultFormatV2.h"
 #include "../../core/commands/AccountCommands.h"
 #include "../../utils/SettingsValidator.h"
 #include "../../utils/ImportExport.h"
@@ -20,6 +25,7 @@
 #include "../../utils/Log.h"
 #include "config.h"
 #include <cstring>  // For memset
+#include <fstream>   // For reading vault files
 
 using KeepTower::safe_ustring_to_string;
 #ifdef HAVE_YUBIKEY_SUPPORT
@@ -81,7 +87,8 @@ MainWindow::MainWindow()
     // Set up window actions
     add_action("preferences", sigc::mem_fun(*this, &MainWindow::on_preferences));
     add_action("import-csv", sigc::mem_fun(*this, &MainWindow::on_import_from_csv));
-    add_action("export-csv", sigc::mem_fun(*this, &MainWindow::on_export_to_csv));
+    m_export_action = add_action("export-csv", sigc::mem_fun(*this, &MainWindow::on_export_to_csv));
+    add_action("migrate-v1-to-v2", sigc::mem_fun(*this, &MainWindow::on_migrate_v1_to_v2));
     add_action("delete-account", sigc::mem_fun(*this, &MainWindow::on_delete_account));
     add_action("create-group", sigc::mem_fun(*this, &MainWindow::on_create_group));
     add_action("rename-group", [this]() {
@@ -107,6 +114,16 @@ MainWindow::MainWindow()
     add_action("test-yubikey", sigc::mem_fun(*this, &MainWindow::on_test_yubikey));
     add_action("manage-yubikeys", sigc::mem_fun(*this, &MainWindow::on_manage_yubikeys));
 #endif
+
+    // Phase 4: V2 vault user management actions
+    m_change_password_action = add_action("change-password", sigc::mem_fun(*this, &MainWindow::on_change_my_password));
+    m_logout_action = add_action("logout", sigc::mem_fun(*this, &MainWindow::on_logout));
+    m_manage_users_action = add_action("manage-users", sigc::mem_fun(*this, &MainWindow::on_manage_users));
+
+    // Initially disable V2-only actions (enabled when V2 vault opens)
+    m_change_password_action->set_enabled(false);
+    m_logout_action->set_enabled(false);
+    m_manage_users_action->set_enabled(false);
 
     // Set keyboard shortcuts
     auto app = get_application();
@@ -156,6 +173,11 @@ MainWindow::MainWindow()
     m_save_button.add_css_class("suggested-action");
     m_header_bar.pack_start(m_save_button);
 
+    // Center - Session info label (for V2 multi-user vaults)
+    m_session_label.set_visible(false);  // Hidden by default (V1 vaults)
+    m_session_label.add_css_class("caption");
+    m_header_bar.set_title_widget(m_session_label);
+
     // Right side of HeaderBar - Record operations and menu
     m_add_account_button.set_icon_name("list-add-symbolic");
     m_add_account_button.set_tooltip_text("Add Account");
@@ -180,6 +202,13 @@ MainWindow::MainWindow()
     actions_section->append("Test _YubiKey", "win.test-yubikey");
 #endif
     m_primary_menu->append_section(actions_section);
+
+    // Phase 4: V2 vault user section (initially hidden, enabled when V2 vault opens)
+    auto user_section = Gio::Menu::create();
+    user_section->append("_Change My Password", "win.change-password");
+    user_section->append("Manage _Users", "win.manage-users");  // Admin-only, controlled by enable/disable
+    user_section->append("_Logout", "win.logout");
+    m_primary_menu->append_section(user_section);
 
     // Help section
     auto help_section = Gio::Menu::create();
@@ -528,6 +557,85 @@ void MainWindow::on_new_vault() {
                     int rs_redundancy = settings->get_int("rs-redundancy-percent");
                     m_vault_manager->apply_default_fec_preferences(use_rs, rs_redundancy);
 
+                    // Show username dialog for admin account
+                    auto username_dialog = Gtk::make_managed<Gtk::Dialog>("Choose Administrator Username", *this, true);
+                    username_dialog->set_default_size(450, 250);
+                    auto* cancel_btn = username_dialog->add_button("_Cancel", Gtk::ResponseType::CANCEL);
+                    auto* create_btn = username_dialog->add_button("_Create Vault", Gtk::ResponseType::OK);
+                    create_btn->add_css_class("suggested-action");
+                    create_btn->set_sensitive(false);  // Initially disabled
+
+                    auto* content_box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 12);
+                    content_box->set_margin(24);
+
+                    auto* label = Gtk::make_managed<Gtk::Label>("Choose a username for the vault administrator:");
+                    label->set_wrap(true);
+                    label->set_xalign(0.0);
+                    content_box->append(*label);
+
+                    auto* username_entry = Gtk::make_managed<Gtk::Entry>();
+                    username_entry->set_placeholder_text("e.g., john, alice, myusername");
+                    username_entry->set_max_length(256);
+                    username_entry->set_activates_default(true);
+                    content_box->append(*username_entry);
+
+                    auto* hint_label = Gtk::make_managed<Gtk::Label>();
+                    hint_label->set_markup("<small>Note: Reserved names like 'admin', 'root', 'administrator' are not allowed.</small>");
+                    hint_label->add_css_class("dim-label");
+                    hint_label->set_wrap(true);
+                    hint_label->set_xalign(0.0);
+                    content_box->append(*hint_label);
+
+                    auto* error_label = Gtk::make_managed<Gtk::Label>();
+                    error_label->add_css_class("error");
+                    error_label->set_wrap(true);
+                    error_label->set_xalign(0.0);
+                    error_label->hide();
+                    content_box->append(*error_label);
+
+                    username_dialog->get_content_area()->append(*content_box);
+
+                    // Validate username on change
+                    username_entry->signal_changed().connect([username_entry, create_btn, error_label]() {
+                        Glib::ustring username = username_entry->get_text();
+                        bool valid = true;
+
+                        if (username.empty()) {
+                            valid = false;
+                            error_label->hide();
+                        } else {
+                            // Check reserved names (case-insensitive)
+                            std::string username_lower = username.lowercase();
+                            static const std::set<std::string> reserved_names = {
+                                "admin", "administrator", "root", "system",
+                                "guest", "user", "default", "superuser", "sudo"
+                            };
+                            if (reserved_names.count(username_lower) > 0) {
+                                valid = false;
+                                error_label->set_text("This username is reserved. Please choose a different name.");
+                                error_label->show();
+                            } else {
+                                error_label->hide();
+                            }
+                        }
+
+                        create_btn->set_sensitive(valid);
+                    });
+
+                    username_dialog->signal_response().connect([this, username_dialog, username_entry, password, require_yubikey, vault_path, pwd_dialog](int username_response) {
+                        if (username_response != Gtk::ResponseType::OK) {
+                            username_dialog->hide();
+                            return;
+                        }
+
+                        Glib::ustring admin_username = username_entry->get_text();
+                        username_dialog->hide();
+
+                        KeepTower::VaultSecurityPolicy policy;
+                        policy.min_password_length = 8;  // NIST minimum
+                        policy.pbkdf2_iterations = 100000;  // Default iterations
+                        policy.require_yubikey = require_yubikey;
+
 #ifdef HAVE_YUBIKEY_SUPPORT
                     // Show touch prompt if YubiKey is required
                     YubiKeyPromptDialog* touch_dialog = nullptr;
@@ -546,44 +654,74 @@ void MainWindow::on_new_vault() {
                     }
 #endif
 
-                    // Create encrypted vault file with password (and optionally YubiKey)
-                    auto result = m_vault_manager->create_vault(safe_ustring_to_string(vault_path, "vault_path"), password, require_yubikey);
+                        // Create V2 vault with admin account
+                        auto result = m_vault_manager->create_vault_v2(
+                            safe_ustring_to_string(vault_path, "vault_path"),
+                            admin_username,
+                            password,
+                            policy
+                        );
 
 #ifdef HAVE_YUBIKEY_SUPPORT
-                    if (touch_dialog) {
-                        touch_dialog->hide();
-                    }
+                        if (touch_dialog) {
+                            touch_dialog->hide();
+                        }
 #endif
-                    if (result) {
-                        m_current_vault_path = vault_path;
-                        m_vault_open = true;
-                        m_is_locked = false;
-                        m_save_button.set_sensitive(true);
-                        m_close_button.set_sensitive(true);
-                        m_add_account_button.set_sensitive(true);
-                        m_search_entry.set_sensitive(true);
+                        if (result) {
+                            m_current_vault_path = vault_path;
+                            m_vault_open = true;
+                            m_is_locked = false;
+                            m_save_button.set_sensitive(true);
+                            m_close_button.set_sensitive(true);
+                            m_add_account_button.set_sensitive(true);
+                            m_search_entry.set_sensitive(true);
 
-                        update_account_list();
-                        update_tag_filter_dropdown();
-                        clear_account_details();
+                            update_account_list();
+                            update_tag_filter_dropdown();
+                            clear_account_details();
 
-                        // Initialize undo/redo state
-                        update_undo_redo_sensitivity(false, false);
+                            // Initialize undo/redo state
+                            update_undo_redo_sensitivity(false, false);
 
-                        // Initialize undo/redo state
-                        update_undo_redo_sensitivity(false, false);
+                            // Update menu for V2 vault (enable user management, etc.)
+                            update_menu_for_role();
+                            update_session_display();
 
-                        // Start activity monitoring for auto-lock
-                        on_user_activity();
-                    } else {
-                        constexpr std::string_view error_msg{"Failed to create vault"};
-                        auto error_dialog = Gtk::make_managed<Gtk::MessageDialog>(*this, std::string{error_msg},
-                            false, Gtk::MessageType::ERROR, Gtk::ButtonsType::OK, true);
-                        error_dialog->signal_response().connect([=](int) {
-                            error_dialog->hide();
-                        });
-                        error_dialog->show();
-                    }
+                            // Start activity monitoring for auto-lock
+                            on_user_activity();
+
+                            // Show success dialog with username reminder
+                            auto info_dialog = Gtk::make_managed<Gtk::MessageDialog>(
+                                *this,
+                                "Vault Created Successfully",
+                                false,
+                                Gtk::MessageType::INFO,
+                                Gtk::ButtonsType::OK,
+                                true
+                            );
+                            info_dialog->set_secondary_text(
+                                "Your vault has been created successfully.\n\n"
+                                "Username: " + admin_username + "\n\n"
+                                "Remember this username - you will need it to reopen the vault. "
+                                "You can add additional users through the User Management dialog (Tools → Manage Users)."
+                            );
+                            info_dialog->signal_response().connect([info_dialog](int) {
+                                info_dialog->hide();
+                            });
+                            info_dialog->show();
+                        } else {
+                            constexpr std::string_view error_msg{"Failed to create vault"};
+                            auto error_dialog = Gtk::make_managed<Gtk::MessageDialog>(*this, std::string{error_msg},
+                                false, Gtk::MessageType::ERROR, Gtk::ButtonsType::OK, true);
+                            error_dialog->signal_response().connect([=](int) {
+                                error_dialog->hide();
+                            });
+                            error_dialog->show();
+                        }
+                    });
+
+                    username_entry->grab_focus();
+                    username_dialog->show();
                 }
                 pwd_dialog->hide();
             });
@@ -619,6 +757,28 @@ void MainWindow::on_open_vault() {
     dialog->signal_response().connect([this, dialog](int response) {
         if (response == Gtk::ResponseType::OK) {
             Glib::ustring vault_path = dialog->get_file()->get_path();
+            std::string vault_path_str = safe_ustring_to_string(vault_path, "vault_path");
+
+            // STEP 1: Detect vault version
+            auto version_opt = detect_vault_version(vault_path_str);
+            if (!version_opt) {
+                show_error_dialog("Unable to read vault file or invalid format");
+                dialog->hide();
+                return;
+            }
+
+            uint32_t version = *version_opt;
+
+            // STEP 2: Route to appropriate authentication method
+            if (version == 2) {
+                // V2 multi-user vault - use new authentication flow
+                dialog->hide();
+                handle_v2_vault_open(vault_path_str);
+                return;
+            }
+
+            // STEP 3: V1 vault - use legacy password dialog authentication
+            // (Original code path below)
 
 #ifdef HAVE_YUBIKEY_SUPPORT
             // Check if vault requires YubiKey
@@ -710,6 +870,10 @@ void MainWindow::on_open_vault() {
 
                         // Initialize undo/redo state
                         update_undo_redo_sensitivity(false, false);
+
+                        // Update menu for V2 vault if applicable
+                        update_menu_for_role();
+                        update_session_display();
 
                         // Start activity monitoring for auto-lock
                         on_user_activity();
@@ -803,12 +967,124 @@ void MainWindow::on_close_vault() {
     m_add_account_button.set_sensitive(false);
     m_search_entry.set_sensitive(false);
     m_search_entry.set_text("");
+
+    // Phase 4: Reset V2 UI elements
+    m_session_label.set_visible(false);
+    update_menu_for_role();  // Disable V2-specific menu items
+
     // Clear widget-based UI
     if (m_account_tree_widget) {
         m_account_tree_widget->set_data({}, {});
     }
     clear_account_details();
     m_status_label.set_text("No vault open");
+}
+
+void MainWindow::on_migrate_v1_to_v2() {
+    // Validation: Must have V1 vault open
+    if (!m_vault_open) {
+        show_error_dialog("No vault is currently open.\nPlease open a vault first.");
+        return;
+    }
+
+    // Check if already V2 (V2 vaults have multi-user support)
+    // V1 vaults don't have the is_v2_vault flag set
+    // We can detect this by checking if we have any V2-specific features
+    auto session = m_vault_manager->get_current_user_session();
+    if (session.has_value()) {
+        show_error_dialog("This vault is already in V2 multi-user format.\nNo migration needed.");
+        return;
+    }
+
+    // Show migration dialog
+    auto* migration_dialog = Gtk::make_managed<VaultMigrationDialog>(*this, m_current_vault_path.raw());
+
+    migration_dialog->signal_response().connect([this, migration_dialog](int response) {
+        if (response == Gtk::ResponseType::OK) {
+            // Get migration parameters
+            auto admin_username = migration_dialog->get_admin_username();
+            auto admin_password = migration_dialog->get_admin_password();
+            auto min_length = migration_dialog->get_min_password_length();
+            auto iterations = migration_dialog->get_pbkdf2_iterations();
+
+            // Create security policy
+            KeepTower::VaultSecurityPolicy policy;
+            policy.min_password_length = min_length;
+            policy.pbkdf2_iterations = iterations;
+            policy.require_yubikey = false;
+
+            // Perform migration
+            auto result = m_vault_manager->convert_v1_to_v2(admin_username, admin_password, policy);
+
+            if (result) {
+                // Success - update UI to V2 mode
+                update_session_display();
+
+                // Show success dialog
+                auto* success_dialog = Gtk::make_managed<Gtk::MessageDialog>(
+                    *this,
+                    "Migration Successful",
+                    false,
+                    Gtk::MessageType::INFO,
+                    Gtk::ButtonsType::OK,
+                    true
+                );
+                success_dialog->set_secondary_text(
+                    "Your vault has been successfully upgraded to V2 multi-user format.\n\n"
+                    "• Administrator account: " + admin_username.raw() + "\n"
+                    "• Backup created: " + m_current_vault_path.raw() + ".v1.backup\n"
+                    "• You can now add additional users via Tools → Manage Users"
+                );
+                success_dialog->set_modal(true);
+                success_dialog->set_hide_on_close(true);
+
+                success_dialog->signal_response().connect([success_dialog](int) {
+                    success_dialog->hide();
+                });
+
+                success_dialog->show();
+
+                // Enable V2-only features
+                if (m_manage_users_action) {
+                    m_manage_users_action->set_enabled(true);
+                }
+
+            } else {
+                // Migration failed - show error
+                std::string error_message = "Failed to migrate vault to V2 format.\n\n";
+
+                switch (result.error()) {
+                    case KeepTower::VaultError::VaultNotOpen:
+                        error_message += "Vault is not open.";
+                        break;
+                    case KeepTower::VaultError::InvalidUsername:
+                        error_message += "Invalid username format.";
+                        break;
+                    case KeepTower::VaultError::InvalidPassword:
+                        error_message += "Invalid password format.";
+                        break;
+                    case KeepTower::VaultError::WeakPassword:
+                        error_message += "Password does not meet minimum length requirement.";
+                        break;
+                    case KeepTower::VaultError::FileWriteError:
+                        error_message += "Failed to create backup file.";
+                        break;
+                    case KeepTower::VaultError::CryptoError:
+                        error_message += "Cryptographic operation failed.";
+                        break;
+                    default:
+                        error_message += "Unknown error occurred.";
+                        break;
+                }
+
+                show_error_dialog(error_message);
+            }
+        }
+
+        migration_dialog->hide();
+    });
+
+    migration_dialog->show();
 }
 
 void MainWindow::on_add_account() {
@@ -983,13 +1259,23 @@ void MainWindow::update_account_list() {
         return;
     }
 
-    auto accounts = m_vault_manager->get_all_accounts();
+    auto all_accounts = m_vault_manager->get_all_accounts();
     auto groups = m_vault_manager->get_all_groups();
 
-    m_account_tree_widget->set_data(groups, accounts);
+    // Filter accounts based on user permissions (V2 multi-user vaults)
+    std::vector<keeptower::AccountRecord> viewable_accounts;
+    viewable_accounts.reserve(all_accounts.size());
+
+    for (size_t i = 0; i < all_accounts.size(); ++i) {
+        if (m_vault_manager->can_view_account(i)) {
+            viewable_accounts.push_back(all_accounts[i]);
+        }
+    }
+
+    m_account_tree_widget->set_data(groups, viewable_accounts);
 
     m_status_label.set_text("Vault opened: " + m_current_vault_path +
-                           " (" + std::to_string(accounts.size()) + " accounts)");
+                           " (" + std::to_string(viewable_accounts.size()) + " accounts)");
     return;
 
     // [LEGACY TreeView code below - kept for reference, no longer executed]
@@ -1283,6 +1569,10 @@ bool MainWindow::save_current_account() {
         account->add_tags(tag);
     }
 
+    // Update privacy controls (V2 multi-user vaults)
+    account->set_is_admin_only_viewable(m_account_detail_widget->get_admin_only_viewable());
+    account->set_is_admin_only_deletable(m_account_detail_widget->get_admin_only_deletable());
+
     // Update modification timestamp
     account->set_modified_at(std::time(nullptr));
 
@@ -1563,6 +1853,16 @@ void MainWindow::on_delete_account() {
     }
 
     if (account_index < 0 || !m_vault_open) {
+        return;
+    }
+
+    // Check delete permissions (V2 multi-user vaults)
+    if (!m_vault_manager->can_delete_account(account_index)) {
+        show_error_dialog(
+            "You do not have permission to delete this account.\n\n"
+            "Only administrators can delete admin-protected accounts."
+        );
+        m_context_menu_account_id.clear();
         return;
     }
 
@@ -1862,7 +2162,7 @@ void MainWindow::show_export_password_dialog() {
             }
 
             try {
-                std::string password = password_dialog->get_password();
+                Glib::ustring password = password_dialog->get_password();
 
 #ifdef HAVE_YUBIKEY_SUPPORT
                 // If vault requires YubiKey, show touch prompt and do authentication synchronously
@@ -1911,12 +2211,10 @@ void MainWindow::show_export_password_dialog() {
                     }
 
                     if (!auth_success) {
-                        // Securely clear password before returning
+                        // Securely clear password before returning (Glib::ustring)
                         if (!password.empty()) {
                             volatile char* p = const_cast<char*>(password.data());
-                            for (size_t i = 0; i < password.size(); i++) {
-                                p[i] = '\0';
-                            }
+                            std::memset(const_cast<char*>(p), 0, password.bytes());
                             password.clear();
                         }
                         show_error_dialog("YubiKey authentication failed. Export cancelled.");
@@ -1931,12 +2229,10 @@ void MainWindow::show_export_password_dialog() {
                     bool auth_success = m_vault_manager->verify_credentials(password);
 
                     if (!auth_success) {
-                        // Securely clear password before returning
+                        // Securely clear password before returning (Glib::ustring)
                         if (!password.empty()) {
                             volatile char* p = const_cast<char*>(password.data());
-                            for (size_t i = 0; i < password.size(); i++) {
-                                p[i] = '\0';
-                            }
+                            std::memset(const_cast<char*>(p), 0, password.bytes());
                             password.clear();
                         }
                         show_error_dialog("Authentication failed. Export cancelled.");
@@ -1944,12 +2240,10 @@ void MainWindow::show_export_password_dialog() {
                     }
                 }
 
-                // Securely clear password after successful authentication
+                // Securely clear password after successful authentication (Glib::ustring)
                 if (!password.empty()) {
                     volatile char* p = const_cast<char*>(password.data());
-                    for (size_t i = 0; i < password.size(); i++) {
-                        p[i] = '\0';
-                    }
+                    std::memset(const_cast<char*>(p), 0, password.bytes());
                     password.clear();
                 }
 
@@ -3070,4 +3364,433 @@ void MainWindow::show_group_context_menu(const std::string& group_id, Gtk::Widge
     popover->set_pointing_to(rect);
 
     popover->popup();
+}
+
+// ============================================================================
+// V2 Multi-User Vault Support
+// ============================================================================
+
+std::optional<uint32_t> MainWindow::detect_vault_version(const std::string& vault_path) {
+    // Read vault file header to detect version
+    std::ifstream file(vault_path, std::ios::binary);
+    if (!file) {
+        return std::nullopt;
+    }
+
+    // Read enough data for header detection (magic + version)
+    std::vector<uint8_t> header_data(1024);  // Plenty for header
+    file.read(reinterpret_cast<char*>(header_data.data()), header_data.size());
+    if (!file) {
+        // File too small or error
+        size_t bytes_read = file.gcount();
+        header_data.resize(bytes_read);
+    }
+
+    // Use VaultFormatV2::detect_version to determine format
+    auto version_result = KeepTower::VaultFormatV2::detect_version(header_data);
+    if (!version_result) {
+        return std::nullopt;  // Invalid vault or error
+    }
+
+    return *version_result;
+}
+
+void MainWindow::handle_v2_vault_open(const std::string& vault_path) {
+    // Check if YubiKey is required for this vault
+    std::string yubikey_serial;
+    bool yubikey_required = m_vault_manager->check_vault_requires_yubikey(vault_path, yubikey_serial);
+
+#ifdef HAVE_YUBIKEY_SUPPORT
+    if (yubikey_required) {
+        // Check if YubiKey is present
+        YubiKeyManager yk_manager;
+        [[maybe_unused]] bool yk_init = yk_manager.initialize();
+
+        if (!yk_manager.is_yubikey_present()) {
+            // Show "Insert YubiKey" dialog
+            auto yk_dialog = Gtk::make_managed<YubiKeyPromptDialog>(*this,
+                YubiKeyPromptDialog::PromptType::INSERT, yubikey_serial);
+
+            yk_dialog->signal_response().connect([this, yk_dialog, vault_path](int yk_response) {
+                if (yk_response == Gtk::ResponseType::OK) {
+                    // User clicked Retry
+                    yk_dialog->hide();
+                    handle_v2_vault_open(vault_path);  // Retry
+                    return;
+                }
+                yk_dialog->hide();
+            });
+
+            yk_dialog->show();
+            return;
+        }
+    }
+#endif
+
+    // Show V2 user login dialog (username + password)
+    auto login_dialog = Gtk::make_managed<V2UserLoginDialog>(*this, yubikey_required);
+
+    login_dialog->signal_response().connect([this, login_dialog, vault_path, yubikey_required](int response) {
+        if (response != Gtk::ResponseType::OK) {
+            login_dialog->hide();
+            return;
+        }
+
+        // Get credentials from dialog
+        auto creds = login_dialog->get_credentials();
+        login_dialog->hide();
+
+#ifdef HAVE_YUBIKEY_SUPPORT
+        // Show YubiKey touch prompt if required
+        YubiKeyPromptDialog* touch_dialog = nullptr;
+        if (yubikey_required) {
+            touch_dialog = Gtk::make_managed<YubiKeyPromptDialog>(*this,
+                YubiKeyPromptDialog::PromptType::TOUCH);
+            touch_dialog->present();
+
+            // Force GTK to process events and render the dialog
+            auto context = Glib::MainContext::get_default();
+            while (context->pending()) {
+                context->iteration(false);
+            }
+            g_usleep(150000);  // 150ms delay for dialog rendering
+        }
+#endif
+
+        // Attempt V2 vault authentication
+        auto result = m_vault_manager->open_vault_v2(vault_path, creds.username, creds.password);
+
+        // Clear credentials immediately after use
+        creds.clear();
+
+#ifdef HAVE_YUBIKEY_SUPPORT
+        // Hide touch prompt if shown
+        if (touch_dialog) {
+            touch_dialog->hide();
+        }
+#endif
+
+        if (!result) {
+            // Authentication failed - show error
+            std::string error_message = "Authentication failed";
+            if (result.error() == KeepTower::VaultError::AuthenticationFailed) {
+                error_message = "Invalid username or password";
+            } else if (result.error() == KeepTower::VaultError::UserNotFound) {
+                error_message = "User not found";
+            }
+
+            show_error_dialog(error_message);
+            return;
+        }
+
+        // Successfully authenticated - check for password change requirement
+        auto session_opt = m_vault_manager->get_current_user_session();
+        if (!session_opt) {
+            show_error_dialog("Internal error: No session after successful authentication");
+            return;
+        }
+
+        const auto& session = *session_opt;
+
+        // Check if password change is required (first login with temporary password)
+        if (session.password_change_required) {
+            handle_password_change_required(session.username);
+            return;  // Stop here - vault setup will complete after password change
+        }
+
+        // Complete vault opening
+        complete_vault_opening(vault_path, session.username);
+    });
+
+    login_dialog->show();
+}
+
+void MainWindow::handle_password_change_required(const std::string& username) {
+    // Get vault security policy for min password length
+    auto policy_opt = m_vault_manager->get_vault_security_policy();
+    const uint32_t min_length = policy_opt ? policy_opt->min_password_length : 12;
+
+    // Show password change dialog in forced mode
+    auto change_dialog = Gtk::make_managed<ChangePasswordDialog>(*this, min_length, true);
+
+    change_dialog->signal_response().connect([this, change_dialog, username, min_length](int response) {
+        if (response != Gtk::ResponseType::OK) {
+            // User cancelled - close vault (cannot use without changing password)
+            change_dialog->hide();
+            on_close_vault();
+            show_error_dialog("Password change is required to access this vault.\nVault has been closed.");
+            return;
+        }
+
+        // Get new password
+        auto req = change_dialog->get_request();
+        change_dialog->hide();
+
+        // Attempt password change
+        auto result = m_vault_manager->change_user_password(username, req.current_password, req.new_password);
+
+        // Clear passwords immediately
+        req.clear();
+
+        if (!result) {
+            // Password change failed
+            std::string error_msg = "Failed to change password";
+            if (result.error() == KeepTower::VaultError::WeakPassword) {
+                error_msg = "New password must be at least " + std::to_string(min_length) + " characters";
+            }
+
+            // Show error dialog, then retry after it's dismissed
+            auto error_dialog = Gtk::make_managed<Gtk::MessageDialog>(
+                *this, error_msg, false, Gtk::MessageType::ERROR, Gtk::ButtonsType::OK, true);
+            error_dialog->set_title("Password Change Failed");
+            error_dialog->signal_response().connect([this, error_dialog, username](int) {
+                error_dialog->hide();
+                // Retry password change after error dialog is dismissed
+                handle_password_change_required(username);
+            });
+            error_dialog->show();
+            return;
+        }
+
+        // Password changed successfully - save vault and complete opening
+        on_save_vault();
+        complete_vault_opening(m_current_vault_path, username);
+    });
+
+    change_dialog->show();
+}
+
+void MainWindow::complete_vault_opening(const std::string& vault_path, const std::string& username) {
+    // Vault opened successfully
+    m_current_vault_path = vault_path;
+    m_vault_open = true;
+    m_is_locked = false;
+    m_save_button.set_sensitive(true);
+    m_close_button.set_sensitive(true);
+    m_add_account_button.set_sensitive(true);
+    m_search_entry.set_sensitive(true);
+
+    // Update UI with session information
+    update_session_display();
+
+    // Load vault data
+    update_account_list();
+    update_tag_filter_dropdown();
+
+    // Initialize undo/redo state
+    update_undo_redo_sensitivity(false, false);
+
+    // Start activity monitoring for auto-lock
+    on_user_activity();
+
+    m_status_label.set_text("Vault opened: " + vault_path + " (User: " + username + ")");
+}
+
+void MainWindow::update_session_display() {
+    auto session_opt = m_vault_manager->get_current_user_session();
+    if (!session_opt) {
+        // No active session (V1 vault or not logged in)
+        m_session_label.set_visible(false);
+        return;
+    }
+
+    const auto& session = *session_opt;
+
+    // Format session info: "User: alice (Admin)"
+    std::string role_str = (session.role == KeepTower::UserRole::ADMINISTRATOR) ? "Admin" : "User";
+    std::string session_text = "User: " + session.username + " (" + role_str + ")";
+
+    if (session.password_change_required) {
+        session_text += " [Password change required]";
+    }
+
+    m_session_label.set_text(session_text);
+    m_session_label.set_visible(true);
+
+    // Phase 4: Update menu visibility based on role
+    update_menu_for_role();
+}
+
+// ============================================================================
+// Phase 4: Permissions & Role-Based UI
+// ============================================================================
+
+void MainWindow::on_change_my_password() {
+    if (!m_vault_manager || !is_v2_vault_open()) {
+        show_error_dialog("No V2 vault is open");
+        return;
+    }
+
+    auto session_opt = m_vault_manager->get_current_user_session();
+    if (!session_opt) {
+        show_error_dialog("No active user session");
+        return;
+    }
+
+    const auto& session = *session_opt;
+
+    // Get vault security policy for password requirements
+    auto policy_opt = m_vault_manager->get_vault_security_policy();
+    const uint32_t min_length = policy_opt ? policy_opt->min_password_length : 12;
+
+    // Show password change dialog (voluntary mode)
+    auto* change_dialog = new ChangePasswordDialog(*this, min_length, false);  // false = voluntary
+
+    change_dialog->signal_response().connect([this, change_dialog, username = session.username, min_length](int response) {
+        if (response != Gtk::ResponseType::OK) {
+            change_dialog->hide();
+            delete change_dialog;
+            return;
+        }
+
+        // Get new password
+        auto req = change_dialog->get_request();
+        change_dialog->hide();
+        delete change_dialog;
+
+        // Attempt password change
+        auto result = m_vault_manager->change_user_password(username, req.current_password, req.new_password);
+
+        // Clear passwords immediately
+        req.clear();
+
+        if (!result) {
+            // Password change failed
+            std::string error_msg = "Failed to change password";
+            if (result.error() == KeepTower::VaultError::AuthenticationFailed) {
+                error_msg = "Current password is incorrect";
+            } else if (result.error() == KeepTower::VaultError::WeakPassword) {
+                error_msg = "New password must be at least " + std::to_string(min_length) + " characters";
+            }
+
+            show_error_dialog(error_msg);
+            return;
+        }
+
+        // Password changed successfully
+        m_status_label.set_text("Password changed successfully");
+
+        auto* success_dlg = new Gtk::MessageDialog(
+            *this,
+            "Password changed successfully",
+            false,
+            Gtk::MessageType::INFO
+        );
+        success_dlg->set_modal(true);
+        success_dlg->signal_response().connect([success_dlg](int) {
+            success_dlg->hide();
+            delete success_dlg;
+        });
+        success_dlg->show();
+    });
+
+    change_dialog->show();
+}
+
+void MainWindow::on_logout() {
+    if (!m_vault_manager || !is_v2_vault_open()) {
+        return;
+    }
+
+    // Prompt to save if modified
+    if (!prompt_save_if_modified()) {
+        return;  // User cancelled
+    }
+
+    // Save vault before logout (prompt_save_if_modified already handles saving)
+
+    // Close vault (this logs out the user)
+    std::string vault_path = m_current_vault_path;  // Save path before close
+    on_close_vault();
+
+    // Reopen the same vault file (will show login dialog)
+    if (!vault_path.empty()) {
+        handle_v2_vault_open(vault_path);
+    }
+}
+
+void MainWindow::on_manage_users() {
+    if (!m_vault_manager || !is_v2_vault_open()) {
+        show_error_dialog("No V2 vault is open");
+        return;
+    }
+
+    // Check if current user is administrator
+    if (!is_current_user_admin()) {
+        show_error_dialog("Only administrators can manage users");
+        return;
+    }
+
+    auto session_opt = m_vault_manager->get_current_user_session();
+    if (!session_opt) {
+        show_error_dialog("No active user session");
+        return;
+    }
+
+    // Show user management dialog
+    auto* dialog = new UserManagementDialog(*this, *m_vault_manager, session_opt->username);
+
+    // Handle relogin request
+    dialog->m_signal_request_relogin.connect([this](const std::string& new_username) {
+        // Store vault path before closing
+        std::string vault_path = m_current_vault_path;
+
+        // Close current vault (logout)
+        on_close_vault();
+
+        // Reopen vault with login dialog (it will default to the last username)
+        handle_v2_vault_open(vault_path);
+    });
+
+    dialog->signal_response().connect([dialog](int) {
+        dialog->hide();
+        delete dialog;
+    });
+
+    dialog->show();
+}
+
+void MainWindow::update_menu_for_role() {
+    // Only update if V2 vault is open
+    if (!is_v2_vault_open()) {
+        // Disable all V2-specific actions for V1 vaults
+        m_change_password_action->set_enabled(false);
+        m_logout_action->set_enabled(false);
+        m_manage_users_action->set_enabled(false);
+        // For V1 vaults, export is allowed (single-user)
+        m_export_action->set_enabled(true);
+        return;
+    }
+
+    // Enable change password and logout for all V2 users
+    m_change_password_action->set_enabled(true);
+    m_logout_action->set_enabled(true);
+
+    // Enable user management and export only for administrators
+    bool is_admin = is_current_user_admin();
+    m_manage_users_action->set_enabled(is_admin);
+    m_export_action->set_enabled(is_admin);
+}
+
+bool MainWindow::is_v2_vault_open() const noexcept {
+    if (!m_vault_manager || !m_vault_open) {
+        return false;
+    }
+
+    // Check if we have an active user session (V2 only)
+    auto session_opt = m_vault_manager->get_current_user_session();
+    return session_opt.has_value();
+}
+
+bool MainWindow::is_current_user_admin() const noexcept {
+    if (!m_vault_manager) {
+        return false;
+    }
+
+    auto session_opt = m_vault_manager->get_current_user_session();
+    if (!session_opt) {
+        return false;
+    }
+
+    return session_opt->is_admin();
 }

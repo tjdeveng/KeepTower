@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: 2025 tjdeveng
 
 #include "PasswordDialog.h"
+#include <cstdio>  // For debug printf
 
 PasswordDialog::PasswordDialog(Gtk::Window& parent)
     : Gtk::Dialog("Enter Password", parent, true),
@@ -57,7 +58,11 @@ PasswordDialog::~PasswordDialog() {
 }
 
 Glib::ustring PasswordDialog::get_password() const {
-    return m_password_entry.get_text();
+    auto password = m_password_entry.get_text();
+    std::printf("[DEBUG] PasswordDialog::get_password() - length: %zu chars, %zu bytes\n",
+                password.length(), password.bytes());
+    std::fflush(stdout);
+    return password;
 }
 
 void PasswordDialog::on_show_password_toggled() {

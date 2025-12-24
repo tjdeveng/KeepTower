@@ -42,6 +42,10 @@ public:
     std::string get_tags() const;
     std::vector<std::string> get_all_tags() const;  // Get all tags as vector
 
+    // Privacy controls (V2 multi-user)
+    [[nodiscard]] bool get_admin_only_viewable() const;
+    [[nodiscard]] bool get_admin_only_deletable() const;
+
     // Setters for enabling/disabling editing
     void set_editable(bool editable);
     void set_password(const std::string& password);  // For password generation
@@ -89,6 +93,11 @@ private:
     Gtk::Entry m_tags_entry;
     Gtk::FlowBox m_tags_flowbox;
     Gtk::ScrolledWindow m_tags_scrolled;
+
+    // Privacy controls (V2 multi-user vaults)
+    Gtk::Label m_privacy_label;
+    Gtk::CheckButton m_admin_only_viewable_check;
+    Gtk::CheckButton m_admin_only_deletable_check;
 
     // Delete button
     Gtk::Button m_delete_account_button;

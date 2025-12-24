@@ -92,6 +92,7 @@ protected:
     void on_open_vault();     ///< Open existing vault
     void on_save_vault();     ///< Save current vault
     void on_close_vault();    ///< Close current vault
+    void on_migrate_v1_to_v2(); ///< Migrate V1 vault to V2 multi-user format (Phase 8)
     void on_add_account();    ///< Add new account
     void on_delete_account(); ///< Delete selected account
     void on_preferences();    ///< Show preferences dialog
@@ -150,6 +151,21 @@ protected:
     std::string get_master_password_for_lock();  ///< Get master password to re-open after lock
     void update_undo_redo_sensitivity(bool can_undo, bool can_redo);  ///< Update undo/redo menu item sensitivity
     // [REMOVED] Legacy drag-and-drop setup (handled by AccountTreeWidget)
+
+    // V2 multi-user vault helpers
+    std::optional<uint32_t> detect_vault_version(const std::string& vault_path);  ///< Detect if vault is V1 or V2
+    void handle_v2_vault_open(const std::string& vault_path);  ///< Handle V2 user authentication
+    void handle_password_change_required(const std::string& username);  ///< Force password change for first login
+    void complete_vault_opening(const std::string& vault_path, const std::string& username);  ///< Complete vault opening after authentication
+    void update_session_display();  ///< Update header bar with session info (username, role)
+
+    // Phase 4: Permissions & role-based UI
+    void on_change_my_password();  ///< Allow user to change their own password
+    void on_logout();  ///< Logout from V2 vault (return to login screen)
+    void on_manage_users();  ///< Admin: Show user management dialog
+    void update_menu_for_role();  ///< Update menu item visibility based on user role
+    [[nodiscard]] bool is_v2_vault_open() const noexcept;  ///< Check if V2 vault is currently open
+    [[nodiscard]] bool is_current_user_admin() const noexcept;  ///< Check if current user is administrator
 
     // Helper methods for widget-based UI
     int find_account_index_by_id(const std::string& account_id) const;
@@ -211,6 +227,15 @@ protected:
     // Context menu state
     std::string m_context_menu_account_id;  ///< Account ID for current context menu
     std::string m_context_menu_group_id;     ///< Group ID for current context menu
+
+    // V2 multi-user session state
+    Gtk::Label m_session_label;              ///< Display current user and role in header
+
+    // Phase 4: Role-based menu actions (for enabling/disabling)
+    Glib::RefPtr<Gio::SimpleAction> m_change_password_action;  ///< Change current user's password
+    Glib::RefPtr<Gio::SimpleAction> m_logout_action;           ///< Logout from V2 vault
+    Glib::RefPtr<Gio::SimpleAction> m_manage_users_action;     ///< Admin-only user management
+    Glib::RefPtr<Gio::SimpleAction> m_export_action;           ///< Admin-only export (V2 vaults)
 
     // Vault manager
     std::unique_ptr<VaultManager> m_vault_manager;  ///< Manages vault encryption/decryption

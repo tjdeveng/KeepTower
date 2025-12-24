@@ -7,7 +7,7 @@
     <!-- UI files will go here -->
     <!-- <file compressed="true">ui/main-window.ui</file> -->
 
-    <!-- CSS files will go here -->
-    <!-- <file>styles/main.css</file> -->
+    <!-- CSS files -->
+    <file>styles/message-colors.css</file>
   </gresource>
 </gresources>

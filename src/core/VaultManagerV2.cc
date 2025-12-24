@@ -1,0 +1,846 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2025 tjdeveng
+
+/**
+ * @file VaultManagerV2.cc
+ * @brief V2 multi-user vault authentication and management implementation
+ *
+ * Implements Phase 2 of multi-user architecture:
+ * - V2 vault creation with security policy
+ * - User authentication (username + password + optional YubiKey)
+ * - User management (add/remove/change password)
+ * - LUKS-style key slot operations
+ */
+
+#include "VaultManager.h"
+#include "KeyWrapping.h"
+#include "../utils/Log.h"
+#include "../utils/SecureMemory.h"
+#include <chrono>
+#include <filesystem>
+#include <sys/stat.h>  // for chmod
+
+// Using declarations for KeepTower types (VaultManager is global scope)
+using KeepTower::VaultError;
+using KeepTower::VaultHeaderV2;
+using KeepTower::KeySlot;
+using KeepTower::UserRole;
+using KeepTower::UserSession;
+using KeepTower::VaultSecurityPolicy;
+using KeepTower::VaultFormatV2;
+using KeepTower::KeyWrapping;
+namespace Log = KeepTower::Log;
+
+// ============================================================================
+// V2 Vault Creation
+// ============================================================================
+
+KeepTower::VaultResult<> VaultManager::create_vault_v2(
+    const std::string& path,
+    const Glib::ustring& admin_username,
+    const Glib::ustring& admin_password,
+    const KeepTower::VaultSecurityPolicy& policy) {
+
+    Log::info("VaultManager: Creating V2 vault at: {}", path);
+
+    // Close any open vault
+    if (m_vault_open) {
+        if (!close_vault()) {
+            Log::error("VaultManager: Failed to close existing vault");
+            return std::unexpected(VaultError::VaultAlreadyOpen);
+        }
+    }
+
+    // Validate inputs
+    if (admin_username.empty()) {
+        Log::error("VaultManager: Admin username cannot be empty");
+        return std::unexpected(VaultError::InvalidUsername);
+    }
+
+    if (admin_password.length() < policy.min_password_length) {
+        Log::error("VaultManager: Admin password too short (min: {} chars)",
+                   policy.min_password_length);
+        return std::unexpected(VaultError::WeakPassword);
+    }
+
+    // Generate Data Encryption Key (DEK) for vault
+    auto dek_result = KeyWrapping::generate_random_dek();
+    if (!dek_result) {
+        Log::error("VaultManager: Failed to generate DEK");
+        return std::unexpected(VaultError::CryptoError);
+    }
+    m_v2_dek = dek_result.value();
+
+    // Generate unique salt for admin user
+    auto salt_result = KeyWrapping::generate_random_salt();
+    if (!salt_result) {
+        Log::error("VaultManager: Failed to generate salt");
+        return std::unexpected(VaultError::CryptoError);
+    }
+
+    // Derive KEK from admin password
+    Log::info("VaultManager: Deriving KEK for admin user (password length: {} bytes, {} chars)",
+              admin_password.bytes(), admin_password.length());
+    auto kek_result = KeyWrapping::derive_kek_from_password(
+        admin_password,
+        salt_result.value(),
+        policy.pbkdf2_iterations);
+    if (!kek_result) {
+        Log::error("VaultManager: Failed to derive KEK from admin password");
+        return std::unexpected(VaultError::CryptoError);
+    }
+
+    // TODO: YubiKey integration if policy.require_yubikey
+
+    // Wrap DEK with admin's KEK
+    auto wrapped_result = KeyWrapping::wrap_key(kek_result.value(), m_v2_dek);
+    if (!wrapped_result) {
+        Log::error("VaultManager: Failed to wrap DEK with admin KEK");
+        return std::unexpected(VaultError::CryptoError);
+    }
+
+    // Create admin key slot
+    KeySlot admin_slot;
+    admin_slot.active = true;
+    admin_slot.username = admin_username.raw();
+    admin_slot.salt = salt_result.value();
+    admin_slot.wrapped_dek = wrapped_result.value().wrapped_key;
+    admin_slot.role = UserRole::ADMINISTRATOR;
+    admin_slot.must_change_password = false;  // Admin sets own password
+    admin_slot.password_changed_at = std::chrono::system_clock::now().time_since_epoch().count();
+    admin_slot.last_login_at = 0;
+
+    // Create vault header
+    VaultHeaderV2 header;
+    header.security_policy = policy;
+    header.key_slots.push_back(admin_slot);
+
+    // Create empty vault data
+    keeptower::VaultData vault_data;
+    // No accounts yet, just empty structure
+
+    // Serialize vault data
+    std::string serialized_data;
+    if (!vault_data.SerializeToString(&serialized_data)) {
+        Log::error("VaultManager: Failed to serialize vault data");
+        return std::unexpected(VaultError::SerializationFailed);
+    }
+
+    // Encrypt vault data with DEK
+    std::vector<uint8_t> plaintext(serialized_data.begin(), serialized_data.end());
+    std::vector<uint8_t> ciphertext;
+    std::vector<uint8_t> data_iv = generate_random_bytes(12);  // GCM uses 12-byte IV
+
+    if (!encrypt_data(plaintext, m_v2_dek, ciphertext, data_iv)) {
+        Log::error("VaultManager: Failed to encrypt vault data");
+        secure_clear(plaintext);
+        return std::unexpected(VaultError::CryptoError);
+    }
+    secure_clear(plaintext);
+
+    // Write V2 file format
+    VaultFormatV2::V2FileHeader file_header;
+    file_header.pbkdf2_iterations = policy.pbkdf2_iterations;
+    file_header.vault_header = header;
+    std::copy(data_iv.begin(), std::min(data_iv.begin() + 32, data_iv.end()), file_header.data_salt.begin());
+    std::copy(data_iv.begin(), std::min(data_iv.begin() + 12, data_iv.end()), file_header.data_iv.begin());
+
+    // Write header with FEC (use default user FEC preference, or 0% for new vault)
+    auto write_result = VaultFormatV2::write_header(file_header, 0);  // 0% = use 20% minimum
+    if (!write_result) {
+        Log::error("VaultManager: Failed to write V2 header");
+        return std::unexpected(write_result.error());
+    }
+
+    // Combine header + encrypted data
+    std::vector<uint8_t> file_data = write_result.value();
+    file_data.insert(file_data.end(), ciphertext.begin(), ciphertext.end());
+
+    // Write to file
+    if (!write_vault_file(path, file_data)) {
+        Log::error("VaultManager: Failed to write vault file");
+        return std::unexpected(VaultError::FileWriteError);
+    }
+
+    // Set secure file permissions (owner read/write only)
+#ifdef __linux__
+    chmod(path.c_str(), 0600);
+#endif
+
+    // Initialize vault state
+    m_vault_open = true;
+    m_is_v2_vault = true;
+    m_current_vault_path = path;
+    m_v2_header = header;
+    m_current_session = UserSession{
+        .username = admin_username.raw(),
+        .role = UserRole::ADMINISTRATOR,
+        .password_change_required = false
+    };
+    m_modified = false;
+
+    Log::info("VaultManager: V2 vault created successfully with admin user: {}",
+              admin_username.raw());
+    return {};
+}
+
+// ============================================================================
+// V2 Vault Authentication
+// ============================================================================
+
+KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
+    const std::string& path,
+    const Glib::ustring& username,
+    const Glib::ustring& password,
+    const std::string& yubikey_serial) {
+
+    Log::info("VaultManager: Opening V2 vault: {}", path);
+
+    // Close any open vault
+    if (m_vault_open) {
+        if (!close_vault()) {
+            Log::error("VaultManager: Failed to close existing vault");
+            return std::unexpected(VaultError::VaultAlreadyOpen);
+        }
+    }
+
+    // Read vault file
+    std::vector<uint8_t> file_data;
+    if (!read_vault_file(path, file_data)) {
+        Log::error("VaultManager: Failed to read vault file");
+        return std::unexpected(VaultError::FileReadError);
+    }
+
+    // Detect format version
+    auto version_result = VaultFormatV2::detect_version(file_data);
+    if (!version_result) {
+        Log::error("VaultManager: Failed to detect vault version");
+        return std::unexpected(version_result.error());
+    }
+
+    if (version_result.value() != 2) {
+        Log::error("VaultManager: Not a V2 vault (version: {})", version_result.value());
+        return std::unexpected(VaultError::UnsupportedVersion);
+    }
+
+    // Read V2 header with FEC recovery
+    auto header_result = VaultFormatV2::read_header(file_data);
+    if (!header_result) {
+        Log::error("VaultManager: Failed to read V2 header");
+        return std::unexpected(header_result.error());
+    }
+
+    auto [file_header, data_offset] = header_result.value();
+
+    // Find key slot for username
+    KeySlot* user_slot = nullptr;
+    for (auto& slot : file_header.vault_header.key_slots) {
+        if (slot.active && slot.username == username.raw()) {
+            user_slot = &slot;
+            break;
+        }
+    }
+
+    if (!user_slot) {
+        Log::error("VaultManager: No active key slot found for user: {}", username.raw());
+        return std::unexpected(VaultError::AuthenticationFailed);
+    }
+
+    // Derive KEK from password
+    Log::info("VaultManager: Deriving KEK for user: {} (password length: {} bytes, {} chars)",
+              username.raw(), password.bytes(), password.length());
+    auto kek_result = KeyWrapping::derive_kek_from_password(
+        password,
+        user_slot->salt,
+        file_header.pbkdf2_iterations);
+    if (!kek_result) {
+        Log::error("VaultManager: Failed to derive KEK");
+        return std::unexpected(VaultError::CryptoError);
+    }
+
+    // TODO: YubiKey integration if required
+    // auto kek_with_yk = KeyWrapping::combine_with_yubikey(kek, yubikey_response);
+
+    // Unwrap DEK (this verifies password correctness)
+    Log::info("VaultManager: Attempting to unwrap DEK");
+    auto unwrap_result = KeyWrapping::unwrap_key(
+        kek_result.value(),
+        user_slot->wrapped_dek);
+    if (!unwrap_result) {
+        Log::error("VaultManager: Failed to unwrap DEK - password mismatch or corrupted key");
+        return std::unexpected(VaultError::AuthenticationFailed);
+    }
+
+    m_v2_dek = unwrap_result.value().dek;
+
+    // Extract encrypted data (after header)
+    if (data_offset >= file_data.size()) {
+        Log::error("VaultManager: Invalid data offset: {}", data_offset);
+        return std::unexpected(VaultError::CorruptedFile);
+    }
+
+    std::vector<uint8_t> ciphertext(
+        file_data.begin() + data_offset,
+        file_data.end());
+
+    // Decrypt vault data
+    std::vector<uint8_t> plaintext;
+    std::span<const uint8_t> iv_span(file_header.data_iv);
+    if (!decrypt_data(ciphertext, m_v2_dek, iv_span, plaintext)) {
+        Log::error("VaultManager: Failed to decrypt vault data");
+        return std::unexpected(VaultError::DecryptionFailed);
+    }
+
+    // Parse protobuf
+    keeptower::VaultData vault_data;
+    if (!vault_data.ParseFromArray(plaintext.data(), plaintext.size())) {
+        Log::error("VaultManager: Failed to parse vault data");
+        secure_clear(plaintext);
+        return std::unexpected(VaultError::CorruptedFile);
+    }
+    secure_clear(plaintext);
+
+    // Update last login timestamp
+    user_slot->last_login_at = std::chrono::system_clock::now().time_since_epoch().count();
+
+    // Initialize vault state
+    m_vault_open = true;
+    m_is_v2_vault = true;
+    m_current_vault_path = path;
+    m_v2_header = file_header.vault_header;
+    m_vault_data = vault_data;
+    m_modified = true;  // Mark modified to save updated last_login_at
+
+    // Create session
+    UserSession session{
+        .username = username.raw(),
+        .role = user_slot->role,
+        .password_change_required = user_slot->must_change_password
+    };
+    m_current_session = session;
+
+    Log::info("VaultManager: User authenticated successfully: {}", username.raw());
+    return session;
+}
+
+// ============================================================================
+// User Management
+// ============================================================================
+
+KeepTower::VaultResult<> VaultManager::add_user(
+    const Glib::ustring& username,
+    const Glib::ustring& temporary_password,
+    KeepTower::UserRole role,
+    bool must_change_password) {
+
+    Log::info("VaultManager: Adding user: {}", username.raw());
+
+    // Validate vault state
+    if (!m_vault_open || !m_is_v2_vault) {
+        Log::error("VaultManager: No V2 vault open");
+        return std::unexpected(VaultError::VaultNotOpen);
+    }
+
+    // Check current user permissions
+    if (!m_current_session || m_current_session->role != UserRole::ADMINISTRATOR) {
+        Log::error("VaultManager: Only administrators can add users");
+        return std::unexpected(VaultError::PermissionDenied);
+    }
+
+    // Validate username
+    if (username.empty()) {
+        Log::error("VaultManager: Username cannot be empty");
+        return std::unexpected(VaultError::InvalidUsername);
+    }
+
+    // Check for duplicate username
+    for (const auto& slot : m_v2_header->key_slots) {
+        if (slot.active && slot.username == username.raw()) {
+            Log::error("VaultManager: Username already exists: {}", username.raw());
+            return std::unexpected(VaultError::UserAlreadyExists);
+        }
+    }
+
+    // Validate password meets policy
+    if (temporary_password.length() < m_v2_header->security_policy.min_password_length) {
+        Log::error("VaultManager: Password too short (min: {} chars)",
+                   m_v2_header->security_policy.min_password_length);
+        return std::unexpected(VaultError::WeakPassword);
+    }
+
+    // Find empty slot or add new one
+    size_t slot_index = m_v2_header->key_slots.size();
+    for (size_t i = 0; i < m_v2_header->key_slots.size(); ++i) {
+        if (!m_v2_header->key_slots[i].active) {
+            slot_index = i;
+            break;
+        }
+    }
+
+    if (slot_index >= VaultHeaderV2::MAX_KEY_SLOTS) {
+        Log::error("VaultManager: No available key slots (max: 32)");
+        return std::unexpected(VaultError::MaxUsersReached);
+    }
+
+    // Generate unique salt for new user
+    auto salt_result = KeyWrapping::generate_random_salt();
+    if (!salt_result) {
+        Log::error("VaultManager: Failed to generate salt");
+        return std::unexpected(VaultError::CryptoError);
+    }
+
+    // Derive KEK from temporary password
+    auto kek_result = KeyWrapping::derive_kek_from_password(
+        temporary_password,
+        salt_result.value(),
+        m_v2_header->security_policy.pbkdf2_iterations);
+    if (!kek_result) {
+        Log::error("VaultManager: Failed to derive KEK");
+        return std::unexpected(VaultError::CryptoError);
+    }
+
+    // Wrap vault DEK with new user's KEK
+    auto wrapped_result = KeyWrapping::wrap_key(kek_result.value(), m_v2_dek);
+    if (!wrapped_result) {
+        Log::error("VaultManager: Failed to wrap DEK");
+        return std::unexpected(VaultError::CryptoError);
+    }
+
+    // Create new key slot
+    KeySlot new_slot;
+    new_slot.active = true;
+    new_slot.username = username.raw();
+    new_slot.salt = salt_result.value();
+    new_slot.wrapped_dek = wrapped_result.value().wrapped_key;
+    new_slot.role = role;
+    new_slot.must_change_password = must_change_password;
+    new_slot.password_changed_at = 0;  // Not yet changed
+    new_slot.last_login_at = 0;
+
+    // Add to header
+    if (slot_index < m_v2_header->key_slots.size()) {
+        m_v2_header->key_slots[slot_index] = new_slot;
+    } else {
+        m_v2_header->key_slots.push_back(new_slot);
+    }
+    m_modified = true;
+
+    Log::info("VaultManager: User added successfully: {} (role: {}, slot: {})",
+              username.raw(),
+              role == UserRole::ADMINISTRATOR ? "admin" : "standard",
+              slot_index);
+    return {};
+}
+
+KeepTower::VaultResult<> VaultManager::remove_user(const Glib::ustring& username) {
+    Log::info("VaultManager: Removing user: {}", username.raw());
+
+    // Validate vault state
+    if (!m_vault_open || !m_is_v2_vault) {
+        Log::error("VaultManager: No V2 vault open");
+        return std::unexpected(VaultError::VaultNotOpen);
+    }
+
+    // Check current user permissions
+    if (!m_current_session || m_current_session->role != UserRole::ADMINISTRATOR) {
+        Log::error("VaultManager: Only administrators can remove users");
+        return std::unexpected(VaultError::PermissionDenied);
+    }
+
+    // Prevent self-removal
+    if (username.raw() == m_current_session->username) {
+        Log::error("VaultManager: Cannot remove yourself");
+        return std::unexpected(VaultError::SelfRemovalNotAllowed);
+    }
+
+    // Find user slot
+    KeySlot* user_slot = nullptr;
+    for (auto& slot : m_v2_header->key_slots) {
+        if (slot.active && slot.username == username.raw()) {
+            user_slot = &slot;
+            break;
+        }
+    }
+
+    if (!user_slot) {
+        Log::error("VaultManager: User not found: {}", username.raw());
+        return std::unexpected(VaultError::UserNotFound);
+    }
+
+    // Check if removing last administrator
+    if (user_slot->role == UserRole::ADMINISTRATOR) {
+        int admin_count = 0;
+        for (const auto& slot : m_v2_header->key_slots) {
+            if (slot.active && slot.role == UserRole::ADMINISTRATOR) {
+                admin_count++;
+            }
+        }
+        if (admin_count <= 1) {
+            Log::error("VaultManager: Cannot remove last administrator");
+            return std::unexpected(VaultError::LastAdministrator);
+        }
+    }
+
+    // Deactivate slot (don't delete, preserve structure)
+    user_slot->active = false;
+    m_modified = true;
+
+    Log::info("VaultManager: User removed successfully: {}", username.raw());
+    return {};
+}
+
+KeepTower::VaultResult<> VaultManager::change_user_password(
+    const Glib::ustring& username,
+    const Glib::ustring& old_password,
+    const Glib::ustring& new_password) {
+
+    Log::info("VaultManager: Changing password for user: {}", username.raw());
+
+    // Validate vault state
+    if (!m_vault_open || !m_is_v2_vault) {
+        Log::error("VaultManager: No V2 vault open");
+        return std::unexpected(VaultError::VaultNotOpen);
+    }
+
+    // Check permissions: user changing own password OR admin changing any
+    bool is_self = (m_current_session && m_current_session->username == username.raw());
+    bool is_admin = (m_current_session && m_current_session->role == UserRole::ADMINISTRATOR);
+    if (!is_self && !is_admin) {
+        Log::error("VaultManager: Permission denied for password change");
+        return std::unexpected(VaultError::PermissionDenied);
+    }
+
+    // Find user slot
+    KeySlot* user_slot = nullptr;
+    for (auto& slot : m_v2_header->key_slots) {
+        if (slot.active && slot.username == username.raw()) {
+            user_slot = &slot;
+            break;
+        }
+    }
+
+    if (!user_slot) {
+        Log::error("VaultManager: User not found: {}", username.raw());
+        return std::unexpected(VaultError::UserNotFound);
+    }
+
+    // Validate new password meets policy
+    Log::info("VaultManager: Password length check - length: {}, bytes: {}, required: {}",
+              new_password.length(), new_password.bytes(), m_v2_header->security_policy.min_password_length);
+    if (new_password.length() < m_v2_header->security_policy.min_password_length) {
+        Log::error("VaultManager: New password too short - actual: {} chars, min: {} chars",
+                   new_password.length(), m_v2_header->security_policy.min_password_length);
+        return std::unexpected(VaultError::WeakPassword);
+    }
+
+    // Verify old password by unwrapping DEK
+    auto old_kek_result = KeyWrapping::derive_kek_from_password(
+        old_password,
+        user_slot->salt,
+        m_v2_header->security_policy.pbkdf2_iterations);
+    if (!old_kek_result) {
+        Log::error("VaultManager: Failed to derive old KEK");
+        return std::unexpected(VaultError::CryptoError);
+    }
+
+    auto verify_unwrap = KeyWrapping::unwrap_key(
+        old_kek_result.value(),
+        user_slot->wrapped_dek);
+    if (!verify_unwrap) {
+        Log::error("VaultManager: Old password verification failed");
+        return std::unexpected(VaultError::AuthenticationFailed);
+    }
+
+    // Generate new salt for new password
+    auto new_salt_result = KeyWrapping::generate_random_salt();
+    if (!new_salt_result) {
+        Log::error("VaultManager: Failed to generate new salt");
+        return std::unexpected(VaultError::CryptoError);
+    }
+
+    // Derive new KEK
+    auto new_kek_result = KeyWrapping::derive_kek_from_password(
+        new_password,
+        new_salt_result.value(),
+        m_v2_header->security_policy.pbkdf2_iterations);
+    if (!new_kek_result) {
+        Log::error("VaultManager: Failed to derive new KEK");
+        return std::unexpected(VaultError::CryptoError);
+    }
+
+    // Wrap DEK with new KEK
+    auto new_wrapped_result = KeyWrapping::wrap_key(new_kek_result.value(), m_v2_dek);
+    if (!new_wrapped_result) {
+        Log::error("VaultManager: Failed to wrap DEK with new KEK");
+        return std::unexpected(VaultError::CryptoError);
+    }
+
+    // Update slot
+    user_slot->salt = new_salt_result.value();
+    user_slot->wrapped_dek = new_wrapped_result.value().wrapped_key;
+    user_slot->must_change_password = false;
+    user_slot->password_changed_at = std::chrono::system_clock::now().time_since_epoch().count();
+    m_modified = true;
+
+    // Update session if user changed own password
+    if (is_self && m_current_session) {
+        m_current_session->password_change_required = false;
+    }
+
+    Log::info("VaultManager: Password changed successfully for user: {}", username.raw());
+    return {};
+}
+
+// ============================================================================
+// Phase 5: Admin Password Reset
+// ============================================================================
+
+KeepTower::VaultResult<> VaultManager::admin_reset_user_password(
+    const Glib::ustring& username,
+    const Glib::ustring& new_temporary_password) {
+
+    Log::info("VaultManager: Admin resetting password for user: {}", username.raw());
+
+    // Validate vault state
+    if (!m_vault_open || !m_is_v2_vault) {
+        Log::error("VaultManager: No V2 vault open");
+        return std::unexpected(VaultError::VaultNotOpen);
+    }
+
+    // Check admin permissions
+    if (!m_current_session || m_current_session->role != UserRole::ADMINISTRATOR) {
+        Log::error("VaultManager: Admin permission required for password reset");
+        return std::unexpected(VaultError::PermissionDenied);
+    }
+
+    // Prevent admin from resetting own password (must use change_user_password)
+    if (m_current_session->username == username.raw()) {
+        Log::error("VaultManager: Cannot reset own password (use change password instead)");
+        return std::unexpected(VaultError::PermissionDenied);
+    }
+
+    // Find user slot
+    KeySlot* user_slot = nullptr;
+    for (auto& slot : m_v2_header->key_slots) {
+        if (slot.active && slot.username == username.raw()) {
+            user_slot = &slot;
+            break;
+        }
+    }
+
+    if (!user_slot) {
+        Log::error("VaultManager: User not found: {}", username.raw());
+        return std::unexpected(VaultError::UserNotFound);
+    }
+
+    // Validate new password meets policy
+    if (new_temporary_password.length() < m_v2_header->security_policy.min_password_length) {
+        Log::error("VaultManager: New password too short (min: {} chars)",
+                   m_v2_header->security_policy.min_password_length);
+        return std::unexpected(VaultError::WeakPassword);
+    }
+
+    // Generate new salt for new password
+    auto new_salt_result = KeyWrapping::generate_random_salt();
+    if (!new_salt_result) {
+        Log::error("VaultManager: Failed to generate new salt");
+        return std::unexpected(VaultError::CryptoError);
+    }
+
+    // Derive new KEK from temporary password
+    auto new_kek_result = KeyWrapping::derive_kek_from_password(
+        new_temporary_password,
+        new_salt_result.value(),
+        m_v2_header->security_policy.pbkdf2_iterations);
+    if (!new_kek_result) {
+        Log::error("VaultManager: Failed to derive new KEK");
+        return std::unexpected(VaultError::CryptoError);
+    }
+
+    // Wrap DEK with new KEK
+    auto new_wrapped_result = KeyWrapping::wrap_key(new_kek_result.value(), m_v2_dek);
+    if (!new_wrapped_result) {
+        Log::error("VaultManager: Failed to wrap DEK with new KEK");
+        return std::unexpected(VaultError::CryptoError);
+    }
+
+    // Update slot with new wrapped key and force password change
+    user_slot->salt = new_salt_result.value();
+    user_slot->wrapped_dek = new_wrapped_result.value().wrapped_key;
+    user_slot->must_change_password = true;  // Force password change on next login
+    user_slot->password_changed_at = 0;  // Reset to indicate temporary password
+    m_modified = true;
+
+    Log::info("VaultManager: Password reset successfully for user: {}", username.raw());
+    Log::info("VaultManager: User will be required to change password on next login");
+    return {};
+}
+
+// ============================================================================
+// Session and User Info
+// ============================================================================
+
+std::optional<UserSession> VaultManager::get_current_user_session() const {
+    if (!m_vault_open || !m_is_v2_vault) {
+        return std::nullopt;
+    }
+    return m_current_session;
+}
+
+std::vector<KeepTower::KeySlot> VaultManager::list_users() const {
+    std::vector<KeySlot> active_users;
+    if (!m_vault_open || !m_is_v2_vault || !m_v2_header) {
+        return active_users;
+    }
+
+    for (const auto& slot : m_v2_header->key_slots) {
+        if (slot.active) {
+            active_users.push_back(slot);
+        }
+    }
+
+    return active_users;
+}
+
+std::optional<KeepTower::VaultSecurityPolicy> VaultManager::get_vault_security_policy() const noexcept {
+    if (!m_vault_open || !m_is_v2_vault || !m_v2_header) {
+        return std::nullopt;
+    }
+    return m_v2_header->security_policy;
+}
+
+bool VaultManager::can_view_account(size_t account_index) const noexcept {
+    // V1 vaults have no access control
+    if (!m_is_v2_vault || !m_vault_open) {
+        return true;
+    }
+
+    // Invalid index
+    const auto& accounts = get_all_accounts();
+    if (account_index >= accounts.size()) {
+        return false;
+    }
+
+    // Administrators can view all accounts
+    if (m_current_session && m_current_session->role == UserRole::ADMINISTRATOR) {
+        return true;
+    }
+
+    // Standard users cannot view admin-only accounts
+    const auto& account = accounts[account_index];
+    return !account.is_admin_only_viewable();
+}
+
+bool VaultManager::can_delete_account(size_t account_index) const noexcept {
+    // V1 vaults have no access control
+    if (!m_is_v2_vault || !m_vault_open) {
+        return true;
+    }
+
+    // Invalid index
+    const auto& accounts = get_all_accounts();
+    if (account_index >= accounts.size()) {
+        return false;
+    }
+
+    // Administrators can delete all accounts
+    if (m_current_session && m_current_session->role == UserRole::ADMINISTRATOR) {
+        return true;
+    }
+
+    // Standard users cannot delete admin-only-deletable accounts
+    const auto& account = accounts[account_index];
+    return !account.is_admin_only_deletable();
+}
+
+KeepTower::VaultResult<> VaultManager::convert_v1_to_v2(
+    const Glib::ustring& admin_username,
+    const Glib::ustring& admin_password,
+    const KeepTower::VaultSecurityPolicy& policy)
+{
+    // Validation: Must have V1 vault open
+    if (!m_vault_open) {
+        return std::unexpected(KeepTower::VaultError::VaultNotOpen);
+    }
+
+    if (m_is_v2_vault) {
+        return std::unexpected(KeepTower::VaultError::PermissionDenied);
+    }
+
+    // Validate admin credentials
+    if (admin_username.empty() || admin_username.length() < 3 || admin_username.length() > 32) {
+        return std::unexpected(KeepTower::VaultError::InvalidUsername);
+    }
+
+    if (admin_password.empty() || admin_password.length() < policy.min_password_length) {
+        return std::unexpected(KeepTower::VaultError::WeakPassword);
+    }
+
+    // Save current vault path and extract all accounts
+    std::string old_vault_path = m_current_vault_path;
+    std::vector<keeptower::AccountRecord> v1_accounts = get_all_accounts();
+
+    KeepTower::Log::info("Migrating V1 vault: {} accounts", v1_accounts.size());
+
+    // Create backup before migration
+    std::string backup_path = old_vault_path + ".v1.backup";
+    try {
+        std::filesystem::copy_file(
+            old_vault_path,
+            backup_path,
+            std::filesystem::copy_options::overwrite_existing
+        );
+        KeepTower::Log::info("Created V1 backup: {}", backup_path);
+    } catch (const std::exception& e) {
+        KeepTower::Log::error("Failed to create backup: {}", e.what());
+        return std::unexpected(KeepTower::VaultError::FileWriteError);
+    }
+
+    // Close V1 vault
+    close_vault();
+
+    // Create new V2 vault with same path (overwrites V1)
+    auto create_result = create_vault_v2(old_vault_path, admin_username, admin_password, policy);
+    if (!create_result) {
+        KeepTower::Log::error("Failed to create V2 vault during migration");
+        // Restore from backup
+        try {
+            std::filesystem::copy_file(
+                backup_path,
+                old_vault_path,
+                std::filesystem::copy_options::overwrite_existing
+            );
+            KeepTower::Log::info("Restored V1 vault from backup after failed migration");
+        } catch (const std::exception& e) {
+            KeepTower::Log::error("Failed to restore backup: {}", e.what());
+        }
+        return std::unexpected(create_result.error());
+    }
+
+    // Open newly created V2 vault
+    auto open_result = open_vault_v2(old_vault_path, admin_username, admin_password);
+    if (!open_result) {
+        KeepTower::Log::error("Failed to open V2 vault after migration");
+        return std::unexpected(open_result.error());
+    }
+
+    // Import all V1 accounts into V2 vault
+    for (auto& account : v1_accounts) {
+        // Preserve all account data including IDs and timestamps
+        if (!add_account(account)) {
+            KeepTower::Log::warning("Failed to add account during migration: {}", account.account_name());
+        }
+    }
+
+    // Save V2 vault with migrated data
+    if (!save_vault()) {
+        KeepTower::Log::error("Failed to save V2 vault after importing accounts");
+        return std::unexpected(KeepTower::VaultError::FileWriteError);
+    }
+
+    KeepTower::Log::info("Successfully migrated V1 vault to V2 format");
+    KeepTower::Log::info("Administrator account: {}", admin_username.raw());
+    KeepTower::Log::info("Migrated {} accounts", v1_accounts.size());
+
+    return {};
+}

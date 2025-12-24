@@ -61,6 +61,49 @@ This document outlines the planned features and improvements for KeepTower, orga
 
 ## Mid-term (v0.3.x - Polish & Integration)
 
+### Multi-User Vault (v0.3.0 - IN PROGRESS)
+- [x] **Phase 1:** Key slot infrastructure - **COMPLETED**
+- [x] **Phase 2:** Authentication & user management - **COMPLETED**
+- [x] **Phase 3:** UI integration (login, password change dialogs) - **COMPLETED**
+- [x] **Phase 4:** Permissions & role-based UI restrictions - **COMPLETED**
+  - [x] Implement role-based menu item visibility (admin vs standard user)
+  - [x] Add user management dialog (admin-only: add/remove/reset users)
+  - [x] Lock UI features based on UserRole (Administrator vs Standard User)
+  - [x] Add "Change My Password" menu item (all users)
+  - [x] Add "Logout" functionality for V2 vaults
+  - [x] Follow Phase 3 patterns: RAII, [[nodiscard]], proper documentation
+- [x] **Phase 5:** User management operations - **COMPLETED**
+  - [x] Admin: Add user with temporary password generation (completed in Phase 4)
+  - [x] Admin: Remove user (with safety checks - prevent self-removal, last admin) (completed in Phase 4)
+  - [x] Admin: Reset user password (completed in Phase 5)
+  - [x] Admin: List all users with roles (completed in Phase 4)
+  - [x] Safety checks: prevent orphaning vault (must have ≥1 admin) (completed in Phase 4)
+- [x] **Phase 6:** Polish & testing - **COMPLETED**
+  - [x] Add `VaultManager::get_vault_security_policy()` getter method
+  - [x] Replace hardcoded `min_length = 12` in ChangePasswordDialog handler
+  - [x] Add CSS classes for color-coded messages (GNOME HIG compliant, theme-aware)
+  - [x] Optimize: Use `std::span` for buffer operations (already implemented in prior phases)
+  - [ ] Add automated security tests (password clearing verification) **(Deferred)**
+  - [ ] Consider rate limiting for authentication failures **(Deferred)**
+  - [x] UI polish: Theme-aware colors instead of hardcoded values
+  - [ ] Add V1 → V2 vault migration UI workflow **(Deferred to Phase 8)**
+  - [ ] Integration tests for complete authentication flows **(Deferred)**
+- [x] **Phase 7:** Account privacy controls - **COMPLETED**
+  - [x] Add privacy fields to protobuf schema (`is_admin_only_viewable`, `is_admin_only_deletable`)
+  - [x] Implement `VaultManager::can_view_account()` and `can_delete_account()` permission checks
+  - [x] Add privacy checkboxes to AccountDetailWidget UI
+  - [x] Filter account list based on user permissions (hide admin-only accounts from standard users)
+  - [x] Check delete permissions in MainWindow::on_delete_account() with friendly error dialog
+  - [x] Update save_current_account() to persist privacy flags
+  - [x] Create comprehensive PHASE7_IMPLEMENTATION.md documentation
+- [ ] **Phase 8:** Migration from V1 vaults (V1 → V2 migration UI)
+- [ ] **Phase 9:** User password history tracking (prevent reuse of previous vault user passwords)
+  - Track N previous passwords per user (configurable, default 5)
+  - Hash previous passwords for comparison
+  - Prevent user from reusing any password in history
+  - Admin tool to clear password history if needed
+  - Note: This is separate from account password history (already implemented)
+
 ### User Experience
 - [x] Refined dark/light theme with accent colors
 - [x] Basic keyboard shortcuts (Ctrl+Q, Ctrl+Z, Ctrl+Shift+Z, Ctrl+comma) - **v0.2.7-beta**
@@ -152,6 +195,18 @@ This document outlines the planned features and improvements for KeepTower, orga
 - [ ] Code coverage tracking (Codecov)
 - [ ] Performance benchmarking suite
 - [ ] Automated security scanning (CodeQL)
+- [ ] **Consolidate secure memory handling** - Migrate VaultManager.cc's EVPCipherContext to SecureMemory.h's EVPCipherContextPtr, standardize all OPENSSL_cleanse usage
+- [ ] **Phase 2 Deferred Items:**
+  - [ ] Issue #2: Consolidate secure memory utilities (SecureMemory.h vs VaultManager methods)
+  - [ ] Issue #3: Add GCM_IV_SIZE constant to replace magic number "12"
+  - [ ] Issue #4: Inconsistent KEK cleanup - add explicit secure_clear() for all KEKs
+  - [ ] Issue #5: Document or fix timing attack in username enumeration
+  - [ ] Review all uses of std::vector for sensitive data (consider SecureBuffer)
+- [ ] **Phase 3 Deferred Items:**
+  - [ ] Consider `std::span` for buffer operations (optimization)
+  - [ ] Use CSS classes for color-coded messages (theme support)
+  - [ ] Add security tests for password clearing verification
+  - [ ] Link TODOs to tracking documents (maintenance)
 
 ---
 

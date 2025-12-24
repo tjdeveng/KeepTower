@@ -46,6 +46,20 @@ void Application::on_startup() {
         KeepTower::Log::info("FIPS-140-3 provider not available - using default provider");
     }
 
+    // Load custom CSS for theme-aware message colors
+    auto css_provider = Gtk::CssProvider::create();
+    try {
+        css_provider->load_from_resource("/com/tjdeveng/keeptower/styles/message-colors.css");
+        Gtk::StyleContext::add_provider_for_display(
+            Gdk::Display::get_default(),
+            css_provider,
+            GTK_STYLE_PROVIDER_PRIORITY_APPLICATION
+        );
+        KeepTower::Log::info("Loaded theme-aware CSS");
+    } catch (const Glib::Error& e) {
+        KeepTower::Log::warning("Failed to load CSS: {}", e.what());
+    }
+
     // Add application actions
     add_action("quit", sigc::mem_fun(*this, &Application::on_action_quit));
     add_action("about", sigc::mem_fun(*this, &Application::on_action_about));

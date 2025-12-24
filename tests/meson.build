@@ -30,13 +30,20 @@ proto_gen = custom_target('record_proto_test',
   depend_files: files('../src/record.proto')
 )
 
+# Common VaultManager dependencies (for V2 vault support)
+vault_manager_common_sources = [
+    '../src/core/VaultManager.cc',
+    '../src/core/ReedSolomon.cc',
+    '../src/core/MultiUserTypes.cc',
+    '../src/core/KeyWrapping.cc',
+    '../src/core/VaultFormatV2.cc',
+    proto_gen
+]
+
 # VaultManager tests
 vault_manager_sources = [
     'test_vault_manager.cc',
-    '../src/core/VaultManager.cc',
-    '../src/core/ReedSolomon.cc',
-    proto_gen
-]
+] + vault_manager_common_sources
 
 vault_manager_deps = [
     gtest_dep,
@@ -62,10 +69,7 @@ vault_manager_test = executable(
 # FIPS mode tests
 fips_mode_sources = [
     'test_fips_mode.cc',
-    '../src/core/VaultManager.cc',
-    '../src/core/ReedSolomon.cc',
-    proto_gen
-]
+] + vault_manager_common_sources
 
 fips_mode_deps = [
     gtest_dep,
@@ -101,10 +105,9 @@ password_validation_test = executable(
 # Security features test (standalone verification)
 security_sources = [
     'test_security_features.cc',
-    '../src/core/VaultManager.cc',
-    '../src/core/ReedSolomon.cc',
-    proto_gen
-]
+    ] + vault_manager_common_sources
+
+
 security_deps = [protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
 if yubikey_available
     security_sources += files('../src/core/YubiKeyManager.cc')
@@ -131,8 +134,8 @@ input_validation_test = executable(
 # Reed-Solomon tests
 reed_solomon_test = executable(
     'reed_solomon_test',
-    'test_reed_solomon.cc',
-    '../src/core/ReedSolomon.cc',
+    ['test_reed_solomon.cc', '../src/core/ReedSolomon.cc'],
+
     dependencies: [
         gtest_dep,
         libcorrect_dep
@@ -143,10 +146,9 @@ reed_solomon_test = executable(
 # Vault Reed-Solomon integration tests
 vault_rs_sources = [
     'test_vault_reed_solomon.cc',
-    '../src/core/VaultManager.cc',
-    '../src/core/ReedSolomon.cc',
-    proto_gen
-]
+    ] + vault_manager_common_sources
+
+
 vault_rs_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
 if yubikey_available
     vault_rs_sources += files('../src/core/YubiKeyManager.cc')
@@ -163,10 +165,9 @@ vault_reed_solomon_test = executable(
 # FEC preferences tests
 fec_pref_sources = [
     'test_fec_preferences.cc',
-    '../src/core/VaultManager.cc',
-    '../src/core/ReedSolomon.cc',
-    proto_gen
-]
+    ] + vault_manager_common_sources
+
+
 fec_pref_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
 if yubikey_available
     fec_pref_sources += files('../src/core/YubiKeyManager.cc')
@@ -215,10 +216,9 @@ settings_validator_test = executable(
 # Vault helper function tests (unit tests for refactored helpers)
 vault_helpers_sources = [
     'test_vault_helpers.cc',
-    '../src/core/VaultManager.cc',
-    '../src/core/ReedSolomon.cc',
-    proto_gen
-]
+    ] + vault_manager_common_sources
+
+
 vault_helpers_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
 if yubikey_available
     vault_helpers_sources += files('../src/core/YubiKeyManager.cc')
@@ -243,10 +243,9 @@ fuzzy_match_test = executable(
 # Undo/Redo tests
 undo_redo_sources = [
     'test_undo_redo.cc',
-    '../src/core/VaultManager.cc',
-    '../src/core/ReedSolomon.cc',
-    proto_gen
-]
+    ] + vault_manager_common_sources
+
+
 undo_redo_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
 if yubikey_available
     undo_redo_sources += files('../src/core/YubiKeyManager.cc')
@@ -278,10 +277,9 @@ test('FIPS Mode Tests', fips_mode_test)
 # Secure memory tests
 secure_memory_sources = [
     'test_secure_memory.cc',
-    '../src/core/VaultManager.cc',
-    '../src/core/ReedSolomon.cc',
-    proto_gen
-]
+    ] + vault_manager_common_sources
+
+
 secure_memory_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
 if yubikey_available
     secure_memory_sources += files('../src/core/YubiKeyManager.cc')
@@ -300,10 +298,9 @@ test('Secure Memory Tests', secure_memory_test)
 # Undo/Redo preferences integration tests
 undo_redo_prefs_sources = [
     'test_undo_redo_preferences.cc',
-    '../src/core/VaultManager.cc',
-    '../src/core/ReedSolomon.cc',
-    proto_gen
-]
+    ] + vault_manager_common_sources
+
+
 undo_redo_prefs_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
 if yubikey_available
     undo_redo_prefs_sources += files('../src/core/YubiKeyManager.cc')
@@ -322,10 +319,9 @@ test('Undo/Redo Preferences Tests', undo_redo_prefs_test, env: ['GSETTINGS_SCHEM
 # Account Groups tests
 account_groups_sources = [
     'test_account_groups.cc',
-    '../src/core/VaultManager.cc',
-    '../src/core/ReedSolomon.cc',
-    proto_gen
-]
+    ] + vault_manager_common_sources
+
+
 account_groups_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
 if yubikey_available
     account_groups_sources += files('../src/core/YubiKeyManager.cc')
@@ -340,3 +336,78 @@ account_groups_test = executable(
 )
 
 test('Account Groups Tests', account_groups_test)
+# Multi-User Infrastructure tests
+multiuser_sources = [
+    'test_multiuser.cc',
+    '../src/core/ReedSolomon.cc',
+    '../src/core/MultiUserTypes.cc',
+    '../src/core/KeyWrapping.cc',
+    '../src/core/VaultFormatV2.cc',
+]
+multiuser_deps = [gtest_dep, openssl_dep, giomm_dep, libcorrect_dep]
+
+multiuser_test = executable(
+    'multiuser_test',
+    multiuser_sources,
+    dependencies: multiuser_deps,
+    include_directories: test_inc
+)
+
+test('Multi-User Infrastructure Tests', multiuser_test)
+
+# V2 Authentication integration tests (Phase 2)
+v2_auth_sources = [
+    'test_vault_manager_v2.cc',
+    '../src/core/VaultManagerV2.cc',
+] + vault_manager_common_sources
+v2_auth_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
+if yubikey_available
+    v2_auth_sources += files('../src/core/YubiKeyManager.cc')
+    v2_auth_deps += [ykpers_dep, libyubikey_dep]
+endif
+
+v2_auth_test = executable(
+    'v2_auth_test',
+    v2_auth_sources,
+    dependencies: v2_auth_deps,
+    include_directories: test_inc
+)
+
+test('V2 Authentication Integration Tests', v2_auth_test)
+
+# Migration test (manual execution)
+migration_test_sources = [
+    'test_migration_manual.cc',
+    '../src/core/VaultManagerV2.cc',
+] + vault_manager_common_sources
+migration_test_deps = [protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
+if yubikey_available
+    migration_test_sources += files('../src/core/YubiKeyManager.cc')
+    migration_test_deps += [ykpers_dep, libyubikey_dep]
+endif
+
+migration_test = executable(
+    'migration_test',
+    migration_test_sources,
+    dependencies: migration_test_deps,
+    include_directories: test_inc
+)
+
+# V2 creation test (manual execution)
+v2_creation_test_sources = [
+    'test_v2_creation.cc',
+    '../src/core/VaultManagerV2.cc',
+] + vault_manager_common_sources
+v2_creation_test_deps = [protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
+if yubikey_available
+    v2_creation_test_sources += files('../src/core/YubiKeyManager.cc')
+    v2_creation_test_deps += [ykpers_dep, libyubikey_dep]
+endif
+
+v2_creation_test = executable(
+    'v2_creation_test',
+    v2_creation_test_sources,
+    dependencies: v2_creation_test_deps,
+    include_directories: test_inc
+)
+

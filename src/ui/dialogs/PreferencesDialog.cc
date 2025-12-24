@@ -435,6 +435,18 @@ void PreferencesDialog::setup_security_page() {
 
     // Add page to stack
     m_stack.add(m_security_box, "security", "Security");
+
+    // Disable security page for non-admin users (V2 multi-user vaults)
+    if (m_vault_manager && m_vault_manager->is_vault_open()) {
+        auto session = m_vault_manager->get_current_user_session();
+        if (session && session->role != KeepTower::UserRole::ADMINISTRATOR) {
+            // Hide security page from non-admin users
+            auto stack_page = m_stack.get_page(m_security_box);
+            if (stack_page) {
+                stack_page->set_visible(false);
+            }
+        }
+    }
 }
 
 void PreferencesDialog::setup_storage_page() {
@@ -542,6 +554,18 @@ void PreferencesDialog::setup_storage_page() {
 
     // Add page to stack
     m_stack.add(m_storage_box, "storage", "Storage");
+
+    // Disable storage page for non-admin users (V2 multi-user vaults)
+    if (m_vault_manager && m_vault_manager->is_vault_open()) {
+        auto session = m_vault_manager->get_current_user_session();
+        if (session && session->role != KeepTower::UserRole::ADMINISTRATOR) {
+            // Hide storage page from non-admin users
+            auto stack_page = m_stack.get_page(m_storage_box);
+            if (stack_page) {
+                stack_page->set_visible(false);
+            }
+        }
+    }
 }
 
 void PreferencesDialog::load_settings() {

@@ -25,6 +25,8 @@
 #include "record.pb.h"
 #include "VaultError.h"
 #include "ReedSolomon.h"
+#include "MultiUserTypes.h"
+#include "VaultFormatV2.h"
 
 // Forward declare for conditional compilation
 #if __has_include("config.h")
@@ -246,6 +248,378 @@ public:
      * Securely erases encryption keys and other sensitive data from memory.
      */
     [[nodiscard]] bool close_vault();
+
+    /** @name Multi-User Vault Operations (V2 Format)
+     * @brief LUKS-style multi-user authentication and management
+     *
+     * V2 vaults support multiple users with individual passwords/YubiKeys,
+     * each unlocking the same vault data. Uses NIST-approved key wrapping.
+     * @{
+     */
+
+    /**
+     * @brief Create a new V2 vault with multi-user support
+     * @param path Filesystem path where vault will be created
+     * @param admin_username Initial administrator username
+     * @param admin_password Initial administrator password
+     * @param policy Security policy for vault (YubiKey requirements, password rules)
+     * @return Expected void or VaultError
+     *
+     * Creates V2 vault with:
+     * - VaultSecurityPolicy (YubiKey, password requirements, PBKDF2 iterations)
+     * - Initial administrator key slot
+     * - FEC-protected header (20% minimum redundancy)
+     * - Empty encrypted data section
+     *
+     * @note File permissions set to 0600 (owner read/write only)
+     * @warning Overwrites existing file at path
+     *
+     * @code
+     * VaultSecurityPolicy policy;
+     * policy.require_yubikey = false;
+     * policy.min_password_length = 12;
+     * policy.pbkdf2_iterations = 100000;
+     *
+     * auto result = vm.create_vault_v2("/path/vault.v2", "admin", "password123", policy);
+     * if (!result) {
+     *     // Handle error: result.error()
+     * }
+     * @endcode
+     */
+    [[nodiscard]] KeepTower::VaultResult<> create_vault_v2(
+        const std::string& path,
+        const Glib::ustring& admin_username,
+        const Glib::ustring& admin_password,
+        const KeepTower::VaultSecurityPolicy& policy);
+
+    /**
+     * @brief Open V2 vault with user authentication
+     * @param path Filesystem path to V2 vault
+     * @param username Username for authentication
+     * @param password User's password
+     * @param yubikey_serial Optional YubiKey serial (if vault requires it)
+     * @return Expected UserSession or VaultError
+     *
+     * Authentication process:
+     * 1. Find active key slot for username
+     * 2. Derive KEK from password (PBKDF2)
+     * 3. Optionally combine with YubiKey response (XOR)
+     * 4. Unwrap DEK using AES-256-KW
+     * 5. Decrypt vault data with DEK
+     *
+     * Returns UserSession containing:
+     * - username
+     * - role (ADMINISTRATOR or STANDARD_USER)
+     * - password_change_required flag
+     *
+     * @note If password_change_required is true, UI must enforce password change
+     * @note Wrong password returns VaultError::AuthenticationFailed
+     *
+     * @code
+     * auto session = vm.open_vault_v2("/path/vault.v2", "alice", "password");
+     * if (!session) {
+     *     // Handle auth failure
+     *     return;
+     * }
+     *
+     * if (session->password_change_required) {
+     *     // Force password change dialog
+     *     show_change_password_dialog();
+     * }
+     * @endcode
+     */
+    [[nodiscard]] KeepTower::VaultResult<KeepTower::UserSession> open_vault_v2(
+        const std::string& path,
+        const Glib::ustring& username,
+        const Glib::ustring& password,
+        const std::string& yubikey_serial = "");
+
+    /**
+     * @brief Add new user to open V2 vault
+     * @param username New user's username (must be unique)
+     * @param temporary_password Temporary password for first login
+     * @param role User role (ADMINISTRATOR or STANDARD_USER)
+     * @param must_change_password Force password change on first login (default: true)
+     * @return Expected void or VaultError
+     *
+     * Requirements:
+     * - Vault must be open
+     * - Current user must have ADMINISTRATOR role
+     * - Username must be unique (not already exist)
+     * - Password must meet vault's minimum length requirement
+     *
+     * Creates new key slot:
+     * - Unique salt generated
+     * - Current vault DEK wrapped with new user's KEK
+     * - Marked as must_change_password if temporary
+     *
+     * @note Call save_vault() after to persist changes
+     *
+     * @code
+     * auto result = vm.add_user("bob", "temp1234", UserRole::STANDARD_USER, true);
+     * if (!result) {
+     *     show_error(result.error());
+     *     return;
+     * }
+     * vm.save_vault();
+     * @endcode
+     */
+    [[nodiscard]] KeepTower::VaultResult<> add_user(
+        const Glib::ustring& username,
+        const Glib::ustring& temporary_password,
+        KeepTower::UserRole role = KeepTower::UserRole::STANDARD_USER,
+        bool must_change_password = true);
+
+    /**
+     * @brief Remove user from open V2 vault
+     * @param username Username to remove
+     * @return Expected void or VaultError
+     *
+     * Requirements:
+     * - Vault must be open
+     * - Current user must have ADMINISTRATOR role
+     * - Cannot remove yourself (self-removal prevention)
+     * - Cannot remove last administrator (must have at least one)
+     *
+     * Marks key slot as inactive (doesn't delete, preserves slot position).
+     *
+     * @note Call save_vault() after to persist changes
+     *
+     * @code
+     * auto result = vm.remove_user("bob");
+     * if (!result) {
+     *     show_error("Cannot remove user: " + to_string(result.error()));
+     *     return;
+     * }
+     * vm.save_vault();
+     * @endcode
+     */
+    [[nodiscard]] KeepTower::VaultResult<> remove_user(const Glib::ustring& username);
+
+    /**
+     * @brief Change user's password in open V2 vault
+     * @param username Username whose password to change
+     * @param old_password Current password (for verification)
+     * @param new_password New password
+     * @return Expected void or VaultError
+     *
+     * Requirements:
+     * - Vault must be open
+     * - Either: user changing own password OR current user is admin
+     * - Old password must be correct (KEK unwrapping verification)
+     * - New password must meet vault's minimum length requirement
+     *
+     * Process:
+     * 1. Verify old password by unwrapping DEK
+     * 2. Derive new KEK from new password
+     * 3. Re-wrap DEK with new KEK
+     * 4. Update timestamps and clear must_change_password flag
+     *
+     * @note Call save_vault() after to persist changes
+     *
+     * @code
+     * // User changing own password
+     * auto result = vm.change_user_password("alice", "oldpass", "newpass123");
+     * if (!result) {
+     *     show_error("Password change failed");
+     *     return;
+     * }
+     * vm.save_vault();
+     * @endcode
+     */
+    [[nodiscard]] KeepTower::VaultResult<> change_user_password(
+        const Glib::ustring& username,
+        const Glib::ustring& old_password,
+        const Glib::ustring& new_password);
+
+    /**
+     * @brief Admin-only: Reset user password without knowing current password
+     * @param username Username whose password to reset
+     * @param new_temporary_password New temporary password
+     * @return Expected void or VaultError
+     *
+     * Requirements:
+     * - Vault must be open
+     * - Current user must have ADMINISTRATOR role
+     * - New password must meet vault's minimum length requirement
+     * - Sets must_change_password flag (user required to change on next login)
+     *
+     * Process:
+     * 1. Verify admin permissions
+     * 2. Derive new KEK from new temporary password
+     * 3. Re-wrap DEK with new KEK
+     * 4. Set must_change_password = true
+     * 5. Update timestamps
+     *
+     * @note Call save_vault() after to persist changes
+     * @note This bypasses old password verification (admin override)
+     *
+     * @code
+     * // Admin resetting user password
+     * auto result = vm.admin_reset_user_password("bob", "TempPass1234");
+     * if (!result) {
+     *     show_error("Failed to reset password");
+     *     return;
+     * }
+     * vm.save_vault();
+     * @endcode
+     */
+    [[nodiscard]] KeepTower::VaultResult<> admin_reset_user_password(
+        const Glib::ustring& username,
+        const Glib::ustring& new_temporary_password);
+
+    /**
+     * @brief Get current user session info
+     * @return Optional UserSession, empty if no V2 vault open
+     *
+     * Returns current session information including:
+     * - username
+     * - role (for permission checking)
+     * - password_change_required flag
+     */
+    [[nodiscard]] std::optional<KeepTower::UserSession> get_current_user_session() const;
+
+    /**
+     * @brief List all users in open V2 vault
+     * @return Vector of UserInfo structs, empty if not V2 vault or error
+     *
+     * Returns user information for all active key slots:
+     * - username
+     * - role
+     * - must_change_password flag
+     * - password_changed_at timestamp
+     * - last_login_at timestamp
+     *
+     * @note Only returns active users (inactive slots excluded)
+     * @note Requires vault to be open
+     */
+    [[nodiscard]] std::vector<KeepTower::KeySlot> list_users() const;
+
+    /**
+     * @brief Convert V1 vault to V2 multi-user format
+     * @param admin_username Username for the administrator account
+     * @param admin_password Password for the administrator account
+     * @param policy Security policy for the new V2 vault
+     * @return VaultResult with success or error
+     *
+     * Migrates a legacy single-user vault (V1) to the modern multi-user format (V2).
+     * This operation:
+     * 1. Creates automatic backup of V1 vault
+     * 2. Converts vault structure to V2 format
+     * 3. Creates first administrator account with provided credentials
+     * 4. Applies security policy (min password length, iterations)
+     * 5. Preserves all existing accounts and metadata
+     *
+     * Migration is irreversible - V1 clients cannot open migrated vaults.
+     *
+     * Requirements:
+     * - Vault must be currently open (V1 format)
+     * - Admin password must meet security policy requirements
+     * - Sufficient disk space for backup
+     *
+     * @code
+     * VaultManager vm;
+     * vm.open_vault("/path/vault.v1", "old_password");
+     *
+     * KeepTower::VaultSecurityPolicy policy;
+     * policy.min_password_length = 12;
+     * policy.pbkdf2_iterations = 600000;
+     *
+     * auto result = vm.convert_v1_to_v2("admin", "secure_password", policy);
+     * if (!result) {
+     *     // Handle error: result.error()
+     * }
+     * @endcode
+     *
+     * @note Creates backup at {vault_path}.v1.backup before migration
+     * @note Vault remains open after successful migration (as admin)
+     * @note All accounts preserve their IDs, timestamps, and data
+     *
+     * @see create_vault_v2() for V2 vault creation from scratch
+     * @see open_vault_v2() for opening existing V2 vaults
+     */
+    [[nodiscard]] KeepTower::VaultResult<> convert_v1_to_v2(
+        const Glib::ustring& admin_username,
+        const Glib::ustring& admin_password,
+        const KeepTower::VaultSecurityPolicy& policy);
+
+    /**
+     * @brief Get vault security policy
+     * @return Optional security policy, empty if no V2 vault open
+     *
+     * Returns vault-wide security settings:
+     * - require_yubikey flag
+     * - min_password_length (characters)
+     * - pbkdf2_iterations (key derivation rounds)
+     * - yubikey_challenge (if YubiKey enabled)
+     *
+     * Use this to:
+     * - Validate password requirements before setting
+     * - Generate temporary passwords meeting policy
+     * - Display security requirements to users
+     * - Enforce consistent policy across UI
+     *
+     * @code
+     * auto policy = vault_manager.get_vault_security_policy();
+     * if (policy) {
+     *     if (new_password.length() < policy->min_password_length) {
+     *         show_error("Password too short");
+     *     }
+     * }
+     * @endcode
+     *
+     * @note Only available for V2 vaults
+     * @note Returns copy of policy (modifications don't affect vault)
+     */
+    [[nodiscard]] std::optional<KeepTower::VaultSecurityPolicy> get_vault_security_policy() const noexcept;
+
+    /**
+     * @brief Check if current user can view an account
+     * @param account_index Index of account to check
+     * @return True if user can view account, false otherwise
+     *
+     * Access control rules:
+     * - Administrators: Can view ALL accounts (including admin-only)
+     * - Standard users: Can view non-admin-only accounts
+     * - Returns false for invalid indices
+     *
+     * Use this to filter account list based on user role.
+     *
+     * @code
+     * for (size_t i = 0; i < get_accounts().size(); ++i) {
+     *     if (can_view_account(i)) {
+     *         // Show account in UI
+     *     }
+     * }
+     * @endcode
+     *
+     * @note Only relevant for V2 vaults with multi-user support
+     * @note V1 vaults always return true (no access control)
+     */
+    [[nodiscard]] bool can_view_account(size_t account_index) const noexcept;
+
+    /**
+     * @brief Check if current user can delete an account
+     * @param account_index Index of account to check
+     * @return True if user can delete account, false otherwise
+     *
+     * Access control rules:
+     * - Administrators: Can delete ALL accounts
+     * - Standard users: Can delete non-admin-only-deletable accounts
+     * - Returns false for invalid indices
+     *
+     * Use this to enable/disable delete button based on user role.
+     *
+     * @code
+     * delete_button->set_sensitive(vault_manager.can_delete_account(index));
+     * @endcode
+     *
+     * @note Only relevant for V2 vaults with multi-user support
+     * @note V1 vaults always return true (no access control)
+     */
+    [[nodiscard]] bool can_delete_account(size_t account_index) const noexcept;
+
+    /** @} */ // end of Multi-User Vault Operations
 
     /** @name FIPS-140-3 Cryptographic Mode Management
      * @brief OpenSSL FIPS provider initialization and control
@@ -936,6 +1310,12 @@ private:
     std::string m_current_vault_path;
     std::vector<uint8_t> m_encryption_key;
     std::vector<uint8_t> m_salt;
+
+    // V2 Multi-User state
+    bool m_is_v2_vault;                         // True if current vault is V2 format
+    std::optional<KeepTower::VaultHeaderV2> m_v2_header;   // V2 header with security policy and key slots
+    std::optional<KeepTower::UserSession> m_current_session;  // Current authenticated user session
+    std::array<uint8_t, 32> m_v2_dek;           // V2 vault Data Encryption Key (wrapped in key slots)
 
     // Reed-Solomon error correction
     std::unique_ptr<ReedSolomon> m_reed_solomon;

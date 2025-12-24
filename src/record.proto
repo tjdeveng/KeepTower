@@ -158,8 +158,20 @@ message AccountRecord {
   // >= 0 = custom user-defined order
   int32 global_display_order = 25;
 
-  // Reserved for additional metadata
-  reserved 26 to 31;
+  // === MULTI-USER PRIVACY CONTROLS (26-28) ===
+
+  // Admin-only viewable: Only administrators can view/edit this account
+  // Standard users will not see this account in the list
+  // Use case: Sensitive credentials (CEO accounts, payroll systems, etc.)
+  bool is_admin_only_viewable = 26;
+
+  // Admin-only deletable: All users can view/edit, but only admins can delete
+  // Prevents accidental deletion of critical accounts
+  // Use case: Protected accounts that shouldn't be accidentally deleted
+  bool is_admin_only_deletable = 27;
+
+  // Reserved for additional privacy controls
+  reserved 28 to 31;
 
   // === OPTIONAL FEATURES (32-47) ===
 

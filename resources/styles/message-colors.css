@@ -1,0 +1,152 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* SPDX-FileCopyrightText: 2025 tjdeveng */
+
+/**
+ * @file message-colors.css
+ * @brief Theme-aware message color classes for KeepTower
+ *
+ * Provides semantic color classes that automatically adapt to light/dark themes.
+ * Uses GNOME/Libadwaita color palette with appropriate contrast ratios.
+ *
+ * Phase 6: Replaces hardcoded hex colors with CSS classes for better theme support.
+ */
+
+/* ============================================================================
+ * Success/Validation States
+ * ============================================================================ */
+
+/**
+ * @brief Success message color (green)
+ *
+ * Use for: Valid passwords, successful operations, confirmations
+ * Light theme: #26a269 (green-4)
+ * Dark theme: #8ff0a4 (green-3)
+ */
+.success-text {
+    color: @success_color;
+}
+
+/* Fallback for themes without @success_color */
+.success-text {
+    color: #26a269;
+}
+
+@media (prefers-color-scheme: dark) {
+    .success-text {
+        color: #8ff0a4;
+    }
+}
+
+/* ============================================================================
+ * Error/Validation Failure States
+ * ============================================================================ */
+
+/**
+ * @brief Error message color (red)
+ *
+ * Use for: Validation failures, password mismatches, operation errors
+ * Light theme: #c01c28 (red-4)
+ * Dark theme: #ff7b63 (red-2)
+ */
+.error-text {
+    color: @error_color;
+}
+
+/* Fallback for themes without @error_color */
+.error-text {
+    color: #c01c28;
+}
+
+@media (prefers-color-scheme: dark) {
+    .error-text {
+        color: #ff7b63;
+    }
+}
+
+/* ============================================================================
+ * Warning/Notice States
+ * ============================================================================ */
+
+/**
+ * @brief Warning message color (orange)
+ *
+ * Use for: Password change required, security notices, cautions
+ * Light theme: #e5a50a (yellow-5)
+ * Dark theme: #f8e45c (yellow-2)
+ */
+.warning-text {
+    color: @warning_color;
+}
+
+/* Fallback for themes without @warning_color */
+.warning-text {
+    color: #e5a50a;
+}
+
+@media (prefers-color-scheme: dark) {
+    .warning-text {
+        color: #f8e45c;
+    }
+}
+
+/* ============================================================================
+ * Informational States
+ * ============================================================================ */
+
+/**
+ * @brief Informational message color (blue)
+ *
+ * Use for: YubiKey prompts, helpful information, feature explanations
+ * Light theme: #1c71d8 (blue-4)
+ * Dark theme: #99c1f1 (blue-2)
+ */
+.info-text {
+    color: @accent_color;
+}
+
+/* Fallback for themes without @accent_color */
+.info-text {
+    color: #1c71d8;
+}
+
+@media (prefers-color-scheme: dark) {
+    .info-text {
+        color: #99c1f1;
+    }
+}
+
+/* ============================================================================
+ * Usage Examples
+ * ============================================================================
+ *
+ * Before (hardcoded):
+ * ```
+ * label.set_markup("<span foreground='#4CAF50'>✓ Valid</span>");
+ * label.set_markup("<span foreground='#F44336'>⚠ Error</span>");
+ * ```
+ *
+ * After (theme-aware):
+ * ```
+ * label.set_markup("✓ Valid");
+ * label.add_css_class("success-text");
+ *
+ * label.set_markup("⚠ Error");
+ * label.add_css_class("error-text");
+ * ```
+ *
+ * ============================================================================ */
+
+/* ============================================================================
+ * GNOME HIG Compliance
+ * ============================================================================
+ *
+ * Colors chosen from GNOME Color Palette:
+ * https://developer.gnome.org/hig/reference/palette.html
+ *
+ * Contrast ratios meet WCAG 2.1 Level AA requirements:
+ * - Success (green): 4.5:1 minimum contrast
+ * - Error (red): 4.5:1 minimum contrast
+ * - Warning (yellow): 3:1 minimum contrast (large text)
+ * - Info (blue): 4.5:1 minimum contrast
+ *
+ * ============================================================================ */

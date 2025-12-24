@@ -2,7 +2,9 @@
 // SPDX-FileCopyrightText: 2025 tjdeveng
 
 #include "VaultManager.h"
+#include "KeyWrapping.h"  // For V2 password verification
 #include "../utils/Log.h"
+#include "../utils/SecureMemory.h"  // For secure_clear template
 #include <openssl/evp.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
@@ -71,6 +73,7 @@ EVPCipherContext::~EVPCipherContext() {
 VaultManager::VaultManager()
     : m_vault_open(false),
       m_modified(false),
+      m_is_v2_vault(false),
       m_use_reed_solomon(false),
       m_rs_redundancy_percent(DEFAULT_RS_REDUNDANCY),
       m_fec_loaded_from_file(false),
@@ -86,6 +89,7 @@ VaultManager::~VaultManager() {
     secure_clear(m_encryption_key);
     secure_clear(m_salt);
     secure_clear(m_yubikey_challenge);
+    OPENSSL_cleanse(m_v2_dek.data(), m_v2_dek.size());  // V2 vault DEK (std::array)
     (void)close_vault();  // Explicitly ignore return value in destructor
 }
 
@@ -600,6 +604,66 @@ bool VaultManager::save_vault() {
         return false;
     }
 
+    // V2 vault saving
+    if (m_is_v2_vault) {
+        if (!m_v2_header || !m_current_session) {
+            KeepTower::Log::error("VaultManager: Invalid V2 vault state");
+            return false;
+        }
+
+        // Update timestamp
+        auto* metadata = m_vault_data.mutable_metadata();
+        metadata->set_last_modified(std::time(nullptr));
+
+        // Serialize protobuf to binary
+        std::string serialized_data;
+        if (!m_vault_data.SerializeToString(&serialized_data)) {
+            KeepTower::Log::error("VaultManager: Failed to serialize vault data");
+            return false;
+        }
+
+        // Encrypt vault data
+        std::vector<uint8_t> plaintext(serialized_data.begin(), serialized_data.end());
+        std::vector<uint8_t> ciphertext;
+        std::vector<uint8_t> data_iv = generate_random_bytes(12);  // GCM uses 12-byte IV
+
+        if (!encrypt_data(plaintext, m_v2_dek, ciphertext, data_iv)) {
+            KeepTower::Log::error("VaultManager: Failed to encrypt vault data");
+            secure_clear(plaintext);
+            return false;
+        }
+        secure_clear(plaintext);
+
+        // Build V2 file format
+        KeepTower::VaultFormatV2::V2FileHeader file_header;
+        file_header.pbkdf2_iterations = m_v2_header->security_policy.pbkdf2_iterations;
+        file_header.vault_header = *m_v2_header;
+        std::copy(data_iv.begin(), std::min(data_iv.begin() + 32, data_iv.end()), file_header.data_salt.begin());
+        std::copy(data_iv.begin(), std::min(data_iv.begin() + 12, data_iv.end()), file_header.data_iv.begin());
+
+        // Write header with FEC
+        auto write_result = KeepTower::VaultFormatV2::write_header(file_header, 0);  // 0% = use 20% minimum
+        if (!write_result) {
+            KeepTower::Log::error("VaultManager: Failed to write V2 header");
+            return false;
+        }
+
+        // Combine header + encrypted data
+        std::vector<uint8_t> file_data = write_result.value();
+        file_data.insert(file_data.end(), ciphertext.begin(), ciphertext.end());
+
+        // Write to file
+        if (!write_vault_file(m_current_vault_path, file_data)) {
+            KeepTower::Log::error("VaultManager: Failed to write vault file");
+            return false;
+        }
+
+        m_modified = false;
+        KeepTower::Log::info("VaultManager: V2 vault saved successfully");
+        return true;
+    }
+
+    // V1 vault saving (existing logic)
     // Update timestamp
     auto* metadata = m_vault_data.mutable_metadata();
     metadata->set_last_modified(std::time(nullptr));
@@ -1500,8 +1564,14 @@ bool VaultManager::read_vault_file(const std::string& path, std::vector<uint8_t>
                 m_pbkdf2_iterations = static_cast<int>(iterations);
                 KeepTower::Log::info("Vault format version {}, {} PBKDF2 iterations", version, iterations);
 
-                // Adjust size to exclude header
-                size -= HEADER_SIZE;
+                // V2 vaults: Header is part of data, rewind to beginning
+                // V1 vaults: Header is separate, skip it
+                if (version == 2) {
+                    file.seekg(0, std::ios::beg);  // Rewind for V2
+                } else {
+                    // V1: Adjust size to exclude header
+                    size -= HEADER_SIZE;
+                }
             } else {
                 // Not a new format, rewind to beginning
                 KeepTower::Log::info("Legacy vault format detected (no header)");
@@ -1540,22 +1610,33 @@ bool VaultManager::write_vault_file(const std::string& path, const std::vector<u
                 return false;
             }
 
-            // Write vault file format header
-            uint32_t magic = VAULT_MAGIC;
-            uint32_t version = VAULT_VERSION;
-            uint32_t iterations = static_cast<uint32_t>(m_pbkdf2_iterations);
+            // V2 vaults: data already contains full header, write directly
+            if (m_is_v2_vault) {
+                file.write(reinterpret_cast<const char*>(data.data()), data.size());
+                file.flush();
 
-            file.write(reinterpret_cast<const char*>(&magic), sizeof(magic));
-            file.write(reinterpret_cast<const char*>(&version), sizeof(version));
-            file.write(reinterpret_cast<const char*>(&iterations), sizeof(iterations));
+                if (!file.good()) {
+                    std::cerr << "Failed to write V2 vault data" << std::endl;
+                    return false;
+                }
+            } else {
+                // V1 vaults: prepend legacy header format
+                uint32_t magic = VAULT_MAGIC;
+                uint32_t version = VAULT_VERSION;
+                uint32_t iterations = static_cast<uint32_t>(m_pbkdf2_iterations);
 
-            // Write encrypted vault data
-            file.write(reinterpret_cast<const char*>(data.data()), data.size());
-            file.flush();
+                file.write(reinterpret_cast<const char*>(&magic), sizeof(magic));
+                file.write(reinterpret_cast<const char*>(&version), sizeof(version));
+                file.write(reinterpret_cast<const char*>(&iterations), sizeof(iterations));
 
-            if (!file.good()) {
-                std::cerr << "Failed to write vault data" << std::endl;
-                return false;
+                // Write encrypted vault data
+                file.write(reinterpret_cast<const char*>(data.data()), data.size());
+                file.flush();
+
+                if (!file.good()) {
+                    std::cerr << "Failed to write vault data" << std::endl;
+                    return false;
+                }
             }
         }  // Close file before rename
 
@@ -2016,6 +2097,42 @@ bool VaultManager::verify_credentials(const Glib::ustring& password, const std::
         return false;
     }
 
+    // V2 vault authentication - verify against current user's key slot
+    if (m_is_v2_vault) {
+        if (!m_current_session) {
+            return false;  // No active session
+        }
+
+        // Find current user's key slot
+        KeySlot* user_slot = nullptr;
+        for (auto& slot : m_v2_header->key_slots) {
+            if (slot.active && slot.username == m_current_session->username) {
+                user_slot = &slot;
+                break;
+            }
+        }
+
+        if (!user_slot) {
+            return false;  // User not found
+        }
+
+        // Derive KEK from password
+        auto kek_result = KeyWrapping::derive_kek_from_password(
+            password,
+            user_slot->salt,
+            m_v2_header->security_policy.pbkdf2_iterations);
+
+        if (!kek_result) {
+            return false;
+        }
+
+        // Try to unwrap DEK - if successful, password is correct
+        auto unwrap_result = KeyWrapping::unwrap_key(kek_result.value(), user_slot->wrapped_dek);
+
+        return unwrap_result.has_value();
+    }
+
+    // V1 vault authentication below
     // If vault requires YubiKey, verify both password and YubiKey
     if (m_yubikey_required) {
         if (serial.empty()) {
