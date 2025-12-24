@@ -244,12 +244,12 @@ TEST_F(FIPSModeTest, InitFIPSMode_CanOnlyInitializeOnce) {
     bool first_init = VaultManager::init_fips_mode(false);
 
     // Second call should return the cached result from first initialization
-    // (it won't re-initialize, just returns cached availability)
+    // (it won't re-initialize, just returns cached success status)
     bool second_init = VaultManager::init_fips_mode(false);
 
-    // First init should succeed (loads default provider)
-    EXPECT_TRUE(first_init);   // Default provider loaded successfully
-    // Second should return the same cached result (true = initialization succeeded)
+    // First init should succeed (loads default or FIPS provider)
+    EXPECT_TRUE(first_init);   // Provider loaded successfully
+    // Second should also return true (initialization was successful, cached)
     EXPECT_TRUE(second_init);  // Returns cached success from first init
 
     // Multiple calls should return consistent results

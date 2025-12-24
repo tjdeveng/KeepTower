@@ -2486,7 +2486,10 @@ bool VaultManager::init_fips_mode(bool enable) {
     bool expected = false;
     if (!s_fips_mode_initialized.compare_exchange_strong(expected, true)) {
         KeepTower::Log::warning("FIPS mode already initialized");
-        return s_fips_mode_available.load();
+        // Return true = initialization already succeeded (we have a working provider)
+        // Don't return s_fips_mode_available because that indicates FIPS provider
+        // availability, not whether initialization succeeded overall
+        return true;
     }
 
     KeepTower::Log::info("Initializing OpenSSL FIPS mode (enable={})", enable);
