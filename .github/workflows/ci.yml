@@ -131,6 +131,10 @@ jobs:
         # Set GSETTINGS_SCHEMA_DIR for all tests (some may need it)
         export GSETTINGS_SCHEMA_DIR="${{ github.workspace }}/build/data"
 
+        # Set OPENSSL_CONF to enable FIPS provider for tests
+        # This uses our locally built OpenSSL config with FIPS already enabled
+        export OPENSSL_CONF="/tmp/openssl-install/ssl/openssl.cnf"
+
         # Run tests with increased verbosity
         meson test -C build --verbose --print-errorlogs
 
