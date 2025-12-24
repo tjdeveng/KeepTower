@@ -156,6 +156,7 @@ protected:
     std::optional<uint32_t> detect_vault_version(const std::string& vault_path);  ///< Detect if vault is V1 or V2
     void handle_v2_vault_open(const std::string& vault_path);  ///< Handle V2 user authentication
     void handle_password_change_required(const std::string& username);  ///< Force password change for first login
+    void handle_yubikey_enrollment_required(const std::string& username);  ///< Force YubiKey enrollment if policy requires
     void complete_vault_opening(const std::string& vault_path, const std::string& username);  ///< Complete vault opening after authentication
     void update_session_display();  ///< Update header bar with session info (username, role)
 

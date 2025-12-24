@@ -91,6 +91,32 @@ fips_mode_test = executable(
     include_directories: test_inc
 )
 
+# Memory locking tests (FIPS-140-3 Section 7.9 compliance)
+memory_locking_sources = [
+    'test_memory_locking.cc',
+    '../src/core/VaultManagerV2.cc',
+] + vault_manager_common_sources
+
+memory_locking_deps = [
+    gtest_dep,
+    protobuf_dep,
+    openssl_dep,
+    giomm_dep,
+    libcorrect_dep
+]
+
+if yubikey_available
+    memory_locking_sources += files('../src/core/YubiKeyManager.cc')
+    memory_locking_deps += [ykpers_dep, libyubikey_dep]
+endif
+
+memory_locking_test = executable(
+    'memory_locking_test',
+    memory_locking_sources,
+    dependencies: memory_locking_deps,
+    include_directories: test_inc
+)
+
 # Password validation tests
 password_validation_test = executable(
     'password_validation_test',
@@ -273,6 +299,7 @@ test('Vault Helper Functions', vault_helpers_test)
 test('Fuzzy Match Tests', fuzzy_match_test)
 test('Undo/Redo Tests', undo_redo_test)
 test('FIPS Mode Tests', fips_mode_test)
+test('Memory Locking Security Tests', memory_locking_test)
 
 # Secure memory tests
 secure_memory_sources = [

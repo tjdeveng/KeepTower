@@ -111,8 +111,13 @@ MainWindow::MainWindow()
     add_action("undo", sigc::mem_fun(*this, &MainWindow::on_undo));
     add_action("redo", sigc::mem_fun(*this, &MainWindow::on_redo));
 #ifdef HAVE_YUBIKEY_SUPPORT
-    add_action("test-yubikey", sigc::mem_fun(*this, &MainWindow::on_test_yubikey));
-    add_action("manage-yubikeys", sigc::mem_fun(*this, &MainWindow::on_manage_yubikeys));
+    // Use lambdas for all YubiKey actions - better lifetime management with GTK4
+    add_action("test-yubikey", [this]() {
+        on_test_yubikey();
+    });
+    add_action("manage-yubikeys", [this]() {
+        on_manage_yubikeys();
+    });
 #endif
 
     // Phase 4: V2 vault user management actions
@@ -1371,6 +1376,25 @@ void MainWindow::display_account_details(int index) {
 
     // Display in the detail widget
     m_account_detail_widget->display_account(account);
+
+    // Check user role for permissions (V2 multi-user vaults)
+    bool is_admin = is_current_user_admin();
+
+    // Control privacy checkboxes - only admins can modify them
+    m_account_detail_widget->set_privacy_controls_editable(is_admin);
+
+    // Check if account is admin-only-deletable
+    // Standard users get read-only access to prevent circumventing deletion protection
+    if (!is_admin && account->is_admin_only_deletable()) {
+        // Standard user viewing admin-protected account: read-only mode
+        // User can view/copy password but cannot edit or delete
+        m_account_detail_widget->set_editable(false);
+        m_account_detail_widget->set_delete_button_sensitive(false);
+    } else {
+        // Normal edit mode (admin or non-protected account)
+        m_account_detail_widget->set_editable(true);
+        m_account_detail_widget->set_delete_button_sensitive(true);
+    }
 }
 
 bool MainWindow::save_current_account() {
@@ -1436,6 +1460,25 @@ bool MainWindow::save_current_account() {
     if (!account) {
         g_warning("Failed to get account at index %d", m_selected_account_index);
         return true;  // Allow navigation even if account not found
+    }
+
+    // Check if user has permission to edit this account (V2 multi-user vaults)
+    // Standard users cannot edit admin-only-deletable accounts
+    bool is_admin = is_current_user_admin();
+    if (!is_admin && account->is_admin_only_deletable()) {
+        // Only block save if account was actually modified
+        if (m_account_detail_widget->is_modified()) {
+            show_error_dialog(
+                "You do not have permission to edit this account.\n\n"
+                "This account is marked as admin-only-deletable.\n"
+                "Only administrators can modify protected accounts."
+            );
+            // Reload the original account data to discard any changes
+            m_account_detail_widget->display_account(account);
+            return false;  // Prevent save and navigation
+        }
+        // Not modified, allow navigation without error
+        return true;
     }
 
     // Store the old account name to detect if it changed
@@ -2853,11 +2896,11 @@ void MainWindow::on_test_yubikey() {
         warning("YubiKey challenge-response failed: {}", challenge_resp.error_message);
     }
 }
+#endif
 
+#ifdef HAVE_YUBIKEY_SUPPORT
 void MainWindow::on_manage_yubikeys() {
-    using namespace KeepTower::Log;
-
-    // Check if vault is open and YubiKey-protected
+    // Check if vault is open
     if (!m_vault_open) {
         auto dialog = Gtk::AlertDialog::create("No Vault Open");
         dialog->set_detail("Please open a vault first.");
@@ -2867,6 +2910,7 @@ void MainWindow::on_manage_yubikeys() {
     }
 
     auto keys = m_vault_manager->get_yubikey_list();
+
     if (keys.empty()) {
         auto dialog = Gtk::AlertDialog::create("Vault Not YubiKey-Protected");
         dialog->set_detail("This vault does not use YubiKey authentication.");
@@ -2875,7 +2919,7 @@ void MainWindow::on_manage_yubikeys() {
         return;
     }
 
-    // Show YubiKey manager dialog (heap-allocated so it persists)
+    // Show YubiKey manager dialog (managed by GTK)
     auto* dialog = Gtk::make_managed<YubiKeyManagerDialog>(*this, m_vault_manager.get());
     dialog->show();
 }
@@ -3407,22 +3451,29 @@ void MainWindow::handle_v2_vault_open(const std::string& vault_path) {
         }
 
         // Successfully authenticated - check for password change requirement
+        KeepTower::Log::info("MainWindow: Authentication succeeded, getting user session");
         auto session_opt = m_vault_manager->get_current_user_session();
         if (!session_opt) {
+            KeepTower::Log::error("MainWindow: No session after successful authentication!");
             show_error_dialog("Internal error: No session after successful authentication");
             return;
         }
 
         const auto& session = *session_opt;
+        KeepTower::Log::info("MainWindow: Session obtained - username='{}', password_change_required={}",
+            session.username, session.password_change_required);
 
         // Check if password change is required (first login with temporary password)
         if (session.password_change_required) {
+            KeepTower::Log::info("MainWindow: Password change required, calling handler");
             handle_password_change_required(session.username);
             return;  // Stop here - vault setup will complete after password change
         }
 
         // Complete vault opening
+        KeepTower::Log::info("MainWindow: About to call complete_vault_opening()");
         complete_vault_opening(vault_path, session.username);
+        KeepTower::Log::info("MainWindow: Returned from complete_vault_opening()");
     });
 
     login_dialog->show();
@@ -3449,8 +3500,35 @@ void MainWindow::handle_password_change_required(const std::string& username) {
         auto req = change_dialog->get_request();
         change_dialog->hide();
 
+#ifdef HAVE_YUBIKEY_SUPPORT
+        // Check if user has YubiKey enrolled - show touch prompt if needed
+        YubiKeyPromptDialog* touch_dialog = nullptr;
+        auto users = m_vault_manager->list_users();
+        for (const auto& user : users) {
+            if (user.username == username && user.yubikey_enrolled) {
+                touch_dialog = Gtk::make_managed<YubiKeyPromptDialog>(*this,
+                    YubiKeyPromptDialog::PromptType::TOUCH);
+                touch_dialog->present();
+
+                // Force GTK to process events and render the dialog
+                auto context = Glib::MainContext::get_default();
+                while (context->pending()) {
+                    context->iteration(false);
+                }
+                g_usleep(150000);  // 150ms to ensure dialog is visible
+                break;
+            }
+        }
+#endif
+
         // Attempt password change
         auto result = m_vault_manager->change_user_password(username, req.current_password, req.new_password);
+
+#ifdef HAVE_YUBIKEY_SUPPORT
+        if (touch_dialog) {
+            touch_dialog->hide();
+        }
+#endif
 
         // Clear passwords immediately
         req.clear();
@@ -3475,63 +3553,225 @@ void MainWindow::handle_password_change_required(const std::string& username) {
             return;
         }
 
-        // Password changed successfully - save vault and complete opening
+        // Password changed successfully - save vault
         on_save_vault();
+
+        // Check if YubiKey enrollment is now required
+        auto session_opt = m_vault_manager->get_current_user_session();
+        if (session_opt && session_opt->requires_yubikey_enrollment) {
+            // Show YubiKey enrollment dialog (required by policy)
+            handle_yubikey_enrollment_required(username);
+            return;
+        }
+
+        // Complete vault opening
         complete_vault_opening(m_current_vault_path, username);
     });
 
     change_dialog->show();
 }
 
+void MainWindow::handle_yubikey_enrollment_required(const std::string& username) {
+#ifdef HAVE_YUBIKEY_SUPPORT
+    // Show message dialog explaining YubiKey enrollment requirement
+    auto info_dialog = Gtk::make_managed<Gtk::MessageDialog>(
+        *this,
+        "YubiKey enrollment is required by vault policy.\n\n"
+        "You must enroll your YubiKey to access this vault.\n\n"
+        "Please ensure your YubiKey is connected, then click OK to continue.",
+        false,
+        Gtk::MessageType::INFO,
+        Gtk::ButtonsType::OK_CANCEL,
+        true);
+    info_dialog->set_title("YubiKey Enrollment Required");
+
+    info_dialog->signal_response().connect([this, info_dialog, username](int response) {
+        info_dialog->hide();
+
+        if (response != Gtk::ResponseType::OK) {
+            // User cancelled - close vault
+            on_close_vault();
+            show_error_dialog("YubiKey enrollment is required.\nVault has been closed.");
+            return;
+        }
+
+        // Get user's current password (they just changed it)
+        auto pwd_dialog = Gtk::make_managed<Gtk::MessageDialog>(
+            *this,
+            "Enter your password to enroll YubiKey:",
+            false,
+            Gtk::MessageType::QUESTION,
+            Gtk::ButtonsType::OK_CANCEL,
+            true);
+        pwd_dialog->set_title("Password Required");
+
+        auto* entry = Gtk::make_managed<Gtk::Entry>();
+        entry->set_visibility(false);
+        entry->set_activates_default(true);
+        pwd_dialog->get_content_area()->append(*entry);
+        pwd_dialog->set_default_response(Gtk::ResponseType::OK);
+
+        pwd_dialog->signal_response().connect([this, pwd_dialog, entry, username](int pwd_response) {
+            if (pwd_response != Gtk::ResponseType::OK) {
+                pwd_dialog->hide();
+                on_close_vault();
+                show_error_dialog("YubiKey enrollment cancelled.\nVault has been closed.");
+                return;
+            }
+
+            auto password = entry->get_text();
+            pwd_dialog->hide();
+
+            // Show YubiKey touch prompt
+            auto touch_dialog = Gtk::make_managed<YubiKeyPromptDialog>(*this,
+                YubiKeyPromptDialog::PromptType::TOUCH);
+            touch_dialog->present();
+
+            // Force GTK to process events
+            auto context = Glib::MainContext::get_default();
+            while (context->pending()) {
+                context->iteration(false);
+            }
+            g_usleep(150000);  // 150ms delay
+
+            // Attempt YubiKey enrollment
+            auto result = m_vault_manager->enroll_yubikey_for_user(username, password);
+
+            // Clear password
+            entry->set_text("");
+            password = "";
+
+            touch_dialog->hide();
+
+            if (!result) {
+                std::string error_msg = "Failed to enroll YubiKey";
+                if (result.error() == KeepTower::VaultError::YubiKeyNotPresent) {
+                    error_msg = "YubiKey not detected. Please connect your YubiKey and try again.";
+                } else if (result.error() == KeepTower::VaultError::AuthenticationFailed) {
+                    error_msg = "Incorrect password.";
+                }
+
+                // Show error and retry
+                auto error_dialog = Gtk::make_managed<Gtk::MessageDialog>(
+                    *this, error_msg, false, Gtk::MessageType::ERROR, Gtk::ButtonsType::OK, true);
+                error_dialog->set_title("Enrollment Failed");
+                error_dialog->signal_response().connect([this, error_dialog, username](int) {
+                    error_dialog->hide();
+                    handle_yubikey_enrollment_required(username);  // Retry
+                });
+                error_dialog->show();
+                return;
+            }
+
+            // YubiKey enrolled successfully
+            on_save_vault();
+            complete_vault_opening(m_current_vault_path, username);
+
+            // Show success message
+            auto success_dialog = Gtk::make_managed<Gtk::MessageDialog>(
+                *this,
+                "YubiKey enrolled successfully!\n\nYour YubiKey will be required for all future logins.",
+                false,
+                Gtk::MessageType::INFO,
+                Gtk::ButtonsType::OK,
+                true);
+            success_dialog->set_title("Enrollment Complete");
+            success_dialog->signal_response().connect([success_dialog](int) {
+                success_dialog->hide();
+            });
+            success_dialog->show();
+        });
+
+        pwd_dialog->show();
+    });
+
+    info_dialog->show();
+#else
+    // YubiKey support not compiled - close vault
+    on_close_vault();
+    show_error_dialog("YubiKey enrollment required but YubiKey support is not available.\nVault has been closed.");
+#endif
+}
+
 void MainWindow::complete_vault_opening(const std::string& vault_path, const std::string& username) {
+    KeepTower::Log::info("MainWindow: complete_vault_opening() called - vault_path='{}', username='{}'", vault_path, username);
+
     // Vault opened successfully
+    KeepTower::Log::info("MainWindow: Setting member variables");
     m_current_vault_path = vault_path;
     m_vault_open = true;
     m_is_locked = false;
+
+    KeepTower::Log::info("MainWindow: Setting button sensitivities");
     m_save_button.set_sensitive(true);
     m_close_button.set_sensitive(true);
     m_add_account_button.set_sensitive(true);
     m_search_entry.set_sensitive(true);
 
     // Update UI with session information
+    KeepTower::Log::info("MainWindow: About to call update_session_display()");
     update_session_display();
+    KeepTower::Log::info("MainWindow: Returned from update_session_display()");
 
     // Load vault data
+    KeepTower::Log::info("MainWindow: About to call update_account_list()");
     update_account_list();
+    KeepTower::Log::info("MainWindow: About to call update_tag_filter_dropdown()");
     update_tag_filter_dropdown();
 
     // Initialize undo/redo state
+    KeepTower::Log::info("MainWindow: Setting undo/redo sensitivity");
     update_undo_redo_sensitivity(false, false);
 
     // Start activity monitoring for auto-lock
+    KeepTower::Log::info("MainWindow: Starting activity monitoring");
     on_user_activity();
 
+    KeepTower::Log::info("MainWindow: Setting status label");
     m_status_label.set_text("Vault opened: " + vault_path + " (User: " + username + ")");
+    KeepTower::Log::info("MainWindow: complete_vault_opening() completed successfully");
 }
 
 void MainWindow::update_session_display() {
+    KeepTower::Log::info("MainWindow: update_session_display() called");
+
     auto session_opt = m_vault_manager->get_current_user_session();
     if (!session_opt) {
         // No active session (V1 vault or not logged in)
+        KeepTower::Log::info("MainWindow: No active session, hiding session label");
         m_session_label.set_visible(false);
         return;
     }
 
     const auto& session = *session_opt;
+    KeepTower::Log::info("MainWindow: Session found: username='{}', role={}, password_change_required={}",
+        session.username, static_cast<int>(session.role), session.password_change_required);
 
     // Format session info: "User: alice (Admin)"
     std::string role_str = (session.role == KeepTower::UserRole::ADMINISTRATOR) ? "Admin" : "User";
-    std::string session_text = "User: " + session.username + " (" + role_str + ")";
+    std::string session_text;
 
-    if (session.password_change_required) {
-        session_text += " [Password change required]";
+    try {
+        session_text = "User: " + session.username + " (" + role_str + ")";
+
+        if (session.password_change_required) {
+            session_text += " [Password change required]";
+        }
+
+        KeepTower::Log::info("MainWindow: Setting session label text: '{}'", session_text);
+        m_session_label.set_text(session_text);
+        m_session_label.set_visible(true);
+        KeepTower::Log::info("MainWindow: Session label updated successfully");
+    } catch (const std::exception& e) {
+        KeepTower::Log::error("MainWindow: Error updating session display: {}", e.what());
+        m_session_label.set_text("User: " + session.username);
+        m_session_label.set_visible(true);
     }
 
-    m_session_label.set_text(session_text);
-    m_session_label.set_visible(true);
-
     // Phase 4: Update menu visibility based on role
+    KeepTower::Log::info("MainWindow: Calling update_menu_for_role()");
     update_menu_for_role();
+    KeepTower::Log::info("MainWindow: update_session_display() completed");
 }
 
 // ============================================================================
@@ -3571,8 +3811,35 @@ void MainWindow::on_change_my_password() {
         change_dialog->hide();
         delete change_dialog;
 
+#ifdef HAVE_YUBIKEY_SUPPORT
+        // Check if user has YubiKey enrolled - show touch prompt if needed
+        YubiKeyPromptDialog* touch_dialog = nullptr;
+        auto users = m_vault_manager->list_users();
+        for (const auto& user : users) {
+            if (user.username == username && user.yubikey_enrolled) {
+                touch_dialog = Gtk::make_managed<YubiKeyPromptDialog>(*this,
+                    YubiKeyPromptDialog::PromptType::TOUCH);
+                touch_dialog->present();
+
+                // Force GTK to process events and render the dialog
+                auto context = Glib::MainContext::get_default();
+                while (context->pending()) {
+                    context->iteration(false);
+                }
+                g_usleep(150000);  // 150ms to ensure dialog is visible
+                break;
+            }
+        }
+#endif
+
         // Attempt password change
         auto result = m_vault_manager->change_user_password(username, req.current_password, req.new_password);
+
+#ifdef HAVE_YUBIKEY_SUPPORT
+        if (touch_dialog) {
+            touch_dialog->hide();
+        }
+#endif
 
         // Clear passwords immediately
         req.clear();
@@ -3674,25 +3941,32 @@ void MainWindow::on_manage_users() {
 }
 
 void MainWindow::update_menu_for_role() {
+    KeepTower::Log::info("MainWindow: update_menu_for_role() called");
+
     // Only update if V2 vault is open
     if (!is_v2_vault_open()) {
+        KeepTower::Log::info("MainWindow: Not a V2 vault, disabling V2-specific actions");
         // Disable all V2-specific actions for V1 vaults
         m_change_password_action->set_enabled(false);
         m_logout_action->set_enabled(false);
         m_manage_users_action->set_enabled(false);
         // For V1 vaults, export is allowed (single-user)
         m_export_action->set_enabled(true);
+        KeepTower::Log::info("MainWindow: update_menu_for_role() completed (V1 mode)");
         return;
     }
 
+    KeepTower::Log::info("MainWindow: V2 vault detected, updating menu");
     // Enable change password and logout for all V2 users
     m_change_password_action->set_enabled(true);
     m_logout_action->set_enabled(true);
 
     // Enable user management and export only for administrators
     bool is_admin = is_current_user_admin();
+    KeepTower::Log::info("MainWindow: User is admin: {}", is_admin);
     m_manage_users_action->set_enabled(is_admin);
     m_export_action->set_enabled(is_admin);
+    KeepTower::Log::info("MainWindow: update_menu_for_role() completed (V2 mode)");
 }
 
 bool MainWindow::is_v2_vault_open() const noexcept {

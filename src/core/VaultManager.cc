@@ -3,6 +3,7 @@
 
 #include "VaultManager.h"
 #include "KeyWrapping.h"  // For V2 password verification
+#include "VaultFormatV2.h"  // For V2 vault parsing
 #include "../utils/Log.h"
 #include "../utils/SecureMemory.h"  // For secure_clear template
 #include <openssl/evp.h>
@@ -19,6 +20,7 @@
 
 #ifdef __linux__
 #include <sys/mman.h>  // For mlock/munlock
+#include <sys/resource.h>  // For setrlimit/RLIMIT_MEMLOCK
 #include <sys/stat.h>  // For chmod
 #include <fcntl.h>     // For open()
 #include <unistd.h>    // For fsync(), close()
@@ -82,6 +84,21 @@ VaultManager::VaultManager()
       m_memory_locked(false),
       m_yubikey_required(false),
       m_pbkdf2_iterations(DEFAULT_PBKDF2_ITERATIONS) {
+
+#ifdef __linux__
+    // Increase RLIMIT_MEMLOCK to allow locking ~10MB of sensitive memory
+    // This is required for V2 vaults with multiple users and YubiKey challenges
+    struct rlimit limit;
+    limit.rlim_cur = 10 * 1024 * 1024;  // 10MB current limit
+    limit.rlim_max = 10 * 1024 * 1024;  // 10MB maximum limit
+    if (setrlimit(RLIMIT_MEMLOCK, &limit) == 0) {
+        KeepTower::Log::debug("VaultManager: Increased RLIMIT_MEMLOCK to 10MB");
+    } else {
+        KeepTower::Log::warning("VaultManager: Failed to increase RLIMIT_MEMLOCK: {} ({})",
+                               std::strerror(errno), errno);
+        KeepTower::Log::warning("VaultManager: Memory locking may fail. Run with CAP_IPC_LOCK or increase ulimit -l");
+    }
+#endif
 }
 
 VaultManager::~VaultManager() {
@@ -228,6 +245,41 @@ bool VaultManager::check_vault_requires_yubikey(const std::string& path, std::st
         return false;
     }
 
+    // Check if V2 vault (multi-user format)
+    if (file_data.size() >= 16) {  // Need at least magic + version + pbkdf2_iters + header_size
+        uint32_t magic = (static_cast<uint32_t>(file_data[0]) << 0) |
+                        (static_cast<uint32_t>(file_data[1]) << 8) |
+                        (static_cast<uint32_t>(file_data[2]) << 16) |
+                        (static_cast<uint32_t>(file_data[3]) << 24);
+        uint32_t version = (static_cast<uint32_t>(file_data[4]) << 0) |
+                          (static_cast<uint32_t>(file_data[5]) << 8) |
+                          (static_cast<uint32_t>(file_data[6]) << 16) |
+                          (static_cast<uint32_t>(file_data[7]) << 24);
+
+        if (magic == 0x4B505457 && version == 2) {  // "KPTW" V2
+            // This is a V2 vault - check if any user has YubiKey enrolled
+            // We need to parse the header to check
+            auto parse_result = VaultFormatV2::read_header(file_data);
+            if (parse_result) {
+                const auto& [header, _] = *parse_result;
+                const auto& vault_header = header.vault_header;
+                // Check if any active key slot has YubiKey enrolled
+                for (const auto& slot : vault_header.key_slots) {
+                    if (slot.active && slot.yubikey_enrolled) {
+                        serial = slot.yubikey_serial;
+                        return true;
+                    }
+                }
+                // Also check if security policy requires YubiKey
+                if (vault_header.security_policy.require_yubikey) {
+                    return true;
+                }
+            }
+            return false;  // V2 vault but no YubiKey required
+        }
+    }
+
+    // V1 vault handling (original code)
     // Check minimum size for flags
     if (file_data.size() < SALT_LENGTH + IV_LENGTH + 1) {
         return false;
@@ -778,6 +830,31 @@ bool VaultManager::save_vault() {
 bool VaultManager::close_vault() {
     if (!m_vault_open) {
         return true;
+    }
+
+    // FIPS-140-3 Compliance: Unlock and zeroize all cryptographic key material (Section 7.9)
+    if (m_is_v2_vault && m_v2_header) {
+        // Unlock and clear V2 Data Encryption Key (DEK)
+        unlock_memory(m_v2_dek.data(), m_v2_dek.size());
+        OPENSSL_cleanse(m_v2_dek.data(), m_v2_dek.size());
+        KeepTower::Log::debug("VaultManager: Unlocked and cleared V2 DEK");
+
+        // Unlock and clear policy-level YubiKey challenge (shared by all users)
+        if (m_v2_header->security_policy.require_yubikey) {
+            auto& policy_challenge = m_v2_header->security_policy.yubikey_challenge;
+            unlock_memory(policy_challenge.data(), policy_challenge.size());
+            OPENSSL_cleanse(policy_challenge.data(), policy_challenge.size());
+            KeepTower::Log::debug("VaultManager: Unlocked and cleared V2 policy YubiKey challenge");
+        }
+
+        // Unlock and clear per-user YubiKey challenges
+        for (auto& slot : m_v2_header->key_slots) {
+            if (slot.yubikey_enrolled) {
+                unlock_memory(slot.yubikey_challenge.data(), slot.yubikey_challenge.size());
+                OPENSSL_cleanse(slot.yubikey_challenge.data(), slot.yubikey_challenge.size());
+            }
+        }
+        KeepTower::Log::debug("VaultManager: Unlocked and cleared all per-user YubiKey challenges");
     }
 
     // Securely clear sensitive data
@@ -1737,6 +1814,33 @@ bool VaultManager::lock_memory(std::vector<uint8_t>& data) {
 #endif
 }
 
+bool VaultManager::lock_memory(void* data, size_t size) {
+    if (!data || size == 0) {
+        return true;
+    }
+
+#ifdef __linux__
+    if (mlock(data, size) == 0) {
+        KeepTower::Log::debug("Locked {} bytes of sensitive memory (raw pointer)", size);
+        return true;
+    } else {
+        KeepTower::Log::warning("Failed to lock memory: {} ({})", std::strerror(errno), errno);
+        return false;
+    }
+#elif _WIN32
+    if (VirtualLock(data, size)) {
+        KeepTower::Log::debug("Locked {} bytes of sensitive memory (raw pointer)", size);
+        return true;
+    } else {
+        KeepTower::Log::warning("Failed to lock memory: error {}", GetLastError());
+        return false;
+    }
+#else
+    KeepTower::Log::debug("Memory locking not supported on this platform");
+    return false;
+#endif
+}
+
 void VaultManager::unlock_memory(std::vector<uint8_t>& data) {
     if (data.empty()) {
         return;
@@ -1749,6 +1853,21 @@ void VaultManager::unlock_memory(std::vector<uint8_t>& data) {
 #elif _WIN32
     VirtualUnlock(data.data(), data.size());
     KeepTower::Log::debug("Unlocked {} bytes of memory", data.size());
+#endif
+}
+
+void VaultManager::unlock_memory(void* data, size_t size) {
+    if (!data || size == 0) {
+        return;
+    }
+
+#ifdef __linux__
+    if (munlock(data, size) == 0) {
+        KeepTower::Log::debug("Unlocked {} bytes of memory (raw pointer)", size);
+    }
+#elif _WIN32
+    VirtualUnlock(data, size);
+    KeepTower::Log::debug("Unlocked {} bytes of memory (raw pointer)", size);
 #endif
 }
 
@@ -1957,7 +2076,49 @@ bool VaultManager::migrate_vault_schema() {
 std::vector<keeptower::YubiKeyEntry> VaultManager::get_yubikey_list() const {
     std::vector<keeptower::YubiKeyEntry> result;
 
-    if (!m_vault_open || !m_yubikey_required) {
+    Log::info("VaultManager", "get_yubikey_list() called");
+
+    if (!m_vault_open) {
+        Log::info("VaultManager", "Vault not open, returning empty list");
+        return result;
+    }
+
+    // V2 vault: Return per-user YubiKey entries
+    if (m_is_v2_vault && m_v2_header) {
+        Log::info("VaultManager", std::format("V2 vault detected, {} key slots", m_v2_header->key_slots.size()));
+        for (size_t i = 0; i < m_v2_header->key_slots.size(); ++i) {
+            const auto& slot = m_v2_header->key_slots[i];
+            Log::info("VaultManager", std::format("Slot {}: active={}, enrolled={}, username={}",
+                i, slot.active, slot.yubikey_enrolled, slot.username));
+
+            if (slot.active && slot.yubikey_enrolled) {
+                // Safety check: ensure username and serial are valid
+                if (slot.username.empty() || slot.yubikey_serial.empty()) {
+                    KeepTower::Log::warning("VaultManager: Skipping invalid YubiKey entry (empty username or serial)");
+                    continue;
+                }
+
+                keeptower::YubiKeyEntry entry;
+                try {
+                    entry.set_name(std::format("{}'s YubiKey", slot.username));
+                    entry.set_serial(slot.yubikey_serial);
+                    // Store timestamp directly (int64)
+                    entry.set_added_at(slot.yubikey_enrolled_at);
+                    Log::info("VaultManager", std::format("Added YubiKey entry: name={}, serial={}",
+                        entry.name(), entry.serial()));
+                    result.push_back(entry);
+                } catch (const std::exception& e) {
+                    KeepTower::Log::error("VaultManager: Error creating YubiKey entry: {}", e.what());
+                    continue;
+                }
+            }
+        }
+        Log::info("VaultManager", std::format("Returning {} YubiKey entries", result.size()));
+        return result;
+    }
+
+    // V1 vault: Use old YubiKey config method
+    if (!m_yubikey_required) {
         return result;
     }
 

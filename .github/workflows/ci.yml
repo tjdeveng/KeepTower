@@ -117,8 +117,33 @@ jobs:
     - name: Build
       run: meson compile -C build
 
+    - name: Setup test environment
+      run: |
+        # Increase memory lock limit for memory locking tests
+        # CI runners typically don't have CAP_IPC_LOCK, but we can increase the limit
+        ulimit -l 10240  # 10MB
+        echo "Memory lock limit: $(ulimit -l)"
+
+        # Ensure GSettings schema is compiled
+        ls -la build/data/gschemas.compiled || echo "Schema not found"
+
     - name: Run tests
-      run: meson test -C build --verbose
+      run: |
+        # Set GSETTINGS_SCHEMA_DIR for all tests (some may need it)
+        export GSETTINGS_SCHEMA_DIR="${{ github.workspace }}/build/data"
+
+        # Run tests with increased verbosity
+        meson test -C build --verbose --print-errorlogs
+
+    - name: Display test summary
+      if: always()
+      run: |
+        echo "=== Test Summary ==="
+        if [ -f build/meson-logs/testlog.txt ]; then
+          tail -50 build/meson-logs/testlog.txt
+        else
+          echo "No test log found"
+        fi
 
     - name: Publish Test Results Summary
       uses: mikepenz/action-junit-report@v4

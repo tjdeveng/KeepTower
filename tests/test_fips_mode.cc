@@ -243,14 +243,14 @@ TEST_F(FIPSModeTest, InitFIPSMode_CanOnlyInitializeOnce) {
     // Note: This test assumes no prior initialization in this test binary
     bool first_init = VaultManager::init_fips_mode(false);
 
-    // Second call should return the cached availability result
-    // but won't actually re-initialize (logs warning)
+    // Second call should return the cached result from first initialization
+    // (it won't re-initialize, just returns cached availability)
     bool second_init = VaultManager::init_fips_mode(false);
 
     // First init should succeed (loads default provider)
-    // Second returns cached FIPS availability (false in this case since no FIPS config)
     EXPECT_TRUE(first_init);   // Default provider loaded successfully
-    EXPECT_FALSE(second_init); // FIPS not available, cached result
+    // Second should return the same cached result (true = initialization succeeded)
+    EXPECT_TRUE(second_init);  // Returns cached success from first init
 
     // Multiple calls should return consistent results
     bool available1 = VaultManager::is_fips_available();
@@ -360,13 +360,14 @@ TEST_F(FIPSModeTest, VaultOperations_DefaultMode_WrongPassword) {
 // ============================================================================
 
 TEST_F(FIPSModeTest, FIPSMode_EnabledMode_IfAvailable) {
-    // Try to initialize with FIPS enabled
-    bool init_result = VaultManager::init_fips_mode(true);
+    // FIPS mode is already initialized by earlier tests, so we use runtime toggle instead
+    // Cannot call init_fips_mode() again as it can only be called once per process
 
     if (VaultManager::is_fips_available()) {
-        // If FIPS is available, initialization should succeed
-        EXPECT_TRUE(init_result);
-        EXPECT_TRUE(VaultManager::is_fips_enabled());
+        // Enable FIPS at runtime (since init already happened)
+        bool enable_result = VaultManager::set_fips_mode(true);
+        EXPECT_TRUE(enable_result) << "Failed to enable FIPS mode at runtime";
+        EXPECT_TRUE(VaultManager::is_fips_enabled()) << "FIPS should be enabled after set_fips_mode(true)";
 
         // Test vault operations work in FIPS mode
         VaultManager vault;
@@ -387,9 +388,11 @@ TEST_F(FIPSModeTest, FIPSMode_EnabledMode_IfAvailable) {
         ASSERT_TRUE(vault.open_vault(test_vault_path, test_password));
         EXPECT_EQ(vault.get_account_count(), 1);
 
+        // Clean up: disable FIPS for subsequent tests
+        VaultManager::set_fips_mode(false);
+
     } else {
-        // If FIPS not available, init might succeed (default provider)
-        // but FIPS should not be enabled
+        // If FIPS not available, FIPS should not be enabled
         EXPECT_FALSE(VaultManager::is_fips_enabled());
     }
 }

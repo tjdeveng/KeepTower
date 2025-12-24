@@ -469,6 +469,81 @@ public:
         const Glib::ustring& new_temporary_password);
 
     /**
+     * @brief Enroll YubiKey for a user account (two-factor authentication)
+     * @param username Username to enroll YubiKey for
+     * @param password User's current password (for verification)
+     * @return Expected void or VaultError
+     *
+     * Requirements:
+     * - Vault must be open (V2 only)
+     * - Either: user enrolling own YubiKey OR current user is admin
+     * - Password must be correct (KEK unwrapping verification)
+     * - YubiKey must be present and functional
+     * - User must not already have YubiKey enrolled
+     *
+     * Process:
+     * 1. Verify password by unwrapping DEK
+     * 2. Generate unique 20-byte challenge for user
+     * 3. Perform YubiKey challenge-response (requires touch for security)
+     * 4. Combine KEK with YubiKey response
+     * 5. Re-wrap DEK with password+YubiKey combined KEK
+     * 6. Store challenge, serial, and timestamp in user's KeySlot
+     *
+     * @note After enrollment, user MUST have YubiKey present for all future logins
+     * @note Call save_vault() after to persist changes
+     *
+     * @code
+     * // User enrolling their own YubiKey
+     * auto result = vm.enroll_yubikey_for_user("alice", "alicepass123");
+     * if (!result) {
+     *     show_error("YubiKey enrollment failed");
+     *     return;
+     * }
+     * vm.save_vault();
+     * show_success("YubiKey enrolled! Required for future logins.");
+     * @endcode
+     */
+    [[nodiscard]] KeepTower::VaultResult<> enroll_yubikey_for_user(
+        const Glib::ustring& username,
+        const Glib::ustring& password);
+
+    /**
+     * @brief Remove YubiKey enrollment from a user account
+     * @param username Username to unenroll YubiKey from
+     * @param password User's current password (for verification)
+     * @return Expected void or VaultError
+     *
+     * Requirements:
+     * - Vault must be open (V2 only)
+     * - Either: user unenrolling own YubiKey OR current user is admin
+     * - Password AND YubiKey must be correct (combined verification)
+     * - User must currently have YubiKey enrolled
+     *
+     * Process:
+     * 1. Verify password+YubiKey by unwrapping DEK
+     * 2. Derive new KEK from password ONLY (no YubiKey)
+     * 3. Re-wrap DEK with password-only KEK
+     * 4. Clear YubiKey fields in user's KeySlot
+     *
+     * @note After unenrollment, user logs in with password only
+     * @note Call save_vault() after to persist changes
+     *
+     * @code
+     * // User removing their YubiKey requirement
+     * auto result = vm.unenroll_yubikey_for_user("alice", "alicepass123");
+     * if (!result) {
+     *     show_error("YubiKey unenrollment failed");
+     *     return;
+     * }
+     * vm.save_vault();
+     * show_success("YubiKey removed. Password-only login enabled.");
+     * @endcode
+     */
+    [[nodiscard]] KeepTower::VaultResult<> unenroll_yubikey_for_user(
+        const Glib::ustring& username,
+        const Glib::ustring& password);
+
+    /**
      * @brief Get current user session info
      * @return Optional UserSession, empty if no V2 vault open
      *
@@ -1293,7 +1368,9 @@ private:
     void secure_clear(std::vector<uint8_t>& data);
     void secure_clear(std::string& data);
     bool lock_memory(std::vector<uint8_t>& data);
+    bool lock_memory(void* data, size_t size);  // Overload for std::array and raw pointers
     void unlock_memory(std::vector<uint8_t>& data);
+    void unlock_memory(void* data, size_t size);  // Overload for std::array and raw pointers
 
     // Backup management
     KeepTower::VaultResult<> create_backup(std::string_view path);

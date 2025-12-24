@@ -50,6 +50,8 @@ enum class VaultError {
     YubiKeyDeviceInfoFailed,
     YubiKeyUnauthorized,
     YubiKeyChallengeResponseFailed,
+    YubiKeyError,           // General YubiKey operation failed
+    YubiKeyNotPresent,      // YubiKey required but not connected
 
     // Account operations
     AccountNotFound,
@@ -129,6 +131,10 @@ inline constexpr std::string_view to_string(VaultError error) noexcept {
             return "YubiKey not authorized for this vault";
         case VaultError::YubiKeyChallengeResponseFailed:
             return "YubiKey challenge-response failed";
+        case VaultError::YubiKeyError:
+            return "YubiKey operation failed";
+        case VaultError::YubiKeyNotPresent:
+            return "YubiKey required but not present";
         case VaultError::AccountNotFound:
             return "Account not found";
         case VaultError::InvalidIndex:

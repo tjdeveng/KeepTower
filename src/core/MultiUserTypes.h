@@ -239,6 +239,48 @@ struct KeySlot {
     int64_t last_login_at = 0;
 
     /**
+     * @brief YubiKey enrollment status for this user
+     *
+     * Indicates whether this user has enrolled their YubiKey for two-factor authentication.
+     * Set to true after successful YubiKey enrollment.
+     * Checked during authentication if VaultSecurityPolicy.require_yubikey is true.
+     *
+     * @note Each user has their own unique YubiKey challenge
+     * @note Admin cannot enroll YubiKey for users (requires physical device)
+     */
+    bool yubikey_enrolled = false;
+
+    /**
+     * @brief User's unique YubiKey challenge (20 bytes)
+     *
+     * Random challenge used for HMAC-SHA1 challenge-response authentication.
+     * Generated during YubiKey enrollment and remains constant for this user.
+     * Used to derive KEK: KEK_final = KEK_password XOR HMAC-SHA1(challenge)
+     *
+     * @note Empty (all zeros) if yubikey_enrolled is false
+     * @note Challenge is unique per user, not shared across users
+     */
+    std::array<uint8_t, 20> yubikey_challenge = {};
+
+    /**
+     * @brief YubiKey device serial number (optional)
+     *
+     * Serial number of the enrolled YubiKey device for audit logging.
+     * Can be used for device verification warnings (not enforced).
+     * Empty string if not available or YubiKey not enrolled.
+     */
+    std::string yubikey_serial;
+
+    /**
+     * @brief Timestamp of YubiKey enrollment (Unix epoch seconds)
+     *
+     * Records when this user enrolled their YubiKey.
+     * Set to 0 if YubiKey not enrolled.
+     * Used for audit logging and compliance reporting.
+     */
+    int64_t yubikey_enrolled_at = 0;
+
+    /**
      * @brief Serialize to binary format for vault header
      * @return Binary representation (variable length due to username)
      */
@@ -292,6 +334,15 @@ struct UserSession {
     bool password_change_required = false;
 
     /**
+     * @brief YubiKey enrollment required before vault access
+     *
+     * If true, user must enroll YubiKey before accessing vault.
+     * Set when vault policy requires YubiKey but user doesn't have one enrolled.
+     * UI should show YubiKey enrollment dialog after password change.
+     */
+    bool requires_yubikey_enrollment = false;
+
+    /**
      * @brief Session creation timestamp (Unix epoch seconds)
      */
     int64_t session_started_at = 0;
@@ -306,10 +357,10 @@ struct UserSession {
 
     /**
      * @brief Check if vault access is allowed
-     * @return true if user can access vault (no password change required)
+     * @return true if user can access vault (no password change or YubiKey enrollment required)
      */
     bool can_access_vault() const {
-        return !password_change_required;
+        return !password_change_required && !requires_yubikey_enrollment;
     }
 };
 

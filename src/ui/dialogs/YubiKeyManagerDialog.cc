@@ -7,6 +7,7 @@
 
 #include "YubiKeyManagerDialog.h"
 #include "../../core/VaultManager.h"
+#include "../../utils/Log.h"
 #include <format>
 
 YubiKeyManagerDialog::YubiKeyManagerDialog(Gtk::Window& parent, VaultManager* vault_manager)
@@ -21,11 +22,15 @@ YubiKeyManagerDialog::YubiKeyManagerDialog(Gtk::Window& parent, VaultManager* va
     , m_remove_button("Remove Selected")
     , m_close_button("Close")
 {
+    KeepTower::Log::info("YubiKeyManagerDialog: Constructor called");
     set_default_size(500, 400);
     set_modal(true);
 
+    KeepTower::Log::info("YubiKeyManagerDialog: Calling setup_ui()");
     setup_ui();
+    KeepTower::Log::info("YubiKeyManagerDialog: Calling refresh_key_list()");
     refresh_key_list();
+    KeepTower::Log::info("YubiKeyManagerDialog: Constructor completed");
 }
 
 void YubiKeyManagerDialog::setup_ui() {
@@ -81,7 +86,9 @@ void YubiKeyManagerDialog::refresh_key_list() {
         return;
     }
 
+    KeepTower::Log::info("YubiKeyManagerDialog: Calling get_yubikey_list()");
     auto keys = m_vault_manager->get_yubikey_list();
+    KeepTower::Log::info("YubiKeyManagerDialog: Retrieved {} YubiKey entries", keys.size());
 
     if (keys.empty()) {
         auto* label = Gtk::make_managed<Gtk::Label>("No YubiKeys configured");
@@ -90,29 +97,57 @@ void YubiKeyManagerDialog::refresh_key_list() {
         return;
     }
 
-    for (const auto& key : keys) {
-        auto* row = Gtk::make_managed<Gtk::ListBoxRow>();
-        auto* box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 4);
-        box->set_margin(12);
+    for (size_t i = 0; i < keys.size(); ++i) {
+        try {
+            const auto& key = keys[i];
+            KeepTower::Log::info("YubiKeyManagerDialog: Processing key {}: name='{}', serial='{}'",
+                i, key.name(), key.serial());
 
-        auto* name_label = Gtk::make_managed<Gtk::Label>();
-        name_label->set_markup(std::format("<b>{}</b>", key.name()));
-        name_label->set_xalign(0.0);
-        box->append(*name_label);
+            auto* row = Gtk::make_managed<Gtk::ListBoxRow>();
+            auto* box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 4);
+            box->set_margin(12);
 
-        auto* info_label = Gtk::make_managed<Gtk::Label>();
-        std::time_t added_time = key.added_at();
-        char time_buf[100];
-        std::strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M", std::localtime(&added_time));
-        info_label->set_markup(std::format("<small>Serial: {} • Added: {}</small>",
-                                          key.serial(), time_buf));
-        info_label->set_xalign(0.0);
-        box->append(*info_label);
+            // Name label with safety check
+            auto* name_label = Gtk::make_managed<Gtk::Label>();
+            std::string name_text = !key.name().empty() ? key.name() : "Unknown YubiKey";
+            name_label->set_markup(std::format("<b>{}</b>", Glib::Markup::escape_text(name_text)));
+            name_label->set_xalign(0.0);
+            box->append(*name_label);
 
-        row->set_child(*box);
-        row->set_data("serial", g_strdup(key.serial().c_str()), g_free);
-        m_key_list.append(*row);
+            // Info label with safety checks
+            auto* info_label = Gtk::make_managed<Gtk::Label>();
+            std::string serial_text = !key.serial().empty() ? key.serial() : "Unknown";
+            std::string time_text = "Unknown";
+
+            if (key.added_at() > 0) {
+                std::time_t timestamp = key.added_at();
+                std::tm* tm_ptr = std::localtime(&timestamp);
+                if (tm_ptr) {
+                    char time_buf[100];
+                    if (std::strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M", tm_ptr) > 0) {
+                        time_text = time_buf;
+                    }
+                }
+            }
+
+            info_label->set_markup(std::format("<small>Serial: {} • Added: {}</small>",
+                                              Glib::Markup::escape_text(serial_text),
+                                              Glib::Markup::escape_text(time_text)));
+            info_label->set_xalign(0.0);
+            box->append(*info_label);
+
+            row->set_child(*box);
+            row->set_data("serial", g_strdup(serial_text.c_str()), g_free);
+            m_key_list.append(*row);
+
+            KeepTower::Log::info("YubiKeyManagerDialog: Successfully added UI row for key {}", i);
+        } catch (const std::exception& e) {
+            KeepTower::Log::error("YubiKeyManagerDialog: Error processing YubiKey entry: {}", e.what());
+            continue;
+        }
     }
+
+    KeepTower::Log::info("YubiKeyManagerDialog: refresh_key_list() completed");
 }
 
 void YubiKeyManagerDialog::on_add_key() {

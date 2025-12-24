@@ -109,7 +109,12 @@ size_t KeySlot::calculate_serialized_size() const {
     // 1 byte: must_change_password
     // 8 bytes: password_changed_at
     // 8 bytes: last_login_at
-    return 1 + 1 + username.size() + 32 + 40 + 1 + 1 + 8 + 8;
+    // 1 byte: yubikey_enrolled
+    // 20 bytes: yubikey_challenge
+    // 1 byte: yubikey_serial length
+    // N bytes: yubikey_serial
+    // 8 bytes: yubikey_enrolled_at
+    return 1 + 1 + username.size() + 32 + 40 + 1 + 1 + 8 + 8 + 1 + 20 + 1 + yubikey_serial.size() + 8;
 }
 
 std::vector<uint8_t> KeySlot::serialize() const {
@@ -151,6 +156,27 @@ std::vector<uint8_t> KeySlot::serialize() const {
         result.push_back(static_cast<uint8_t>((last_login_at >> ((7 - i) * 8)) & 0xFF));
     }
 
+    // Next byte: yubikey_enrolled
+    result.push_back(yubikey_enrolled ? 1 : 0);
+
+    // Next 20 bytes: yubikey_challenge
+    result.insert(result.end(), yubikey_challenge.begin(), yubikey_challenge.end());
+
+    // Next byte: yubikey_serial length
+    if (yubikey_serial.size() > 255) {
+        Log::error("KeySlot: YubiKey serial too long (max 255 bytes): {}", yubikey_serial.size());
+        return {};
+    }
+    result.push_back(static_cast<uint8_t>(yubikey_serial.size()));
+
+    // Next N bytes: yubikey_serial
+    result.insert(result.end(), yubikey_serial.begin(), yubikey_serial.end());
+
+    // Next 8 bytes: yubikey_enrolled_at (big-endian)
+    for (unsigned int i = 0; i < 8; ++i) {
+        result.push_back(static_cast<uint8_t>((yubikey_enrolled_at >> ((7 - i) * 8)) & 0xFF));
+    }
+
     return result;
 }
 
@@ -171,7 +197,7 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
     // Byte 1: username length
     uint8_t username_len = data[pos++];
 
-    // Check if we have enough data for username + fixed fields
+    // Check if we have enough data for username + fixed fields (minimum without YubiKey fields)
     if (pos + username_len + 32 + 40 + 1 + 1 + 8 + 8 > data.size()) {
         Log::error("KeySlot: Insufficient data for slot (need {}, have {})",
                    username_len + 32 + 40 + 1 + 1 + 8 + 8, data.size() - pos);
@@ -211,6 +237,44 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
     slot.last_login_at = 0;
     for (int i = 0; i < 8; ++i) {
         slot.last_login_at = (slot.last_login_at << 8) | data[pos++];
+    }
+
+    // Check if we have YubiKey fields (backward compatibility)
+    // If not enough data, treat as old format (no YubiKey fields)
+    if (pos + 1 + 20 + 1 > data.size()) {
+        // Old format without YubiKey fields - use defaults
+        slot.yubikey_enrolled = false;
+        slot.yubikey_challenge = {};
+        slot.yubikey_serial = "";
+        slot.yubikey_enrolled_at = 0;
+        size_t bytes_consumed = pos - offset;
+        return std::make_pair(slot, bytes_consumed);
+    }
+
+    // yubikey_enrolled (1 byte)
+    slot.yubikey_enrolled = (data[pos++] != 0);
+
+    // yubikey_challenge (20 bytes)
+    std::copy(data.begin() + pos, data.begin() + pos + 20, slot.yubikey_challenge.begin());
+    pos += 20;
+
+    // yubikey_serial length (1 byte)
+    uint8_t yubikey_serial_len = data[pos++];
+
+    // Check if we have enough data for serial + timestamp
+    if (pos + yubikey_serial_len + 8 > data.size()) {
+        Log::error("KeySlot: Insufficient data for YubiKey serial and timestamp");
+        return std::nullopt;
+    }
+
+    // yubikey_serial (N bytes)
+    slot.yubikey_serial.assign(data.begin() + pos, data.begin() + pos + yubikey_serial_len);
+    pos += yubikey_serial_len;
+
+    // yubikey_enrolled_at (8 bytes, big-endian)
+    slot.yubikey_enrolled_at = 0;
+    for (int i = 0; i < 8; ++i) {
+        slot.yubikey_enrolled_at = (slot.yubikey_enrolled_at << 8) | data[pos++];
     }
 
     size_t bytes_consumed = pos - offset;

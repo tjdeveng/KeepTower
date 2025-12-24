@@ -10,6 +10,7 @@ AccountDetailWidget::AccountDetailWidget()
     , m_details_box(Gtk::Orientation::VERTICAL, 0)
     , m_details_fields_box(Gtk::Orientation::VERTICAL, 0)
     , m_password_visible(false)
+    , m_is_modified(false)
 {
     // Configure this scrolled window
     set_policy(Gtk::PolicyType::AUTOMATIC, Gtk::PolicyType::AUTOMATIC);
@@ -222,6 +223,9 @@ void AccountDetailWidget::display_account(const keeptower::AccountRecord* accoun
     // Enable widgets
     set_editable(true);
     m_delete_account_button.set_sensitive(true);
+
+    // Reset modified flag when loading account
+    m_is_modified = false;
 }
 
 void AccountDetailWidget::clear() {
@@ -247,6 +251,9 @@ void AccountDetailWidget::clear() {
 
     set_editable(false);
     m_delete_account_button.set_sensitive(false);
+
+    // Reset modified flag
+    m_is_modified = false;
 }
 
 std::string AccountDetailWidget::get_account_name() const {
@@ -303,18 +310,40 @@ bool AccountDetailWidget::get_admin_only_deletable() const {
 }
 
 void AccountDetailWidget::set_editable(bool editable) {
-    m_account_name_entry.set_sensitive(editable);
-    m_user_name_entry.set_sensitive(editable);
-    m_password_entry.set_sensitive(editable);
-    m_email_entry.set_sensitive(editable);
-    m_website_entry.set_sensitive(editable);
-    m_notes_view.set_sensitive(editable);
-    m_tags_entry.set_sensitive(editable);
+    // Make Entry widgets read-only (they inherit from Gtk::Editable interface)
+    // Using the Editable interface methods
+    auto* account_editable = dynamic_cast<Gtk::Editable*>(&m_account_name_entry);
+    auto* user_editable = dynamic_cast<Gtk::Editable*>(&m_user_name_entry);
+    auto* password_editable = dynamic_cast<Gtk::Editable*>(&m_password_entry);
+    auto* email_editable = dynamic_cast<Gtk::Editable*>(&m_email_entry);
+    auto* website_editable = dynamic_cast<Gtk::Editable*>(&m_website_entry);
+    auto* tags_editable = dynamic_cast<Gtk::Editable*>(&m_tags_entry);
+
+    if (account_editable) account_editable->set_editable(editable);
+    if (user_editable) user_editable->set_editable(editable);
+    if (password_editable) password_editable->set_editable(editable);  // Prevents password modification/deletion
+    if (email_editable) email_editable->set_editable(editable);
+    if (website_editable) website_editable->set_editable(editable);
+    if (tags_editable) tags_editable->set_editable(editable);
+
+    m_notes_view.set_editable(editable);
+
+    // Disable generate password button - admin-only function
     m_generate_password_button.set_sensitive(editable);
-    m_show_password_button.set_sensitive(editable);
-    m_copy_password_button.set_sensitive(editable);
+
+    // View/copy buttons remain enabled for read-only access
+    m_show_password_button.set_sensitive(true);
+    m_copy_password_button.set_sensitive(true);
+    // Note: Privacy controls sensitivity is managed separately via set_privacy_controls_editable()
+}
+
+void AccountDetailWidget::set_privacy_controls_editable(bool editable) {
     m_admin_only_viewable_check.set_sensitive(editable);
     m_admin_only_deletable_check.set_sensitive(editable);
+}
+
+void AccountDetailWidget::set_delete_button_sensitive(bool sensitive) {
+    m_delete_account_button.set_sensitive(sensitive);
 }
 
 void AccountDetailWidget::set_password(const std::string& password) {
@@ -355,6 +384,7 @@ void AccountDetailWidget::on_show_password_clicked() {
 }
 
 void AccountDetailWidget::on_entry_changed() {
+    m_is_modified = true;
     m_signal_modified.emit();
 }
 

@@ -49,6 +49,12 @@ public:
     // Setters for enabling/disabling editing
     void set_editable(bool editable);
     void set_password(const std::string& password);  // For password generation
+    void set_privacy_controls_editable(bool editable);  // Control privacy checkboxes separately
+    void set_delete_button_sensitive(bool sensitive);  // Control delete button
+
+    // Track if account has been modified
+    [[nodiscard]] bool is_modified() const { return m_is_modified; }
+    void reset_modified_flag() { m_is_modified = false; }
 
     // Focus management
     void focus_account_name_entry();
@@ -123,4 +129,5 @@ private:
     void secure_clear_password();  // Secure password clearing
 
     bool m_password_visible;
+    bool m_is_modified;  // Track if account has been edited
 };
