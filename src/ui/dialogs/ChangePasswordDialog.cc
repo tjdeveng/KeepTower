@@ -2,24 +2,14 @@
 // SPDX-FileCopyrightText: 2025 tjdeveng
 
 #include "ChangePasswordDialog.h"
-#include <cstring>  // For memset
+#include "../../utils/SecureMemory.h"
 #include <cstdio>   // For printf debugging
 
 // Secure clear implementation for password change request
 void PasswordChangeRequest::clear() noexcept {
-    // Clear current password
-    if (!current_password.empty()) {
-        volatile char* ptr = const_cast<char*>(current_password.data());
-        std::memset(const_cast<char*>(ptr), 0, current_password.bytes());
-        current_password.clear();
-    }
-
-    // Clear new password
-    if (!new_password.empty()) {
-        volatile char* ptr = const_cast<char*>(new_password.data());
-        std::memset(const_cast<char*>(ptr), 0, new_password.bytes());
-        new_password.clear();
-    }
+    // Clear passwords using OPENSSL_cleanse to prevent compiler optimization
+    KeepTower::secure_clear_ustring(current_password);
+    KeepTower::secure_clear_ustring(new_password);
 }
 
 ChangePasswordDialog::ChangePasswordDialog(
@@ -262,11 +252,8 @@ void ChangePasswordDialog::on_response(int response_id) {
 
 void ChangePasswordDialog::secure_clear_entry(Gtk::Entry& entry) {
     Glib::ustring text = entry.get_text();
-    if (!text.empty()) {
-        // Overwrite buffer with zeros using volatile to prevent optimization
-        volatile char* ptr = const_cast<char*>(text.data());
-        std::memset(const_cast<char*>(ptr), 0, text.bytes());
-    }
+    // Clear password using OPENSSL_cleanse to prevent compiler optimization
+    KeepTower::secure_clear_ustring(text);
     entry.set_text("");  // Clear widget
 }
 

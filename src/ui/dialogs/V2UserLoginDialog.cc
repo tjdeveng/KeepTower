@@ -2,16 +2,12 @@
 // SPDX-FileCopyrightText: 2025 tjdeveng
 
 #include "V2UserLoginDialog.h"
-#include <cstring>  // For memset
+#include "../../utils/SecureMemory.h"
 
 // Secure clear implementation for credentials
 void V2LoginCredentials::clear() noexcept {
-    // Clear password with volatile to prevent compiler optimization
-    if (!password.empty()) {
-        volatile char* ptr = const_cast<char*>(password.data());
-        std::memset(const_cast<char*>(ptr), 0, password.bytes());
-        password.clear();
-    }
+    // Clear password using OPENSSL_cleanse to prevent compiler optimization
+    KeepTower::secure_clear_ustring(password);
     // Username is not sensitive, but clear for consistency
     username.clear();
 }
@@ -114,11 +110,7 @@ V2UserLoginDialog::V2UserLoginDialog(Gtk::Window& parent, bool vault_requires_yu
 V2UserLoginDialog::~V2UserLoginDialog() {
     // Securely clear password entry before destruction
     Glib::ustring password_text = m_password_entry.get_text();
-    if (!password_text.empty()) {
-        // Get raw buffer and clear with volatile to prevent optimization
-        volatile char* ptr = const_cast<char*>(password_text.data());
-        std::memset(const_cast<char*>(ptr), 0, password_text.bytes());
-    }
+    KeepTower::secure_clear_ustring(password_text);
     m_password_entry.set_text("");  // Clear entry widget
 }
 

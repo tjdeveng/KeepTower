@@ -3,6 +3,7 @@
 
 #include "UserManagementDialog.h"
 #include "../../utils/SettingsValidator.h"
+#include "../../utils/SecureMemory.h"
 #include <gtkmm/messagedialog.h>
 #include <gtkmm/grid.h>
 #include <gtkmm/separator.h>
@@ -275,10 +276,7 @@ void UserManagementDialog::on_add_user() {
                 error_dlg->show();
 
                 // Securely clear temporary password (Glib::ustring)
-                volatile char* p = const_cast<char*>(temp_password.data());
-                for (size_t i = 0; i < temp_password.bytes(); ++i) {
-                    p[i] = '\0';
-                }
+                KeepTower::secure_clear_ustring(temp_password);
                 return;
             }
 
@@ -314,10 +312,7 @@ void UserManagementDialog::on_add_user() {
             });
 
             // Securely clear temporary password
-            volatile char* p = const_cast<char*>(temp_password.data());
-            for (size_t i = 0; i < temp_password.size(); ++i) {
-                p[i] = '\0';
-            }
+            KeepTower::secure_clear_ustring(temp_password);
 
             // Refresh user list
             refresh_user_list();
@@ -425,10 +420,7 @@ void UserManagementDialog::on_reset_password(std::string_view username) {
                 error_dlg->show();
 
                 // Securely clear temporary password (Glib::ustring)
-                volatile char* p = const_cast<char*>(temp_password.data());
-                for (size_t i = 0; i < temp_password.bytes(); ++i) {
-                    p[i] = '\0';
-                }
+                KeepTower::secure_clear_ustring(temp_password);
 
                 confirm_dlg->hide();
                 delete confirm_dlg;
@@ -439,10 +431,7 @@ void UserManagementDialog::on_reset_password(std::string_view username) {
             show_temporary_password(username, temp_password);
 
             // Securely clear temporary password (Glib::ustring)
-            volatile char* p2 = const_cast<char*>(temp_password.data());
-            for (size_t i = 0; i < temp_password.bytes(); ++i) {
-                p2[i] = '\0';
-            }
+            KeepTower::secure_clear_ustring(temp_password);
 
             // Refresh user list
             refresh_user_list();

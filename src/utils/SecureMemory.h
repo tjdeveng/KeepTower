@@ -17,6 +17,7 @@
 #include <memory>
 #include <openssl/evp.h>
 #include <openssl/crypto.h>
+#include <glibmm/ustring.h>
 
 namespace KeepTower {
 
@@ -142,6 +143,149 @@ template<size_t N>
 inline void secure_clear(std::array<uint8_t, N>& arr) {
     OPENSSL_cleanse(arr.data(), arr.size());
 }
+
+/**
+ * @brief Securely clear a Glib::ustring containing sensitive data
+ *
+ * Uses OPENSSL_cleanse() to ensure the password/sensitive string data
+ * is overwritten in a way that cannot be optimized away by the compiler.
+ * This prevents passwords from remaining in memory after use.
+ *
+ * @param str String to clear (typically a password)
+ *
+ * @code
+ * Glib::ustring password = entry.get_text();
+ * // Use password...
+ * secure_clear_ustring(password);  // Securely erase
+ * @endcode
+ *
+ * @note Always use this instead of manual memset or loops, as those can
+ *       be optimized away by the compiler.
+ */
+inline void secure_clear_ustring(Glib::ustring& str) {
+    if (!str.empty()) {
+        OPENSSL_cleanse(const_cast<char*>(str.data()), str.bytes());
+        str.clear();
+    }
+}
+
+/**
+ * @brief RAII wrapper for Glib::ustring with automatic secure destruction
+ *
+ * Automatically securely clears password/sensitive string data on scope exit
+ * using OPENSSL_cleanse. This prevents passwords from remaining in memory
+ * and ensures cleanup even in exceptional circumstances.
+ *
+ * Security features:
+ * - Automatic secure clearing on destruction
+ * - Move semantics to prevent copying sensitive data
+ * - Explicit clear() method for manual cleanup
+ * - No default construction (must initialize with data)
+ *
+ * @code
+ * SecureString password{entry.get_text()};
+ * // Use password.get()...
+ * // Automatically securely cleared on scope exit
+ * @endcode
+ *
+ * @note This is the recommended way to handle passwords from GTK Entry widgets.
+ *       It prevents common security issues like:
+ *       - Forgetting to clear passwords
+ *       - Using std::memset (which can be optimized away)
+ *       - Exception-unsafe manual clearing
+ */
+class SecureString {
+public:
+    /**
+     * @brief Construct from Glib::ustring (takes ownership)
+     * @param str String to secure (typically a password from get_text())
+     */
+    explicit SecureString(Glib::ustring str) : str_(std::move(str)) {}
+
+    /**
+     * @brief Destructor securely clears string data
+     */
+    ~SecureString() {
+        secure_clear_ustring(str_);
+    }
+
+    // Prevent copying (sensitive data should not be duplicated)
+    SecureString(const SecureString&) = delete;
+    SecureString& operator=(const SecureString&) = delete;
+
+    /**
+     * @brief Move constructor - securely clears source
+     */
+    SecureString(SecureString&& other) noexcept
+        : str_(std::move(other.str_)) {
+        secure_clear_ustring(other.str_);
+    }
+
+    /**
+     * @brief Move assignment - securely clears both source and destination
+     */
+    SecureString& operator=(SecureString&& other) noexcept {
+        if (this != &other) {
+            secure_clear_ustring(str_);
+            str_ = std::move(other.str_);
+            secure_clear_ustring(other.str_);
+        }
+        return *this;
+    }
+
+    /**
+     * @brief Get const reference to underlying string
+     * @return Const reference to Glib::ustring
+     */
+    [[nodiscard]] const Glib::ustring& get() const noexcept {
+        return str_;
+    }
+
+    /**
+     * @brief Get mutable reference to underlying string
+     * @return Mutable reference to Glib::ustring
+     *
+     * @warning Use with caution - modifying the string directly bypasses
+     *          secure clearing. Only use for operations that maintain security.
+     */
+    [[nodiscard]] Glib::ustring& get() noexcept {
+        return str_;
+    }
+
+    /**
+     * @brief Manually clear string data (called automatically in destructor)
+     */
+    void clear() noexcept {
+        secure_clear_ustring(str_);
+    }
+
+    /**
+     * @brief Check if string is empty
+     * @return true if string is empty, false otherwise
+     */
+    [[nodiscard]] bool empty() const noexcept {
+        return str_.empty();
+    }
+
+    /**
+     * @brief Get length in characters (UTF-8 code points)
+     * @return Number of characters
+     */
+    [[nodiscard]] size_t length() const noexcept {
+        return str_.length();
+    }
+
+    /**
+     * @brief Get size in bytes (actual memory used)
+     * @return Number of bytes
+     */
+    [[nodiscard]] size_t bytes() const noexcept {
+        return str_.bytes();
+    }
+
+private:
+    Glib::ustring str_;
+};
 
 } // namespace KeepTower
 
