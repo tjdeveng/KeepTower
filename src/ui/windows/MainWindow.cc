@@ -542,12 +542,13 @@ void MainWindow::on_new_vault() {
 
     dialog->signal_response().connect([this, dialog](int response) {
         if (response == Gtk::ResponseType::OK) {
-            // Show password creation dialog
+            // Show combined username + password creation dialog
             auto pwd_dialog = Gtk::make_managed<CreatePasswordDialog>(*this);
             Glib::ustring vault_path = dialog->get_file()->get_path();
 
             pwd_dialog->signal_response().connect([this, pwd_dialog, vault_path](int pwd_response) {
                 if (pwd_response == Gtk::ResponseType::OK) {
+                    Glib::ustring admin_username = pwd_dialog->get_username();
                     Glib::ustring password = pwd_dialog->get_password();
                     bool require_yubikey = pwd_dialog->get_yubikey_enabled();
 
@@ -557,84 +558,10 @@ void MainWindow::on_new_vault() {
                     int rs_redundancy = settings->get_int("rs-redundancy-percent");
                     m_vault_manager->apply_default_fec_preferences(use_rs, rs_redundancy);
 
-                    // Show username dialog for admin account
-                    auto username_dialog = Gtk::make_managed<Gtk::Dialog>("Choose Administrator Username", *this, true);
-                    username_dialog->set_default_size(450, 250);
-                    auto* cancel_btn = username_dialog->add_button("_Cancel", Gtk::ResponseType::CANCEL);
-                    auto* create_btn = username_dialog->add_button("_Create Vault", Gtk::ResponseType::OK);
-                    create_btn->add_css_class("suggested-action");
-                    create_btn->set_sensitive(false);  // Initially disabled
-
-                    auto* content_box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 12);
-                    content_box->set_margin(24);
-
-                    auto* label = Gtk::make_managed<Gtk::Label>("Choose a username for the vault administrator:");
-                    label->set_wrap(true);
-                    label->set_xalign(0.0);
-                    content_box->append(*label);
-
-                    auto* username_entry = Gtk::make_managed<Gtk::Entry>();
-                    username_entry->set_placeholder_text("e.g., john, alice, myusername");
-                    username_entry->set_max_length(256);
-                    username_entry->set_activates_default(true);
-                    content_box->append(*username_entry);
-
-                    auto* hint_label = Gtk::make_managed<Gtk::Label>();
-                    hint_label->set_markup("<small>Note: Reserved names like 'admin', 'root', 'administrator' are not allowed.</small>");
-                    hint_label->add_css_class("dim-label");
-                    hint_label->set_wrap(true);
-                    hint_label->set_xalign(0.0);
-                    content_box->append(*hint_label);
-
-                    auto* error_label = Gtk::make_managed<Gtk::Label>();
-                    error_label->add_css_class("error");
-                    error_label->set_wrap(true);
-                    error_label->set_xalign(0.0);
-                    error_label->hide();
-                    content_box->append(*error_label);
-
-                    username_dialog->get_content_area()->append(*content_box);
-
-                    // Validate username on change
-                    username_entry->signal_changed().connect([username_entry, create_btn, error_label]() {
-                        Glib::ustring username = username_entry->get_text();
-                        bool valid = true;
-
-                        if (username.empty()) {
-                            valid = false;
-                            error_label->hide();
-                        } else {
-                            // Check reserved names (case-insensitive)
-                            std::string username_lower = username.lowercase();
-                            static const std::set<std::string> reserved_names = {
-                                "admin", "administrator", "root", "system",
-                                "guest", "user", "default", "superuser", "sudo"
-                            };
-                            if (reserved_names.count(username_lower) > 0) {
-                                valid = false;
-                                error_label->set_text("This username is reserved. Please choose a different name.");
-                                error_label->show();
-                            } else {
-                                error_label->hide();
-                            }
-                        }
-
-                        create_btn->set_sensitive(valid);
-                    });
-
-                    username_dialog->signal_response().connect([this, username_dialog, username_entry, password, require_yubikey, vault_path, pwd_dialog](int username_response) {
-                        if (username_response != Gtk::ResponseType::OK) {
-                            username_dialog->hide();
-                            return;
-                        }
-
-                        Glib::ustring admin_username = username_entry->get_text();
-                        username_dialog->hide();
-
-                        KeepTower::VaultSecurityPolicy policy;
-                        policy.min_password_length = 8;  // NIST minimum
-                        policy.pbkdf2_iterations = 100000;  // Default iterations
-                        policy.require_yubikey = require_yubikey;
+                    KeepTower::VaultSecurityPolicy policy;
+                    policy.min_password_length = 8;  // NIST minimum
+                    policy.pbkdf2_iterations = 100000;  // Default iterations
+                    policy.require_yubikey = require_yubikey;
 
 #ifdef HAVE_YUBIKEY_SUPPORT
                     // Show touch prompt if YubiKey is required
@@ -654,18 +581,18 @@ void MainWindow::on_new_vault() {
                     }
 #endif
 
-                        // Create V2 vault with admin account
-                        auto result = m_vault_manager->create_vault_v2(
-                            safe_ustring_to_string(vault_path, "vault_path"),
-                            admin_username,
-                            password,
-                            policy
-                        );
+                    // Create V2 vault with admin account
+                    auto result = m_vault_manager->create_vault_v2(
+                        safe_ustring_to_string(vault_path, "vault_path"),
+                        admin_username,
+                        password,
+                        policy
+                    );
 
 #ifdef HAVE_YUBIKEY_SUPPORT
-                        if (touch_dialog) {
-                            touch_dialog->hide();
-                        }
+                    if (touch_dialog) {
+                        touch_dialog->hide();
+                    }
 #endif
                         if (result) {
                             m_current_vault_path = vault_path;
@@ -710,18 +637,14 @@ void MainWindow::on_new_vault() {
                             });
                             info_dialog->show();
                         } else {
-                            constexpr std::string_view error_msg{"Failed to create vault"};
-                            auto error_dialog = Gtk::make_managed<Gtk::MessageDialog>(*this, std::string{error_msg},
-                                false, Gtk::MessageType::ERROR, Gtk::ButtonsType::OK, true);
-                            error_dialog->signal_response().connect([=](int) {
-                                error_dialog->hide();
-                            });
-                            error_dialog->show();
-                        }
-                    });
-
-                    username_entry->grab_focus();
-                    username_dialog->show();
+                        constexpr std::string_view error_msg{"Failed to create vault"};
+                        auto error_dialog = Gtk::make_managed<Gtk::MessageDialog>(*this, std::string{error_msg},
+                            false, Gtk::MessageType::ERROR, Gtk::ButtonsType::OK, true);
+                        error_dialog->signal_response().connect([=](int) {
+                            error_dialog->hide();
+                        });
+                        error_dialog->show();
+                    }
                 }
                 pwd_dialog->hide();
             });

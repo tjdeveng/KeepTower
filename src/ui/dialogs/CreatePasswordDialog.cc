@@ -7,14 +7,18 @@
 #include "../../utils/StringHelpers.h"
 #include <algorithm>
 #include <cctype>
+#include <set>
 
 using KeepTower::safe_ustring_to_string;
 
 CreatePasswordDialog::CreatePasswordDialog(Gtk::Window& parent)
-    : Gtk::Dialog("Create New Password", parent, true),
+    : Gtk::Dialog("Create New Vault", parent, true),
       m_content_box(Gtk::Orientation::VERTICAL, 12),
-      m_title_label("Create a strong password for your new vault"),
+      m_title_label("Create administrator account for your new vault"),
       m_requirements_label(),
+      m_username_box(Gtk::Orientation::VERTICAL, 6),
+      m_username_label("Administrator Username:"),
+      m_username_error_label(),
       m_password_box(Gtk::Orientation::VERTICAL, 6),
       m_password_label("Password:"),
       m_confirm_box(Gtk::Orientation::VERTICAL, 6),
@@ -26,12 +30,12 @@ CreatePasswordDialog::CreatePasswordDialog(Gtk::Window& parent)
       m_yubikey_info_label() {
 
     // Set dialog properties
-    set_default_size(500, 500);  // Increased height for YubiKey section
+    set_default_size(500, 600);  // Increased height for username and YubiKey sections
     set_modal(true);
 
     // Add buttons
     m_cancel_button = add_button("_Cancel", Gtk::ResponseType::CANCEL);
-    m_ok_button = add_button("_Create", Gtk::ResponseType::OK);
+    m_ok_button = add_button("_Create Vault", Gtk::ResponseType::OK);
     m_ok_button->set_sensitive(false);
 
     // Set up the content box
@@ -45,6 +49,22 @@ CreatePasswordDialog::CreatePasswordDialog(Gtk::Window& parent)
     auto title_attr = Pango::Attribute::create_attr_weight(Pango::Weight::BOLD);
     title_attrs.insert(title_attr);
     m_title_label.set_attributes(title_attrs);
+
+    // Username section
+    m_username_label.set_xalign(0.0);
+    m_username_entry.set_placeholder_text("e.g., john, alice, myusername");
+    m_username_entry.set_max_length(256);
+
+    // Configure username error label
+    m_username_error_label.set_wrap(true);
+    m_username_error_label.set_xalign(0.0);
+    m_username_error_label.set_margin_top(4);
+    m_username_error_label.add_css_class("error");
+    m_username_error_label.set_visible(false);
+
+    m_username_box.append(m_username_label);
+    m_username_box.append(m_username_entry);
+    m_username_box.append(m_username_error_label);
 
     // NIST SP 800-63B requirements
     Glib::ustring requirements_text =
@@ -92,6 +112,7 @@ CreatePasswordDialog::CreatePasswordDialog(Gtk::Window& parent)
 
     // Add all widgets to main content box
     m_content_box.append(m_title_label);
+    m_content_box.append(m_username_box);
     m_content_box.append(m_requirements_label);
     m_content_box.append(m_password_box);
     m_content_box.append(m_confirm_box);
@@ -142,11 +163,16 @@ CreatePasswordDialog::CreatePasswordDialog(Gtk::Window& parent)
 #endif
 
     // Set margins
+    m_username_box.set_margin_bottom(12);
     m_password_box.set_margin_bottom(12);
     m_confirm_box.set_margin_bottom(12);
     m_show_password_check.set_margin_bottom(12);
 
     // Connect signals
+    m_username_entry.signal_changed().connect(
+        sigc::mem_fun(*this, &CreatePasswordDialog::on_username_changed)
+    );
+
     m_show_password_check.signal_toggled().connect(
         sigc::mem_fun(*this, &CreatePasswordDialog::on_show_password_toggled)
     );
@@ -168,8 +194,8 @@ CreatePasswordDialog::CreatePasswordDialog(Gtk::Window& parent)
     // Set default widget
     set_default_widget(*m_ok_button);
 
-    // Focus the password entry
-    m_password_entry.grab_focus();
+    // Focus the username entry
+    m_username_entry.grab_focus();
 }
 
 CreatePasswordDialog::~CreatePasswordDialog() {
@@ -177,6 +203,10 @@ CreatePasswordDialog::~CreatePasswordDialog() {
 
 Glib::ustring CreatePasswordDialog::get_password() const {
     return m_password_entry.get_text();
+}
+
+Glib::ustring CreatePasswordDialog::get_username() const {
+    return m_username_entry.get_text();
 }
 
 void CreatePasswordDialog::on_show_password_toggled() {
@@ -187,11 +217,48 @@ void CreatePasswordDialog::on_show_password_toggled() {
 
 void CreatePasswordDialog::on_password_changed() {
     update_strength_indicator();
-    validate_passwords();
+    validate_all_fields();
 }
 
 void CreatePasswordDialog::on_confirm_changed() {
+    validate_all_fields();
+}
+
+void CreatePasswordDialog::on_username_changed() {
+    validate_all_fields();
+}
+
+void CreatePasswordDialog::validate_all_fields() {
+    // First validate username
+    Glib::ustring username = m_username_entry.get_text();
+    bool username_valid = true;
+
+    if (username.empty()) {
+        username_valid = false;
+        m_username_error_label.set_visible(false);
+    } else {
+        // Check reserved names (case-insensitive)
+        std::string username_lower = username.lowercase();
+        static const std::set<std::string> reserved_names = {
+            "admin", "administrator", "root", "system",
+            "guest", "user", "default", "superuser", "sudo"
+        };
+
+        if (reserved_names.count(username_lower) > 0) {
+            username_valid = false;
+            m_username_error_label.set_text("This username is reserved. Please choose a different name.");
+            m_username_error_label.set_visible(true);
+        } else {
+            m_username_error_label.set_visible(false);
+        }
+    }
+
+    // Then validate passwords
     validate_passwords();
+
+    // Only enable OK button if both username and passwords are valid
+    bool passwords_valid = m_ok_button->get_sensitive();
+    m_ok_button->set_sensitive(username_valid && passwords_valid);
 }
 
 void CreatePasswordDialog::validate_passwords() {

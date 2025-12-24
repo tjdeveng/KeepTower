@@ -18,6 +18,9 @@ public:
     // Get the created password
     Glib::ustring get_password() const;
 
+    // Get the username
+    Glib::ustring get_username() const;
+
     // Check if YubiKey protection is requested
     bool get_yubikey_enabled() const;
 
@@ -26,7 +29,9 @@ protected:
     void on_show_password_toggled();
     void on_password_changed();
     void on_confirm_changed();
+    void on_username_changed();
     void validate_passwords();
+    void validate_all_fields();
     void on_yubikey_toggled();
 
     // Password validation helpers
@@ -37,6 +42,11 @@ protected:
     Gtk::Box m_content_box;
     Gtk::Label m_title_label;
     Gtk::Label m_requirements_label;
+
+    Gtk::Box m_username_box;
+    Gtk::Label m_username_label;
+    Gtk::Entry m_username_entry;
+    Gtk::Label m_username_error_label;
 
     Gtk::Box m_password_box;
     Gtk::Label m_password_label;
