@@ -192,6 +192,20 @@ KeepTower::VaultResult<> VaultManager::create_vault_v2(
     admin_slot.yubikey_enrolled_at = admin_yubikey_enrolled ?
         std::chrono::system_clock::now().time_since_epoch().count() : 0;
 
+    // Add admin password to history if enabled
+    if (policy.password_history_depth > 0) {
+        auto history_entry = KeepTower::PasswordHistory::hash_password(admin_password);
+        if (history_entry) {
+            KeepTower::PasswordHistory::add_to_history(
+                admin_slot.password_history,
+                history_entry.value(),
+                policy.password_history_depth);
+            Log::debug("VaultManager: Added admin password to initial history");
+        } else {
+            Log::warning("VaultManager: Failed to hash admin password for history");
+        }
+    }
+
     // Create vault header
     VaultHeaderV2 header;
     header.security_policy = policy;

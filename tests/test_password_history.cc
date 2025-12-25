@@ -88,17 +88,15 @@ TEST_F(PasswordHistoryTest, HashPasswordGeneratesUniqueSalts) {
 }
 
 /**
- * Test: hash_password() handles empty password
+ * Test: hash_password() rejects empty password
  */
-TEST_F(PasswordHistoryTest, HashPasswordHandlesEmptyPassword) {
+TEST_F(PasswordHistoryTest, HashPasswordRejectsEmptyPassword) {
     Glib::ustring empty_password = "";
 
     auto entry = PasswordHistory::hash_password(empty_password);
 
-    // Should still generate valid entry (validation happens elsewhere)
-    ASSERT_TRUE(entry.has_value());
-    EXPECT_EQ(entry->salt.size(), 32);
-    EXPECT_EQ(entry->hash.size(), 48);
+    // Should reject empty passwords (security requirement)
+    EXPECT_FALSE(entry.has_value());
 }
 
 /**
@@ -409,11 +407,11 @@ TEST_F(PasswordHistoryIntegrationTest, ChangePasswordDetectsReuse) {
         policy);
     ASSERT_TRUE(create_result);
 
-    // Try to change to same password (requires old password as first arg)
+    // Try to change to same password
     auto change_result = vault_manager.change_user_password(
+        "testuser",         // Username
         "InitialPass123!",  // Current password
-        "InitialPass123!",  // New password (same!)
-        "InitialPass123!"); // Confirmation
+        "InitialPass123!"); // New password (same!)
 
     EXPECT_FALSE(change_result);
     EXPECT_EQ(change_result.error(), VaultError::PasswordReused);
@@ -439,9 +437,9 @@ TEST_F(PasswordHistoryIntegrationTest, ChangePasswordAllowsUnique) {
 
     // Change to different password
     auto change_result = vault_manager.change_user_password(
-        "InitialPass123!",
-        "NewPassword456!",
-        "NewPassword456!");
+        "testuser",         // Username
+        "InitialPass123!",  // Current password
+        "NewPassword456!"); // New password
 
     EXPECT_TRUE(change_result);
 }
@@ -465,12 +463,12 @@ TEST_F(PasswordHistoryIntegrationTest, ChangePasswordTracksHistory) {
     ASSERT_TRUE(create_result);
 
     // Change password 3 times
-    EXPECT_TRUE(vault_manager.change_user_password("Pass1", "Pass2", "Pass2"));
-    EXPECT_TRUE(vault_manager.change_user_password("Pass2", "Pass3", "Pass3"));
-    EXPECT_TRUE(vault_manager.change_user_password("Pass3", "Pass4", "Pass4"));
+    EXPECT_TRUE(vault_manager.change_user_password("testuser", "Pass1", "Pass2"));
+    EXPECT_TRUE(vault_manager.change_user_password("testuser", "Pass2", "Pass3"));
+    EXPECT_TRUE(vault_manager.change_user_password("testuser", "Pass3", "Pass4"));
 
     // Try to reuse Pass2 (should be in history)
-    auto reuse_result = vault_manager.change_user_password("Pass4", "Pass2", "Pass2");
+    auto reuse_result = vault_manager.change_user_password("testuser", "Pass4", "Pass2");
     EXPECT_FALSE(reuse_result);
     EXPECT_EQ(reuse_result.error(), VaultError::PasswordReused);
 }
@@ -494,18 +492,28 @@ TEST_F(PasswordHistoryIntegrationTest, ChangePasswordRespectsDepth) {
     ASSERT_TRUE(create_result);
 
     // Change password 3 times
-    EXPECT_TRUE(vault_manager.change_user_password("Pass1", "Pass2", "Pass2"));
-    EXPECT_TRUE(vault_manager.change_user_password("Pass2", "Pass3", "Pass3"));
-    EXPECT_TRUE(vault_manager.change_user_password("Pass3", "Pass4", "Pass4"));
+    EXPECT_TRUE(vault_manager.change_user_password("testuser", "Pass1", "Pass2"));
+    EXPECT_TRUE(vault_manager.change_user_password("testuser", "Pass2", "Pass3"));
+    EXPECT_TRUE(vault_manager.change_user_password("testuser", "Pass3", "Pass4"));
 
     // Pass1 should have been evicted (depth=2)
-    auto reuse_pass1 = vault_manager.change_user_password("Pass4", "Pass1", "Pass1");
+    auto reuse_pass1 = vault_manager.change_user_password("testuser", "Pass4", "Pass1");
     EXPECT_TRUE(reuse_pass1);  // Should succeed - Pass1 no longer in history
 
-    // Pass3 should still be in history
-    auto reuse_pass3 = vault_manager.change_user_password("Pass1", "Pass3", "Pass3");
-    EXPECT_FALSE(reuse_pass3);
-    EXPECT_EQ(reuse_pass3.error(), VaultError::PasswordReused);
+    // After changing to Pass1, history is now: [Pass4, Pass1]
+    // Pass3 was also evicted, so should be allowed
+    auto reuse_pass3 = vault_manager.change_user_password("testuser", "Pass1", "Pass3");
+    EXPECT_TRUE(reuse_pass3);  // Should succeed - Pass3 also evicted
+
+    // After changing to Pass3, history is now: [Pass1, Pass3]
+    // Pass4 was also evicted, so should be allowed
+    auto reuse_pass4 = vault_manager.change_user_password("testuser", "Pass3", "Pass4");
+    EXPECT_TRUE(reuse_pass4);  // Should succeed - Pass4 also evicted
+
+    // But Pass3 (the previous password) should still be in history
+    auto reuse_pass3_again = vault_manager.change_user_password("testuser", "Pass4", "Pass3");
+    EXPECT_FALSE(reuse_pass3_again);
+    EXPECT_EQ(reuse_pass3_again.error(), VaultError::PasswordReused);
 }
 
 /**
@@ -534,8 +542,11 @@ TEST_F(PasswordHistoryIntegrationTest, AddUserInitializesHistory) {
         true);  // must_change_password
     ASSERT_TRUE(add_result);
 
-    // Close and reopen as new user
+    // Save and close vault
+    EXPECT_TRUE(vault_manager.save_vault());
     vault_manager.close_vault();
+
+    // Reopen as new user
     auto open_result = vault_manager.open_vault_v2(
         test_vault_path.string(),
         "newuser",
@@ -544,9 +555,9 @@ TEST_F(PasswordHistoryIntegrationTest, AddUserInitializesHistory) {
 
     // Try to change to same temp password (should be in history)
     auto change_result = vault_manager.change_user_password(
-        "TempPass456!",
-        "TempPass456!",
-        "TempPass456!");
+        "newuser",          // Username
+        "TempPass456!",     // Current password
+        "TempPass456!");    // New password (same!)
     EXPECT_FALSE(change_result);
     EXPECT_EQ(change_result.error(), VaultError::PasswordReused);
 }
@@ -572,14 +583,16 @@ TEST_F(PasswordHistoryIntegrationTest, AdminResetClearsHistory) {
     // Add user
     ASSERT_TRUE(vault_manager.add_user("user1", "UserPass1!", UserRole::STANDARD_USER, false));
 
-    // Close and reopen as user1
+    // Save and close, then reopen as user1
+    EXPECT_TRUE(vault_manager.save_vault());
     vault_manager.close_vault();
     ASSERT_TRUE(vault_manager.open_vault_v2(test_vault_path.string(), "user1", "UserPass1!"));
 
     // Change password to build history
-    EXPECT_TRUE(vault_manager.change_user_password("UserPass1!", "UserPass2!", "UserPass2!"));
+    EXPECT_TRUE(vault_manager.change_user_password("user1", "UserPass1!", "UserPass2!"));
 
-    // Close and reopen as admin
+    // Save and close, then reopen as admin
+    EXPECT_TRUE(vault_manager.save_vault());
     vault_manager.close_vault();
     ASSERT_TRUE(vault_manager.open_vault_v2(test_vault_path.string(), "admin", "AdminPass123!"));
 
@@ -587,12 +600,13 @@ TEST_F(PasswordHistoryIntegrationTest, AdminResetClearsHistory) {
     auto reset_result = vault_manager.admin_reset_user_password("user1", "NewReset123!");
     EXPECT_TRUE(reset_result);
 
-    // Close and reopen as user1 with new password
+    // Save and close, then reopen as user1 with new password
+    EXPECT_TRUE(vault_manager.save_vault());
     vault_manager.close_vault();
     ASSERT_TRUE(vault_manager.open_vault_v2(test_vault_path.string(), "user1", "NewReset123!"));
 
     // User should be able to reuse old password (history was cleared)
-    auto change_result = vault_manager.change_user_password("NewReset123!", "UserPass1!", "UserPass1!");
+    auto change_result = vault_manager.change_user_password("user1", "NewReset123!", "UserPass1!");
     EXPECT_TRUE(change_result);  // Should succeed - history cleared
 }
 
@@ -615,7 +629,10 @@ TEST_F(PasswordHistoryIntegrationTest, PasswordHistoryDisabled) {
     ASSERT_TRUE(create_result);
 
     // Should allow changing to same password (no history check)
-    auto change_result = vault_manager.change_user_password("Pass123!", "Pass123!", "Pass123!");
+    auto change_result = vault_manager.change_user_password(
+        "testuser",    // Username
+        "Pass123!",    // Current password
+        "Pass123!");   // New password (same!)
     EXPECT_TRUE(change_result);  // Should succeed when history disabled
 }
 
