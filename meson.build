@@ -39,10 +39,13 @@ else
   result = run_command(pkgconfig, '--variable=libdir', 'openssl', check: false)
   if result.returncode() == 0
     openssl_libdir = result.stdout().strip()
+    message('OpenSSL libdir from pkg-config: ' + openssl_libdir)
     # If OpenSSL is not in standard system paths, add rpath
     if not openssl_libdir.startswith('/usr/lib') and not openssl_libdir.startswith('/lib')
-      message('Using non-system OpenSSL from: ' + openssl_libdir)
+      message('→ Adding rpath for non-system OpenSSL: ' + openssl_libdir)
       add_project_link_arguments('-Wl,-rpath,' + openssl_libdir, language: 'cpp')
+    else
+      message('→ Using system OpenSSL, no rpath needed')
     endif
   endif
   message('Using system OpenSSL @0@ (FIPS-140-3 capable)'.format(openssl_dep.version()))
