@@ -37,16 +37,16 @@ enum class UserRole : uint8_t {
 /**
  * @brief Password history entry for reuse prevention
  *
- * Stores Argon2id hash of a previous password with timestamp.
+ * Stores PBKDF2-HMAC-SHA512 hash of a previous password with timestamp.
  * Used to prevent users from reusing recent passwords.
  *
  * @section security_design Security Design
- * - **Argon2id hashing**: Memory-hard algorithm resistant to GPU attacks
- * - **Random salts**: Each entry has unique 32-byte salt
+ * - **PBKDF2-HMAC-SHA512 hashing**: FIPS 140-3 approved algorithm
+ * - **Random salts**: Each entry has unique 32-byte salt (FIPS-approved DRBG)
  * - **Constant-time comparison**: Prevents timing side-channel attacks
  * - **Ring buffer storage**: FIFO eviction when depth limit reached
  *
- * @note Hash size: 48 bytes (Argon2id output, includes encoded parameters)
+ * @note Hash size: 48 bytes (PBKDF2-HMAC-SHA512 output)
  * @note Total entry size: 88 bytes (8 timestamp + 32 salt + 48 hash)
  */
 struct PasswordHistoryEntry {
@@ -58,24 +58,24 @@ struct PasswordHistoryEntry {
     int64_t timestamp = 0;
 
     /**
-     * @brief Random salt for Argon2id hashing (32 bytes)
+     * @brief Random salt for PBKDF2-HMAC-SHA512 hashing (32 bytes)
      *
      * Unique per-entry salt ensures rainbow table attacks are infeasible.
-     * Generated with RAND_bytes() (FIPS DRBG when FIPS mode enabled).
+     * Generated with RAND_bytes() (FIPS-approved DRBG when FIPS mode enabled).
      */
     std::array<uint8_t, 32> salt = {};
 
     /**
-     * @brief Argon2id hash of password (48 bytes)
+     * @brief PBKDF2-HMAC-SHA512 hash of password (48 bytes)
      *
      * Hash parameters:
-     * - Algorithm: Argon2id (hybrid mode, resistant to side-channel attacks)
-     * - Memory cost: 64 MB (m=65536 KiB)
-     * - Time cost: 3 iterations (t=3)
-     * - Parallelism: 4 threads (p=4)
+     * - Algorithm: PBKDF2-HMAC-SHA512 (FIPS 140-3 approved)
+     * - Iterations: 600,000 (OWASP 2023 recommendation for PBKDF2-SHA512)
+     * - Hash function: SHA-512 (FIPS-approved)
      * - Output length: 48 bytes
      *
-     * @note These parameters match OWASP minimum recommendations (2023)
+     * @note Higher iteration count than KEK derivation (this is for storage, not auth)
+     * @note FIPS-compliant when OpenSSL FIPS provider is enabled
      */
     std::array<uint8_t, 48> hash = {};
 

@@ -5,20 +5,21 @@
  * @file PasswordHistory.h
  * @brief Password history management for user password reuse prevention
  *
- * This module provides Argon2id-based password hashing and constant-time
- * comparison for preventing users from reusing recent passwords.
+ * This module provides PBKDF2-HMAC-SHA512-based password hashing and
+ * constant-time comparison for preventing users from reusing recent passwords.
  *
  * @section security_features Security Features
- * - **Argon2id hashing**: Memory-hard algorithm resistant to GPU attacks
- * - **Random salts**: Each entry has unique 32-byte salt
+ * - **PBKDF2-HMAC-SHA512 hashing**: FIPS 140-3 approved algorithm
+ * - **Random salts**: Each entry has unique 32-byte salt (FIPS-approved DRBG)
  * - **Constant-time comparison**: Prevents timing side-channel attacks
  * - **Ring buffer**: FIFO eviction when depth limit reached
  *
  * @section implementation Implementation Details
- * - Hash parameters: m=65536 (64 MB), t=3, p=4 (OWASP 2023 recommendations)
+ * - Hash parameters: 600,000 iterations (OWASP 2023 for PBKDF2-SHA512)
  * - Output length: 48 bytes
- * - Salt length: 32 bytes (cryptographically random)
+ * - Salt length: 32 bytes (cryptographically random via RAND_bytes)
  * - Comparison: Constant-time to prevent timing attacks
+ * - FIPS compliance: All operations use FIPS-approved primitives
  */
 
 #ifndef PASSWORDHISTORY_H
@@ -41,16 +42,17 @@ namespace KeepTower {
 class PasswordHistory {
 public:
     /**
-     * @brief Hash a password using Argon2id
+     * @brief Hash a password using PBKDF2-HMAC-SHA512
      *
      * Creates a password history entry with current timestamp,
-     * random salt, and Argon2id hash.
+     * random salt, and PBKDF2-HMAC-SHA512 hash.
      *
      * @param password The password to hash (UTF-8 string)
      * @return PasswordHistoryEntry on success, empty optional on failure
      *
-     * @note Uses OWASP-recommended parameters: m=65536, t=3, p=4
-     * @note Generates cryptographically random 32-byte salt
+     * @note Uses OWASP-recommended 600,000 iterations for PBKDF2-SHA512
+     * @note Generates cryptographically random 32-byte salt (FIPS-approved DRBG)
+     * @note FIPS 140-3 compliant when OpenSSL FIPS provider is enabled
      */
     static std::optional<PasswordHistoryEntry> hash_password(const Glib::ustring& password);
 
@@ -107,30 +109,21 @@ public:
 
 private:
     /**
-     * @brief Argon2id memory cost in KiB (64 MB)
+     * @brief PBKDF2-HMAC-SHA512 iteration count
      *
-     * OWASP recommendation: 64 MB minimum for password hashing.
+     * OWASP 2023 recommendation: 600,000 iterations for PBKDF2-SHA512.
+     * Higher than the KEK derivation iterations since this is for storage,
+     * not real-time authentication.
+     *
+     * @note FIPS 140-3 compliant (PBKDF2 is approved in FIPS SP 800-132)
      */
-    static constexpr uint32_t ARGON2_MEMORY_COST = 65536;
+    static constexpr uint32_t PBKDF2_ITERATIONS = 600000;
 
     /**
-     * @brief Argon2id time cost (iterations)
-     *
-     * OWASP recommendation: 3 iterations minimum.
-     */
-    static constexpr uint32_t ARGON2_TIME_COST = 3;
-
-    /**
-     * @brief Argon2id parallelism factor
-     *
-     * OWASP recommendation: 4 threads.
-     */
-    static constexpr uint32_t ARGON2_PARALLELISM = 4;
-
-    /**
-     * @brief Argon2id output length in bytes
+     * @brief PBKDF2-HMAC-SHA512 output length in bytes
      *
      * 48 bytes provides 384 bits of security.
+     * Matches SHA-512 output but truncated to reasonable storage size.
      */
     static constexpr uint32_t ARGON2_HASH_LENGTH = 48;
 

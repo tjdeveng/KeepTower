@@ -139,12 +139,6 @@ libcorrect_dep = declare_dependency(
   dependencies: libcorrect_lib
 )
 
-# Find libargon2 for password history hashing
-argon2_lib = cc.find_library('argon2', required: true)
-argon2_dep = declare_dependency(
-  dependencies: argon2_lib
-)
-
 # YubiKey dependencies (optional for hardware 2FA support)
 ykpers_dep = dependency('ykpers-1', required: false)
 libyubikey_lib = cc.find_library('yubikey', required: false)
@@ -167,7 +161,6 @@ common_deps = [
   protobuf_dep,
   openssl_dep,
   libcorrect_dep,
-  argon2_dep,
 ]
 
 # Add YubiKey dependencies if available

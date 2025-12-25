@@ -3,7 +3,7 @@
 
 #include "PasswordHistory.h"
 #include "../utils/Log.h"
-#include <argon2.h>
+#include <openssl/evp.h>
 #include <openssl/rand.h>
 #include <openssl/crypto.h>
 #include <ctime>
@@ -23,34 +23,30 @@ std::optional<PasswordHistoryEntry> PasswordHistory::hash_password(const Glib::u
     // Set timestamp
     entry.timestamp = std::time(nullptr);
 
-    // Generate random salt using OpenSSL's CSPRNG
+    // Generate random salt using OpenSSL's CSPRNG (FIPS-approved DRBG)
     if (RAND_bytes(entry.salt.data(), SALT_LENGTH) != 1) {
         Log::error("PasswordHistory: Failed to generate random salt");
         return std::nullopt;
     }
 
-    // Hash password with Argon2id
-    // argon2id_hash_raw(t_cost, m_cost, parallelism, pwd, pwdlen, salt, saltlen, hash, hashlen)
-    int result = argon2id_hash_raw(
-        ARGON2_TIME_COST,        // t_cost (iterations)
-        ARGON2_MEMORY_COST,      // m_cost (KiB)
-        ARGON2_PARALLELISM,      // parallelism (threads)
-        password.c_str(),        // password data
-        password.bytes(),        // password length
-        entry.salt.data(),       // salt data
-        SALT_LENGTH,             // salt length
-        entry.hash.data(),       // output hash
-        ARGON2_HASH_LENGTH       // hash length
-    );
-
-    if (result != ARGON2_OK) {
-        Log::error("PasswordHistory: Argon2id hashing failed: {}",
-                   argon2_error_message(result));
+    // Hash password with PBKDF2-HMAC-SHA512 (FIPS 140-3 approved)
+    // Use higher iterations than KEK derivation since this is for storage, not authentication
+    if (PKCS5_PBKDF2_HMAC(
+            password.c_str(),           // password data
+            password.bytes(),           // password length
+            entry.salt.data(),          // salt data
+            SALT_LENGTH,                // salt length
+            PBKDF2_ITERATIONS,          // iteration count
+            EVP_sha512(),               // FIPS-approved hash function
+            ARGON2_HASH_LENGTH,         // output length (48 bytes)
+            entry.hash.data()           // output hash
+        ) != 1) {
+        Log::error("PasswordHistory: PBKDF2-HMAC-SHA512 hashing failed");
         return std::nullopt;
     }
 
-    Log::debug("PasswordHistory: Successfully hashed password (t={}, m={} KiB, p={})",
-               ARGON2_TIME_COST, ARGON2_MEMORY_COST, ARGON2_PARALLELISM);
+    Log::debug("PasswordHistory: Successfully hashed password (PBKDF2-SHA512, iterations={})",
+               PBKDF2_ITERATIONS);
 
     return entry;
 }
@@ -75,24 +71,20 @@ bool PasswordHistory::is_password_reused(
     // Check against each history entry
     // IMPORTANT: We check ALL entries to maintain constant time
     for (const auto& entry : history) {
-        // Compute hash for this entry's salt
+        // Compute hash for this entry's salt using PBKDF2-HMAC-SHA512 (FIPS-approved)
         std::array<uint8_t, ARGON2_HASH_LENGTH> computed_hash;
 
-        int result = argon2id_hash_raw(
-            ARGON2_TIME_COST,
-            ARGON2_MEMORY_COST,
-            ARGON2_PARALLELISM,
-            password.c_str(),
-            password.bytes(),
-            entry.salt.data(),
-            SALT_LENGTH,
-            computed_hash.data(),
-            ARGON2_HASH_LENGTH
-        );
-
-        if (result != ARGON2_OK) {
-            Log::error("PasswordHistory: Argon2id hashing failed during reuse check: {}",
-                       argon2_error_message(result));
+        if (PKCS5_PBKDF2_HMAC(
+                password.c_str(),
+                password.bytes(),
+                entry.salt.data(),
+                SALT_LENGTH,
+                PBKDF2_ITERATIONS,
+                EVP_sha512(),           // FIPS-approved hash function
+                ARGON2_HASH_LENGTH,
+                computed_hash.data()
+            ) != 1) {
+            Log::error("PasswordHistory: PBKDF2-HMAC-SHA512 hashing failed during reuse check");
             continue; // Skip this entry but continue checking others
         }
 
