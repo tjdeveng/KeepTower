@@ -65,6 +65,7 @@ sources = files(
   'core/MultiUserTypes.cc',
   'core/KeyWrapping.cc',
   'core/VaultFormatV2.cc',
+  'core/PasswordHistory.cc',
   'utils/ImportExport.cc',
 )
 
