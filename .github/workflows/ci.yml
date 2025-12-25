@@ -169,9 +169,22 @@ jobs:
         # This uses our locally built OpenSSL config with FIPS already enabled
         export OPENSSL_CONF="/tmp/openssl-install/ssl/openssl.cnf"
 
+        # Set OPENSSL_MODULES so OpenSSL can find the FIPS module
+        # Check both lib64 and lib directories
+        if [ -d "/tmp/openssl-install/lib64/ossl-modules" ]; then
+          export OPENSSL_MODULES="/tmp/openssl-install/lib64/ossl-modules"
+        elif [ -d "/tmp/openssl-install/lib/ossl-modules" ]; then
+          export OPENSSL_MODULES="/tmp/openssl-install/lib/ossl-modules"
+        fi
+
         # Ensure LD_LIBRARY_PATH includes our OpenSSL libraries
         # This is critical for loading the FIPS module (fips.so)
         export LD_LIBRARY_PATH="/tmp/openssl-install/lib64:/tmp/openssl-install/lib:$LD_LIBRARY_PATH"
+
+        echo "FIPS test environment:"
+        echo "  OPENSSL_CONF=$OPENSSL_CONF"
+        echo "  OPENSSL_MODULES=$OPENSSL_MODULES"
+        echo "  LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
 
         # Run tests with increased verbosity
         meson test -C build --verbose --print-errorlogs
