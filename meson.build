@@ -95,19 +95,26 @@ Please check the error messages above or run manually:
     openssl_version = result.stdout().strip()
     message('Detected locally built OpenSSL @0@'.format(openssl_version))
 
+    # Determine which lib directory exists (lib or lib64)
+    local_openssl_libdir = local_openssl_root / 'lib64'
+    if not fs.is_dir(local_openssl_libdir)
+      local_openssl_libdir = local_openssl_root / 'lib'
+    endif
+    message('Using OpenSSL library directory: @0@'.format(local_openssl_libdir))
+
     # Manually create dependency with local paths
     # Use relative path from source root
     openssl_dep = declare_dependency(
       include_directories: include_directories('build/openssl-install/include'),
       dependencies: [
-        cc.find_library('ssl', dirs: local_openssl_root / 'lib'),
-        cc.find_library('crypto', dirs: local_openssl_root / 'lib')
+        cc.find_library('ssl', dirs: local_openssl_libdir),
+        cc.find_library('crypto', dirs: local_openssl_libdir)
       ],
-      link_args: ['-L' + local_openssl_root / 'lib'],
+      link_args: ['-L' + local_openssl_libdir],
     )
 
     # Set runtime path for the locally built OpenSSL
-    add_project_link_arguments('-Wl,-rpath,' + local_openssl_root / 'lib', language: 'cpp')
+    add_project_link_arguments('-Wl,-rpath,' + local_openssl_libdir, language: 'cpp')
   else
     error('''
 Failed to locate OpenSSL 3.5 after build attempt.
