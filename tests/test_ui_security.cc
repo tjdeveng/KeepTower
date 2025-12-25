@@ -8,6 +8,8 @@
 // - Password history settings
 
 #include <gtest/gtest.h>
+#include <glibmm/init.h>
+#include <giomm/init.h>
 #include <giomm/settings.h>
 #include <filesystem>
 #include <fstream>
@@ -17,6 +19,10 @@ namespace fs = std::filesystem;
 class UISecurityTest : public ::testing::Test {
 protected:
     void SetUp() override {
+        // Initialize GLib type system and Gio
+        Glib::init();
+        Gio::init();
+
         // Ensure schema is compiled
         schema_dir = fs::current_path() / ".." / "data";
 

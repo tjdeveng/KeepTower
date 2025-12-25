@@ -3,6 +3,7 @@
 
 #include "../src/utils/SettingsValidator.h"
 #include <gtest/gtest.h>
+#include <glibmm/init.h>
 #include <giomm/init.h>
 #include <giomm/settings.h>
 #include <cstdlib>
@@ -13,7 +14,8 @@
 class SettingsValidatorTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        // Initialize Gio
+        // Initialize GLib type system first, then Gio
+        Glib::init();
         Gio::init();
 
         // Set schema directory for testing

@@ -7,6 +7,8 @@
  */
 
 #include <gtest/gtest.h>
+#include <glibmm/init.h>
+#include <giomm/init.h>
 #include <giomm/settings.h>
 #include <memory>
 #include "../src/core/VaultManager.h"
@@ -17,6 +19,10 @@
 class UndoRedoPreferencesTest : public ::testing::Test {
 protected:
     void SetUp() override {
+        // Initialize GLib type system and Gio
+        Glib::init();
+        Gio::init();
+
         // Get settings instance
         m_settings = Gio::Settings::create("com.tjdeveng.keeptower");
 
