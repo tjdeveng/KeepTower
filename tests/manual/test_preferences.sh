@@ -2,6 +2,9 @@
 # Test script to verify Reed-Solomon preferences
 # Usage: ./test_preferences.sh
 
+# Navigate to project root
+cd "$(dirname "$0")/../.."
+
 export GSETTINGS_SCHEMA_DIR="$PWD/data"
 
 echo "Testing Reed-Solomon preferences..."

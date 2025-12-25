@@ -22,4 +22,4 @@ echo "Press Ctrl+C to exit when done testing."
 echo ""
 
 # Run with debug messages enabled
-G_MESSAGES_DEBUG=all ./build/src/keeptower
+G_MESSAGES_DEBUG=all ../../build/src/keeptower

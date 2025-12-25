@@ -3,6 +3,9 @@
 
 set -e
 
+# Navigate to project root
+cd "$(dirname "$0")/../.."
+
 echo "==========================================="
 echo "Testing Automatic OpenSSL Build System"
 echo "==========================================="

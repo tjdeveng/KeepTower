@@ -237,18 +237,18 @@ TEST_F(FIPSModeTest, FIPS_ProviderAvailability_MustBeConfigured) {
 
     // Check if OPENSSL_CONF is set (indicates FIPS should be available)
     const char* openssl_conf = std::getenv("OPENSSL_CONF");
-    
+
     if (openssl_conf != nullptr) {
         // OPENSSL_CONF is set - FIPS should be available
-        EXPECT_TRUE(fips_available) 
-            << "FIPS provider not available despite OPENSSL_CONF being set to: " 
+        EXPECT_TRUE(fips_available)
+            << "FIPS provider not available despite OPENSSL_CONF being set to: "
             << openssl_conf << "\n"
             << "This indicates a CI configuration problem:\n"
             << "  - Verify fipsmodule.cnf exists and is valid\n"
             << "  - Verify openssl.cnf includes fipsmodule.cnf\n"
             << "  - Verify FIPS module (fips.so) is present\n"
             << "  - Check OpenSSL build included enable-fips flag";
-        
+
         if (fips_available) {
             std::cout << "✓ FIPS-140-3 provider available and configured\n";
             std::cout << "  OpenSSL config: " << openssl_conf << "\n";
