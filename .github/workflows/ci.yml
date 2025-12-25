@@ -58,6 +58,8 @@ jobs:
           cmake \
           git \
           gettext \
+          curl \
+          perl
           desktop-file-utils \
           libykpers-1-dev \
           libyubikey-dev
