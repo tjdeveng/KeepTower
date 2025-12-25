@@ -3511,35 +3511,8 @@ void MainWindow::handle_password_change_required(const std::string& username) {
         auto req = change_dialog->get_request();
         change_dialog->hide();
 
-#ifdef HAVE_YUBIKEY_SUPPORT
-        // Check if user has YubiKey enrolled - show touch prompt if needed
-        YubiKeyPromptDialog* touch_dialog = nullptr;
-        auto users = m_vault_manager->list_users();
-        for (const auto& user : users) {
-            if (user.username == username && user.yubikey_enrolled) {
-                touch_dialog = Gtk::make_managed<YubiKeyPromptDialog>(*this,
-                    YubiKeyPromptDialog::PromptType::TOUCH);
-                touch_dialog->present();
-
-                // Force GTK to process events and render the dialog
-                auto context = Glib::MainContext::get_default();
-                while (context->pending()) {
-                    context->iteration(false);
-                }
-                g_usleep(150000);  // 150ms to ensure dialog is visible
-                break;
-            }
-        }
-#endif
-
-        // Attempt password change
+        // Attempt password change (YubiKey verification happens inside if enrolled)
         auto result = m_vault_manager->change_user_password(username, req.current_password, req.new_password);
-
-#ifdef HAVE_YUBIKEY_SUPPORT
-        if (touch_dialog) {
-            touch_dialog->hide();
-        }
-#endif
 
         // Clear passwords immediately
         req.clear();
@@ -3824,35 +3797,8 @@ void MainWindow::on_change_my_password() {
         change_dialog->hide();
         delete change_dialog;
 
-#ifdef HAVE_YUBIKEY_SUPPORT
-        // Check if user has YubiKey enrolled - show touch prompt if needed
-        YubiKeyPromptDialog* touch_dialog = nullptr;
-        auto users = m_vault_manager->list_users();
-        for (const auto& user : users) {
-            if (user.username == username && user.yubikey_enrolled) {
-                touch_dialog = Gtk::make_managed<YubiKeyPromptDialog>(*this,
-                    YubiKeyPromptDialog::PromptType::TOUCH);
-                touch_dialog->present();
-
-                // Force GTK to process events and render the dialog
-                auto context = Glib::MainContext::get_default();
-                while (context->pending()) {
-                    context->iteration(false);
-                }
-                g_usleep(150000);  // 150ms to ensure dialog is visible
-                break;
-            }
-        }
-#endif
-
-        // Attempt password change
+        // Attempt password change (YubiKey verification happens inside if enrolled)
         auto result = m_vault_manager->change_user_password(username, req.current_password, req.new_password);
-
-#ifdef HAVE_YUBIKEY_SUPPORT
-        if (touch_dialog) {
-            touch_dialog->hide();
-        }
-#endif
 
         // Clear passwords immediately
         req.clear();
