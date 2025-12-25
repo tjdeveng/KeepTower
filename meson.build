@@ -32,6 +32,24 @@ openssl_dep = dependency('openssl', version: '>= 3.5.0', required: false)
 
 if not openssl_dep.found()
   message('OpenSSL 3.5.0+ not found on system')
+else
+  # OpenSSL 3.5 found via pkg-config
+  # Check if it's from a non-standard location and set rpath if needed
+  pkgconfig = find_program('pkg-config')
+  result = run_command(pkgconfig, '--variable=libdir', 'openssl', check: false)
+  if result.returncode() == 0
+    openssl_libdir = result.stdout().strip()
+    # If OpenSSL is not in standard system paths, add rpath
+    if not openssl_libdir.startswith('/usr/lib') and not openssl_libdir.startswith('/lib')
+      message('Using non-system OpenSSL from: ' + openssl_libdir)
+      add_project_link_arguments('-Wl,-rpath,' + openssl_libdir, language: 'cpp')
+    endif
+  endif
+  message('Using system OpenSSL @0@ (FIPS-140-3 capable)'.format(openssl_dep.version()))
+endif
+
+if not openssl_dep.found()
+  message('Attempting to build OpenSSL 3.5 locally...')
 
   # Check if we have a local build already
   local_openssl_root = meson.project_source_root() / 'build' / 'openssl-install'
@@ -94,8 +112,6 @@ Then configure with:
   endif
 
   message('Using locally built OpenSSL 3.5+ (FIPS-140-3 capable)')
-else
-  message('Using system OpenSSL @0@ (FIPS-140-3 capable)'.format(openssl_dep.version()))
 endif
 
 # Find libcorrect using compiler find_library
