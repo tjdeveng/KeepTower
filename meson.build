@@ -65,10 +65,19 @@ if not openssl_dep.found()
     # Run the OpenSSL build script
     build_script = find_program('bash')
     script_path = meson.project_source_root() / 'scripts' / 'build-openssl-3.5.sh'
-    result = run_command(build_script, script_path, check: false, capture: false)
+    result = run_command(build_script, script_path, check: false, capture: true)
 
     if result.returncode() != 0
-      error('Failed to build OpenSSL 3.5. Please check the error messages above.')
+      error('''
+Failed to build OpenSSL 3.5. Build script output:
+
+@0@
+
+@1@
+
+Please check the error messages above or run manually:
+  bash scripts/build-openssl-3.5.sh
+      '''.format(result.stdout(), result.stderr()))
     endif
 
     message('OpenSSL 3.5 build completed successfully!')
