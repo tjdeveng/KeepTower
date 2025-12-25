@@ -13,13 +13,21 @@
  * - **Random salts**: Each entry has unique 32-byte salt (FIPS-approved DRBG)
  * - **Constant-time comparison**: Prevents timing side-channel attacks
  * - **Ring buffer**: FIFO eviction when depth limit reached
+ * - **Secure memory**: All computed hashes are cleared with OPENSSL_cleanse
  *
  * @section implementation Implementation Details
  * - Hash parameters: 600,000 iterations (OWASP 2023 for PBKDF2-SHA512)
  * - Output length: 48 bytes
  * - Salt length: 32 bytes (cryptographically random via RAND_bytes)
  * - Comparison: Constant-time to prevent timing attacks
+ * - Memory security: Computed hashes cleared immediately after use
  * - FIPS compliance: All operations use FIPS-approved primitives
+ *
+ * @section memory_safety Memory Safety
+ * - Computed password hashes are securely cleared after comparison
+ * - PasswordHistoryEntry destructor clears hash with OPENSSL_cleanse
+ * - Failure paths clear partial hashes before returning
+ * - No sensitive data left in memory after operations complete
  */
 
 #ifndef PASSWORDHISTORY_H
@@ -125,7 +133,7 @@ private:
      * 48 bytes provides 384 bits of security.
      * Matches SHA-512 output but truncated to reasonable storage size.
      */
-    static constexpr uint32_t ARGON2_HASH_LENGTH = 48;
+    static constexpr uint32_t HASH_LENGTH = 48;
 
     /**
      * @brief Salt length in bytes

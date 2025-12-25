@@ -45,6 +45,7 @@ enum class UserRole : uint8_t {
  * - **Random salts**: Each entry has unique 32-byte salt (FIPS-approved DRBG)
  * - **Constant-time comparison**: Prevents timing side-channel attacks
  * - **Ring buffer storage**: FIFO eviction when depth limit reached
+ * - **Secure destruction**: Hash is securely cleared on destruction
  *
  * @note Hash size: 48 bytes (PBKDF2-HMAC-SHA512 output)
  * @note Total entry size: 88 bytes (8 timestamp + 32 salt + 48 hash)
@@ -78,6 +79,13 @@ struct PasswordHistoryEntry {
      * @note FIPS-compliant when OpenSSL FIPS provider is enabled
      */
     std::array<uint8_t, 48> hash = {};
+
+    /**
+     * @brief Destructor securely clears the password hash
+     *
+     * Uses OPENSSL_cleanse to prevent hash from remaining in memory.
+     */
+    ~PasswordHistoryEntry();
 
     /**
      * @brief Serialize to binary format

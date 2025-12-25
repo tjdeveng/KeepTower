@@ -3,6 +3,7 @@
 
 #include "PasswordHistory.h"
 #include "../utils/Log.h"
+#include "../utils/SecureMemory.h"
 #include <openssl/evp.h>
 #include <openssl/rand.h>
 #include <openssl/crypto.h>
@@ -31,16 +32,20 @@ std::optional<PasswordHistoryEntry> PasswordHistory::hash_password(const Glib::u
 
     // Hash password with PBKDF2-HMAC-SHA512 (FIPS 140-3 approved)
     // Use higher iterations than KEK derivation since this is for storage, not authentication
-    if (PKCS5_PBKDF2_HMAC(
-            password.c_str(),           // password data
-            password.bytes(),           // password length
-            entry.salt.data(),          // salt data
-            SALT_LENGTH,                // salt length
-            PBKDF2_ITERATIONS,          // iteration count
-            EVP_sha512(),               // FIPS-approved hash function
-            ARGON2_HASH_LENGTH,         // output length (48 bytes)
-            entry.hash.data()           // output hash
-        ) != 1) {
+    int result = PKCS5_PBKDF2_HMAC(
+        password.c_str(),           // password data
+        password.bytes(),           // password length
+        entry.salt.data(),          // salt data
+        SALT_LENGTH,                // salt length
+        PBKDF2_ITERATIONS,          // iteration count
+        EVP_sha512(),               // FIPS-approved hash function
+        HASH_LENGTH,                // output length (48 bytes)
+        entry.hash.data()           // output hash
+    );
+
+    if (result != 1) {
+        // Securely clear the partial hash on failure
+        secure_clear(entry.hash);
         Log::error("PasswordHistory: PBKDF2-HMAC-SHA512 hashing failed");
         return std::nullopt;
     }
@@ -72,24 +77,33 @@ bool PasswordHistory::is_password_reused(
     // IMPORTANT: We check ALL entries to maintain constant time
     for (const auto& entry : history) {
         // Compute hash for this entry's salt using PBKDF2-HMAC-SHA512 (FIPS-approved)
-        std::array<uint8_t, ARGON2_HASH_LENGTH> computed_hash;
+        // Use SecureBuffer to ensure computed hash is cleared after comparison
+        std::array<uint8_t, HASH_LENGTH> computed_hash{};
 
-        if (PKCS5_PBKDF2_HMAC(
-                password.c_str(),
-                password.bytes(),
-                entry.salt.data(),
-                SALT_LENGTH,
-                PBKDF2_ITERATIONS,
-                EVP_sha512(),           // FIPS-approved hash function
-                ARGON2_HASH_LENGTH,
-                computed_hash.data()
-            ) != 1) {
+        int result = PKCS5_PBKDF2_HMAC(
+            password.c_str(),
+            password.bytes(),
+            entry.salt.data(),
+            SALT_LENGTH,
+            PBKDF2_ITERATIONS,
+            EVP_sha512(),           // FIPS-approved hash function
+            HASH_LENGTH,
+            computed_hash.data()
+        );
+
+        if (result != 1) {
+            // Securely clear the partial hash on failure
+            secure_clear(computed_hash);
             Log::error("PasswordHistory: PBKDF2-HMAC-SHA512 hashing failed during reuse check");
             continue; // Skip this entry but continue checking others
         }
 
-        // Constant-time comparison using OpenSSL
-        int match = CRYPTO_memcmp(computed_hash.data(), entry.hash.data(), ARGON2_HASH_LENGTH);
+        // Constant-time comparison using OpenSSL (prevents timing attacks)
+        int match = CRYPTO_memcmp(computed_hash.data(), entry.hash.data(), HASH_LENGTH);
+
+        // Securely clear computed hash immediately after comparison
+        secure_clear(computed_hash);
+
         if (match == 0) {
             found_match = true;
             // IMPORTANT: Continue checking other entries for constant-time behavior

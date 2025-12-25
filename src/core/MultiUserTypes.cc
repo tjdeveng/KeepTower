@@ -12,8 +12,14 @@
 namespace KeepTower {
 
 // ============================================================================
-// PasswordHistoryEntry Serialization
+// PasswordHistoryEntry Secure Destruction and Serialization
 // ============================================================================
+
+PasswordHistoryEntry::~PasswordHistoryEntry() {
+    // Securely clear the password hash to prevent memory dumps
+    // Salt is not sensitive (it's stored in plaintext in vault)
+    OPENSSL_cleanse(hash.data(), hash.size());
+}
 
 std::vector<uint8_t> PasswordHistoryEntry::serialize() const {
     std::vector<uint8_t> result;
