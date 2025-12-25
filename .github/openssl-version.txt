@@ -1,1 +1,1 @@
-3.5.0-fips-module-path-fix
+3.5.0-fips-absolute-path-fix

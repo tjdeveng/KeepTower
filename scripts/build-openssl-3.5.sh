@@ -89,8 +89,8 @@ if [ -f "${INSTALL_PREFIX}/lib64/ossl-modules/fips.so" ] || [ -f "${INSTALL_PREF
     # Backup original
     cp "${OPENSSL_CNF}" "${OPENSSL_CNF}.backup"
 
-    # Enable FIPS module include (uncomment the line)
-    sed -i 's|^# \.include fipsmodule\.cnf|.include fipsmodule.cnf|' "${OPENSSL_CNF}"
+    # Enable FIPS module include with absolute path (uncomment and fix path)
+    sed -i "s|^# \\.include fipsmodule\\.cnf|.include ${INSTALL_PREFIX}/ssl/fipsmodule.cnf|" "${OPENSSL_CNF}"
 
     # Enable FIPS provider in provider_sect (uncomment the line)
     sed -i 's|^# fips = fips_sect|fips = fips_sect|' "${OPENSSL_CNF}"
