@@ -697,6 +697,56 @@ KeepTower::VaultResult<> VaultManager::remove_user(const Glib::ustring& username
     return {};
 }
 
+KeepTower::VaultResult<> VaultManager::validate_new_password(
+    const Glib::ustring& username,
+    const Glib::ustring& new_password) {
+
+    Log::debug("VaultManager: Validating new password for user: {}", username.raw());
+
+    // Validate vault state
+    if (!m_vault_open || !m_is_v2_vault) {
+        Log::error("VaultManager: No V2 vault open");
+        return std::unexpected(VaultError::VaultNotOpen);
+    }
+
+    // Find user slot
+    KeySlot* user_slot = nullptr;
+    for (auto& slot : m_v2_header->key_slots) {
+        if (slot.active && slot.username == username.raw()) {
+            user_slot = &slot;
+            break;
+        }
+    }
+
+    if (!user_slot) {
+        Log::error("VaultManager: User not found: {}", username.raw());
+        return std::unexpected(VaultError::UserNotFound);
+    }
+
+    // Validate new password meets minimum length
+    if (new_password.length() < m_v2_header->security_policy.min_password_length) {
+        Log::error("VaultManager: New password too short - actual: {} chars, min: {} chars",
+                   new_password.length(), m_v2_header->security_policy.min_password_length);
+        return std::unexpected(VaultError::WeakPassword);
+    }
+
+    // Check password history if enabled (depth > 0)
+    if (m_v2_header->security_policy.password_history_depth > 0) {
+        Log::debug("VaultManager: Checking password history (depth: {})",
+                   m_v2_header->security_policy.password_history_depth);
+
+        if (KeepTower::PasswordHistory::is_password_reused(new_password, user_slot->password_history)) {
+            Log::error("VaultManager: Password was used previously (reuse detected)");
+            return std::unexpected(VaultError::PasswordReused);
+        }
+
+        Log::debug("VaultManager: Password not found in history (OK)");
+    }
+
+    Log::debug("VaultManager: New password validation passed");
+    return {};
+}
+
 KeepTower::VaultResult<> VaultManager::change_user_password(
     const Glib::ustring& username,
     const Glib::ustring& old_password,

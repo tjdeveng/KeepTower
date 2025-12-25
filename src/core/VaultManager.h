@@ -397,6 +397,36 @@ public:
     [[nodiscard]] KeepTower::VaultResult<> remove_user(const Glib::ustring& username);
 
     /**
+     * @brief Validate new password without performing the change
+     * @param username Username whose password would be changed
+     * @param new_password New password to validate
+     * @return Expected void or VaultError (PasswordTooShort, PasswordReused)
+     *
+     * Requirements:
+     * - Vault must be open
+     * - User must exist
+     *
+     * Validates:
+     * 1. Password meets minimum length requirement
+     * 2. Password not in user's password history (if enabled)
+     *
+     * @note This allows UI to validate before showing YubiKey prompts
+     *
+     * @code
+     * // Validate before showing YubiKey prompt
+     * auto validation = vm.validate_new_password("alice", "newpass123");
+     * if (!validation) {
+     *     show_error(validation.error());
+     *     return;
+     * }
+     * // Now show YubiKey prompt and proceed with actual change
+     * @endcode
+     */
+    [[nodiscard]] KeepTower::VaultResult<> validate_new_password(
+        const Glib::ustring& username,
+        const Glib::ustring& new_password);
+
+    /**
      * @brief Change user's password in open V2 vault
      * @param username Username whose password to change
      * @param old_password Current password (for verification)

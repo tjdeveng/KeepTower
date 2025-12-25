@@ -3511,10 +3511,32 @@ void MainWindow::handle_password_change_required(const std::string& username) {
         auto req = change_dialog->get_request();
         change_dialog->hide();
 
+        // Validate password BEFORE showing YubiKey prompt
+        // This allows fail-fast for invalid passwords without YubiKey interaction
+        auto validation = m_vault_manager->validate_new_password(username, req.new_password);
+        if (!validation) {
+            // Validation failed - show error and retry
+            std::string error_msg = "Failed to validate password";
+            if (validation.error() == KeepTower::VaultError::WeakPassword) {
+                error_msg = "New password must be at least " + std::to_string(min_length) + " characters";
+            } else if (validation.error() == KeepTower::VaultError::PasswordReused) {
+                error_msg = "This password was used previously. Please choose a different password.";
+            }
+
+            auto error_dialog = Gtk::make_managed<Gtk::MessageDialog>(
+                *this, error_msg, false, Gtk::MessageType::ERROR, Gtk::ButtonsType::OK, true);
+            error_dialog->signal_response().connect([this, username](int) {
+                // Retry after error
+                handle_password_change_required(username);
+            });
+            error_dialog->present();
+
+            req.clear();
+            return;
+        }
+
 #ifdef HAVE_YUBIKEY_SUPPORT
-        // Show YubiKey prompt if user has YubiKey enrolled
-        // Note: validation (length, history) happens FIRST inside change_user_password
-        // before YubiKey touch, so invalid passwords fail without touching YubiKey
+        // Validation passed - now show YubiKey prompt if enrolled
         YubiKeyPromptDialog* touch_dialog = nullptr;
         auto users = m_vault_manager->list_users();
         for (const auto& user : users) {
@@ -3522,12 +3544,19 @@ void MainWindow::handle_password_change_required(const std::string& username) {
                 touch_dialog = Gtk::make_managed<YubiKeyPromptDialog>(*this,
                     YubiKeyPromptDialog::PromptType::TOUCH);
                 touch_dialog->present();
+
+                // Force GTK to process events and render the dialog
+                auto context = Glib::MainContext::get_default();
+                while (context->pending()) {
+                    context->iteration(false);
+                }
+                g_usleep(150000);  // 150ms to ensure dialog is visible
                 break;
             }
         }
 #endif
 
-        // Attempt password change (validates first, then uses YubiKey if validation passes)
+        // Attempt password change (password already validated, just needs YubiKey operations)
         auto result = m_vault_manager->change_user_password(username, req.current_password, req.new_password);
 
 #ifdef HAVE_YUBIKEY_SUPPORT
@@ -3819,10 +3848,25 @@ void MainWindow::on_change_my_password() {
         change_dialog->hide();
         delete change_dialog;
 
+        // Validate password BEFORE showing YubiKey prompt
+        // This allows fail-fast for invalid passwords without YubiKey interaction
+        auto validation = m_vault_manager->validate_new_password(username, req.new_password);
+        if (!validation) {
+            // Validation failed - show error
+            std::string error_msg = "Failed to validate password";
+            if (validation.error() == KeepTower::VaultError::WeakPassword) {
+                error_msg = "New password must be at least " + std::to_string(min_length) + " characters";
+            } else if (validation.error() == KeepTower::VaultError::PasswordReused) {
+                error_msg = "This password was used previously. Please choose a different password.";
+            }
+
+            show_error_dialog(error_msg);
+            req.clear();
+            return;
+        }
+
 #ifdef HAVE_YUBIKEY_SUPPORT
-        // Show YubiKey prompt if user has YubiKey enrolled
-        // Note: validation (length, history) happens FIRST inside change_user_password
-        // before YubiKey touch, so invalid passwords fail without touching YubiKey
+        // Validation passed - now show YubiKey prompt if enrolled
         YubiKeyPromptDialog* touch_dialog = nullptr;
         auto users = m_vault_manager->list_users();
         for (const auto& user : users) {
@@ -3830,12 +3874,19 @@ void MainWindow::on_change_my_password() {
                 touch_dialog = Gtk::make_managed<YubiKeyPromptDialog>(*this,
                     YubiKeyPromptDialog::PromptType::TOUCH);
                 touch_dialog->present();
+
+                // Force GTK to process events and render the dialog
+                auto context = Glib::MainContext::get_default();
+                while (context->pending()) {
+                    context->iteration(false);
+                }
+                g_usleep(150000);  // 150ms to ensure dialog is visible
                 break;
             }
         }
 #endif
 
-        // Attempt password change (validates first, then uses YubiKey if validation passes)
+        // Attempt password change (password already validated, just needs YubiKey operations)
         auto result = m_vault_manager->change_user_password(username, req.current_password, req.new_password);
 
 #ifdef HAVE_YUBIKEY_SUPPORT
