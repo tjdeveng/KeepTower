@@ -439,3 +439,29 @@ v2_creation_test = executable(
     include_directories: test_inc
 )
 
+# Password history tests (Phase 9)
+password_history_test_sources = [
+    'test_password_history.cc',
+    '../src/core/VaultManagerV2.cc',
+] + vault_manager_common_sources
+password_history_test_deps = [
+    gtest_dep,
+    protobuf_dep,
+    openssl_dep,
+    giomm_dep,
+    libcorrect_dep
+]
+if yubikey_available
+    password_history_test_sources += files('../src/core/YubiKeyManager.cc')
+    password_history_test_deps += [ykpers_dep, libyubikey_dep]
+endif
+
+password_history_test = executable(
+    'password_history_test',
+    password_history_test_sources,
+    dependencies: password_history_test_deps,
+    include_directories: test_inc
+)
+
+test('password_history', password_history_test)
+
