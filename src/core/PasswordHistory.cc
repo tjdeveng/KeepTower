@@ -30,6 +30,9 @@ std::optional<PasswordHistoryEntry> PasswordHistory::hash_password(const Glib::u
         return std::nullopt;
     }
 
+    // Use test iterations if set, otherwise use default
+    uint32_t iterations = (s_test_iterations > 0) ? s_test_iterations : PBKDF2_ITERATIONS;
+
     // Hash password with PBKDF2-HMAC-SHA512 (FIPS 140-3 approved)
     // Use higher iterations than KEK derivation since this is for storage, not authentication
     int result = PKCS5_PBKDF2_HMAC(
@@ -37,7 +40,7 @@ std::optional<PasswordHistoryEntry> PasswordHistory::hash_password(const Glib::u
         password.bytes(),           // password length
         entry.salt.data(),          // salt data
         SALT_LENGTH,                // salt length
-        PBKDF2_ITERATIONS,          // iteration count
+        iterations,                 // iteration count
         EVP_sha512(),               // FIPS-approved hash function
         HASH_LENGTH,                // output length (48 bytes)
         entry.hash.data()           // output hash
@@ -51,7 +54,7 @@ std::optional<PasswordHistoryEntry> PasswordHistory::hash_password(const Glib::u
     }
 
     Log::debug("PasswordHistory: Successfully hashed password (PBKDF2-SHA512, iterations={})",
-               PBKDF2_ITERATIONS);
+               iterations);
 
     return entry;
 }
@@ -80,12 +83,15 @@ bool PasswordHistory::is_password_reused(
         // Use SecureBuffer to ensure computed hash is cleared after comparison
         std::array<uint8_t, HASH_LENGTH> computed_hash{};
 
+        // Use test iterations if set, otherwise use default
+        uint32_t iterations = (s_test_iterations > 0) ? s_test_iterations : PBKDF2_ITERATIONS;
+
         int result = PKCS5_PBKDF2_HMAC(
             password.c_str(),
             password.bytes(),
             entry.salt.data(),
             SALT_LENGTH,
-            PBKDF2_ITERATIONS,
+            iterations,
             EVP_sha512(),           // FIPS-approved hash function
             HASH_LENGTH,
             computed_hash.data()

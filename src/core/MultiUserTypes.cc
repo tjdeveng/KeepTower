@@ -100,7 +100,7 @@ std::vector<uint8_t> VaultSecurityPolicy::serialize() const {
     // Bytes 13-76: yubikey_challenge (64 bytes)
     result.insert(result.end(), yubikey_challenge.begin(), yubikey_challenge.end());
 
-    // Bytes 77-116: reserved for future use
+    // Bytes 77-120: reserved for future use (44 bytes)
     for (size_t i = 0; i < RESERVED_BYTES_2; ++i) {
         result.push_back(0);
     }

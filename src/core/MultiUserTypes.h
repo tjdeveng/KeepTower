@@ -210,7 +210,7 @@ struct VaultSecurityPolicy {
 
     /**
      * @brief Get serialized size in bytes
-     * @return 121 bytes (1 + 4 + 4 + 4 + 4 + 64 + alignment padding)
+     * @return 121 bytes (1 + 4 + 4 + 4 + 64 + 44)
      */
     static constexpr size_t SERIALIZED_SIZE = 121;
 
@@ -218,7 +218,7 @@ struct VaultSecurityPolicy {
     static constexpr size_t RESERVED_BYTES_1 = 0;
 
     /** @brief Reserved bytes for future expansion (second block) */
-    static constexpr size_t RESERVED_BYTES_2 = 40;
+    static constexpr size_t RESERVED_BYTES_2 = 44;
 };
 
 /**

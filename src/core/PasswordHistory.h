@@ -128,6 +128,23 @@ private:
     static constexpr uint32_t PBKDF2_ITERATIONS = 600000;
 
     /**
+     * @brief Iteration count override for testing (0 = use default)
+     * @note Only for unit tests - do not use in production code
+     */
+    static inline uint32_t s_test_iterations = 0;
+
+public:
+    /**
+     * @brief Set custom iteration count for testing
+     * @param iterations Iteration count (0 to restore default)
+     * @note Only for unit tests - resets to default after test
+     */
+    static void set_test_iterations(uint32_t iterations) {
+        s_test_iterations = iterations;
+    }
+
+private:
+    /**
      * @brief PBKDF2-HMAC-SHA512 output length in bytes
      *
      * 48 bytes provides 384 bits of security.

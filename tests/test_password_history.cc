@@ -26,11 +26,13 @@ using namespace KeepTower;
 class PasswordHistoryTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        // No setup needed - PasswordHistory uses static methods
+        // Use lower iteration count for faster tests (100k instead of 600k)
+        PasswordHistory::set_test_iterations(100000);
     }
 
     void TearDown() override {
-        // No teardown needed
+        // Restore default iterations
+        PasswordHistory::set_test_iterations(0);
     }
 };
 
@@ -356,10 +358,14 @@ protected:
     void SetUp() override {
         test_vault_path = std::filesystem::temp_directory_path() / "test_password_history_vault.vault";
         cleanup_test_vault();
+        // Use lower iteration count for faster tests (100k instead of 600k)
+        PasswordHistory::set_test_iterations(100000);
     }
 
     void TearDown() override {
         cleanup_test_vault();
+        // Restore default iterations
+        PasswordHistory::set_test_iterations(0);
     }
 
     void cleanup_test_vault() {
@@ -376,7 +382,7 @@ TEST_F(PasswordHistoryIntegrationTest, V2VaultCreationWithHistory) {
     VaultSecurityPolicy policy;
     policy.min_password_length = 8;
     policy.password_history_depth = 5;
-    policy.pbkdf2_iterations = 600000;
+    policy.pbkdf2_iterations = 100000;  // Lower for faster tests
     policy.require_yubikey = false;
 
     auto result = vault_manager.create_vault_v2(
