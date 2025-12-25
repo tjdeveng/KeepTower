@@ -10,6 +10,7 @@
 #include <openssl/rand.h>
 #include <openssl/err.h>
 #include <openssl/provider.h>
+#include <openssl/crypto.h>
 #include <fstream>
 #include <sstream>
 #include <iostream>
@@ -2494,10 +2495,14 @@ bool VaultManager::init_fips_mode(bool enable) {
 
     KeepTower::Log::info("Initializing OpenSSL FIPS mode (enable={})", enable);
 
+    // Force OpenSSL to load configuration file (if OPENSSL_CONF is set)
+    // This ensures providers specified in the config are loaded before we check
+    OPENSSL_init_crypto(OPENSSL_INIT_LOAD_CONFIG, nullptr);
+
     // Check if FIPS provider is already available (e.g., loaded via OPENSSL_CONF)
     // Use OSSL_PROVIDER_try_load which respects configuration files
     OSSL_PROVIDER* fips_provider = OSSL_PROVIDER_try_load(nullptr, "fips", 1);
-    
+
     if (fips_provider == nullptr) {
         KeepTower::Log::warning("FIPS provider not available - using default provider");
         s_fips_mode_available.store(false);
