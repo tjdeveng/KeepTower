@@ -59,7 +59,7 @@ jobs:
           git \
           gettext \
           curl \
-          perl
+          perl \
           desktop-file-utils \
           libykpers-1-dev \
           libyubikey-dev
