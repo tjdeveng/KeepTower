@@ -954,6 +954,50 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
     return {};
 }
 
+KeepTower::VaultResult<> VaultManager::clear_user_password_history(
+    const Glib::ustring& username) {
+
+    Log::info("VaultManager: Clearing password history for user: {}", username.raw());
+
+    // Validate vault state
+    if (!m_vault_open || !m_is_v2_vault) {
+        Log::error("VaultManager: No V2 vault open");
+        return std::unexpected(VaultError::VaultNotOpen);
+    }
+
+    // Check permissions: user clearing own history OR admin clearing any
+    bool is_self = (m_current_session && m_current_session->username == username.raw());
+    bool is_admin = (m_current_session && m_current_session->role == UserRole::ADMINISTRATOR);
+    if (!is_self && !is_admin) {
+        Log::error("VaultManager: Permission denied for clearing password history");
+        return std::unexpected(VaultError::PermissionDenied);
+    }
+
+    // Find user slot
+    KeySlot* user_slot = nullptr;
+    for (auto& slot : m_v2_header->key_slots) {
+        if (slot.active && slot.username == username.raw()) {
+            user_slot = &slot;
+            break;
+        }
+    }
+
+    if (!user_slot) {
+        Log::error("VaultManager: User not found: {}", username.raw());
+        return std::unexpected(VaultError::UserNotFound);
+    }
+
+    // Clear password history
+    size_t old_size = user_slot->password_history.size();
+    user_slot->password_history.clear();
+
+    m_modified = true;
+
+    Log::info("VaultManager: Cleared {} password history entries for user: {}",
+              old_size, username.raw());
+    return {};
+}
+
 // ============================================================================
 // Phase 5: Admin Password Reset
 // ============================================================================

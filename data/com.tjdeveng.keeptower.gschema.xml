@@ -79,15 +79,15 @@
 
     <key name="password-history-enabled" type="b">
       <default>true</default>
-      <summary>Enable password history</summary>
-      <description>Track previous passwords to prevent reuse and maintain change history.</description>
+      <summary>Enable vault password history (default for new vaults)</summary>
+      <description>Track previous user passwords to prevent reuse. This is the default for new vaults; existing vaults use their own stored policy.</description>
     </key>
 
     <key name="password-history-limit" type="i">
       <default>5</default>
-      <range min="1" max="20"/>
-      <summary>Password history limit</summary>
-      <description>Maximum number of previous passwords to remember per account (1-20).</description>
+      <range min="0" max="24"/>
+      <summary>Vault password history depth (default for new vaults)</summary>
+      <description>Maximum number of previous passwords to remember per user (0-24, 0=disabled). This is the default for new vaults; existing vaults use their own stored policy.</description>
     </key>
 
     <key name="undo-redo-enabled" type="b">

@@ -463,6 +463,30 @@ public:
         const Glib::ustring& new_password);
 
     /**
+     * @brief Clear password history for a user
+     * @param username Username whose password history to clear
+     * @return Expected void or VaultError
+     *
+     * Requirements:
+     * - Vault must be open (V2 only)
+     * - Either: current user is target user OR current user is admin
+     *
+     * Clears all password history entries for the specified user.
+     * This does NOT affect the password_history_depth policy setting.
+     *
+     * @note Call save_vault() after to persist changes
+     *
+     * @code
+     * auto result = vm.clear_user_password_history("alice");
+     * if (result) {
+     *     vm.save_vault();
+     * }
+     * @endcode
+     */
+    [[nodiscard]] KeepTower::VaultResult<> clear_user_password_history(
+        const Glib::ustring& username);
+
+    /**
      * @brief Admin-only: Reset user password without knowing current password
      * @param username Username whose password to reset
      * @param new_temporary_password New temporary password
