@@ -563,9 +563,14 @@ void MainWindow::on_new_vault() {
                     int rs_redundancy = settings->get_int("rs-redundancy-percent");
                     m_vault_manager->apply_default_fec_preferences(use_rs, rs_redundancy);
 
+                    // Load password history settings
+                    bool password_history_enabled = settings->get_boolean("password-history-enabled");
+                    int password_history_limit = settings->get_int("password-history-limit");
+
                     KeepTower::VaultSecurityPolicy policy;
                     policy.min_password_length = 8;  // NIST minimum
                     policy.pbkdf2_iterations = 100000;  // Default iterations
+                    policy.password_history_depth = password_history_enabled ? std::clamp(password_history_limit, 0, 24) : 0;
                     policy.require_yubikey = require_yubikey;
 
 #ifdef HAVE_YUBIKEY_SUPPORT
@@ -935,10 +940,16 @@ void MainWindow::on_migrate_v1_to_v2() {
             auto min_length = migration_dialog->get_min_password_length();
             auto iterations = migration_dialog->get_pbkdf2_iterations();
 
+            // Load password history settings
+            auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
+            bool password_history_enabled = settings->get_boolean("password-history-enabled");
+            int password_history_limit = settings->get_int("password-history-limit");
+
             // Create security policy
             KeepTower::VaultSecurityPolicy policy;
             policy.min_password_length = min_length;
             policy.pbkdf2_iterations = iterations;
+            policy.password_history_depth = password_history_enabled ? std::clamp(password_history_limit, 0, 24) : 0;
             policy.require_yubikey = false;
 
             // Perform migration
@@ -3538,6 +3549,8 @@ void MainWindow::handle_password_change_required(const std::string& username) {
             std::string error_msg = "Failed to change password";
             if (result.error() == KeepTower::VaultError::WeakPassword) {
                 error_msg = "New password must be at least " + std::to_string(min_length) + " characters";
+            } else if (result.error() == KeepTower::VaultError::PasswordReused) {
+                error_msg = "This password was used previously. Please choose a different password.";
             }
 
             // Show error dialog, then retry after it's dismissed
@@ -3851,6 +3864,8 @@ void MainWindow::on_change_my_password() {
                 error_msg = "Current password is incorrect";
             } else if (result.error() == KeepTower::VaultError::WeakPassword) {
                 error_msg = "New password must be at least " + std::to_string(min_length) + " characters";
+            } else if (result.error() == KeepTower::VaultError::PasswordReused) {
+                error_msg = "This password was used previously. Please choose a different password.";
             }
 
             show_error_dialog(error_msg);

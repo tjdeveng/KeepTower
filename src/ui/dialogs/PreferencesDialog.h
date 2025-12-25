@@ -57,8 +57,8 @@ private:
     static constexpr int MIN_AUTO_LOCK_TIMEOUT = 60;
     static constexpr int MAX_AUTO_LOCK_TIMEOUT = 3600;
     static constexpr int DEFAULT_AUTO_LOCK_TIMEOUT = 300;
-    static constexpr int MIN_PASSWORD_HISTORY_LIMIT = 1;
-    static constexpr int MAX_PASSWORD_HISTORY_LIMIT = 50;
+    static constexpr int MIN_PASSWORD_HISTORY_LIMIT = 0;
+    static constexpr int MAX_PASSWORD_HISTORY_LIMIT = 24;
     static constexpr int DEFAULT_PASSWORD_HISTORY_LIMIT = 5;
     static constexpr int DEFAULT_WIDTH = 650;
     static constexpr int DEFAULT_HEIGHT = 500;

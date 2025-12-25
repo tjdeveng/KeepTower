@@ -248,7 +248,7 @@ void PreferencesDialog::setup_security_page() {
     password_history_title->add_css_class("heading");
     password_history_section->append(*password_history_title);
 
-    auto* password_history_desc = Gtk::make_managed<Gtk::Label>("Track previous passwords to prevent reuse");
+    auto* password_history_desc = Gtk::make_managed<Gtk::Label>("Track previous passwords to prevent reuse (applies to new vaults)");
     password_history_desc->set_halign(Gtk::Align::START);
     password_history_desc->add_css_class("dim-label");
     password_history_desc->set_wrap(true);
@@ -277,7 +277,7 @@ void PreferencesDialog::setup_security_page() {
     m_password_history_limit_spin.set_value(DEFAULT_PASSWORD_HISTORY_LIMIT);
     m_password_history_limit_box.append(m_password_history_limit_spin);
 
-    m_password_history_limit_suffix.set_text("previous passwords");
+    m_password_history_limit_suffix.set_text("previous passwords (0 = disabled)");
     m_password_history_limit_suffix.set_halign(Gtk::Align::START);
     m_password_history_limit_box.append(m_password_history_limit_suffix);
 

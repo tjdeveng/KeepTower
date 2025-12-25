@@ -96,6 +96,7 @@ This document outlines the planned features and improvements for KeepTower, orga
   - [x] Check delete permissions in MainWindow::on_delete_account() with friendly error dialog
   - [x] Update save_current_account() to persist privacy flags
   - [x] Create comprehensive PHASE7_IMPLEMENTATION.md documentation
+
 - [x] **Phase 8:** Migration from V1 vaults (V1 → V2 migration UI)
 - [ ] **Phase 9:** User password history tracking (prevent reuse of previous vault user passwords)
   - Track N previous passwords per user (configurable, default 5)
