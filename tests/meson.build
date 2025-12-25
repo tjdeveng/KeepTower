@@ -37,6 +37,7 @@ vault_manager_common_sources = [
     '../src/core/MultiUserTypes.cc',
     '../src/core/KeyWrapping.cc',
     '../src/core/VaultFormatV2.cc',
+    '../src/core/PasswordHistory.cc',
     proto_gen
 ]
 

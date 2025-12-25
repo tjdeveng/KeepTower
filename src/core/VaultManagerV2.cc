@@ -14,6 +14,7 @@
 
 #include "VaultManager.h"
 #include "KeyWrapping.h"
+#include "PasswordHistory.h"
 #include "../utils/Log.h"
 #include "../utils/SecureMemory.h"
 #include <chrono>
@@ -596,6 +597,20 @@ KeepTower::VaultResult<> VaultManager::add_user(
     new_slot.yubikey_serial.clear();
     new_slot.yubikey_enrolled_at = 0;
 
+    // Add initial password to history if enabled
+    if (m_v2_header->security_policy.password_history_depth > 0) {
+        auto history_entry = KeepTower::PasswordHistory::hash_password(temporary_password);
+        if (history_entry) {
+            KeepTower::PasswordHistory::add_to_history(
+                new_slot.password_history,
+                history_entry.value(),
+                m_v2_header->security_policy.password_history_depth);
+            Log::debug("VaultManager: Added initial password to new user's history");
+        } else {
+            Log::warning("VaultManager: Failed to hash initial password for history");
+        }
+    }
+
     // Add to header
     if (slot_index < m_v2_header->key_slots.size()) {
         m_v2_header->key_slots[slot_index] = new_slot;
@@ -710,6 +725,19 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
         Log::error("VaultManager: New password too short - actual: {} chars, min: {} chars",
                    new_password.length(), m_v2_header->security_policy.min_password_length);
         return std::unexpected(VaultError::WeakPassword);
+    }
+
+    // Check password history if enabled (depth > 0)
+    if (m_v2_header->security_policy.password_history_depth > 0) {
+        Log::debug("VaultManager: Checking password history (depth: {})",
+                   m_v2_header->security_policy.password_history_depth);
+
+        if (KeepTower::PasswordHistory::is_password_reused(new_password, user_slot->password_history)) {
+            Log::error("VaultManager: Password was used previously (reuse detected)");
+            return std::unexpected(VaultError::PasswordReused);
+        }
+
+        Log::debug("VaultManager: Password not found in history (OK)");
     }
 
     // Verify old password by unwrapping DEK
@@ -835,6 +863,22 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
     user_slot->wrapped_dek = new_wrapped_result.value().wrapped_key;
     user_slot->must_change_password = false;
     user_slot->password_changed_at = std::chrono::system_clock::now().time_since_epoch().count();
+
+    // Add new password to history if enabled
+    if (m_v2_header->security_policy.password_history_depth > 0) {
+        auto history_entry = KeepTower::PasswordHistory::hash_password(new_password);
+        if (history_entry) {
+            KeepTower::PasswordHistory::add_to_history(
+                user_slot->password_history,
+                history_entry.value(),
+                m_v2_header->security_policy.password_history_depth);
+            Log::debug("VaultManager: Added password to history (size: {})",
+                       user_slot->password_history.size());
+        } else {
+            Log::warning("VaultManager: Failed to hash password for history");
+        }
+    }
+
     m_modified = true;
 
     // Update session if user changed own password
@@ -924,6 +968,10 @@ KeepTower::VaultResult<> VaultManager::admin_reset_user_password(
     user_slot->wrapped_dek = new_wrapped_result.value().wrapped_key;
     user_slot->must_change_password = true;  // Force password change on next login
     user_slot->password_changed_at = 0;  // Reset to indicate temporary password
+
+    // Clear password history (admin reset = fresh start)
+    user_slot->password_history.clear();
+    Log::debug("VaultManager: Cleared password history for reset user");
 
     // IMPORTANT: Unenroll YubiKey if enrolled
     // Admin doesn't have user's YubiKey device, so reset to password-only

@@ -65,6 +65,7 @@ enum class VaultError {
     AuthenticationFailed,
     PermissionDenied,
     WeakPassword,
+    PasswordReused,           // Password was used previously (history check)
     SelfRemovalNotAllowed,
     LastAdministrator,
     MaxUsersReached,
@@ -153,6 +154,8 @@ inline constexpr std::string_view to_string(VaultError error) noexcept {
             return "Permission denied";
         case VaultError::WeakPassword:
             return "Password does not meet security requirements";
+        case VaultError::PasswordReused:
+            return "Password was used previously";
         case VaultError::SelfRemovalNotAllowed:
             return "Cannot remove yourself";
         case VaultError::LastAdministrator:
