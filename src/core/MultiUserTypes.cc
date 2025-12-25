@@ -12,6 +12,57 @@
 namespace KeepTower {
 
 // ============================================================================
+// PasswordHistoryEntry Serialization
+// ============================================================================
+
+std::vector<uint8_t> PasswordHistoryEntry::serialize() const {
+    std::vector<uint8_t> result;
+    result.reserve(SERIALIZED_SIZE);
+
+    // Bytes 0-7: timestamp (big-endian int64_t)
+    for (unsigned int i = 0; i < 8; ++i) {
+        result.push_back(static_cast<uint8_t>((timestamp >> ((7 - i) * 8)) & 0xFF));
+    }
+
+    // Bytes 8-39: salt (32 bytes)
+    result.insert(result.end(), salt.begin(), salt.end());
+
+    // Bytes 40-87: hash (48 bytes)
+    result.insert(result.end(), hash.begin(), hash.end());
+
+    return result;
+}
+
+std::optional<PasswordHistoryEntry> PasswordHistoryEntry::deserialize(
+    const std::vector<uint8_t>& data, size_t offset) {
+
+    if (offset + SERIALIZED_SIZE > data.size()) {
+        Log::error("PasswordHistoryEntry: Insufficient data at offset {} (need {}, have {})",
+                   offset, SERIALIZED_SIZE, data.size() - offset);
+        return std::nullopt;
+    }
+
+    PasswordHistoryEntry entry;
+    size_t pos = offset;
+
+    // Bytes 0-7: timestamp (big-endian)
+    entry.timestamp = 0;
+    for (int i = 0; i < 8; ++i) {
+        entry.timestamp = (entry.timestamp << 8) | data[pos++];
+    }
+
+    // Bytes 8-39: salt
+    std::copy(data.begin() + pos, data.begin() + pos + 32, entry.salt.begin());
+    pos += 32;
+
+    // Bytes 40-87: hash
+    std::copy(data.begin() + pos, data.begin() + pos + 48, entry.hash.begin());
+    pos += 48;
+
+    return entry;
+}
+
+// ============================================================================
 // VaultSecurityPolicy Serialization
 // ============================================================================
 
@@ -34,10 +85,11 @@ std::vector<uint8_t> VaultSecurityPolicy::serialize() const {
     result.push_back(static_cast<uint8_t>((pbkdf2_iterations >> 8) & 0xFF));
     result.push_back(static_cast<uint8_t>(pbkdf2_iterations & 0xFF));
 
-    // Bytes 9-12: reserved for future use
-    for (size_t i = 0; i < RESERVED_BYTES_1; ++i) {
-        result.push_back(0);
-    }
+    // Bytes 9-12: password_history_depth (big-endian)
+    result.push_back(static_cast<uint8_t>((password_history_depth >> 24) & 0xFF));
+    result.push_back(static_cast<uint8_t>((password_history_depth >> 16) & 0xFF));
+    result.push_back(static_cast<uint8_t>((password_history_depth >> 8) & 0xFF));
+    result.push_back(static_cast<uint8_t>(password_history_depth & 0xFF));
 
     // Bytes 13-76: yubikey_challenge (64 bytes)
     result.insert(result.end(), yubikey_challenge.begin(), yubikey_challenge.end());
@@ -74,12 +126,16 @@ std::optional<VaultSecurityPolicy> VaultSecurityPolicy::deserialize(const std::v
                                (static_cast<uint32_t>(data[7]) << 8) |
                                static_cast<uint32_t>(data[8]);
 
-    // Bytes 9-12: reserved (skip)
+    // Bytes 9-12: password_history_depth
+    policy.password_history_depth = (static_cast<uint32_t>(data[9]) << 24) |
+                                    (static_cast<uint32_t>(data[10]) << 16) |
+                                    (static_cast<uint32_t>(data[11]) << 8) |
+                                    static_cast<uint32_t>(data[12]);
 
     // Bytes 13-76: yubikey_challenge
     std::copy(data.begin() + 13, data.begin() + 77, policy.yubikey_challenge.begin());
 
-    // Bytes 77-116: reserved (skip)
+    // Bytes 77-120: reserved (skip)
 
     // Validation
     if (policy.min_password_length < 8 || policy.min_password_length > 128) {
@@ -89,6 +145,11 @@ std::optional<VaultSecurityPolicy> VaultSecurityPolicy::deserialize(const std::v
 
     if (policy.pbkdf2_iterations < 100000 || policy.pbkdf2_iterations > 1000000) {
         Log::error("VaultSecurityPolicy: Invalid pbkdf2_iterations: {}", policy.pbkdf2_iterations);
+        return std::nullopt;
+    }
+
+    if (policy.password_history_depth > 24) {
+        Log::error("VaultSecurityPolicy: Invalid password_history_depth: {}", policy.password_history_depth);
         return std::nullopt;
     }
 
@@ -114,7 +175,11 @@ size_t KeySlot::calculate_serialized_size() const {
     // 1 byte: yubikey_serial length
     // N bytes: yubikey_serial
     // 8 bytes: yubikey_enrolled_at
-    return 1 + 1 + username.size() + 32 + 40 + 1 + 1 + 8 + 8 + 1 + 20 + 1 + yubikey_serial.size() + 8;
+    // 1 byte: password_history count
+    // N * 88 bytes: password_history entries
+    size_t base_size = 1 + 1 + username.size() + 32 + 40 + 1 + 1 + 8 + 8 + 1 + 20 + 1 + yubikey_serial.size() + 8 + 1;
+    size_t history_size = password_history.size() * PasswordHistoryEntry::SERIALIZED_SIZE;
+    return base_size + history_size;
 }
 
 std::vector<uint8_t> KeySlot::serialize() const {
@@ -175,6 +240,19 @@ std::vector<uint8_t> KeySlot::serialize() const {
     // Next 8 bytes: yubikey_enrolled_at (big-endian)
     for (unsigned int i = 0; i < 8; ++i) {
         result.push_back(static_cast<uint8_t>((yubikey_enrolled_at >> ((7 - i) * 8)) & 0xFF));
+    }
+
+    // Next byte: password_history count
+    if (password_history.size() > 255) {
+        Log::error("KeySlot: Password history too long (max 255 entries): {}", password_history.size());
+        return {};
+    }
+    result.push_back(static_cast<uint8_t>(password_history.size()));
+
+    // Next N * 88 bytes: password_history entries
+    for (const auto& entry : password_history) {
+        auto entry_data = entry.serialize();
+        result.insert(result.end(), entry_data.begin(), entry_data.end());
     }
 
     return result;
@@ -275,6 +353,39 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
     slot.yubikey_enrolled_at = 0;
     for (int i = 0; i < 8; ++i) {
         slot.yubikey_enrolled_at = (slot.yubikey_enrolled_at << 8) | data[pos++];
+    }
+
+    // Check if we have password_history field (backward compatibility)
+    // If not enough data, treat as old format (no password history)
+    if (pos + 1 > data.size()) {
+        // Old format without password history - use empty vector
+        slot.password_history.clear();
+        size_t bytes_consumed = pos - offset;
+        return std::make_pair(slot, bytes_consumed);
+    }
+
+    // password_history count (1 byte)
+    uint8_t history_count = data[pos++];
+
+    // Check if we have enough data for all history entries
+    size_t history_bytes_needed = history_count * PasswordHistoryEntry::SERIALIZED_SIZE;
+    if (pos + history_bytes_needed > data.size()) {
+        Log::error("KeySlot: Insufficient data for password history (need {}, have {})",
+                   history_bytes_needed, data.size() - pos);
+        return std::nullopt;
+    }
+
+    // Deserialize password_history entries
+    slot.password_history.clear();
+    slot.password_history.reserve(history_count);
+    for (uint8_t i = 0; i < history_count; ++i) {
+        auto entry_opt = PasswordHistoryEntry::deserialize(data, pos);
+        if (!entry_opt) {
+            Log::error("KeySlot: Failed to deserialize password history entry {}", i);
+            return std::nullopt;
+        }
+        slot.password_history.push_back(*entry_opt);
+        pos += PasswordHistoryEntry::SERIALIZED_SIZE;
     }
 
     size_t bytes_consumed = pos - offset;

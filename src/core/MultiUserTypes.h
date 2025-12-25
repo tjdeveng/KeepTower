@@ -35,6 +35,73 @@ enum class UserRole : uint8_t {
 };
 
 /**
+ * @brief Password history entry for reuse prevention
+ *
+ * Stores Argon2id hash of a previous password with timestamp.
+ * Used to prevent users from reusing recent passwords.
+ *
+ * @section security_design Security Design
+ * - **Argon2id hashing**: Memory-hard algorithm resistant to GPU attacks
+ * - **Random salts**: Each entry has unique 32-byte salt
+ * - **Constant-time comparison**: Prevents timing side-channel attacks
+ * - **Ring buffer storage**: FIFO eviction when depth limit reached
+ *
+ * @note Hash size: 48 bytes (Argon2id output, includes encoded parameters)
+ * @note Total entry size: 88 bytes (8 timestamp + 32 salt + 48 hash)
+ */
+struct PasswordHistoryEntry {
+    /**
+     * @brief Timestamp when password was set (Unix epoch seconds)
+     *
+     * Used for audit logging and age-based expiration (future feature).
+     */
+    int64_t timestamp = 0;
+
+    /**
+     * @brief Random salt for Argon2id hashing (32 bytes)
+     *
+     * Unique per-entry salt ensures rainbow table attacks are infeasible.
+     * Generated with RAND_bytes() (FIPS DRBG when FIPS mode enabled).
+     */
+    std::array<uint8_t, 32> salt = {};
+
+    /**
+     * @brief Argon2id hash of password (48 bytes)
+     *
+     * Hash parameters:
+     * - Algorithm: Argon2id (hybrid mode, resistant to side-channel attacks)
+     * - Memory cost: 64 MB (m=65536 KiB)
+     * - Time cost: 3 iterations (t=3)
+     * - Parallelism: 4 threads (p=4)
+     * - Output length: 48 bytes
+     *
+     * @note These parameters match OWASP minimum recommendations (2023)
+     */
+    std::array<uint8_t, 48> hash = {};
+
+    /**
+     * @brief Serialize to binary format
+     * @return Binary representation (88 bytes)
+     */
+    std::vector<uint8_t> serialize() const;
+
+    /**
+     * @brief Deserialize from binary format
+     * @param data Binary data (must be at least 88 bytes)
+     * @param offset Offset in data to start reading
+     * @return Deserialized entry, or empty optional on error
+     */
+    static std::optional<PasswordHistoryEntry> deserialize(
+        const std::vector<uint8_t>& data, size_t offset);
+
+    /**
+     * @brief Get serialized size in bytes
+     * @return 88 bytes (8 + 32 + 48)
+     */
+    static constexpr size_t SERIALIZED_SIZE = 88;
+};
+
+/**
  * @brief Vault-wide security policy (admin-controlled)
  *
  * Security settings defined at vault creation and applied uniformly
@@ -81,6 +148,29 @@ struct VaultSecurityPolicy {
     uint32_t pbkdf2_iterations = 100000;
 
     /**
+     * @brief Password history depth for reuse prevention
+     *
+     * Number of previous passwords to remember per user.
+     * When a user changes their password, the system checks against
+     * this many previous passwords and rejects reuse.
+     *
+     * @section depth_behavior Behavior by Depth Value
+     * - 0: Password history disabled (no checking)
+     * - 1-24: Remember this many previous passwords
+     * - Default: 5 (recommended for most use cases)
+     *
+     * @section storage_impact Storage Impact
+     * Each entry: 88 bytes (timestamp + salt + hash)
+     * - Depth 5: 440 bytes per user
+     * - Depth 12: 1056 bytes per user
+     * - Depth 24: 2112 bytes per user
+     *
+     * @note Range: 0-24 (enforced at API level)
+     * @note Uses ring buffer (FIFO eviction when depth exceeded)
+     */
+    uint32_t password_history_depth = 5;
+
+    /**
      * @brief YubiKey HMAC-SHA1 challenge (shared by all users)
      *
      * Random 64-byte challenge generated at vault creation.
@@ -112,12 +202,12 @@ struct VaultSecurityPolicy {
 
     /**
      * @brief Get serialized size in bytes
-     * @return 117 bytes (1 + 4 + 4 + 4 + 64 + alignment padding)
+     * @return 121 bytes (1 + 4 + 4 + 4 + 4 + 64 + alignment padding)
      */
-    static constexpr size_t SERIALIZED_SIZE = 117;
+    static constexpr size_t SERIALIZED_SIZE = 121;
 
     /** @brief Reserved bytes for future expansion (first block) */
-    static constexpr size_t RESERVED_BYTES_1 = 4;
+    static constexpr size_t RESERVED_BYTES_1 = 0;
 
     /** @brief Reserved bytes for future expansion (second block) */
     static constexpr size_t RESERVED_BYTES_2 = 40;
@@ -281,6 +371,30 @@ struct KeySlot {
     int64_t yubikey_enrolled_at = 0;
 
     /**
+     * @brief Password history for reuse prevention
+     *
+     * Stores hashes of previous passwords to prevent password reuse.
+     * Managed as a ring buffer with FIFO eviction when depth limit reached.
+     *
+     * @section usage_workflow Password Change Workflow
+     * 1. User attempts to change password
+     * 2. System checks new password against all entries in password_history
+     * 3. If match found → Reject with "Password was used previously"
+     * 4. If no match → Accept, hash new password, add to history
+     * 5. If history.size() > policy.depth → Remove oldest entry (FIFO)
+     *
+     * @section depth_synchronization Depth Synchronization
+     * - Max size governed by VaultSecurityPolicy.password_history_depth
+     * - If admin decreases depth, oldest entries are trimmed on next write
+     * - If admin increases depth, new entries are added normally
+     * - If depth set to 0, password checking is disabled (history retained but not checked)
+     *
+     * @note Empty when user first created or when history disabled
+     * @note Maximum size: 24 entries (configurable via policy)
+     */
+    std::vector<PasswordHistoryEntry> password_history;
+
+    /**
      * @brief Serialize to binary format for vault header
      * @return Binary representation (variable length due to username)
      */
@@ -302,10 +416,10 @@ struct KeySlot {
     size_t calculate_serialized_size() const;
 
     /**
-     * @brief Minimum serialized size (empty username)
-     * @return 131 bytes (1 + 1 + 255 + 32 + 40 + 1 + 1 + 8 + 8)
+     * @brief Minimum serialized size (empty username, no password history)
+     * @return 132 bytes (1 + 1 + 255 + 32 + 40 + 1 + 1 + 8 + 8 + 1)
      */
-    static constexpr size_t MIN_SERIALIZED_SIZE = 131;
+    static constexpr size_t MIN_SERIALIZED_SIZE = 132;
 };
 
 /**
