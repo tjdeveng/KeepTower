@@ -3511,8 +3511,30 @@ void MainWindow::handle_password_change_required(const std::string& username) {
         auto req = change_dialog->get_request();
         change_dialog->hide();
 
-        // Attempt password change (YubiKey verification happens inside if enrolled)
+#ifdef HAVE_YUBIKEY_SUPPORT
+        // Show YubiKey prompt if user has YubiKey enrolled
+        // Note: validation (length, history) happens FIRST inside change_user_password
+        // before YubiKey touch, so invalid passwords fail without touching YubiKey
+        YubiKeyPromptDialog* touch_dialog = nullptr;
+        auto users = m_vault_manager->list_users();
+        for (const auto& user : users) {
+            if (user.username == username && user.yubikey_enrolled) {
+                touch_dialog = Gtk::make_managed<YubiKeyPromptDialog>(*this,
+                    YubiKeyPromptDialog::PromptType::TOUCH);
+                touch_dialog->present();
+                break;
+            }
+        }
+#endif
+
+        // Attempt password change (validates first, then uses YubiKey if validation passes)
         auto result = m_vault_manager->change_user_password(username, req.current_password, req.new_password);
+
+#ifdef HAVE_YUBIKEY_SUPPORT
+        if (touch_dialog) {
+            touch_dialog->hide();
+        }
+#endif
 
         // Clear passwords immediately
         req.clear();
@@ -3797,8 +3819,30 @@ void MainWindow::on_change_my_password() {
         change_dialog->hide();
         delete change_dialog;
 
-        // Attempt password change (YubiKey verification happens inside if enrolled)
+#ifdef HAVE_YUBIKEY_SUPPORT
+        // Show YubiKey prompt if user has YubiKey enrolled
+        // Note: validation (length, history) happens FIRST inside change_user_password
+        // before YubiKey touch, so invalid passwords fail without touching YubiKey
+        YubiKeyPromptDialog* touch_dialog = nullptr;
+        auto users = m_vault_manager->list_users();
+        for (const auto& user : users) {
+            if (user.username == username && user.yubikey_enrolled) {
+                touch_dialog = Gtk::make_managed<YubiKeyPromptDialog>(*this,
+                    YubiKeyPromptDialog::PromptType::TOUCH);
+                touch_dialog->present();
+                break;
+            }
+        }
+#endif
+
+        // Attempt password change (validates first, then uses YubiKey if validation passes)
         auto result = m_vault_manager->change_user_password(username, req.current_password, req.new_password);
+
+#ifdef HAVE_YUBIKEY_SUPPORT
+        if (touch_dialog) {
+            touch_dialog->hide();
+        }
+#endif
 
         // Clear passwords immediately
         req.clear();
