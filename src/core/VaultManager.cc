@@ -2494,15 +2494,18 @@ bool VaultManager::init_fips_mode(bool enable) {
 
     KeepTower::Log::info("Initializing OpenSSL FIPS mode (enable={})", enable);
 
-    // Try to load FIPS provider
-    OSSL_PROVIDER* fips_provider = OSSL_PROVIDER_load(nullptr, "fips");
+    // Check if FIPS provider is already available (e.g., loaded via OPENSSL_CONF)
+    // Use OSSL_PROVIDER_try_load which respects configuration files
+    OSSL_PROVIDER* fips_provider = OSSL_PROVIDER_try_load(nullptr, "fips", 1);
+    
     if (fips_provider == nullptr) {
         KeepTower::Log::warning("FIPS provider not available - using default provider");
         s_fips_mode_available.store(false);
         s_fips_mode_enabled.store(false);
 
-        // Load default provider as fallback
-        OSSL_PROVIDER* default_provider = OSSL_PROVIDER_load(nullptr, "default");
+        // Ensure default provider is available
+        // try_load returns existing provider if already loaded, or loads it
+        OSSL_PROVIDER* default_provider = OSSL_PROVIDER_try_load(nullptr, "default", 1);
         if (default_provider == nullptr) {
             KeepTower::Log::error("Failed to load default OpenSSL provider");
             unsigned long err = ERR_get_error();
@@ -2534,7 +2537,8 @@ bool VaultManager::init_fips_mode(bool enable) {
         KeepTower::Log::info("FIPS mode enabled successfully");
     } else {
         // Load default provider alongside FIPS for flexibility
-        OSSL_PROVIDER* default_provider = OSSL_PROVIDER_load(nullptr, "default");
+        // try_load will return existing provider if already loaded
+        OSSL_PROVIDER* default_provider = OSSL_PROVIDER_try_load(nullptr, "default", 1);
         if (default_provider == nullptr) {
             KeepTower::Log::warning("Failed to load default provider alongside FIPS");
         }
