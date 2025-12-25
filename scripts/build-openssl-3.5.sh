@@ -77,6 +77,11 @@ if [ -f "${INSTALL_PREFIX}/lib64/ossl-modules/fips.so" ] || [ -f "${INSTALL_PREF
     }
     echo "✓ FIPS module passed all KATs (Known Answer Tests)"
 
+    # Add the module path to fipsmodule.cnf
+    # This ensures OpenSSL can find the FIPS module at runtime
+    echo "Adding module path to fipsmodule.cnf..."
+    sed -i "/^\[fips_sect\]/a module = $FIPS_MODULE_PATH" "${INSTALL_PREFIX}/ssl/fipsmodule.cnf"
+
     # Configure openssl.cnf to enable FIPS provider
     echo "Configuring openssl.cnf for FIPS mode..."
     OPENSSL_CNF="${INSTALL_PREFIX}/ssl/openssl.cnf"
