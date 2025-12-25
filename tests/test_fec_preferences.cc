@@ -12,6 +12,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <glibmm/init.h>
 #include "VaultManager.h"
 #include <filesystem>
 
@@ -20,6 +21,9 @@ namespace fs = std::filesystem;
 class FECPreferencesTest : public ::testing::Test {
 protected:
     void SetUp() override {
+        // Initialize GLib type system (needed for Glib::ustring)
+        Glib::init();
+        
         test_dir = fs::temp_directory_path() / "keeptower_fec_tests";
         fs::create_directories(test_dir);
         test_vault1_path = (test_dir / "vault1.vault").string();
