@@ -1276,6 +1276,90 @@ public:
      */
     uint8_t get_rs_redundancy_percent() const { return m_rs_redundancy_percent; }
 
+    /**
+     * @brief Set clipboard timeout for current vault
+     * @param timeout_seconds Timeout in seconds (0 = disabled)
+     * @note This setting is stored in the vault file
+     */
+    void set_clipboard_timeout(int timeout_seconds);
+
+    /**
+     * @brief Get clipboard timeout for current vault
+     * @return Timeout in seconds (0 if not set or vault closed)
+     * @note Returns vault-specific setting, not global default
+     */
+    [[nodiscard]] int get_clipboard_timeout() const;
+
+    /**
+     * @brief Set auto-lock timeout for current vault
+     * @param timeout_seconds Timeout in seconds (0 = disabled)
+     * @note This setting is stored in the vault file
+     */
+    void set_auto_lock_timeout(int timeout_seconds);
+
+    /**
+     * @brief Get auto-lock timeout for current vault
+     * @return Timeout in seconds (0 if not set or vault closed)
+     * @note Returns vault-specific setting, not global default
+     */
+    [[nodiscard]] int get_auto_lock_timeout() const;
+
+    /**
+     * @brief Set undo/redo enabled for current vault
+     * @param enabled true to enable undo/redo, false to disable
+     * @note This setting is stored in the vault file
+     */
+    void set_undo_redo_enabled(bool enabled);
+
+    /**
+     * @brief Get undo/redo enabled for current vault
+     * @return true if enabled (false if not set or vault closed)
+     * @note Returns vault-specific setting, not global default
+     */
+    [[nodiscard]] bool get_undo_redo_enabled() const;
+
+    /**
+     * @brief Set undo/redo history limit for current vault
+     * @param limit Maximum operations to keep (1-100)
+     * @note This setting is stored in the vault file
+     */
+    void set_undo_history_limit(int limit);
+
+    /**
+     * @brief Get undo/redo history limit for current vault
+     * @return History limit (0 if not set or vault closed)
+     * @note Returns vault-specific setting, not global default
+     */
+    [[nodiscard]] int get_undo_history_limit() const;
+
+    /**
+     * @brief Set account password history enabled for current vault
+     * @param enabled true to prevent password reuse, false to allow
+     * @note This setting is stored in the vault file
+     */
+    void set_account_password_history_enabled(bool enabled);
+
+    /**
+     * @brief Get account password history enabled for current vault
+     * @return true if enabled (false if not set or vault closed)
+     * @note Returns vault-specific setting, not global default
+     */
+    [[nodiscard]] bool get_account_password_history_enabled() const;
+
+    /**
+     * @brief Set account password history limit for current vault
+     * @param limit Number of previous passwords to check (0-24)
+     * @note This setting is stored in the vault file
+     */
+    void set_account_password_history_limit(int limit);
+
+    /**
+     * @brief Get account password history limit for current vault
+     * @return History limit (0 if not set or vault closed)
+     * @note Returns vault-specific setting, not global default
+     */
+    [[nodiscard]] int get_account_password_history_limit() const;
+
     // Backup configuration
 
     /**

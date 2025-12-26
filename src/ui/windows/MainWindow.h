@@ -224,6 +224,8 @@ protected:
     sigc::connection m_auto_lock_timeout;     ///< Connection for auto-lock inactivity timer
     sigc::connection m_row_inserted_conn;     ///< Connection for detecting drag-and-drop reordering
     std::vector<sigc::connection> m_signal_connections;  ///< Persistent widget signal connections
+    Glib::RefPtr<Gio::Settings> m_desktop_settings;      ///< GNOME desktop settings for theme monitoring
+    sigc::connection m_theme_changed_connection;         ///< Connection for system theme changes
 
     // Context menu state
     std::string m_context_menu_account_id;  ///< Account ID for current context menu

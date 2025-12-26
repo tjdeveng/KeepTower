@@ -233,8 +233,34 @@ message VaultMetadata {
   // Number of times the vault has been opened
   int64 access_count = 7;
 
+  // === VAULT-SPECIFIC SECURITY SETTINGS (8-15) ===
+
+  // Clipboard auto-clear timeout in seconds (0 = disabled)
+  // Each vault can have its own clipboard security policy
+  int32 clipboard_timeout_seconds = 8;
+
+  // Auto-lock timeout in seconds (0 = disabled)
+  // Each vault can have its own auto-lock policy
+  int32 auto_lock_timeout_seconds = 9;
+
+  // Undo/redo enabled flag
+  // Each vault can enable/disable undo/redo for security
+  bool undo_redo_enabled = 10;
+
+  // Undo/redo history limit (1-100 operations)
+  // Maximum number of operations kept in undo history
+  int32 undo_history_limit = 11;
+
+  // Account password history enabled flag
+  // Prevent reusing passwords when updating account entries
+  bool account_password_history_enabled = 12;
+
+  // Account password history limit (0-24 previous passwords)
+  // Number of previous passwords to check per account
+  int32 account_password_history_limit = 13;
+
   // Reserved for future vault metadata
-  reserved 8 to 15;
+  reserved 14 to 15;
 }
 
 // Individual YubiKey entry for multiple key support

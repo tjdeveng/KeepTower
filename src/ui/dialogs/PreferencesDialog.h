@@ -30,18 +30,21 @@ public:
 private:
     void setup_ui();                                     ///< Initialize main dialog layout with sidebar and stack
     void setup_appearance_page();                        ///< Build appearance preferences page (color scheme)
-    void setup_security_page();                          ///< Build security preferences page (clipboard, auto-lock, password history)
+    void setup_account_security_page();                  ///< Build account security page (clipboard, undo/redo)
+    void setup_vault_security_page();                    ///< Build vault security page (auto-lock, FIPS, password history)
     void setup_storage_page();                           ///< Build storage preferences page (FEC, backups)
     void load_settings();                                ///< Load all settings from GSettings into UI controls
     void save_settings();                                ///< Save all UI control values to GSettings
     void apply_color_scheme(const Glib::ustring& scheme);  ///< Apply color scheme to GTK application
+    void update_vault_password_history_ui() noexcept;    ///< Update vault password history UI when vault changes
     void on_rs_enabled_toggled() noexcept;               ///< Handle Reed-Solomon enabled checkbox toggle
     void on_backup_enabled_toggled() noexcept;           ///< Handle backup enabled checkbox toggle
     void on_auto_lock_enabled_toggled() noexcept;        ///< Handle auto-lock enabled checkbox toggle
-    void on_password_history_enabled_toggled() noexcept; ///< Handle password history enabled checkbox toggle
+    void on_account_password_history_toggled() noexcept; ///< Handle account password history checkbox toggle
     void on_undo_redo_enabled_toggled() noexcept;        ///< Handle undo/redo enabled checkbox toggle
     void on_apply_to_current_toggled() noexcept;         ///< Handle "Apply to current vault" checkbox toggle
     void on_color_scheme_changed() noexcept;             ///< Handle color scheme dropdown selection change
+    void on_clear_password_history_clicked() noexcept;   ///< Handle clear password history button click
     void on_response(int response_id) noexcept override; ///< Handle dialog response (Apply/Cancel)
 
     // Constants
@@ -78,28 +81,46 @@ private:
     Gtk::Label m_color_scheme_label;
     Gtk::DropDown m_color_scheme_dropdown;
 
-    // Security page
-    Gtk::Box m_security_box;
+    // Account Security page (user's local behavior)
+    Gtk::Box m_account_security_box;
     Gtk::Box m_clipboard_timeout_box;
     Gtk::Label m_clipboard_timeout_label;
     Gtk::SpinButton m_clipboard_timeout_spin;
     Gtk::Label m_clipboard_timeout_suffix;
-    Gtk::CheckButton m_auto_lock_enabled_check;
-    Gtk::Box m_auto_lock_timeout_box;
-    Gtk::Label m_auto_lock_timeout_label;
-    Gtk::SpinButton m_auto_lock_timeout_spin;
-    Gtk::Label m_auto_lock_timeout_suffix;
-    Gtk::CheckButton m_password_history_enabled_check;
-    Gtk::Box m_password_history_limit_box;
-    Gtk::Label m_password_history_limit_label;
-    Gtk::SpinButton m_password_history_limit_spin;
-    Gtk::Label m_password_history_limit_suffix;
+    Gtk::CheckButton m_account_password_history_check;  // Account password reuse detection
+    Gtk::Box m_account_password_history_limit_box;
+    Gtk::Label m_account_password_history_limit_label;
+    Gtk::SpinButton m_account_password_history_limit_spin;
+    Gtk::Label m_account_password_history_limit_suffix;
     Gtk::CheckButton m_undo_redo_enabled_check;
     Gtk::Box m_undo_history_limit_box;
     Gtk::Label m_undo_history_limit_label;
     Gtk::SpinButton m_undo_history_limit_spin;
     Gtk::Label m_undo_history_limit_suffix;
     Gtk::Label m_undo_redo_warning;
+
+    // Vault Security page (vault data and policy)
+    Gtk::Box m_vault_security_box;
+    Gtk::CheckButton m_auto_lock_enabled_check;
+    Gtk::Box m_auto_lock_timeout_box;
+    Gtk::Label m_auto_lock_timeout_label;
+    Gtk::SpinButton m_auto_lock_timeout_spin;
+    Gtk::Label m_auto_lock_timeout_suffix;
+
+    // Vault password history UI (only shown when vault open)
+    Gtk::Box m_vault_password_history_box;
+    Gtk::Label m_vault_policy_label;        // "Current vault policy: 5 passwords"
+    Gtk::Label m_current_user_label;         // "Logged in as: alice"
+    Gtk::Label m_history_count_label;        // "Password history: 3 entries"
+    Gtk::Button m_clear_history_button;      // "Clear My Password History"
+    Gtk::Label m_clear_history_warning;      // Warning about clearing
+
+    // Vault user password history default (only shown when no vault open)
+    Gtk::Box m_vault_password_history_default_box;
+    Gtk::Label m_vault_password_history_default_label;
+    Gtk::SpinButton m_vault_password_history_default_spin;
+    Gtk::Label m_vault_password_history_default_suffix;
+    Gtk::Label m_vault_password_history_default_help;
 
     /** @name FIPS-140-3 UI Widgets
      * @brief User interface controls for FIPS mode configuration

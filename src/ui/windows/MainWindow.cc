@@ -68,9 +68,82 @@ MainWindow::MainWindow()
             gtk_settings->property_gtk_application_prefer_dark_theme() = true;
         } else {
             // Default: follow system preference
-            gtk_settings->reset_property("gtk-application-prefer-dark-theme");
+            // Try to read system color scheme from GNOME desktop settings
+            bool applied = false;
+            try {
+                m_desktop_settings = Gio::Settings::create("org.gnome.desktop.interface");
+                auto system_color_scheme = m_desktop_settings->get_string("color-scheme");
+                // color-scheme can be: "default", "prefer-dark", "prefer-light"
+                gtk_settings->property_gtk_application_prefer_dark_theme() = (system_color_scheme == "prefer-dark");
+                applied = true;
+
+                // Monitor system theme changes
+                m_theme_changed_connection = m_desktop_settings->signal_changed("color-scheme").connect(
+                    [this, gtk_settings](const Glib::ustring& key) {
+                        auto system_color_scheme = m_desktop_settings->get_string("color-scheme");
+                        gtk_settings->property_gtk_application_prefer_dark_theme() = (system_color_scheme == "prefer-dark");
+                    }
+                );
+            } catch (...) {
+                // Schema not available or error reading it
+            }
+
+            if (!applied) {
+                // Fallback: Check GTK_THEME environment variable
+                const char* gtk_theme = std::getenv("GTK_THEME");
+                if (gtk_theme && std::string(gtk_theme).find("dark") != std::string::npos) {
+                    gtk_settings->property_gtk_application_prefer_dark_theme() = true;
+                } else {
+                    // Last resort: assume light theme
+                    gtk_settings->property_gtk_application_prefer_dark_theme() = false;
+                }
+            }
         }
     }
+
+    // Monitor app's color-scheme setting changes (when user changes it in preferences)
+    settings->signal_changed("color-scheme").connect([this](const Glib::ustring& key) {
+        auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
+        Glib::ustring color_scheme = settings->get_string("color-scheme");
+        auto gtk_settings = Gtk::Settings::get_default();
+        if (!gtk_settings) return;
+
+        // Disconnect any existing system theme monitoring
+        if (m_theme_changed_connection) {
+            m_theme_changed_connection.disconnect();
+        }
+
+        if (color_scheme == "light") {
+            gtk_settings->property_gtk_application_prefer_dark_theme() = false;
+        } else if (color_scheme == "dark") {
+            gtk_settings->property_gtk_application_prefer_dark_theme() = true;
+        } else {
+            // Default: follow system preference and monitor changes
+            try {
+                if (!m_desktop_settings) {
+                    m_desktop_settings = Gio::Settings::create("org.gnome.desktop.interface");
+                }
+                auto system_color_scheme = m_desktop_settings->get_string("color-scheme");
+                gtk_settings->property_gtk_application_prefer_dark_theme() = (system_color_scheme == "prefer-dark");
+
+                // Re-establish system theme monitoring
+                m_theme_changed_connection = m_desktop_settings->signal_changed("color-scheme").connect(
+                    [gtk_settings, this](const Glib::ustring&) {
+                        auto system_color_scheme = m_desktop_settings->get_string("color-scheme");
+                        gtk_settings->property_gtk_application_prefer_dark_theme() = (system_color_scheme == "prefer-dark");
+                    }
+                );
+            } catch (...) {
+                // Fallback
+                const char* gtk_theme = std::getenv("GTK_THEME");
+                if (gtk_theme && std::string(gtk_theme).find("dark") != std::string::npos) {
+                    gtk_settings->property_gtk_application_prefer_dark_theme() = true;
+                } else {
+                    gtk_settings->property_gtk_application_prefer_dark_theme() = false;
+                }
+            }
+        }
+    });
 
     // Load Reed-Solomon settings as defaults for NEW vaults
     // Note: Opened vaults preserve their own FEC settings

@@ -2011,6 +2011,96 @@ bool VaultManager::set_backup_count(int count) {
     return true;
 }
 
+void VaultManager::set_clipboard_timeout(int timeout_seconds) {
+    if (!m_vault_open) {
+        return;
+    }
+    auto* metadata = m_vault_data.mutable_metadata();
+    metadata->set_clipboard_timeout_seconds(timeout_seconds);
+}
+
+int VaultManager::get_clipboard_timeout() const {
+    if (!m_vault_open || !m_vault_data.has_metadata()) {
+        return 0;
+    }
+    return m_vault_data.metadata().clipboard_timeout_seconds();
+}
+
+void VaultManager::set_auto_lock_timeout(int timeout_seconds) {
+    if (!m_vault_open) {
+        return;
+    }
+    auto* metadata = m_vault_data.mutable_metadata();
+    metadata->set_auto_lock_timeout_seconds(timeout_seconds);
+}
+
+int VaultManager::get_auto_lock_timeout() const {
+    if (!m_vault_open || !m_vault_data.has_metadata()) {
+        return 0;
+    }
+    return m_vault_data.metadata().auto_lock_timeout_seconds();
+}
+
+void VaultManager::set_undo_redo_enabled(bool enabled) {
+    if (!m_vault_open) {
+        return;
+    }
+    auto* metadata = m_vault_data.mutable_metadata();
+    metadata->set_undo_redo_enabled(enabled);
+}
+
+bool VaultManager::get_undo_redo_enabled() const {
+    if (!m_vault_open || !m_vault_data.has_metadata()) {
+        return false;
+    }
+    return m_vault_data.metadata().undo_redo_enabled();
+}
+
+void VaultManager::set_undo_history_limit(int limit) {
+    if (!m_vault_open) {
+        return;
+    }
+    auto* metadata = m_vault_data.mutable_metadata();
+    metadata->set_undo_history_limit(limit);
+}
+
+int VaultManager::get_undo_history_limit() const {
+    if (!m_vault_open || !m_vault_data.has_metadata()) {
+        return 0;
+    }
+    return m_vault_data.metadata().undo_history_limit();
+}
+
+void VaultManager::set_account_password_history_enabled(bool enabled) {
+    if (!m_vault_open) {
+        return;
+    }
+    auto* metadata = m_vault_data.mutable_metadata();
+    metadata->set_account_password_history_enabled(enabled);
+}
+
+bool VaultManager::get_account_password_history_enabled() const {
+    if (!m_vault_open || !m_vault_data.has_metadata()) {
+        return false;
+    }
+    return m_vault_data.metadata().account_password_history_enabled();
+}
+
+void VaultManager::set_account_password_history_limit(int limit) {
+    if (!m_vault_open) {
+        return;
+    }
+    auto* metadata = m_vault_data.mutable_metadata();
+    metadata->set_account_password_history_limit(limit);
+}
+
+int VaultManager::get_account_password_history_limit() const {
+    if (!m_vault_open || !m_vault_data.has_metadata()) {
+        return 0;
+    }
+    return m_vault_data.metadata().account_password_history_limit();
+}
+
 bool VaultManager::migrate_vault_schema() {
     // Get current schema version
     auto* metadata = m_vault_data.mutable_metadata();

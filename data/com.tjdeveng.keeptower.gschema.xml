@@ -79,15 +79,22 @@
 
     <key name="password-history-enabled" type="b">
       <default>true</default>
-      <summary>Enable vault password history (default for new vaults)</summary>
-      <description>Track previous user passwords to prevent reuse. This is the default for new vaults; existing vaults use their own stored policy.</description>
+      <summary>Enable account password history</summary>
+      <description>Track previous passwords for stored accounts (Gmail, GitHub, etc.) to prevent reuse when updating entries.</description>
     </key>
 
     <key name="password-history-limit" type="i">
       <default>5</default>
       <range min="0" max="24"/>
-      <summary>Vault password history depth (default for new vaults)</summary>
-      <description>Maximum number of previous passwords to remember per user (0-24, 0=disabled). This is the default for new vaults; existing vaults use their own stored policy.</description>
+      <summary>Account password history depth</summary>
+      <description>Maximum number of previous passwords to remember per account entry (0-24, 0=disabled).</description>
+    </key>
+
+    <key name="vault-user-password-history-depth" type="i">
+      <default>5</default>
+      <range min="0" max="24"/>
+      <summary>Vault user password history depth (default for new vaults)</summary>
+      <description>Default number of previous vault user authentication passwords to remember (0-24, 0=disabled). This is the default for new V2 vaults; existing vaults use their own stored policy.</description>
     </key>
 
     <key name="undo-redo-enabled" type="b">

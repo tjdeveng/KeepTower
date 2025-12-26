@@ -5,6 +5,7 @@
 #include "../../core/VaultManager.h"
 #include "../../utils/SettingsValidator.h"
 #include <stdexcept>
+#include <cstdlib>  // for std::getenv
 
 PreferencesDialog::PreferencesDialog(Gtk::Window& parent, VaultManager* vault_manager)
     : Gtk::Dialog("Preferences", parent, true),
@@ -13,22 +14,33 @@ PreferencesDialog::PreferencesDialog(Gtk::Window& parent, VaultManager* vault_ma
       m_appearance_box(Gtk::Orientation::VERTICAL, 18),
       m_color_scheme_box(Gtk::Orientation::HORIZONTAL, 12),
       m_color_scheme_label("Color scheme:"),
-      m_security_box(Gtk::Orientation::VERTICAL, 18),
+      m_account_security_box(Gtk::Orientation::VERTICAL, 18),
       m_clipboard_timeout_box(Gtk::Orientation::HORIZONTAL, 12),
       m_clipboard_timeout_label("Clear clipboard after:"),
       m_clipboard_timeout_suffix(" seconds"),
-      m_auto_lock_enabled_check("Enable auto-lock after inactivity"),
-      m_auto_lock_timeout_box(Gtk::Orientation::HORIZONTAL, 12),
-      m_auto_lock_timeout_label("Lock timeout:"),
-      m_auto_lock_timeout_suffix(" seconds"),
-      m_password_history_enabled_check("Track password history (prevents reuse)"),
-      m_password_history_limit_box(Gtk::Orientation::HORIZONTAL, 12),
-      m_password_history_limit_label("Remember up to"),
-      m_password_history_limit_suffix(" previous passwords"),
+      m_account_password_history_check("Prevent account password reuse"),
+      m_account_password_history_limit_box(Gtk::Orientation::HORIZONTAL, 12),
+      m_account_password_history_limit_label("Remember up to"),
+      m_account_password_history_limit_suffix(" previous passwords per account"),
       m_undo_redo_enabled_check("Enable undo/redo (Ctrl+Z/Ctrl+Shift+Z)"),
       m_undo_history_limit_box(Gtk::Orientation::HORIZONTAL, 12),
       m_undo_history_limit_label("Keep up to"),
       m_undo_history_limit_suffix(" operations"),
+      m_vault_security_box(Gtk::Orientation::VERTICAL, 18),
+      m_auto_lock_enabled_check("Enable auto-lock after inactivity"),
+      m_auto_lock_timeout_box(Gtk::Orientation::HORIZONTAL, 12),
+      m_auto_lock_timeout_label("Lock timeout:"),
+      m_auto_lock_timeout_suffix(" seconds"),
+      m_vault_password_history_box(Gtk::Orientation::VERTICAL, 6),
+      m_vault_policy_label("Current vault policy: N/A"),
+      m_current_user_label("No user logged in"),
+      m_history_count_label("Password history: N/A"),
+      m_clear_history_button("Clear My Password History"),
+      m_clear_history_warning("⚠ This will permanently delete all saved password history for your account"),
+      m_vault_password_history_default_box(Gtk::Orientation::HORIZONTAL, 12),
+      m_vault_password_history_default_label("Remember up to"),
+      m_vault_password_history_default_suffix(" previous passwords per user"),
+      m_vault_password_history_default_help("Default setting for newly created vaults"),
       m_fips_mode_check("Enable FIPS-140-3 mode (requires restart)"),
       m_storage_box(Gtk::Orientation::VERTICAL, 18),
       m_rs_section_title("<b>Error Correction</b>"),
@@ -38,7 +50,7 @@ PreferencesDialog::PreferencesDialog(Gtk::Window& parent, VaultManager* vault_ma
       m_redundancy_label("Redundancy:"),
       m_redundancy_suffix("%"),
       m_redundancy_help("Higher values provide more protection but increase file size"),
-      m_apply_to_current_check("Apply to current vault"),
+      m_apply_to_current_check("Also apply to current vault (and save as defaults for new vaults)"),
       m_backup_section_title("<b>Automatic Backups</b>"),
       m_backup_description("Create timestamped backups when saving vaults"),
       m_backup_enabled_check("Enable automatic backups"),
@@ -70,11 +82,17 @@ PreferencesDialog::PreferencesDialog(Gtk::Window& parent, VaultManager* vault_ma
     m_auto_lock_enabled_check.signal_toggled().connect(
         sigc::mem_fun(*this, &PreferencesDialog::on_auto_lock_enabled_toggled));
 
-    m_password_history_enabled_check.signal_toggled().connect(
-        sigc::mem_fun(*this, &PreferencesDialog::on_password_history_enabled_toggled));
+    m_account_password_history_check.signal_toggled().connect(
+        sigc::mem_fun(*this, &PreferencesDialog::on_account_password_history_toggled));
 
     m_undo_redo_enabled_check.signal_toggled().connect(
         sigc::mem_fun(*this, &PreferencesDialog::on_undo_redo_enabled_toggled));
+
+    m_clear_history_button.signal_clicked().connect(
+        sigc::mem_fun(*this, &PreferencesDialog::on_clear_password_history_clicked));
+
+    // Update vault password history UI
+    update_vault_password_history_ui();
 
     // Connect apply-to-current checkbox to reload settings when toggled
     if (m_vault_manager && m_vault_manager->is_vault_open()) {
@@ -107,7 +125,8 @@ void PreferencesDialog::setup_ui() {
 
     // Setup individual pages
     setup_appearance_page();
-    setup_security_page();
+    setup_account_security_page();
+    setup_vault_security_page();
     setup_storage_page();
 
     // Add main box to dialog content area
@@ -158,11 +177,24 @@ void PreferencesDialog::setup_appearance_page() {
     m_stack.add(m_appearance_box, "appearance", "Appearance");
 }
 
-void PreferencesDialog::setup_security_page() {
-    m_security_box.set_margin_start(18);
-    m_security_box.set_margin_end(18);
-    m_security_box.set_margin_top(18);
-    m_security_box.set_margin_bottom(18);
+void PreferencesDialog::setup_account_security_page() {
+    m_account_security_box.set_margin_start(18);
+    m_account_security_box.set_margin_end(18);
+    m_account_security_box.set_margin_top(18);
+    m_account_security_box.set_margin_bottom(18);
+
+    // Add informational note at top of page
+    auto* info_label = Gtk::make_managed<Gtk::Label>();
+    if (m_vault_manager && m_vault_manager->is_vault_open()) {
+        info_label->set_markup("<span size='small'>ℹ️  Settings for the current vault only (defaults not affected)</span>");
+    } else {
+        info_label->set_markup("<span size='small'>ℹ️  These settings will be used as defaults for new vaults</span>");
+    }
+    info_label->set_halign(Gtk::Align::START);
+    info_label->set_wrap(true);
+    info_label->add_css_class("dim-label");
+    info_label->set_margin_bottom(12);
+    m_account_security_box.append(*info_label);
 
     // Clipboard timeout section
     auto* clipboard_section = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 6);
@@ -198,93 +230,51 @@ void PreferencesDialog::setup_security_page() {
     m_clipboard_timeout_box.set_halign(Gtk::Align::START);
     clipboard_section->append(m_clipboard_timeout_box);
 
-    m_security_box.append(*clipboard_section);
+    m_account_security_box.append(*clipboard_section);
 
-    // Auto-lock section
-    auto* auto_lock_section = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 6);
-    auto_lock_section->set_margin_top(24);
+    // Account Password History section
+    auto* account_pwd_history_section = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 6);
+    account_pwd_history_section->set_margin_top(24);
 
-    auto* auto_lock_title = Gtk::make_managed<Gtk::Label>("Auto-Lock");
-    auto_lock_title->set_halign(Gtk::Align::START);
-    auto_lock_title->add_css_class("heading");
-    auto_lock_section->append(*auto_lock_title);
+    auto* account_pwd_history_title = Gtk::make_managed<Gtk::Label>("Account Password History");
+    account_pwd_history_title->set_halign(Gtk::Align::START);
+    account_pwd_history_title->add_css_class("heading");
+    account_pwd_history_section->append(*account_pwd_history_title);
 
-    auto* auto_lock_desc = Gtk::make_managed<Gtk::Label>("Lock vault after period of inactivity");
-    auto_lock_desc->set_halign(Gtk::Align::START);
-    auto_lock_desc->add_css_class("dim-label");
-    auto_lock_desc->set_wrap(true);
-    auto_lock_section->append(*auto_lock_desc);
+    auto* account_pwd_history_desc = Gtk::make_managed<Gtk::Label>(
+        "Prevent reusing passwords when updating account entries (Gmail, GitHub, etc.)");
+    account_pwd_history_desc->set_halign(Gtk::Align::START);
+    account_pwd_history_desc->add_css_class("dim-label");
+    account_pwd_history_desc->set_wrap(true);
+    account_pwd_history_desc->set_max_width_chars(60);
+    account_pwd_history_section->append(*account_pwd_history_desc);
 
-    auto_lock_section->append(m_auto_lock_enabled_check);
+    account_pwd_history_section->append(m_account_password_history_check);
 
-    m_auto_lock_timeout_label.set_halign(Gtk::Align::START);
-    m_auto_lock_timeout_box.append(m_auto_lock_timeout_label);
+    // Account password history limit controls
+    m_account_password_history_limit_box.set_orientation(Gtk::Orientation::HORIZONTAL);
+    m_account_password_history_limit_box.set_spacing(12);
+    m_account_password_history_limit_box.set_margin_top(12);
+    m_account_password_history_limit_box.set_margin_start(24);
 
-    auto auto_lock_adjustment = Gtk::Adjustment::create(
-        static_cast<double>(DEFAULT_AUTO_LOCK_TIMEOUT),
-        static_cast<double>(MIN_AUTO_LOCK_TIMEOUT),
-        static_cast<double>(MAX_AUTO_LOCK_TIMEOUT),
-        10.0, 60.0, 0.0
-    );
-    m_auto_lock_timeout_spin.set_adjustment(auto_lock_adjustment);
-    m_auto_lock_timeout_spin.set_digits(0);
-    m_auto_lock_timeout_spin.set_value(DEFAULT_AUTO_LOCK_TIMEOUT);
-    m_auto_lock_timeout_box.append(m_auto_lock_timeout_spin);
+    m_account_password_history_limit_label.set_text("Remember up to");
+    m_account_password_history_limit_label.set_halign(Gtk::Align::START);
+    m_account_password_history_limit_box.append(m_account_password_history_limit_label);
 
-    m_auto_lock_timeout_suffix.set_halign(Gtk::Align::START);
-    m_auto_lock_timeout_box.append(m_auto_lock_timeout_suffix);
+    auto account_pwd_history_adjustment = Gtk::Adjustment::create(5.0, 0.0, 24.0, 1.0, 5.0, 0.0);
+    m_account_password_history_limit_spin.set_adjustment(account_pwd_history_adjustment);
+    m_account_password_history_limit_spin.set_digits(0);
+    m_account_password_history_limit_spin.set_value(5.0);
+    m_account_password_history_limit_box.append(m_account_password_history_limit_spin);
 
-    m_auto_lock_timeout_box.set_halign(Gtk::Align::START);
-    auto_lock_section->append(m_auto_lock_timeout_box);
+    m_account_password_history_limit_suffix.set_text("previous passwords per account");
+    m_account_password_history_limit_suffix.set_halign(Gtk::Align::START);
+    m_account_password_history_limit_box.append(m_account_password_history_limit_suffix);
 
-    m_security_box.append(*auto_lock_section);
+    m_account_password_history_limit_box.set_halign(Gtk::Align::START);
+    account_pwd_history_section->append(m_account_password_history_limit_box);
 
-    // Password history section
-    auto* password_history_section = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 6);
-    password_history_section->set_margin_top(24);
-
-    auto* password_history_title = Gtk::make_managed<Gtk::Label>("Password History");
-    password_history_title->set_halign(Gtk::Align::START);
-    password_history_title->add_css_class("heading");
-    password_history_section->append(*password_history_title);
-
-    auto* password_history_desc = Gtk::make_managed<Gtk::Label>("Track previous passwords to prevent reuse (applies to new vaults)");
-    password_history_desc->set_halign(Gtk::Align::START);
-    password_history_desc->add_css_class("dim-label");
-    password_history_desc->set_wrap(true);
-    password_history_section->append(*password_history_desc);
-
-    password_history_section->append(m_password_history_enabled_check);
-
-    // Password history limit controls
-    m_password_history_limit_box.set_orientation(Gtk::Orientation::HORIZONTAL);
-    m_password_history_limit_box.set_spacing(12);
-    m_password_history_limit_box.set_margin_top(12);
-    m_password_history_limit_box.set_margin_start(24);
-
-    m_password_history_limit_label.set_text("Remember up to");
-    m_password_history_limit_label.set_halign(Gtk::Align::START);
-    m_password_history_limit_box.append(m_password_history_limit_label);
-
-    auto password_history_adjustment = Gtk::Adjustment::create(
-        static_cast<double>(DEFAULT_PASSWORD_HISTORY_LIMIT),
-        static_cast<double>(MIN_PASSWORD_HISTORY_LIMIT),
-        static_cast<double>(MAX_PASSWORD_HISTORY_LIMIT),
-        1.0, 5.0, 0.0
-    );
-    m_password_history_limit_spin.set_adjustment(password_history_adjustment);
-    m_password_history_limit_spin.set_digits(0);
-    m_password_history_limit_spin.set_value(DEFAULT_PASSWORD_HISTORY_LIMIT);
-    m_password_history_limit_box.append(m_password_history_limit_spin);
-
-    m_password_history_limit_suffix.set_text("previous passwords (0 = disabled)");
-    m_password_history_limit_suffix.set_halign(Gtk::Align::START);
-    m_password_history_limit_box.append(m_password_history_limit_suffix);
-
-    m_password_history_limit_box.set_halign(Gtk::Align::START);
-    password_history_section->append(m_password_history_limit_box);
-
-    m_security_box.append(*password_history_section);
+    m_account_security_box.append(*account_pwd_history_section);
 
     // Undo/Redo section
     auto* undo_redo_section = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 6);
@@ -334,7 +324,68 @@ void PreferencesDialog::setup_security_page() {
     m_undo_history_limit_box.set_halign(Gtk::Align::START);
     undo_redo_section->append(m_undo_history_limit_box);
 
-    m_security_box.append(*undo_redo_section);
+    m_account_security_box.append(*undo_redo_section);
+
+    // Add page to stack
+    m_stack.add(m_account_security_box, "account-security", "Account Security");
+}
+
+void PreferencesDialog::setup_vault_security_page() {
+    m_vault_security_box.set_margin_start(18);
+    m_vault_security_box.set_margin_end(18);
+    m_vault_security_box.set_margin_top(18);
+    m_vault_security_box.set_margin_bottom(18);
+
+    // Add informational note at top of page
+    auto* info_label = Gtk::make_managed<Gtk::Label>();
+    if (m_vault_manager && m_vault_manager->is_vault_open()) {
+        info_label->set_markup("<span size='small'>ℹ️  Settings for the current vault only (defaults not affected)</span>");
+    } else {
+        info_label->set_markup("<span size='small'>ℹ️  These settings will be used as defaults for new vaults</span>");
+    }
+    info_label->set_halign(Gtk::Align::START);
+    info_label->set_wrap(true);
+    info_label->add_css_class("dim-label");
+    info_label->set_margin_bottom(12);
+    m_vault_security_box.append(*info_label);
+
+    // Auto-lock section
+    auto* auto_lock_section = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 6);
+
+    auto* auto_lock_title = Gtk::make_managed<Gtk::Label>("Auto-Lock");
+    auto_lock_title->set_halign(Gtk::Align::START);
+    auto_lock_title->add_css_class("heading");
+    auto_lock_section->append(*auto_lock_title);
+
+    auto* auto_lock_desc = Gtk::make_managed<Gtk::Label>("Lock vault after period of inactivity");
+    auto_lock_desc->set_halign(Gtk::Align::START);
+    auto_lock_desc->add_css_class("dim-label");
+    auto_lock_desc->set_wrap(true);
+    auto_lock_section->append(*auto_lock_desc);
+
+    auto_lock_section->append(m_auto_lock_enabled_check);
+
+    m_auto_lock_timeout_label.set_halign(Gtk::Align::START);
+    m_auto_lock_timeout_box.append(m_auto_lock_timeout_label);
+
+    auto auto_lock_adjustment = Gtk::Adjustment::create(
+        static_cast<double>(DEFAULT_AUTO_LOCK_TIMEOUT),
+        static_cast<double>(MIN_AUTO_LOCK_TIMEOUT),
+        static_cast<double>(MAX_AUTO_LOCK_TIMEOUT),
+        10.0, 60.0, 0.0
+    );
+    m_auto_lock_timeout_spin.set_adjustment(auto_lock_adjustment);
+    m_auto_lock_timeout_spin.set_digits(0);
+    m_auto_lock_timeout_spin.set_value(DEFAULT_AUTO_LOCK_TIMEOUT);
+    m_auto_lock_timeout_box.append(m_auto_lock_timeout_spin);
+
+    m_auto_lock_timeout_suffix.set_halign(Gtk::Align::START);
+    m_auto_lock_timeout_box.append(m_auto_lock_timeout_suffix);
+
+    m_auto_lock_timeout_box.set_halign(Gtk::Align::START);
+    auto_lock_section->append(m_auto_lock_timeout_box);
+
+    m_vault_security_box.append(*auto_lock_section);
 
     // ========================================================================
     // FIPS-140-3 Compliance Section
@@ -431,17 +482,107 @@ void PreferencesDialog::setup_security_page() {
         // Don't show restart warning when FIPS is not available
     }
 
-    m_security_box.append(*fips_section);
+    m_vault_security_box.append(*fips_section);
+
+    // ========================================================================
+    // User Password History Section (only visible when vault is open)
+    // ========================================================================
+    m_vault_password_history_box.set_orientation(Gtk::Orientation::VERTICAL);
+    m_vault_password_history_box.set_spacing(6);
+    m_vault_password_history_box.set_margin_top(24);
+
+    auto* history_title = Gtk::make_managed<Gtk::Label>("User Password History");
+    history_title->set_halign(Gtk::Align::START);
+    history_title->add_css_class("heading");
+    m_vault_password_history_box.append(*history_title);
+
+    auto* history_desc = Gtk::make_managed<Gtk::Label>("Track previous user passwords to prevent reuse");
+    history_desc->set_halign(Gtk::Align::START);
+    history_desc->add_css_class("dim-label");
+    history_desc->set_wrap(true);
+    m_vault_password_history_box.append(*history_desc);
+
+    m_vault_policy_label.set_halign(Gtk::Align::START);
+    m_vault_policy_label.set_margin_top(12);
+    m_vault_password_history_box.append(m_vault_policy_label);
+
+    m_current_user_label.set_halign(Gtk::Align::START);
+    m_current_user_label.set_margin_top(6);
+    m_vault_password_history_box.append(m_current_user_label);
+
+    m_history_count_label.set_halign(Gtk::Align::START);
+    m_history_count_label.set_margin_top(6);
+    m_vault_password_history_box.append(m_history_count_label);
+
+    m_clear_history_button.set_label("Clear My Password History");
+    m_clear_history_button.set_halign(Gtk::Align::START);
+    m_clear_history_button.set_margin_top(12);
+    m_vault_password_history_box.append(m_clear_history_button);
+
+    m_clear_history_warning.set_markup("<span size='small'>⚠️  This will delete all your password history. You will be able to reuse old passwords.</span>");
+    m_clear_history_warning.set_halign(Gtk::Align::START);
+    m_clear_history_warning.set_wrap(true);
+    m_clear_history_warning.set_max_width_chars(60);
+    m_clear_history_warning.add_css_class("dim-label");
+    m_clear_history_warning.set_margin_top(6);
+    m_vault_password_history_box.append(m_clear_history_warning);
+
+    m_vault_security_box.append(m_vault_password_history_box);
+
+    // ========================================================================
+    // Vault User Password History Default (only visible when NO vault is open)
+    // ========================================================================
+    auto* default_history_section = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 6);
+    default_history_section->set_margin_top(24);
+
+    auto* default_history_title = Gtk::make_managed<Gtk::Label>("User Password History (Default for New Vaults)");
+    default_history_title->set_halign(Gtk::Align::START);
+    default_history_title->add_css_class("heading");
+    default_history_section->append(*default_history_title);
+
+    auto* default_history_desc = Gtk::make_managed<Gtk::Label>(
+        "Set default policy for preventing vault user authentication password reuse");
+    default_history_desc->set_halign(Gtk::Align::START);
+    default_history_desc->add_css_class("dim-label");
+    default_history_desc->set_wrap(true);
+    default_history_desc->set_max_width_chars(60);
+    default_history_section->append(*default_history_desc);
+
+    m_vault_password_history_default_box.set_orientation(Gtk::Orientation::HORIZONTAL);
+    m_vault_password_history_default_box.set_spacing(12);
+    m_vault_password_history_default_box.set_margin_top(12);
+
+    m_vault_password_history_default_label.set_halign(Gtk::Align::START);
+    m_vault_password_history_default_box.append(m_vault_password_history_default_label);
+
+    auto vault_pwd_history_adjustment = Gtk::Adjustment::create(5.0, 0.0, 24.0, 1.0, 5.0, 0.0);
+    m_vault_password_history_default_spin.set_adjustment(vault_pwd_history_adjustment);
+    m_vault_password_history_default_spin.set_digits(0);
+    m_vault_password_history_default_spin.set_value(5.0);
+    m_vault_password_history_default_box.append(m_vault_password_history_default_spin);
+
+    m_vault_password_history_default_suffix.set_halign(Gtk::Align::START);
+    m_vault_password_history_default_box.append(m_vault_password_history_default_suffix);
+
+    m_vault_password_history_default_box.set_halign(Gtk::Align::START);
+    default_history_section->append(m_vault_password_history_default_box);
+
+    m_vault_password_history_default_help.set_text("0 = disabled (password reuse allowed)");
+    m_vault_password_history_default_help.set_halign(Gtk::Align::START);
+    m_vault_password_history_default_help.add_css_class("dim-label");
+    m_vault_password_history_default_help.set_margin_top(6);
+    default_history_section->append(m_vault_password_history_default_help);
+
+    m_vault_security_box.append(*default_history_section);
 
     // Add page to stack
-    m_stack.add(m_security_box, "security", "Security");
+    m_stack.add(m_vault_security_box, "vault-security", "Vault Security");
 
-    // Disable security page for non-admin users (V2 multi-user vaults)
+    // Disable vault security page for non-admin users (V2 multi-user vaults)
     if (m_vault_manager && m_vault_manager->is_vault_open()) {
         auto session = m_vault_manager->get_current_user_session();
         if (session && session->role != KeepTower::UserRole::ADMINISTRATOR) {
-            // Hide security page from non-admin users
-            auto stack_page = m_stack.get_page(m_security_box);
+            auto stack_page = m_stack.get_page(m_vault_security_box);
             if (stack_page) {
                 stack_page->set_visible(false);
             }
@@ -454,6 +595,20 @@ void PreferencesDialog::setup_storage_page() {
     m_storage_box.set_margin_end(18);
     m_storage_box.set_margin_top(18);
     m_storage_box.set_margin_bottom(18);
+
+    // Add informational note at top of page
+    auto* info_label = Gtk::make_managed<Gtk::Label>();
+    if (m_vault_manager && m_vault_manager->is_vault_open()) {
+        info_label->set_markup("<span size='small'>ℹ️  Showing settings for the current vault (use checkbox to change defaults for new vaults)</span>");
+    } else {
+        info_label->set_markup("<span size='small'>ℹ️  These settings will be used as defaults for new vaults</span>");
+    }
+    info_label->set_halign(Gtk::Align::START);
+    info_label->set_wrap(true);
+    info_label->set_max_width_chars(60);
+    info_label->add_css_class("dim-label");
+    info_label->set_margin_bottom(12);
+    m_storage_box.append(*info_label);
 
     // Reed-Solomon section
     auto* rs_section = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 6);
@@ -629,43 +784,104 @@ void PreferencesDialog::load_settings() {
     m_backup_help.set_sensitive(backup_enabled);
 
     // Load security settings with validation
-    int clipboard_timeout = SettingsValidator::get_clipboard_timeout(m_settings);
+    // If vault is open, load vault-specific settings; otherwise use GSettings defaults
+    int clipboard_timeout;
+    int auto_lock_timeout;
+    bool auto_lock_enabled;
+
+    if (m_vault_manager && m_vault_manager->is_vault_open()) {
+        // Load from current vault
+        clipboard_timeout = m_vault_manager->get_clipboard_timeout();
+        auto_lock_timeout = m_vault_manager->get_auto_lock_timeout();
+        auto_lock_enabled = (auto_lock_timeout > 0);
+
+        // If vault has no setting (0), fall back to GSettings defaults
+        if (clipboard_timeout == 0) {
+            clipboard_timeout = SettingsValidator::get_clipboard_timeout(m_settings);
+        }
+        if (auto_lock_timeout == 0) {
+            auto_lock_timeout = SettingsValidator::get_auto_lock_timeout(m_settings);
+            auto_lock_enabled = SettingsValidator::is_auto_lock_enabled(m_settings);
+        }
+    } else {
+        // Load from GSettings (defaults for new vaults)
+        clipboard_timeout = SettingsValidator::get_clipboard_timeout(m_settings);
+        auto_lock_enabled = SettingsValidator::is_auto_lock_enabled(m_settings);
+        auto_lock_timeout = SettingsValidator::get_auto_lock_timeout(m_settings);
+    }
+
     m_clipboard_timeout_spin.set_value(clipboard_timeout);
-
-    bool auto_lock_enabled = SettingsValidator::is_auto_lock_enabled(m_settings);
     m_auto_lock_enabled_check.set_active(auto_lock_enabled);
-
-    int auto_lock_timeout = SettingsValidator::get_auto_lock_timeout(m_settings);
     m_auto_lock_timeout_spin.set_value(auto_lock_timeout);
-
-    bool password_history_enabled = SettingsValidator::is_password_history_enabled(m_settings);
-    m_password_history_enabled_check.set_active(password_history_enabled);
-
-    int password_history_limit = SettingsValidator::get_password_history_limit(m_settings);
-    m_password_history_limit_spin.set_value(password_history_limit);
 
     // Update auto-lock controls sensitivity
     m_auto_lock_timeout_label.set_sensitive(auto_lock_enabled);
     m_auto_lock_timeout_spin.set_sensitive(auto_lock_enabled);
     m_auto_lock_timeout_suffix.set_sensitive(auto_lock_enabled);
 
-    // Update password history controls sensitivity
-    m_password_history_limit_label.set_sensitive(password_history_enabled);
-    m_password_history_limit_spin.set_sensitive(password_history_enabled);
-    m_password_history_limit_suffix.set_sensitive(password_history_enabled);
+    // Load account password history settings
+    // If vault is open, load vault-specific settings; otherwise use GSettings defaults
+    bool account_pwd_history_enabled;
+    int account_pwd_history_limit;
+
+    if (m_vault_manager && m_vault_manager->is_vault_open()) {
+        // Load from current vault
+        account_pwd_history_enabled = m_vault_manager->get_account_password_history_enabled();
+        account_pwd_history_limit = m_vault_manager->get_account_password_history_limit();
+
+        // If vault has no setting (0), fall back to GSettings defaults
+        if (account_pwd_history_limit == 0) {
+            account_pwd_history_enabled = SettingsValidator::is_password_history_enabled(m_settings);
+            account_pwd_history_limit = SettingsValidator::get_password_history_limit(m_settings);
+        }
+    } else {
+        // Load from GSettings (defaults for new vaults)
+        account_pwd_history_enabled = SettingsValidator::is_password_history_enabled(m_settings);
+        account_pwd_history_limit = SettingsValidator::get_password_history_limit(m_settings);
+    }
+
+    m_account_password_history_check.set_active(account_pwd_history_enabled);
+    m_account_password_history_limit_spin.set_value(account_pwd_history_limit);
+
+    // Update account password history controls sensitivity
+    m_account_password_history_limit_label.set_sensitive(account_pwd_history_enabled);
+    m_account_password_history_limit_spin.set_sensitive(account_pwd_history_enabled);
+    m_account_password_history_limit_suffix.set_sensitive(account_pwd_history_enabled);
 
     // Load undo/redo settings
-    bool undo_redo_enabled = m_settings->get_boolean("undo-redo-enabled");
-    m_undo_redo_enabled_check.set_active(undo_redo_enabled);
+    // If vault is open, load vault-specific settings; otherwise use GSettings defaults
+    bool undo_redo_enabled;
+    int undo_history_limit;
 
-    int undo_history_limit = m_settings->get_int("undo-history-limit");
+    if (m_vault_manager && m_vault_manager->is_vault_open()) {
+        // Load from current vault
+        undo_redo_enabled = m_vault_manager->get_undo_redo_enabled();
+        undo_history_limit = m_vault_manager->get_undo_history_limit();
+
+        // If vault has no setting (0), fall back to GSettings defaults
+        if (undo_history_limit == 0) {
+            undo_redo_enabled = m_settings->get_boolean("undo-redo-enabled");
+            undo_history_limit = m_settings->get_int("undo-history-limit");
+        }
+    } else {
+        // Load from GSettings (defaults for new vaults)
+        undo_redo_enabled = m_settings->get_boolean("undo-redo-enabled");
+        undo_history_limit = m_settings->get_int("undo-history-limit");
+    }
+
     undo_history_limit = std::clamp(undo_history_limit, 1, 100);
+    m_undo_redo_enabled_check.set_active(undo_redo_enabled);
     m_undo_history_limit_spin.set_value(undo_history_limit);
 
     // Update undo/redo controls sensitivity
     m_undo_history_limit_label.set_sensitive(undo_redo_enabled);
     m_undo_history_limit_spin.set_sensitive(undo_redo_enabled);
     m_undo_history_limit_suffix.set_sensitive(undo_redo_enabled);
+
+    // Load vault user password history default (only relevant when no vault open)
+    int vault_pwd_history_depth = m_settings->get_int("vault-user-password-history-depth");
+    vault_pwd_history_depth = std::clamp(vault_pwd_history_depth, 0, 24);
+    m_vault_password_history_default_spin.set_value(vault_pwd_history_depth);
 
     /**
      * @brief Load FIPS-140-3 mode preference from GSettings
@@ -729,11 +945,13 @@ void PreferencesDialog::save_settings() {
 
     // Checkbox controls whether to apply to current vault or save as defaults
     if (m_vault_manager && m_vault_manager->is_vault_open() && m_apply_to_current_check.get_active()) {
-        // Apply only to current vault, don't change defaults
+        // Apply to current vault AND save as defaults for new vaults
         m_vault_manager->set_reed_solomon_enabled(rs_enabled);
         m_vault_manager->set_rs_redundancy_percent(rs_redundancy);
+        m_settings->set_boolean("use-reed-solomon", rs_enabled);
+        m_settings->set_int("rs-redundancy-percent", rs_redundancy);
     } else {
-        // Save to preferences (defaults for new vaults)
+        // Save to preferences (defaults for new vaults only)
         m_settings->set_boolean("use-reed-solomon", rs_enabled);
         m_settings->set_int("rs-redundancy-percent", rs_redundancy);
     }
@@ -750,43 +968,90 @@ void PreferencesDialog::save_settings() {
     m_settings->set_int("backup-count", backup_count);
 
     // Save security settings
+    // CRITICAL: If vault is open, save ONLY to vault (not to GSettings)
+    // If vault is closed, save to GSettings as defaults for new vaults
     const int clipboard_timeout = std::clamp(
         static_cast<int>(m_clipboard_timeout_spin.get_value()),
         MIN_CLIPBOARD_TIMEOUT,
         MAX_CLIPBOARD_TIMEOUT
     );
-    m_settings->set_int("clipboard-clear-timeout", clipboard_timeout);
 
+    if (m_vault_manager && m_vault_manager->is_vault_open()) {
+        // Save ONLY to current vault
+        m_vault_manager->set_clipboard_timeout(clipboard_timeout);
+    } else {
+        // Save to GSettings as default for new vaults
+        m_settings->set_int("clipboard-clear-timeout", clipboard_timeout);
+    }
+
+    // Save account password history settings
+    // CRITICAL: If vault is open, save ONLY to vault (not to GSettings)
+    // If vault is closed, save to GSettings as defaults for new vaults
+    const bool account_pwd_history_enabled = m_account_password_history_check.get_active();
+    const int account_pwd_history_limit = std::clamp(
+        static_cast<int>(m_account_password_history_limit_spin.get_value()),
+        MIN_PASSWORD_HISTORY_LIMIT,
+        MAX_PASSWORD_HISTORY_LIMIT
+    );
+
+    if (m_vault_manager && m_vault_manager->is_vault_open()) {
+        // Save ONLY to current vault
+        m_vault_manager->set_account_password_history_enabled(account_pwd_history_enabled);
+        m_vault_manager->set_account_password_history_limit(account_pwd_history_limit);
+    } else {
+        // Save to GSettings as defaults for new vaults
+        m_settings->set_boolean("password-history-enabled", account_pwd_history_enabled);
+        m_settings->set_int("password-history-limit", account_pwd_history_limit);
+    }
+
+    // Save auto-lock settings
+    // CRITICAL: If vault is open, save ONLY to vault (not to GSettings)
+    // If vault is closed, save to GSettings as defaults for new vaults
     const bool auto_lock_enabled = m_auto_lock_enabled_check.get_active();
-    m_settings->set_boolean("auto-lock-enabled", auto_lock_enabled);
-
     const int auto_lock_timeout = std::clamp(
         static_cast<int>(m_auto_lock_timeout_spin.get_value()),
         MIN_AUTO_LOCK_TIMEOUT,
         MAX_AUTO_LOCK_TIMEOUT
     );
-    m_settings->set_int("auto-lock-timeout", auto_lock_timeout);
 
-    const bool password_history_enabled = m_password_history_enabled_check.get_active();
-    m_settings->set_boolean("password-history-enabled", password_history_enabled);
-
-    const int password_history_limit = std::clamp(
-        static_cast<int>(m_password_history_limit_spin.get_value()),
-        MIN_PASSWORD_HISTORY_LIMIT,
-        MAX_PASSWORD_HISTORY_LIMIT
-    );
-    m_settings->set_int("password-history-limit", password_history_limit);
+    if (m_vault_manager && m_vault_manager->is_vault_open()) {
+        // Save ONLY to current vault (0 if disabled)
+        m_vault_manager->set_auto_lock_timeout(auto_lock_enabled ? auto_lock_timeout : 0);
+    } else {
+        // Save to GSettings as defaults for new vaults
+        m_settings->set_boolean("auto-lock-enabled", auto_lock_enabled);
+        m_settings->set_int("auto-lock-timeout", auto_lock_timeout);
+    }
 
     // Save undo/redo settings
+    // CRITICAL: If vault is open, save ONLY to vault (not to GSettings)
+    // If vault is closed, save to GSettings as defaults for new vaults
     const bool undo_redo_enabled = m_undo_redo_enabled_check.get_active();
-    m_settings->set_boolean("undo-redo-enabled", undo_redo_enabled);
-
     const int undo_history_limit = std::clamp(
         static_cast<int>(m_undo_history_limit_spin.get_value()),
         1,
         100
     );
-    m_settings->set_int("undo-history-limit", undo_history_limit);
+
+    if (m_vault_manager && m_vault_manager->is_vault_open()) {
+        // Save ONLY to current vault
+        m_vault_manager->set_undo_redo_enabled(undo_redo_enabled);
+        m_vault_manager->set_undo_history_limit(undo_history_limit);
+    } else {
+        // Save to GSettings as defaults for new vaults
+        m_settings->set_boolean("undo-redo-enabled", undo_redo_enabled);
+        m_settings->set_int("undo-history-limit", undo_history_limit);
+    }
+
+    // Save vault user password history default (only relevant when no vault open)
+    if (!m_vault_manager || !m_vault_manager->is_vault_open()) {
+        const int vault_pwd_history_depth = std::clamp(
+            static_cast<int>(m_vault_password_history_default_spin.get_value()),
+            0,
+            24
+        );
+        m_settings->set_int("vault-user-password-history-depth", vault_pwd_history_depth);
+    }
 
     /**
      * @brief Save FIPS-140-3 mode preference to GSettings
@@ -836,8 +1101,32 @@ void PreferencesDialog::apply_color_scheme(const Glib::ustring& scheme) {
     } else if (scheme == "dark") {
         settings->property_gtk_application_prefer_dark_theme() = true;
     } else {
-        // Default: follow system preference (reset to system default)
-        settings->reset_property("gtk-application-prefer-dark-theme");
+        // Default: follow system preference
+        // Try to read system color scheme from GNOME desktop settings
+        bool applied = false;
+        try {
+            auto gio_settings = Gio::Settings::create("org.gnome.desktop.interface");
+            auto color_scheme = gio_settings->get_string("color-scheme");
+            // color-scheme can be: "default", "prefer-dark", "prefer-light"
+            settings->property_gtk_application_prefer_dark_theme() = (color_scheme == "prefer-dark");
+            applied = true;
+        } catch (const Glib::Error& e) {
+            // Schema not available or error reading it
+        } catch (...) {
+            // Other errors
+        }
+
+        if (!applied) {
+            // Fallback: Check GTK_THEME environment variable or just unset the override
+            // This allows GTK to follow its own detection
+            const char* gtk_theme = std::getenv("GTK_THEME");
+            if (gtk_theme && std::string(gtk_theme).find("dark") != std::string::npos) {
+                settings->property_gtk_application_prefer_dark_theme() = true;
+            } else {
+                // Last resort: assume light theme
+                settings->property_gtk_application_prefer_dark_theme() = false;
+            }
+        }
     }
 }
 
@@ -907,11 +1196,11 @@ void PreferencesDialog::on_auto_lock_enabled_toggled() noexcept {
     m_auto_lock_timeout_suffix.set_sensitive(enabled);
 }
 
-void PreferencesDialog::on_password_history_enabled_toggled() noexcept {
-    const bool enabled = m_password_history_enabled_check.get_active();
-    m_password_history_limit_label.set_sensitive(enabled);
-    m_password_history_limit_spin.set_sensitive(enabled);
-    m_password_history_limit_suffix.set_sensitive(enabled);
+void PreferencesDialog::on_account_password_history_toggled() noexcept {
+    const bool enabled = m_account_password_history_check.get_active();
+    m_account_password_history_limit_label.set_sensitive(enabled);
+    m_account_password_history_limit_spin.set_sensitive(enabled);
+    m_account_password_history_limit_suffix.set_sensitive(enabled);
 }
 
 void PreferencesDialog::on_undo_redo_enabled_toggled() noexcept {
@@ -919,6 +1208,144 @@ void PreferencesDialog::on_undo_redo_enabled_toggled() noexcept {
     m_undo_history_limit_label.set_sensitive(enabled);
     m_undo_history_limit_spin.set_sensitive(enabled);
     m_undo_history_limit_suffix.set_sensitive(enabled);
+}
+
+void PreferencesDialog::update_vault_password_history_ui() noexcept {
+    // Check if vault is open
+    if (!m_vault_manager || !m_vault_manager->is_vault_open()) {
+        // No vault open - show default settings, hide current vault info
+        m_vault_password_history_box.set_visible(false);
+        m_vault_password_history_default_box.get_parent()->set_visible(true);
+        return;
+    }
+
+    // Vault open - show current vault info, hide default settings
+    m_vault_password_history_box.set_visible(true);
+    m_vault_password_history_default_box.get_parent()->set_visible(false);
+
+    // Get vault policy
+    const auto policy_opt = m_vault_manager->get_vault_security_policy();
+    if (!policy_opt) {
+        m_vault_policy_label.set_text("Current vault policy: N/A");
+        m_current_user_label.set_text("No policy available");
+        m_history_count_label.set_text("Password history: N/A");
+        m_clear_history_button.set_sensitive(false);
+        return;
+    }
+
+    const auto& policy = *policy_opt;
+    m_vault_policy_label.set_text(
+        "Current vault policy: " + std::to_string(policy.password_history_depth) + " passwords");
+
+    // Get current user session
+    const auto session = m_vault_manager->get_current_user_session();
+    if (!session) {
+        m_current_user_label.set_text("No user logged in");
+        m_history_count_label.set_text("Password history: N/A");
+        m_clear_history_button.set_sensitive(false);
+        return;
+    }
+
+    m_current_user_label.set_text("Logged in as: " + Glib::ustring(session->username));
+
+    // Get user's password history count
+    const auto users = m_vault_manager->list_users();
+    size_t history_count = 0;
+    for (const auto& user : users) {
+        if (user.username == session->username) {
+            history_count = user.password_history.size();
+            break;
+        }
+    }
+
+    m_history_count_label.set_text("Password history: " + std::to_string(history_count) + " entries");
+
+    // Enable clear button only if there's history to clear
+    m_clear_history_button.set_sensitive(history_count > 0);
+}
+
+void PreferencesDialog::on_clear_password_history_clicked() noexcept {
+    // Get current session
+    if (!m_vault_manager || !m_vault_manager->is_vault_open()) {
+        return;
+    }
+
+    const auto session = m_vault_manager->get_current_user_session();
+    if (!session) {
+        return;
+    }
+
+    const std::string username = session->username;
+
+    // Show confirmation dialog
+    auto dialog = Gtk::MessageDialog(
+        *this,
+        "Clear Password History?",
+        false,
+        Gtk::MessageType::WARNING,
+        Gtk::ButtonsType::OK_CANCEL,
+        true
+    );
+
+    dialog.set_secondary_text(
+        "This will permanently delete all saved password history for user '" +
+        username + "'.\n\n" +
+        "This action cannot be undone."
+    );
+
+    dialog.signal_response().connect([this, &dialog, username](int response) {
+        if (response == Gtk::ResponseType::OK) {
+            try {
+                // Clear the password history
+                auto result = m_vault_manager->clear_user_password_history(username);
+                if (!result) {
+                    throw std::runtime_error(std::string(KeepTower::to_string(result.error())));
+                }
+
+                // Save vault
+                if (!m_vault_manager->save_vault()) {
+                    throw std::runtime_error("Failed to save vault");
+                }
+
+                // Refresh UI
+                update_vault_password_history_ui();
+
+                // Show success message
+                auto* success_dialog = new Gtk::MessageDialog(
+                    *this,
+                    "Password history cleared",
+                    false,
+                    Gtk::MessageType::INFO,
+                    Gtk::ButtonsType::OK,
+                    true
+                );
+                success_dialog->set_secondary_text("Password history for '" + username + "' has been cleared.");
+                success_dialog->signal_response().connect([success_dialog](int) {
+                    delete success_dialog;
+                });
+                success_dialog->show();
+
+            } catch (const std::exception& e) {
+                // Show error message
+                auto* error_dialog = new Gtk::MessageDialog(
+                    *this,
+                    "Failed to clear password history",
+                    false,
+                    Gtk::MessageType::ERROR,
+                    Gtk::ButtonsType::OK,
+                    true
+                );
+                error_dialog->set_secondary_text(std::string(e.what()));
+                error_dialog->signal_response().connect([error_dialog](int) {
+                    delete error_dialog;
+                });
+                error_dialog->show();
+            }
+        }
+        dialog.hide();
+    });
+
+    dialog.show();
 }
 
 void PreferencesDialog::on_response([[maybe_unused]] const int response_id) noexcept {
