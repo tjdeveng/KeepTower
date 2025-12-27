@@ -37,6 +37,7 @@ private:
     void save_settings();                                ///< Save all UI control values to GSettings
     void apply_color_scheme(const Glib::ustring& scheme);  ///< Apply color scheme to GTK application
     void update_vault_password_history_ui() noexcept;    ///< Update vault password history UI when vault changes
+    void on_dialog_shown() noexcept;                     ///< Handle dialog shown event (lazy loading)
     void on_rs_enabled_toggled() noexcept;               ///< Handle Reed-Solomon enabled checkbox toggle
     void on_backup_enabled_toggled() noexcept;           ///< Handle backup enabled checkbox toggle
     void on_auto_lock_enabled_toggled() noexcept;        ///< Handle auto-lock enabled checkbox toggle
@@ -69,6 +70,7 @@ private:
     // Settings
     Glib::RefPtr<Gio::Settings> m_settings;
     VaultManager* m_vault_manager;  // Non-owning pointer
+    bool m_history_ui_loaded = false;  // Track if vault password history UI has been lazily loaded
 
     // Main layout widgets
     Gtk::Box m_main_box;

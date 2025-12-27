@@ -76,45 +76,33 @@ This document provides manual test procedures to verify the preferences dialog r
 2. Verify page contains **three sections**:
 
    **Section 1: Clipboard Protection**
-   - [x] Title: "Clipboard Protection"
-   - [x] Description about auto-clearing
-   - [x] Label: "Clear clipboard after:"
-   - [x] Spin button (range: 5-300 seconds)
-   - [x] Suffix: " seconds"
+   - [x] Clipboard timeout spin button (5-300 seconds)
 
    **Section 2: Account Password History**
-   - [x] Title: "Account Password History"
-   - [x] Description: "Prevent reusing passwords when updating account entries (Gmail, GitHub, etc.)"
-   - [x] Checkbox: "Prevent account password reuse"
-   - [x] Label: "Remember up to"
-   - [x] Spin button (range: 0-24)
-   - [x] Suffix: " previous passwords per account"
+   - [x] "Prevent account password reuse" checkbox
+   - [x] History limit spin button (0-24)
 
    **Section 3: Undo/Redo**
-   - [x] Title: "Undo/Redo"
-   - [x] Description about undo functionality
-   - [x] Checkbox: "Enable undo/redo (Ctrl+Z/Ctrl+Shift+Z)"
-   - [x] Label: "Keep up to"
-   - [x] Spin button (range: 1-100)
-   - [x] Suffix: " operations"
-   - [x] Warning label about memory security
+   - [x] "Enable undo/redo" checkbox
+   - [x] History limit spin button (1-100)
+   - [x] Memory security warning visible
 
 3. Test checkbox behavior:
-   - [ ] Uncheck "Prevent account password reuse" → spin button becomes insensitive (grayed)
-   - [ ] Check "Prevent account password reuse" → spin button becomes active
-   - [ ] Uncheck "Enable undo/redo" → spin button becomes insensitive (grayed)
-   - [ ] Check "Enable undo/redo" → spin button becomes active
+   - [x] Uncheck "Prevent account password reuse" → spin button becomes insensitive (grayed)
+   - [x] Check "Prevent account password reuse" → spin button becomes active
+   - [x] Uncheck "Enable undo/redo" → spin button becomes insensitive (grayed)
+   - [x] Check "Enable undo/redo" → spin button becomes active
 
 4. Test settings persistence:
-   - [ ] Change clipboard timeout to 60 seconds
-   - [ ] Enable account password history, set limit to 10
-   - [ ] Set undo history to 25 operations
-   - [ ] Click Apply → Close dialog
-   - [ ] Reopen preferences → Values retained
+   - [x] Change clipboard timeout to 60 seconds
+   - [x] Enable account password history, set limit to 10
+   - [x] Set undo history to 25 operations
+   - [x] Click Apply → Close dialog
+   - [x] Reopen preferences → Values retained
 
 **Expected Result**: ✅ Account Security tab shows clipboard and undo/redo settings
 **Actual Result**: ___________
-**Status**: [ ] Pass [ ] Fail
+**Status**: [x] Pass [ ] Fail
 
 ---
 
@@ -124,72 +112,56 @@ This document provides manual test procedures to verify the preferences dialog r
 
 **Steps**:
 1. Ensure NO vault is currently open
-2. Open preferences
-3. Click "Vault Security" tab
-4. Verify page contains **two visible sections**:
+2. Open preferences → Vault Security tab
+3. Verify **three visible sections**:
 
    **Section 1: Auto-Lock**
-   - [ ] Title: "Auto-Lock"
-   - [ ] Checkbox: "Enable auto-lock after inactivity"
-   - [ ] Label: "Lock timeout:"
-   - [ ] Spin button (range: 60-3600 seconds)
-   - [ ] Suffix: " seconds"
+   - [x] "Enable auto-lock after inactivity" checkbox
+   - [x] Lock timeout spin button (60-3600 seconds)
 
-   **Section 2: FIPS-140-3 Compliance**
-   - [ ] Title: "FIPS-140-3 Compliance"
-   - [ ] Description about FIPS mode
-   - [ ] Checkbox: "Enable FIPS-140-3 mode (requires restart)"
-   - [ ] Status label (✓ available or ⚠️ not available)
-   - [ ] Warning about restart requirement
+   **Section 2: User Password History (Default for new vaults)**
+   - [x] Spin button (0-24) for default vault policy
+   - [x] Label: "0 = disabled (password reuse allowed)"
 
-5. Verify **password history section is HIDDEN**:
-   - [ ] No "User Password History" section visible
-   - [ ] No vault policy label visible
-   - [ ] No clear button visible
+   **Section 3: FIPS-140-3 Compliance**
+   - [x] "Enable FIPS-140-3 mode" checkbox
+   - [x] Status indicator (✓ available or ⚠️ not available)
+   - [x] Restart warning visible
 
 **Expected Result**: ✅ Only auto-lock and FIPS sections visible, no password history
 **Actual Result**: ___________
-**Status**: [ ] Pass [ ] Fail
+**Status**: [x] Pass [ ] Fail
 
 ---
 
 ### Test 5: Vault Security Tab - With Vault Open
 
-**Objective**: Verify password history section appears when vault is open.
+**Objective**: Verify password history section changes when vault is open.
 
 **Steps**:
-1. Open a test vault with known password
-2. Open preferences
-3. Click "Vault Security" tab
-4. Verify page contains **three sections**:
+1. Open a test vault
+2. Open preferences → Vault Security tab
+3. Verify **User Password History** section now shows:
+   - [x] "Current vault policy: X passwords" (read-only, shows vault's setting)
+   - [x] "Logged in as: USERNAME"
+   - [x] "Password history: Y entries" (your history count)
+   - [x] "Clear My Password History" button
+   - [x] Warning about permanent deletion
 
-   **Section 1: Auto-Lock** (same as Test 4)
+4. Verify information is accurate:
+   - [x] Vault policy matches actual vault setting
+   - [x] Username matches logged-in user
+   - [x] History count is reasonable (0-24)
 
-   **Section 2: FIPS-140-3 Compliance** (same as Test 4)
-
-   **Section 3: User Password History** (NEW!)
-   - [ ] Title: "User Password History"
-   - [ ] Description: "Manage your password history for this vault"
-   - [ ] Label: "Current vault policy: X passwords" (where X = vault's depth)
-   - [ ] Label: "Logged in as: USERNAME" (shows your username)
-   - [ ] Label: "Password history: Y entries" (where Y = your history count)
-   - [ ] Button: "Clear My Password History"
-   - [ ] Warning: "⚠ This will permanently delete all saved password history for your account"
-
-5. Verify information is accurate:
-   - [ ] Vault policy matches actual vault setting
-   - [ ] Username matches logged-in user
-   - [ ] History count is reasonable (0-24)
-
-6. Test clear button state:
+5. Test clear button state:
    - If history count = 0:
-     - [ ] Clear button is disabled (grayed out)
+     - [x] Clear button is disabled (grayed out)
    - If history count > 0:
-     - [ ] Clear button is enabled (clickable)
+     - [x] Clear button is enabled (clickable)
 
 **Expected Result**: ✅ Password history section visible with accurate info
 **Actual Result**: ___________
-**Status**: [ ] Pass [ ] Fail
+**Status**: [x] Pass [ ] Fail
 
 ---
 
@@ -204,7 +176,7 @@ This document provides manual test procedures to verify the preferences dialog r
 2. Verify "Password history: 1+ entries" is shown
 3. Click "Clear My Password History" button
 4. Verify confirmation dialog appears:
-   - [ ] Title: "Clear Password History?"
+   - [x] Title: "Clear Password History?"
    - [ ] Icon: Warning icon
    - [ ] Message: "This will permanently delete all saved password history for user 'USERNAME'"
    - [ ] Secondary text: "This action cannot be undone."
@@ -284,22 +256,17 @@ This document provides manual test procedures to verify the preferences dialog r
 
 **Steps**:
 1. Click "Storage" tab
-2. Verify page contains **two sections**:
+2. Verify **two sections** visible:
 
    **Section 1: Error Correction**
-   - [ ] Title: "Error Correction"
-   - [ ] Reed-Solomon checkbox
-   - [ ] Redundancy spin button
+   - [ ] Reed-Solomon checkbox and redundancy spin button
    - [ ] "Apply to current vault" checkbox (if vault open)
 
    **Section 2: Automatic Backups**
-   - [ ] Title: "Automatic Backups"
    - [ ] Enable backups checkbox
    - [ ] Backup count spin button
 
-3. Test settings work:
-   - [ ] Change backup count → Apply → Setting saves
-   - [ ] Reopen preferences → Setting retained
+3. Test settings save and persist across reopen
 
 **Expected Result**: ✅ Storage tab unchanged and functional
 **Actual Result**: ___________
@@ -311,31 +278,19 @@ This document provides manual test procedures to verify the preferences dialog r
 
 **Objective**: Verify account password history prevents password reuse for account entries.
 
-**Prerequisites**: Vault open with at least one account
-
 **Steps**:
-1. Open preferences → Account Security tab
-2. Enable "Prevent account password reuse"
-3. Set limit to 3 previous passwords
-4. Click Apply
-5. Close preferences
-6. Edit an existing account (e.g., Gmail account):
-   - Note current password: __________
-   - Change password to "NewPass123!"
-   - Save account
-7. Edit the same account again:
-   - Try to change password back to the original password
-   - [ ] Error dialog appears: "Password reuse detected!"
-   - [ ] Message explains password was used previously
-   - [ ] Account is NOT saved
-8. Change to a different, unused password:
-   - [ ] Password change succeeds
-   - [ ] No error message
-9. Continue changing password 3 more times (filling history)
-10. Try to reuse one of the 3 recent passwords:
-    - [ ] Error dialog appears
-11. Try to reuse the very first password (oldest, should be removed):
-    - [ ] Password change SUCCEEDS (history limit working correctly)
+1. Open preferences → Account Security → Enable "Prevent account password reuse" with limit 3
+2. Edit an existing account and change password to "NewPass123!"
+3. Try to change password back to original:
+   - [ ] Error dialog: "Password reuse detected!"
+   - [ ] Account NOT saved
+4. Change to a different unused password:
+   - [ ] Change succeeds
+5. Change password 3 more times (filling history to limit)
+6. Try to reuse one of the 3 recent passwords:
+   - [ ] Error dialog appears
+7. Try to reuse the oldest password (beyond limit):
+   - [ ] Change SUCCEEDS (limit working correctly)
 
 **Expected Result**: ✅ Password reuse prevented for last N passwords (within limit)
 **Actual Result**: ___________
@@ -368,28 +323,19 @@ This document provides manual test procedures to verify the preferences dialog r
 
 ---
 
-### Test 11: Admin vs Non-Admin View (V2 Vaults Only)
+### Test 12: Admin vs Non-Admin View (V2 Vaults Only)
 
-**Objective**: Verify non-admin users see limited UI in Vault Security tab.
-
-**Prerequisites**: V2 vault with admin and standard user accounts
+**Objective**: Verify both admin and standard users can access Vault Security tab.
 
 **Steps**:
-1. Log in as **administrator**
-2. Open preferences → Vault Security tab
-3. Verify all sections visible:
-   - [ ] Auto-Lock section visible
-   - [ ] FIPS section visible
-   - [ ] Password History section visible
+1. Log in as **administrator** → Open preferences → Vault Security
+   - [ ] All sections visible (Auto-Lock, User Password History, FIPS)
 
-4. Log out and log in as **standard user**
-5. Open preferences → Vault Security tab
-6. Verify standard user sees:
-   - [ ] Auto-Lock section visible (user preference)
-   - [ ] FIPS section visible (user preference)
-   - [ ] Password History section visible (can manage own history)
+2. Log in as **standard user** → Open preferences → Vault Security
+   - [ ] All sections visible (same as admin)
+   - [ ] Can manage own password history
 
-**Note**: Both admin and standard users can access Vault Security tab now. Admin-only restrictions apply at the page level for user management dialogs, not preferences.
+**Note**: Admin-only restrictions apply at the page level (user management), not preferences.
 
 **Expected Result**: ✅ Both users see full Vault Security tab
 **Actual Result**: ___________
@@ -397,7 +343,7 @@ This document provides manual test procedures to verify the preferences dialog r
 
 ---
 
-### Test 12: Vault State Changes
+### Test 13: Vault State Changes
 
 **Objective**: Verify password history section shows/hides when vault opens/closes.
 
@@ -421,7 +367,7 @@ This document provides manual test procedures to verify the preferences dialog r
 
 ---
 
-### Test 13: Cancel Button Behavior
+### Test 14: Cancel Button Behavior
 
 **Objective**: Verify Cancel button discards changes.
 

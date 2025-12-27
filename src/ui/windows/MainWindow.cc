@@ -921,9 +921,13 @@ void MainWindow::on_save_vault() {
 }
 
 void MainWindow::on_close_vault() {
+    KeepTower::Log::info("MainWindow: on_close_vault() called - m_vault_open={}", m_vault_open);
     if (!m_vault_open) {
+        KeepTower::Log::info("MainWindow: Vault not open, returning early");
         return;
     }
+
+    KeepTower::Log::info("MainWindow: Proceeding with vault close");
 
     // Clear clipboard if password was copied
     if (m_clipboard_timeout.connected()) {
@@ -1859,35 +1863,31 @@ bool MainWindow::prompt_save_if_modified() {
 }
 
 void MainWindow::on_preferences() {
-    // Use unique_ptr for automatic cleanup
-    auto dialog = std::make_unique<PreferencesDialog>(*this, m_vault_manager.get());
-    dialog->set_hide_on_close(true);
+    // Create preferences dialog (as managed widget)
+    auto* dialog = Gtk::make_managed<PreferencesDialog>(*this, m_vault_manager.get());
 
-    // Transfer ownership to lambda for proper RAII cleanup
-    auto* dialog_ptr = dialog.release();
-    dialog_ptr->signal_hide().connect([this, dialog_ptr]() noexcept {
-        // Reload undo/redo settings when preferences dialog closes
-        auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
-        bool undo_redo_enabled = settings->get_boolean("undo-redo-enabled");
-        int undo_history_limit = settings->get_int("undo-history-limit");
-        undo_history_limit = std::clamp(undo_history_limit, 1, 100);
+    // Connect to close signal to reload settings when dialog is dismissed
+    dialog->signal_close_request().connect([this]() {
+        // Reload undo/redo settings when preferences closes
+        Glib::signal_idle().connect_once([this]() {
+            auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
+            bool undo_redo_enabled = settings->get_boolean("undo-redo-enabled");
+            int undo_history_limit = settings->get_int("undo-history-limit");
+            undo_history_limit = std::clamp(undo_history_limit, 1, 100);
 
-        m_undo_manager.set_max_history(undo_history_limit);
+            m_undo_manager.set_max_history(undo_history_limit);
 
-        // Update undo/redo state based on new settings
-        if (!undo_redo_enabled) {
-            // If disabled, clear history and disable buttons
-            m_undo_manager.clear();
-            update_undo_redo_sensitivity(false, false);
-        } else {
-            // If enabled, update buttons based on current state
-            update_undo_redo_sensitivity(m_undo_manager.can_undo(), m_undo_manager.can_redo());
-        }
+            if (!undo_redo_enabled) {
+                m_undo_manager.clear();
+                update_undo_redo_sensitivity(false, false);
+            } else {
+                update_undo_redo_sensitivity(m_undo_manager.can_undo(), m_undo_manager.can_redo());
+            }
+        });
+        return false;  // Allow the dialog to close
+    }, false);
 
-        delete dialog_ptr;
-    });
-
-    dialog_ptr->show();
+    dialog->show();
 }
 
 void MainWindow::on_delete_account() {
@@ -2638,7 +2638,46 @@ void MainWindow::on_user_activity() {
 }
 
 bool MainWindow::on_auto_lock_timeout() {
-    if (m_vault_open && !m_is_locked) {
+    if (!m_vault_open || m_is_locked) {
+        return false;
+    }
+
+    // For V2 vaults, auto-lock means automatic logout (no cached password)
+    if (is_v2_vault_open()) {
+        KeepTower::Log::info("MainWindow: Auto-lock timeout triggered for V2 vault, forcing logout");
+
+        // Auto-save only if vault has been modified (security timeout)
+        bool had_unsaved_changes = false;
+        if (m_vault_manager && m_vault_manager->is_modified()) {
+            had_unsaved_changes = true;
+            save_current_account();
+            m_vault_manager->save_vault();
+        }
+
+        // Force logout without allowing cancellation (security timeout)
+        std::string vault_path = m_current_vault_path;  // Save path before close
+        on_close_vault();
+
+        // Show notification that auto-lock occurred
+        auto info_dialog = Gtk::make_managed<Gtk::MessageDialog>(*this,
+            "Session Timeout", false, Gtk::MessageType::INFO, Gtk::ButtonsType::OK, true);
+
+        if (had_unsaved_changes) {
+            info_dialog->set_secondary_text("Your session has been automatically logged out due to inactivity.\nAny unsaved changes have been saved.");
+        } else {
+            info_dialog->set_secondary_text("Your session has been automatically logged out due to inactivity.");
+        }
+
+        info_dialog->signal_response().connect([info_dialog, this, vault_path](int) {
+            info_dialog->hide();
+            // Reopen the same vault file (will show login dialog)
+            if (!vault_path.empty()) {
+                handle_v2_vault_open(vault_path);
+            }
+        });
+        info_dialog->show();
+    } else {
+        // For V1 vaults, use traditional lock/unlock mechanism
         lock_vault();
     }
     return false;  // Don't repeat
@@ -2646,6 +2685,12 @@ bool MainWindow::on_auto_lock_timeout() {
 
 void MainWindow::lock_vault() {
     if (!m_vault_open || m_is_locked) {
+        return;
+    }
+
+    // This should only be called for V1 vaults
+    if (is_v2_vault_open()) {
+        KeepTower::Log::warning("MainWindow: lock_vault() called for V2 vault, use logout instead");
         return;
     }
 
@@ -4074,14 +4119,14 @@ void MainWindow::update_menu_for_role() {
 
     // Only update if V2 vault is open
     if (!is_v2_vault_open()) {
-        KeepTower::Log::info("MainWindow: Not a V2 vault, disabling V2-specific actions");
-        // Disable all V2-specific actions for V1 vaults
+        KeepTower::Log::info("MainWindow: No V2 vault open, disabling V2-specific menu actions");
+        // Disable all V2-specific actions for V1 vaults or when no vault is open
         m_change_password_action->set_enabled(false);
         m_logout_action->set_enabled(false);
         m_manage_users_action->set_enabled(false);
         // For V1 vaults, export is allowed (single-user)
         m_export_action->set_enabled(true);
-        KeepTower::Log::info("MainWindow: update_menu_for_role() completed (V1 mode)");
+        KeepTower::Log::info("MainWindow: update_menu_for_role() completed (no V2 vault)");
         return;
     }
 
@@ -4099,13 +4144,19 @@ void MainWindow::update_menu_for_role() {
 }
 
 bool MainWindow::is_v2_vault_open() const noexcept {
+    bool has_manager = (m_vault_manager != nullptr);
+    bool vault_open_flag = m_vault_open;
+    bool is_v2 = has_manager && m_vault_manager->is_v2_vault();
+
+    KeepTower::Log::info("MainWindow: is_v2_vault_open() check - manager={}, m_vault_open={}, is_v2_vault()={}",
+        has_manager, vault_open_flag, is_v2);
+
     if (!m_vault_manager || !m_vault_open) {
         return false;
     }
 
-    // Check if we have an active user session (V2 only)
-    auto session_opt = m_vault_manager->get_current_user_session();
-    return session_opt.has_value();
+    // Check vault format directly - more reliable than session check
+    return m_vault_manager->is_v2_vault();
 }
 
 bool MainWindow::is_current_user_admin() const noexcept {

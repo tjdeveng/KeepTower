@@ -1226,6 +1226,13 @@ public:
      * @return true if vault is open, false otherwise
      */
     bool is_vault_open() const { return m_vault_open; }
+
+    /**
+     * @brief Check if currently open vault is V2 format
+     * @return true if V2 vault is open, false if V1 or no vault open
+     */
+    bool is_v2_vault() const { return m_vault_open && m_is_v2_vault; }
+
     std::string get_current_vault_path() const { return m_current_vault_path; }
     bool is_modified() const { return m_modified; }
 

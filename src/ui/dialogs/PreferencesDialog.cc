@@ -8,7 +8,7 @@
 #include <cstdlib>  // for std::getenv
 
 PreferencesDialog::PreferencesDialog(Gtk::Window& parent, VaultManager* vault_manager)
-    : Gtk::Dialog("Preferences", parent, true),
+    : Gtk::Dialog("Preferences", parent, false),  // false = non-modal for faster response
       m_vault_manager(vault_manager),
       m_main_box(Gtk::Orientation::HORIZONTAL, 0),
       m_appearance_box(Gtk::Orientation::VERTICAL, 18),
@@ -91,8 +91,9 @@ PreferencesDialog::PreferencesDialog(Gtk::Window& parent, VaultManager* vault_ma
     m_clear_history_button.signal_clicked().connect(
         sigc::mem_fun(*this, &PreferencesDialog::on_clear_password_history_clicked));
 
-    // Update vault password history UI
-    update_vault_password_history_ui();
+    // Defer vault password history UI update until dialog is shown (lazy loading)
+    // This prevents slow dialog opening when vault has many users
+    signal_show().connect(sigc::mem_fun(*this, &PreferencesDialog::on_dialog_shown));
 
     // Connect apply-to-current checkbox to reload settings when toggled
     if (m_vault_manager && m_vault_manager->is_vault_open()) {
@@ -328,6 +329,18 @@ void PreferencesDialog::setup_account_security_page() {
 
     // Add page to stack
     m_stack.add(m_account_security_box, "account-security", "Account Security");
+
+    // Disable account security page for non-admin users (V2 multi-user vaults)
+    // Account security settings are vault-level policies that only admins can modify
+    if (m_vault_manager && m_vault_manager->is_vault_open()) {
+        auto session = m_vault_manager->get_current_user_session();
+        if (session && session->role != KeepTower::UserRole::ADMINISTRATOR) {
+            auto stack_page = m_stack.get_page(m_account_security_box);
+            if (stack_page) {
+                stack_page->set_visible(false);
+            }
+        }
+    }
 }
 
 void PreferencesDialog::setup_vault_security_page() {
@@ -1210,6 +1223,14 @@ void PreferencesDialog::on_undo_redo_enabled_toggled() noexcept {
     m_undo_history_limit_suffix.set_sensitive(enabled);
 }
 
+void PreferencesDialog::on_dialog_shown() noexcept {
+    // Lazy load vault password history UI only once (expensive operation if many users)
+    if (!m_history_ui_loaded) {
+        m_history_ui_loaded = true;
+        update_vault_password_history_ui();
+    }
+}
+
 void PreferencesDialog::update_vault_password_history_ui() noexcept {
     // Check if vault is open
     if (!m_vault_manager || !m_vault_manager->is_vault_open()) {
@@ -1277,8 +1298,8 @@ void PreferencesDialog::on_clear_password_history_clicked() noexcept {
 
     const std::string username = session->username;
 
-    // Show confirmation dialog
-    auto dialog = Gtk::MessageDialog(
+    // Create confirmation dialog on heap (will be deleted in response handler)
+    auto* dialog = new Gtk::MessageDialog(
         *this,
         "Clear Password History?",
         false,
@@ -1287,13 +1308,18 @@ void PreferencesDialog::on_clear_password_history_clicked() noexcept {
         true
     );
 
-    dialog.set_secondary_text(
+    dialog->set_secondary_text(
         "This will permanently delete all saved password history for user '" +
         username + "'.\n\n" +
         "This action cannot be undone."
     );
 
-    dialog.signal_response().connect([this, &dialog, username](int response) {
+    dialog->set_modal(true);
+
+    // Connect response handler (captures this and username)
+    dialog->signal_response().connect([this, dialog, username](int response) {
+        dialog->hide();
+
         if (response == Gtk::ResponseType::OK) {
             try {
                 // Clear the password history
@@ -1320,6 +1346,7 @@ void PreferencesDialog::on_clear_password_history_clicked() noexcept {
                     true
                 );
                 success_dialog->set_secondary_text("Password history for '" + username + "' has been cleared.");
+                success_dialog->set_modal(true);
                 success_dialog->signal_response().connect([success_dialog](int) {
                     delete success_dialog;
                 });
@@ -1336,16 +1363,19 @@ void PreferencesDialog::on_clear_password_history_clicked() noexcept {
                     true
                 );
                 error_dialog->set_secondary_text(std::string(e.what()));
+                error_dialog->set_modal(true);
                 error_dialog->signal_response().connect([error_dialog](int) {
                     delete error_dialog;
                 });
                 error_dialog->show();
             }
         }
-        dialog.hide();
+
+        // Delete the confirmation dialog
+        delete dialog;
     });
 
-    dialog.show();
+    dialog->show();
 }
 
 void PreferencesDialog::on_response([[maybe_unused]] const int response_id) noexcept {

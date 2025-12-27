@@ -2032,6 +2032,7 @@ void VaultManager::set_auto_lock_timeout(int timeout_seconds) {
     }
     auto* metadata = m_vault_data.mutable_metadata();
     metadata->set_auto_lock_timeout_seconds(timeout_seconds);
+    m_modified = true;
 }
 
 int VaultManager::get_auto_lock_timeout() const {
@@ -2047,6 +2048,7 @@ void VaultManager::set_undo_redo_enabled(bool enabled) {
     }
     auto* metadata = m_vault_data.mutable_metadata();
     metadata->set_undo_redo_enabled(enabled);
+    m_modified = true;
 }
 
 bool VaultManager::get_undo_redo_enabled() const {
@@ -2062,6 +2064,7 @@ void VaultManager::set_undo_history_limit(int limit) {
     }
     auto* metadata = m_vault_data.mutable_metadata();
     metadata->set_undo_history_limit(limit);
+    m_modified = true;
 }
 
 int VaultManager::get_undo_history_limit() const {
@@ -2077,6 +2080,7 @@ void VaultManager::set_account_password_history_enabled(bool enabled) {
     }
     auto* metadata = m_vault_data.mutable_metadata();
     metadata->set_account_password_history_enabled(enabled);
+    m_modified = true;
 }
 
 bool VaultManager::get_account_password_history_enabled() const {
@@ -2092,6 +2096,7 @@ void VaultManager::set_account_password_history_limit(int limit) {
     }
     auto* metadata = m_vault_data.mutable_metadata();
     metadata->set_account_password_history_limit(limit);
+    m_modified = true;
 }
 
 int VaultManager::get_account_password_history_limit() const {
