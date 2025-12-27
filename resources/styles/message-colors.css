@@ -19,22 +19,10 @@
  * @brief Success message color (green)
  *
  * Use for: Valid passwords, successful operations, confirmations
- * Light theme: #26a269 (green-4)
- * Dark theme: #8ff0a4 (green-3)
+ * Uses GTK theme's @success_color which automatically adapts to light/dark themes
  */
 .success-text {
     color: @success_color;
-}
-
-/* Fallback for themes without @success_color */
-.success-text {
-    color: #26a269;
-}
-
-@media (prefers-color-scheme: dark) {
-    .success-text {
-        color: #8ff0a4;
-    }
 }
 
 /* ============================================================================
@@ -45,22 +33,10 @@
  * @brief Error message color (red)
  *
  * Use for: Validation failures, password mismatches, operation errors
- * Light theme: #c01c28 (red-4)
- * Dark theme: #ff7b63 (red-2)
+ * Uses GTK theme's @error_color which automatically adapts to light/dark themes
  */
 .error-text {
     color: @error_color;
-}
-
-/* Fallback for themes without @error_color */
-.error-text {
-    color: #c01c28;
-}
-
-@media (prefers-color-scheme: dark) {
-    .error-text {
-        color: #ff7b63;
-    }
 }
 
 /* ============================================================================
@@ -71,22 +47,10 @@
  * @brief Warning message color (orange)
  *
  * Use for: Password change required, security notices, cautions
- * Light theme: #e5a50a (yellow-5)
- * Dark theme: #f8e45c (yellow-2)
+ * Uses GTK theme's @warning_color which automatically adapts to light/dark themes
  */
 .warning-text {
     color: @warning_color;
-}
-
-/* Fallback for themes without @warning_color */
-.warning-text {
-    color: #e5a50a;
-}
-
-@media (prefers-color-scheme: dark) {
-    .warning-text {
-        color: #f8e45c;
-    }
 }
 
 /* ============================================================================
@@ -97,22 +61,10 @@
  * @brief Informational message color (blue)
  *
  * Use for: YubiKey prompts, helpful information, feature explanations
- * Light theme: #1c71d8 (blue-4)
- * Dark theme: #99c1f1 (blue-2)
+ * Uses GTK theme's @accent_color which automatically adapts to light/dark themes
  */
 .info-text {
     color: @accent_color;
-}
-
-/* Fallback for themes without @accent_color */
-.info-text {
-    color: #1c71d8;
-}
-
-@media (prefers-color-scheme: dark) {
-    .info-text {
-        color: #99c1f1;
-    }
 }
 
 /* ============================================================================
