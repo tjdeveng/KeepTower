@@ -968,6 +968,8 @@ void PreferencesDialog::save_settings() {
     }
 
     // Save backup settings
+    // CRITICAL: If vault is open, save ONLY to vault (not to GSettings)
+    // If vault is closed, save to GSettings as defaults for new vaults
     const bool backup_enabled = m_backup_enabled_check.get_active();
     const int backup_count = std::clamp(
         static_cast<int>(m_backup_count_spin.get_value()),
@@ -975,8 +977,15 @@ void PreferencesDialog::save_settings() {
         MAX_BACKUP_COUNT
     );
 
-    m_settings->set_boolean("backup-enabled", backup_enabled);
-    m_settings->set_int("backup-count", backup_count);
+    if (m_vault_manager && m_vault_manager->is_vault_open()) {
+        // Save ONLY to current vault
+        m_vault_manager->set_backup_enabled(backup_enabled);
+        m_vault_manager->set_backup_count(backup_count);
+    } else {
+        // Save to GSettings as defaults for new vaults
+        m_settings->set_boolean("backup-enabled", backup_enabled);
+        m_settings->set_int("backup-count", backup_count);
+    }
 
     // Save security settings
     // CRITICAL: If vault is open, save ONLY to vault (not to GSettings)
@@ -1100,6 +1109,13 @@ void PreferencesDialog::save_settings() {
      */
     const bool fips_enabled = m_fips_mode_check.get_active();
     m_settings->set_boolean("fips-mode-enabled", fips_enabled);
+
+    // If vault is open, save it (settings were applied to vault)
+    // This includes: backup, clipboard, password history, auto-lock, undo/redo settings
+    // FEC is also saved if the "Apply to current vault" checkbox was ticked
+    if (m_vault_manager && m_vault_manager->is_vault_open()) {
+        [[maybe_unused]] bool saved = m_vault_manager->save_vault();
+    }
 }
 
 void PreferencesDialog::apply_color_scheme(const Glib::ustring& scheme) {

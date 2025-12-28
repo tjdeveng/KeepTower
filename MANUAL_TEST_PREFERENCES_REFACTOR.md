@@ -366,11 +366,11 @@ This document provides manual test procedures to verify the preferences dialog r
    - [x] Appearance: "Dark" selected
    - [x] Account Security: Clipboard = 45s, Account password history = 10, Undo = 30
    - [x] Vault Security: Auto-lock enabled, 600s
-   - [ ] Storage: Backups = 7
+   - [x] Storage: Backups = 7
 
 **Expected Result**: ✅ All settings persist after close/reopen
 **Actual Result**: ___________
-**Status**: [ ] Pass [ ] Fail
+**Status**: [x] Pass [ ] Fail
 
 ---
 
@@ -384,26 +384,26 @@ This document provides manual test procedures to verify the preferences dialog r
 1. Log in as **administrator**
 2. Open preferences
 3. Verify all 4 tabs visible in sidebar:
-   - [ ] Appearance
-   - [ ] Account Security
-   - [ ] Vault Security
-   - [ ] Storage
+   - [x] Appearance
+   - [x] Account Security
+   - [x] Vault Security
+   - [x] Storage
 4. Click each tab and verify all sections accessible
 
 5. Log out and log in as **standard user**
 6. Open preferences
-7. Verify only 2 tabs visible in sidebar:
-   - [ ] Appearance
-   - [ ] Storage
+7. Verify only 1 tab visible in sidebar:
+   - [x] Appearance
 8. Verify security tabs are HIDDEN:
-   - [ ] Account Security tab NOT in sidebar
-   - [ ] Vault Security tab NOT in sidebar
+   - [x] Account Security tab NOT in sidebar
+   - [x] Vault Security tab NOT in sidebar
+   - [x] Storage tab NOT in sidebar
 
-**Note**: Standard users cannot modify vault-level security policies. Only administrators have access to Account Security and Vault Security tabs.
+**Note**: Standard users cannot modify vault-level security policies. Only administrators have access to Account Security, Vault Security, and Storage tabs.
 
-**Expected Result**: ✅ Admins see all 4 tabs; standard users see only Appearance and Storage
+**Expected Result**: ✅ Admins see all 4 tabs; standard users see only Appearance
 **Actual Result**: ___________
-**Status**: [ ] Pass [ ] Fail [ ] Skip (no V2 vault)
+**Status**: [x] Pass [ ] Fail [ ] Skip (no V2 vault)
 
 ---
 
