@@ -50,7 +50,7 @@ PreferencesDialog::PreferencesDialog(Gtk::Window& parent, VaultManager* vault_ma
       m_redundancy_label("Redundancy:"),
       m_redundancy_suffix("%"),
       m_redundancy_help("Higher values provide more protection but increase file size"),
-      m_apply_to_current_check("Also apply to current vault (and save as defaults for new vaults)"),
+      m_apply_to_current_check("Apply to current vault (not defaults)"),
       m_backup_section_title("<b>Automatic Backups</b>"),
       m_backup_description("Create timestamped backups when saving vaults"),
       m_backup_enabled_check("Enable automatic backups"),
@@ -805,16 +805,16 @@ void PreferencesDialog::load_settings() {
     if (m_vault_manager && m_vault_manager->is_vault_open()) {
         // Load from current vault
         clipboard_timeout = m_vault_manager->get_clipboard_timeout();
+        auto_lock_enabled = m_vault_manager->get_auto_lock_enabled();
         auto_lock_timeout = m_vault_manager->get_auto_lock_timeout();
-        auto_lock_enabled = (auto_lock_timeout > 0);
 
-        // If vault has no setting (0), fall back to GSettings defaults
+        // If vault has no clipboard setting (0), fall back to GSettings defaults
         if (clipboard_timeout == 0) {
             clipboard_timeout = SettingsValidator::get_clipboard_timeout(m_settings);
         }
+        // If vault has no auto-lock timeout (0), fall back to GSettings defaults
         if (auto_lock_timeout == 0) {
             auto_lock_timeout = SettingsValidator::get_auto_lock_timeout(m_settings);
-            auto_lock_enabled = SettingsValidator::is_auto_lock_enabled(m_settings);
         }
     } else {
         // Load from GSettings (defaults for new vaults)
@@ -958,11 +958,9 @@ void PreferencesDialog::save_settings() {
 
     // Checkbox controls whether to apply to current vault or save as defaults
     if (m_vault_manager && m_vault_manager->is_vault_open() && m_apply_to_current_check.get_active()) {
-        // Apply to current vault AND save as defaults for new vaults
+        // Apply to current vault ONLY (do NOT save to defaults)
         m_vault_manager->set_reed_solomon_enabled(rs_enabled);
         m_vault_manager->set_rs_redundancy_percent(rs_redundancy);
-        m_settings->set_boolean("use-reed-solomon", rs_enabled);
-        m_settings->set_int("rs-redundancy-percent", rs_redundancy);
     } else {
         // Save to preferences (defaults for new vaults only)
         m_settings->set_boolean("use-reed-solomon", rs_enabled);
@@ -1028,8 +1026,9 @@ void PreferencesDialog::save_settings() {
     );
 
     if (m_vault_manager && m_vault_manager->is_vault_open()) {
-        // Save ONLY to current vault (0 if disabled)
-        m_vault_manager->set_auto_lock_timeout(auto_lock_enabled ? auto_lock_timeout : 0);
+        // Save ONLY to current vault
+        m_vault_manager->set_auto_lock_enabled(auto_lock_enabled);
+        m_vault_manager->set_auto_lock_timeout(auto_lock_timeout);
     } else {
         // Save to GSettings as defaults for new vaults
         m_settings->set_boolean("auto-lock-enabled", auto_lock_enabled);

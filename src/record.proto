@@ -259,8 +259,13 @@ message VaultMetadata {
   // Number of previous passwords to check per account
   int32 account_password_history_limit = 13;
 
+  // Auto-lock enabled flag
+  // Controls whether auto-lock is active for this vault
+  // Security-critical: prevents users from disabling auto-lock via local preferences
+  bool auto_lock_enabled = 14;
+
   // Reserved for future vault metadata
-  reserved 14 to 15;
+  reserved 15;
 }
 
 // Individual YubiKey entry for multiple key support

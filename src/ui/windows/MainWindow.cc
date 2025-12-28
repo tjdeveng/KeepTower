@@ -636,14 +636,14 @@ void MainWindow::on_new_vault() {
                     int rs_redundancy = settings->get_int("rs-redundancy-percent");
                     m_vault_manager->apply_default_fec_preferences(use_rs, rs_redundancy);
 
-                    // Load password history settings
-                    bool password_history_enabled = settings->get_boolean("password-history-enabled");
-                    int password_history_limit = settings->get_int("password-history-limit");
+                    // Load vault user password history default setting
+                    int vault_password_history_depth = settings->get_int("vault-user-password-history-depth");
+                    vault_password_history_depth = std::clamp(vault_password_history_depth, 0, 24);
 
                     KeepTower::VaultSecurityPolicy policy;
                     policy.min_password_length = 8;  // NIST minimum
                     policy.pbkdf2_iterations = 100000;  // Default iterations
-                    policy.password_history_depth = password_history_enabled ? std::clamp(password_history_limit, 0, 24) : 0;
+                    policy.password_history_depth = vault_password_history_depth;
                     policy.require_yubikey = require_yubikey;
 
 #ifdef HAVE_YUBIKEY_SUPPORT
@@ -678,6 +678,31 @@ void MainWindow::on_new_vault() {
                     }
 #endif
                         if (result) {
+                            // Apply default preferences from GSettings to new vault
+                            auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
+
+                            // Apply auto-lock settings
+                            bool auto_lock_enabled = SettingsValidator::is_auto_lock_enabled(settings);
+                            int auto_lock_timeout = SettingsValidator::get_auto_lock_timeout(settings);
+                            m_vault_manager->set_auto_lock_enabled(auto_lock_enabled);
+                            m_vault_manager->set_auto_lock_timeout(auto_lock_timeout);
+
+                            // Apply clipboard timeout
+                            int clipboard_timeout = SettingsValidator::get_clipboard_timeout(settings);
+                            m_vault_manager->set_clipboard_timeout(clipboard_timeout);
+
+                            // Apply undo/redo settings
+                            bool undo_redo_enabled = settings->get_boolean("undo-redo-enabled");
+                            int undo_history_limit = settings->get_int("undo-history-limit");
+                            m_vault_manager->set_undo_redo_enabled(undo_redo_enabled);
+                            m_vault_manager->set_undo_history_limit(undo_history_limit);
+
+                            // Apply account password history settings
+                            bool account_pwd_history_enabled = settings->get_boolean("password-history-enabled");
+                            int account_pwd_history_limit = settings->get_int("password-history-limit");
+                            m_vault_manager->set_account_password_history_enabled(account_pwd_history_enabled);
+                            m_vault_manager->set_account_password_history_limit(account_pwd_history_limit);
+
                             m_current_vault_path = vault_path;
                             m_vault_open = true;
                             m_is_locked = false;
@@ -1017,16 +1042,16 @@ void MainWindow::on_migrate_v1_to_v2() {
             auto min_length = migration_dialog->get_min_password_length();
             auto iterations = migration_dialog->get_pbkdf2_iterations();
 
-            // Load password history settings
+            // Load vault user password history default setting
             auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
-            bool password_history_enabled = settings->get_boolean("password-history-enabled");
-            int password_history_limit = settings->get_int("password-history-limit");
+            int vault_password_history_depth = settings->get_int("vault-user-password-history-depth");
+            vault_password_history_depth = std::clamp(vault_password_history_depth, 0, 24);
 
             // Create security policy
             KeepTower::VaultSecurityPolicy policy;
             policy.min_password_length = min_length;
             policy.pbkdf2_iterations = iterations;
-            policy.password_history_depth = password_history_enabled ? std::clamp(password_history_limit, 0, 24) : 0;
+            policy.password_history_depth = vault_password_history_depth;
             policy.require_yubikey = false;
 
             // Perform migration
@@ -2618,9 +2643,17 @@ void MainWindow::on_user_activity() {
         return;
     }
 
-    // Check if auto-lock is enabled (cache settings to avoid repeated creation)
-    static const auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
-    if (!SettingsValidator::is_auto_lock_enabled(settings)) {
+    // Check if auto-lock is enabled
+    // CRITICAL: Read from vault if open (security policy), otherwise from GSettings (user preference)
+    bool auto_lock_enabled;
+    if (m_vault_manager && m_vault_manager->is_vault_open()) {
+        auto_lock_enabled = m_vault_manager->get_auto_lock_enabled();
+    } else {
+        static const auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
+        auto_lock_enabled = SettingsValidator::is_auto_lock_enabled(settings);
+    }
+
+    if (!auto_lock_enabled) {
         return;
     }
 
@@ -2629,8 +2662,18 @@ void MainWindow::on_user_activity() {
         m_auto_lock_timeout.disconnect();
     }
 
+    // Get timeout from vault if open, otherwise from defaults
+    int timeout_seconds;
+    if (m_vault_manager && m_vault_manager->is_vault_open()) {
+        timeout_seconds = m_vault_manager->get_auto_lock_timeout();
+        // Clamp to valid range (60-3600 seconds)
+        timeout_seconds = std::clamp(timeout_seconds, 60, 3600);
+    } else {
+        static const auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
+        timeout_seconds = SettingsValidator::get_auto_lock_timeout(settings);
+    }
+
     // Schedule auto-lock after validated timeout
-    const int timeout_seconds = SettingsValidator::get_auto_lock_timeout(settings);
     m_auto_lock_timeout = Glib::signal_timeout().connect(
         sigc::mem_fun(*this, &MainWindow::on_auto_lock_timeout),
         timeout_seconds * 1000  // Convert seconds to milliseconds

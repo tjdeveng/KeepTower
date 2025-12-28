@@ -2026,6 +2026,22 @@ int VaultManager::get_clipboard_timeout() const {
     return m_vault_data.metadata().clipboard_timeout_seconds();
 }
 
+void VaultManager::set_auto_lock_enabled(bool enabled) {
+    if (!m_vault_open) {
+        return;
+    }
+    auto* metadata = m_vault_data.mutable_metadata();
+    metadata->set_auto_lock_enabled(enabled);
+    m_modified = true;
+}
+
+bool VaultManager::get_auto_lock_enabled() const {
+    if (!m_vault_open || !m_vault_data.has_metadata()) {
+        return false;
+    }
+    return m_vault_data.metadata().auto_lock_enabled();
+}
+
 void VaultManager::set_auto_lock_timeout(int timeout_seconds) {
     if (!m_vault_open) {
         return;

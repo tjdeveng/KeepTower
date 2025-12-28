@@ -1298,6 +1298,20 @@ public:
     [[nodiscard]] int get_clipboard_timeout() const;
 
     /**
+     * @brief Set auto-lock enabled for current vault
+     * @param enabled true to enable auto-lock, false to disable
+     * @note This setting is stored in the vault file (security-critical)
+     */
+    void set_auto_lock_enabled(bool enabled);
+
+    /**
+     * @brief Get auto-lock enabled for current vault
+     * @return true if auto-lock is enabled, false otherwise
+     * @note Returns vault-specific setting, not global preference
+     */
+    [[nodiscard]] bool get_auto_lock_enabled() const;
+
+    /**
      * @brief Set auto-lock timeout for current vault
      * @param timeout_seconds Timeout in seconds (0 = disabled)
      * @note This setting is stored in the vault file
