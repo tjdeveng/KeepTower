@@ -706,6 +706,17 @@ bool VaultManager::save_vault() {
         std::vector<uint8_t> file_data = write_result.value();
         file_data.insert(file_data.end(), ciphertext.begin(), ciphertext.end());
 
+        // Create backup before saving (non-fatal if it fails)
+        if (m_backup_enabled) {
+            auto backup_result = create_backup(m_current_vault_path);
+            if (!backup_result) {
+                KeepTower::Log::warning("VaultManager: Failed to create backup: {}", static_cast<int>(backup_result.error()));
+            } else {
+                // Cleanup old backups after successful creation
+                cleanup_old_backups(m_current_vault_path, m_backup_count);
+            }
+        }
+
         // Write to file
         if (!write_vault_file(m_current_vault_path, file_data)) {
             KeepTower::Log::error("VaultManager: Failed to write vault file");
