@@ -414,23 +414,24 @@ This document provides manual test procedures to verify the preferences dialog r
 **Steps**:
 1. With NO vault open:
    - Open preferences → Vault Security
-   - [ ] Password history section VISIBLE
-   - [ ] Shows note: "Open a vault to manage your password history"
-   - [ ] No vault-specific info shown
+   - [x] Password history section VISIBLE
+   - [x] Shows "User Password History (Default for New Vaults)"
+   - [x] Shows spin button for setting default depth (0-24)
+   - [x] No vault-specific info shown (no username, history count, or clear button)
 
 2. Open a vault:
    - Preferences should still be open
    - [ ] Password history section UPDATES
-   - [ ] Note disappears
-   - [ ] Shows correct vault policy and user info
-   - [ ] Shows password history count
+   - [ ] Title changes to "User Password History"
+   - [ ] Shows vault policy, username, and history count
    - [ ] Clear button appears (enabled if history > 0)
 
 3. Close the vault (lock or close):
    - Preferences should still be open
    - [ ] Password history section UPDATES again
-   - [ ] Note reappears: "Open a vault to manage your password history"
-   - [ ] Vault-specific info disappears
+   - [ ] Title changes back to "User Password History (Default for New Vaults)"
+   - [ ] Vault-specific info disappears (username, history count, clear button removed)
+   - [ ] Spin button for defaults reappears
 
 **Expected Result**: ✅ Section always visible but updates content based on vault state
 **Actual Result**: ___________
