@@ -1387,7 +1387,7 @@ public:
      * @brief Enable or disable automatic timestamped backups
      * @param enable true to enable backups, false to disable
      */
-    void set_backup_enabled(bool enable) { m_backup_enabled = enable; }
+    void set_backup_enabled(bool enable);
 
     /**
      * @brief Check if automatic backups are enabled

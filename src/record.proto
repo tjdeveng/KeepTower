@@ -328,8 +328,12 @@ message VaultData {
   bool fec_enabled = 17;
   int32 fec_redundancy_percent = 18;
 
+  // Backup settings
+  bool backup_enabled = 19;
+  int32 backup_count = 20;
+
   // Reserved for additional configuration
-  reserved 19 to 31;
+  reserved 21 to 31;
 
   // === ORGANIZATION FEATURES (32-47) ===
 

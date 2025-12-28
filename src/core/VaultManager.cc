@@ -644,6 +644,14 @@ bool VaultManager::open_vault(const std::string& path, const Glib::ustring& pass
         KeepTower::Log::info("Preserved FEC settings from file: enabled=false");
     }
 
+    // Load backup settings from vault data if available (0 means not set)
+    if (m_vault_data.backup_count() > 0) {
+        m_backup_enabled = m_vault_data.backup_enabled();
+        m_backup_count = m_vault_data.backup_count();
+        KeepTower::Log::info("Loaded backup settings from vault: enabled={}, count={}",
+                            m_backup_enabled, m_backup_count);
+    }
+
     // 10. Update vault state
     m_current_vault_path = path;
     m_vault_open = true;
@@ -2015,11 +2023,21 @@ bool VaultManager::set_rs_redundancy_percent(uint8_t percent) {
     return true;
 }
 
+void VaultManager::set_backup_enabled(bool enable) {
+    m_backup_enabled = enable;
+    if (m_vault_open) {
+        m_vault_data.set_backup_enabled(enable);
+    }
+}
+
 bool VaultManager::set_backup_count(int count) {
     if (count < 1 || count > 50) [[unlikely]] {
         return false;
     }
     m_backup_count = count;
+    if (m_vault_open) {
+        m_vault_data.set_backup_count(count);
+    }
     return true;
 }
 
