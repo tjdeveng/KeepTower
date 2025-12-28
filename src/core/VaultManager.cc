@@ -694,8 +694,9 @@ bool VaultManager::save_vault() {
         std::copy(data_iv.begin(), std::min(data_iv.begin() + 32, data_iv.end()), file_header.data_salt.begin());
         std::copy(data_iv.begin(), std::min(data_iv.begin() + 12, data_iv.end()), file_header.data_iv.begin());
 
-        // Write header with FEC
-        auto write_result = KeepTower::VaultFormatV2::write_header(file_header, 0);  // 0% = use 20% minimum
+        // Write header with FEC (use configured redundancy if RS enabled, 0 if disabled)
+        uint8_t fec_redundancy = m_use_reed_solomon ? m_rs_redundancy_percent : 0;
+        auto write_result = KeepTower::VaultFormatV2::write_header(file_header, fec_redundancy);
         if (!write_result) {
             KeepTower::Log::error("VaultManager: Failed to write V2 header");
             return false;

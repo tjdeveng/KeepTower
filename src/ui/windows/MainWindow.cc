@@ -703,6 +703,25 @@ void MainWindow::on_new_vault() {
                             m_vault_manager->set_account_password_history_enabled(account_pwd_history_enabled);
                             m_vault_manager->set_account_password_history_limit(account_pwd_history_limit);
 
+                            // Apply FEC (Reed-Solomon) settings to vault metadata
+                            // Note: apply_default_fec_preferences() was called before vault creation
+                            // but we need to persist these settings to the vault
+                            bool fec_enabled = settings->get_boolean("use-reed-solomon");
+                            int fec_redundancy = settings->get_int("rs-redundancy-percent");
+                            m_vault_manager->set_reed_solomon_enabled(fec_enabled);
+                            m_vault_manager->set_rs_redundancy_percent(fec_redundancy);
+
+                            // Apply backup settings to vault manager
+                            bool backup_enabled = settings->get_boolean("backup-enabled");
+                            int backup_count = settings->get_int("backup-count");
+                            m_vault_manager->set_backup_enabled(backup_enabled);
+                            m_vault_manager->set_backup_count(backup_count);
+
+                            // Save vault to persist all default preferences
+                            if (!m_vault_manager->save_vault()) {
+                                KeepTower::Log::error("Failed to save vault with default preferences");
+                            }
+
                             m_current_vault_path = vault_path;
                             m_vault_open = true;
                             m_is_locked = false;
