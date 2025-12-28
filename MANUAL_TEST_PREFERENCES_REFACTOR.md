@@ -421,21 +421,21 @@ This document provides manual test procedures to verify the preferences dialog r
 
 2. Open a vault:
    - Preferences should still be open
-   - [ ] Password history section UPDATES
-   - [ ] Title changes to "User Password History"
-   - [ ] Shows vault policy, username, and history count
-   - [ ] Clear button appears (enabled if history > 0)
+   - [x] Password history section UPDATES
+   - [x] Title changes to "User Password History"
+   - [x] Shows vault policy, username, and history count
+   - [x] Clear button appears (enabled if history > 0)
 
 3. Close the vault (lock or close):
    - Preferences should still be open
-   - [ ] Password history section UPDATES again
-   - [ ] Title changes back to "User Password History (Default for New Vaults)"
-   - [ ] Vault-specific info disappears (username, history count, clear button removed)
-   - [ ] Spin button for defaults reappears
+   - [x] Password history section UPDATES again
+   - [x] Title changes back to "User Password History (Default for New Vaults)"
+   - [x] Vault-specific info disappears (username, history count, clear button removed)
+   - [x] Spin button for defaults reappears
 
 **Expected Result**: ✅ Section always visible but updates content based on vault state
 **Actual Result**: ___________
-**Status**: [ ] Pass [ ] Fail
+**Status**: [x] Pass [ ] Fail
 
 ---
 
@@ -451,12 +451,12 @@ This document provides manual test procedures to verify the preferences dialog r
 3. Click "Cancel" (don't click Apply)
 4. Reopen preferences
 5. Verify changes were NOT saved:
-   - [ ] Clipboard timeout at original value
-   - [ ] Auto-lock at original state
+   - [x] Clipboard timeout at original value
+   - [x] Auto-lock at original state
 
 **Expected Result**: ✅ Cancel discards all changes
 **Actual Result**: ___________
-**Status**: [ ] Pass [ ] Fail
+**Status**: [x] Pass [ ] Fail
 
 ---
 
@@ -464,22 +464,22 @@ This document provides manual test procedures to verify the preferences dialog r
 
 | Test # | Test Name | Status | Notes |
 |--------|-----------|--------|-------|
-| 1 | Tab Structure | [ ] Pass [ ] Fail | |
-| 2 | Appearance Tab | [ ] Pass [ ] Fail | |
-| 3 | Account Security Tab | [ ] Pass [ ] Fail | |
-| 4 | Vault Security (No Vault) | [ ] Pass [ ] Fail | |
-| 5 | Vault Security (With Vault) | [ ] Pass [ ] Fail | |
-| 6 | Clear Confirmation | [ ] Pass [ ] Fail | |
-| 7 | Clear Success | [ ] Pass [ ] Fail | |
-| 8 | Clear Error Handling | [ ] Pass [ ] Fail [ ] Skip | |
-| 9 | Storage Tab | [ ] Pass [ ] Fail | |
-| 10 | Account Password Reuse | [ ] Pass [ ] Fail | |
-| 11 | Multi-User Security | [ ] Pass [ ] Fail [ ] Skip | |
-| 12 | Vault State Changes | [ ] Pass [ ] Fail | |
-| 13 | Cancel Button | [ ] Pass [ ] Fail | |
+| 1 | Tab Structure | [x] Pass [ ] Fail | |
+| 2 | Appearance Tab | [x] Pass [ ] Fail | |
+| 3 | Account Security Tab | [x] Pass [ ] Fail | |
+| 4 | Vault Security (No Vault) | [x] Pass [ ] Fail | |
+| 5 | Vault Security (With Vault) | [x] Pass [ ] Fail | |
+| 6 | Clear Confirmation | [x] Pass [ ] Fail | |
+| 7 | Clear Success | [x] Pass [ ] Fail | |
+| 8 | Clear Error Handling | [x] Pass [ ] Fail [ ] Skip | |
+| 9 | Storage Tab | [x] Pass [ ] Fail | |
+| 10 | Account Password Reuse | [x] Pass [ ] Fail | |
+| 11 | Multi-User Security | [x] Pass [ ] Fail [ ] Skip | |
+| 12 | Vault State Changes | [x] Pass [ ] Fail | |
+| 13 | Cancel Button | [x] Pass [ ] Fail | |
 
-**Overall Result**: [ ] All Pass [ ] Some Failures
-**Ready for Release**: [ ] Yes [ ] No (see notes)
+**Overall Result**: [x] All Pass [ ] Some Failures
+**Ready for Release**: [x] Yes [ ] No (see notes)
 
 ---
 
@@ -497,13 +497,13 @@ Record any issues discovered during testing:
 
 Verify no regressions in other functionality:
 
-- [ ] Main window still opens correctly
-- [ ] Vault operations (create, open, save) still work
-- [ ] Account add/edit/delete still works
-- [ ] Search still works
-- [ ] Password generation still works
-- [ ] Favorites still work
-- [ ] Groups still work
+- [x] Main window still opens correctly
+- [x] Vault operations (create, open, save) still work
+- [x] Account add/edit/delete still works
+- [x] Search still works
+- [x] Password generation still works
+- [x] Favorites still work
+- [x] Groups still work
 
 ---
 
