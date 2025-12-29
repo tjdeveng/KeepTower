@@ -8,6 +8,7 @@
 #include <openssl/rand.h>
 #include <openssl/crypto.h>
 #include <ctime>
+#include <chrono>
 #include <algorithm>
 
 namespace KeepTower {
@@ -21,8 +22,12 @@ std::optional<PasswordHistoryEntry> PasswordHistory::hash_password(const Glib::u
 
     PasswordHistoryEntry entry;
 
-    // Set timestamp
-    entry.timestamp = std::time(nullptr);
+    // Set timestamp with millisecond precision
+    // Store as milliseconds since epoch to handle rapid password changes
+    // This prevents issues when multiple entries are created within the same second
+    auto now = std::chrono::system_clock::now();
+    auto duration = now.time_since_epoch();
+    entry.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
 
     // Generate random salt using OpenSSL's CSPRNG (FIPS-approved DRBG)
     if (RAND_bytes(entry.salt.data(), SALT_LENGTH) != 1) {
@@ -155,6 +160,7 @@ void PasswordHistory::trim_history(
     }
 
     // Remove oldest entries if history exceeds max_depth
+    // Vector maintains FIFO order: oldest at front (begin()), newest at back (end())
     while (history.size() > max_depth) {
         // Remove first element (oldest)
         history.erase(history.begin());
