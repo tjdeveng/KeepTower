@@ -9,11 +9,13 @@ KeepTower is a native GTK4 password manager designed for Linux users who value s
 ## Key Features
 
 ✨ **Military-Grade Encryption** - AES-256-GCM with PBKDF2 key derivation
+� **Multi-User Support** - V2 vaults with role-based access (Admin/Standard)
 🛡️ **Error Correction** - Reed-Solomon FEC (5-50% redundancy) protects against data corruption
 💾 **Automatic Backups** - Configurable rolling backups keep your data safe
 🎨 **Modern UI** - Clean GTK4/libadwaita interface with dark mode support
 🔒 **Memory Protection** - Sensitive data locked in RAM, never swapped to disk
 🔐 **Strong Password Validation** - Prevents weak passwords and common patterns
+🔍 **Password History** - Prevents password reuse with configurable depth
 📦 **Zero Dependencies on Cloud** - Your data stays on your machine
 
 ## Why KeepTower?

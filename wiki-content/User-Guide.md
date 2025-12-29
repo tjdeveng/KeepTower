@@ -5,6 +5,7 @@ Complete reference for all KeepTower features.
 ## Table of Contents
 
 - [Vault Management](#vault-management)
+- [Multi-User Vaults (V2)](#multi-user-vaults-v2)
 - [Account Management](#account-management)
 - [Password Operations](#password-operations)
 - [Search and Organization](#search-and-organization)
@@ -22,11 +23,19 @@ Complete reference for all KeepTower features.
 **Shortcut:** `Ctrl+N`
 
 1. Choose location and filename
-2. Create master password
-3. Confirm master password
+2. Select vault format:
+   - **V1 (Legacy):** Single-user, backwards compatible
+   - **V2 (Recommended):** Multi-user with enhanced security
+3. For V2 vaults, configure:
+   - Admin username and password
+   - Security policy (password requirements, history depth)
+   - Optional YubiKey authentication
 4. Vault is created and opened
 
-**File Format:** `.vault` - Encrypted binary format with optional Reed-Solomon encoding
+**File Formats:** 
+- `.vault` - Encrypted binary format with optional Reed-Solomon encoding
+- V1: Single-user, AES-256-GCM
+- V2: Multi-user, role-based access, password history
 
 ### Opening a Vault
 
@@ -65,8 +74,131 @@ View vault information:
 - File size
 - Last modified date
 - Number of accounts
+- Vault format (V1/V2)
 - FEC status (enabled/disabled)
 - FEC redundancy percentage
+
+---
+
+## Multi-User Vaults (V2)
+
+### Overview
+
+V2 vaults support multiple users with role-based access control:
+
+**User Roles:**
+- **Admin:** Full access, can manage users, change security policy
+- **Standard:** Can view/edit accounts, cannot manage users or policy
+
+### Creating a V2 Vault
+
+1. **File → New Vault**
+2. Choose **V2 (Multi-User)** format
+3. Configure admin account:
+   - Username (cannot be changed later)
+   - Strong password
+4. Set security policy:
+   - Minimum password length (8-128 characters)
+   - Password history depth (0-24 previous passwords)
+   - YubiKey requirement (optional)
+5. Click **Create**
+
+### User Management
+
+**Menu:** Vault → User Management (Admin only)
+
+#### Adding Users
+
+1. Click **Add User**
+2. Enter username
+3. Set initial password (user must change on first login)
+4. Select role: Admin or Standard
+5. Click **Create**
+
+#### Changing User Passwords
+
+**Self-service:**
+1. **Vault → Change Password**
+2. Enter current password
+3. Enter new password (must meet security policy)
+4. Confirm new password
+
+**Admin reset:**
+1. **Vault → User Management**
+2. Select user
+3. Click **Reset Password**
+4. User must change password on next login
+
+#### Removing Users
+
+**Admin only:**
+1. **Vault → User Management**
+2. Select user
+3. Click **Remove User**
+4. Confirm removal
+
+**Note:** Cannot remove yourself or the last admin
+
+### Password History
+
+V2 vaults track password history to prevent reuse:
+
+- **Configurable Depth:** 0-24 previous passwords
+- **Per-User:** Each user has their own password history
+- **Admin Control:** History depth set in vault security policy
+- **Validation:** System rejects passwords matching history
+
+**Admin can clear history:**
+1. **Vault → User Management**
+2. Select user
+3. Click **Clear Password History**
+
+### Security Policy
+
+**Admin only:** Define vault-wide security requirements
+
+**Settings:**
+- **Min Password Length:** 8-128 characters
+- **Password History Depth:** 0-24 entries
+- **Require YubiKey:** Optional hardware authentication
+- **PBKDF2 Iterations:** Key derivation work factor
+
+**Changing Policy:**
+1. **Vault → Security Policy** (Admin only)
+2. Adjust settings
+3. Click **Apply**
+4. All users affected on next password change
+
+### YubiKey Authentication (Optional)
+
+**Requirements:**
+- YubiKey with HMAC-SHA1 challenge-response
+- Must be programmed during vault creation
+
+**Setup:**
+1. Insert YubiKey during vault creation
+2. Enable "Require YubiKey" in security policy
+3. Program challenge-response slot
+4. All users must use same YubiKey model/programming
+
+**Login with YubiKey:**
+1. Enter username and password
+2. Insert YubiKey when prompted
+3. Touch YubiKey button
+4. Vault unlocks
+
+### Migrating V1 to V2
+
+**Menu:** Vault → Convert to V2
+
+1. Open V1 vault
+2. Select **Vault → Convert to V2**
+3. Create admin credentials
+4. Configure security policy
+5. Original vault backed up automatically
+6. New V2 vault created
+
+**Note:** One-way conversion. Keep V1 backup until confident.
 
 ---
 

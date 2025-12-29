@@ -20,14 +20,18 @@ This document explains how KeepTower protects your passwords and the security me
 KeepTower employs multiple layers of security to protect your passwords:
 
 1. **Strong Encryption:** AES-256-GCM authenticated encryption
-2. **Key Derivation:** PBKDF2 with 100,000 iterations
-3. **Memory Protection:** Sensitive data locked in RAM
-4. **Data Integrity:** Reed-Solomon forward error correction
-5. **Automatic Backups:** Protection against data loss
-6. **No Cloud Dependency:** Your data never leaves your machine
+2. **Key Derivation:** PBKDF2 with 100,000+ iterations
+3. **Multi-User Access Control:** Role-based permissions (V2 vaults)
+4. **Password History:** Prevents password reuse (V2 vaults)
+5. **Memory Protection:** Sensitive data locked in RAM
+6. **Data Integrity:** Reed-Solomon forward error correction
+7. **Automatic Backups:** Protection against data loss
+8. **YubiKey Support:** Hardware authentication (V2 vaults)
+9. **No Cloud Dependency:** Your data never leaves your machine
 
 **Security Status:** ✅ Production-ready encryption
 **Audit Status:** ⏳ Awaiting third-party security audit
+**FIPS 140-3:** Optional FIPS mode available with OpenSSL FIPS provider
 
 ---
 
@@ -49,7 +53,7 @@ KeepTower employs multiple layers of security to protect your passwords:
 ### Implementation
 
 ```
-Vault File Structure:
+V1 Vault File Structure (Single-User):
 ┌──────────────────────────────────────┐
 │ Salt (32 bytes)                      │  ← Random per vault
 ├──────────────────────────────────────┤
@@ -60,6 +64,29 @@ Vault File Structure:
 │ RS Redundancy (1 byte, optional)     │  ← If FEC enabled
 ├──────────────────────────────────────┤
 │ Encrypted Data + Auth Tag            │  ← Your passwords
+│ (Reed-Solomon encoded if FEC enabled)│
+└──────────────────────────────────────┘
+
+V2 Vault File Structure (Multi-User):
+┌──────────────────────────────────────┐
+│ Magic Number (4 bytes)               │  ← "KT2\0"
+├──────────────────────────────────────┤
+│ Version (2 bytes)                    │  ← Format version
+├──────────────────────────────────────┤
+│ Flags (1 byte)                       │  ← FEC, YubiKey flags
+├──────────────────────────────────────┤
+│ Security Policy (117 bytes)          │  ← Min length, history depth, etc.
+├──────────────────────────────────────┤
+│ User Slots (variable)                │  ← Per-user encrypted DEKs
+│   ├─ Username, salt, wrapped DEK     │
+│   ├─ Role, password history          │
+│   └─ YubiKey enrollment info         │
+├──────────────────────────────────────┤
+│ Data Encryption Key (DEK) encrypted  │  ← Encrypts vault data
+├──────────────────────────────────────┤
+│ IV (12 bytes)                        │  ← Random per save
+├──────────────────────────────────────┤
+│ Encrypted Account Data + Auth Tag    │  ← Your passwords
 │ (Reed-Solomon encoded if FEC enabled)│
 └──────────────────────────────────────┘
 ```
