@@ -2,7 +2,7 @@
 
 **Test Date**: 26 December 2025
 **Tester**: ____________
-**Build Version**: 0.2.9-beta
+**Build Version**: 0.3.0-beta
 **Feature**: Split Security tab into Account Security and Vault Security
 
 ## Overview

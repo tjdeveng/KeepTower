@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0-beta] - 2025-12-29
+
+### Added
+- **Preferences Dialog Refactor:**
+  - Complete architectural redesign using modern C++23 patterns
+  - Backup and restore preferences feature with JSON export
+  - Improved settings validation and error handling
+  - Enhanced UI responsiveness and user experience
+
+### Fixed
+- Password history timing race condition (millisecond precision timestamps)
+- Protobuf generated files now excluded from repository (CI/CD stability)
+
 ## [0.2.9-beta] - 2025-12-22
 
 ### Added
