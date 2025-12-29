@@ -9,6 +9,10 @@ _build/
 # Meson generated files
 compile_commands.json
 
+# Protobuf generated files
+*.pb.cc
+*.pb.h
+
 # Doxygen generated documentation
 docs/api/html/
 docs/api/latex/
