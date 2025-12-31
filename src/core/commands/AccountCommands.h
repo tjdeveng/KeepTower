@@ -15,7 +15,10 @@
 #include <functional>
 #include <string>
 
-// Forward declare OPENSSL_cleanse to avoid OpenSSL header conflicts
+/** @brief OpenSSL secure memory wipe function
+ *  @param ptr Pointer to memory to clear
+ *  @param len Length of memory region in bytes
+ *  @note Forward declaration to avoid OpenSSL header conflicts */
 extern "C" void OPENSSL_cleanse(void *ptr, size_t len);
 
 /**

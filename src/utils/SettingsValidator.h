@@ -21,17 +21,17 @@
 class SettingsValidator final {
 public:
     // Security constraint constants (C++23: inline static constexpr)
-    static inline constexpr int MIN_CLIPBOARD_TIMEOUT{5};      // seconds
-    static inline constexpr int MAX_CLIPBOARD_TIMEOUT{300};    // 5 minutes
-    static inline constexpr int DEFAULT_CLIPBOARD_TIMEOUT{30};
+    static inline constexpr int MIN_CLIPBOARD_TIMEOUT{5};      ///< Minimum clipboard clear timeout (5 seconds)
+    static inline constexpr int MAX_CLIPBOARD_TIMEOUT{300};    ///< Maximum clipboard clear timeout (5 minutes)
+    static inline constexpr int DEFAULT_CLIPBOARD_TIMEOUT{30}; ///< Default clipboard clear timeout (30 seconds)
 
-    static inline constexpr int MIN_AUTO_LOCK_TIMEOUT{60};     // 1 minute
-    static inline constexpr int MAX_AUTO_LOCK_TIMEOUT{3600};   // 1 hour
-    static inline constexpr int DEFAULT_AUTO_LOCK_TIMEOUT{300}; // 5 minutes
+    static inline constexpr int MIN_AUTO_LOCK_TIMEOUT{60};     ///< Minimum auto-lock timeout (1 minute)
+    static inline constexpr int MAX_AUTO_LOCK_TIMEOUT{3600};   ///< Maximum auto-lock timeout (1 hour)
+    static inline constexpr int DEFAULT_AUTO_LOCK_TIMEOUT{300}; ///< Default auto-lock timeout (5 minutes)
 
-    static inline constexpr int MIN_PASSWORD_HISTORY{1};
-    static inline constexpr int MAX_PASSWORD_HISTORY{20};
-    static inline constexpr int DEFAULT_PASSWORD_HISTORY{5};
+    static inline constexpr int MIN_PASSWORD_HISTORY{1};       ///< Minimum password history entries
+    static inline constexpr int MAX_PASSWORD_HISTORY{20};      ///< Maximum password history entries
+    static inline constexpr int DEFAULT_PASSWORD_HISTORY{5};   ///< Default password history entries
 
     /**
      * @brief Get clipboard timeout with validation

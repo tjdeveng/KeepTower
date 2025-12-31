@@ -18,6 +18,9 @@ class VaultManager;
  */
 class PreferencesDialog final : public Gtk::Dialog {
 public:
+    /** @brief Construct preferences dialog
+     *  @param parent Parent window for modal dialog
+     *  @param vault_manager Optional VaultManager for Reed-Solomon settings (can be nullptr) */
     explicit PreferencesDialog(Gtk::Window& parent, VaultManager* vault_manager = nullptr);
     ~PreferencesDialog() override = default;
 

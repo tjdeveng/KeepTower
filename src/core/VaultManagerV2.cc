@@ -13,6 +13,7 @@
  */
 
 #include "VaultManager.h"
+#include "crypto/VaultCrypto.h"
 #include "KeyWrapping.h"
 #include "PasswordHistory.h"
 #include "../utils/Log.h"
@@ -225,9 +226,9 @@ KeepTower::VaultResult<> VaultManager::create_vault_v2(
     // Encrypt vault data with DEK
     std::vector<uint8_t> plaintext(serialized_data.begin(), serialized_data.end());
     std::vector<uint8_t> ciphertext;
-    std::vector<uint8_t> data_iv = generate_random_bytes(12);  // GCM uses 12-byte IV
+    std::vector<uint8_t> data_iv = KeepTower::VaultCrypto::generate_random_bytes(KeepTower::VaultCrypto::IV_LENGTH);
 
-    if (!encrypt_data(plaintext, m_v2_dek, ciphertext, data_iv)) {
+    if (!KeepTower::VaultCrypto::encrypt_data(plaintext, m_v2_dek, ciphertext, data_iv)) {
         Log::error("VaultManager: Failed to encrypt vault data");
         secure_clear(plaintext);
         return std::unexpected(VaultError::CryptoError);
@@ -253,7 +254,7 @@ KeepTower::VaultResult<> VaultManager::create_vault_v2(
     file_data.insert(file_data.end(), ciphertext.begin(), ciphertext.end());
 
     // Write to file
-    if (!write_vault_file(path, file_data)) {
+    if (!KeepTower::VaultIO::write_file(path, file_data, true, 0)) {
         Log::error("VaultManager: Failed to write vault file");
         return std::unexpected(VaultError::FileWriteError);
     }
@@ -274,6 +275,10 @@ KeepTower::VaultResult<> VaultManager::create_vault_v2(
         .password_change_required = false
     };
     m_modified = false;
+
+    // Initialize managers after vault data is loaded
+    m_account_manager = std::make_unique<KeepTower::AccountManager>(m_vault_data, m_modified);
+    m_group_manager = std::make_unique<KeepTower::GroupManager>(m_vault_data, m_modified);
 
     Log::info("VaultManager: V2 vault created successfully with admin user: {}",
               admin_username.raw());
@@ -302,7 +307,7 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
 
     // Read vault file
     std::vector<uint8_t> file_data;
-    if (!read_vault_file(path, file_data)) {
+    if (!KeepTower::VaultIO::read_file(path, file_data, true, m_pbkdf2_iterations)) {
         Log::error("VaultManager: Failed to read vault file");
         return std::unexpected(VaultError::FileReadError);
     }
@@ -462,7 +467,7 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
     // Decrypt vault data
     std::vector<uint8_t> plaintext;
     std::span<const uint8_t> iv_span(file_header.data_iv);
-    if (!decrypt_data(ciphertext, m_v2_dek, iv_span, plaintext)) {
+    if (!KeepTower::VaultCrypto::decrypt_data(ciphertext, m_v2_dek, iv_span, plaintext)) {
         Log::error("VaultManager: Failed to decrypt vault data");
         return std::unexpected(VaultError::DecryptionFailed);
     }
@@ -486,6 +491,10 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
     m_v2_header = file_header.vault_header;
     m_vault_data = vault_data;
     m_modified = true;  // Mark modified to save updated last_login_at
+
+    // Initialize managers after vault data is loaded
+    m_account_manager = std::make_unique<KeepTower::AccountManager>(m_vault_data, m_modified);
+    m_group_manager = std::make_unique<KeepTower::GroupManager>(m_vault_data, m_modified);
 
     // Create session
     UserSession session{
@@ -1410,15 +1419,19 @@ std::optional<KeepTower::VaultSecurityPolicy> VaultManager::get_vault_security_p
 }
 
 bool VaultManager::can_view_account(size_t account_index) const noexcept {
-    // V1 vaults have no access control
-    if (!m_is_v2_vault || !m_vault_open) {
-        return true;
+    // Check vault is open and index is valid first
+    if (!m_vault_open) {
+        return false;
     }
 
-    // Invalid index
     const auto& accounts = get_all_accounts();
     if (account_index >= accounts.size()) {
         return false;
+    }
+
+    // V1 vaults have no access control beyond bounds checking
+    if (!m_is_v2_vault) {
+        return true;
     }
 
     // Administrators can view all accounts

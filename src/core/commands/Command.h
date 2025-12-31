@@ -99,7 +99,11 @@ protected:
     Command() = default;
     Command(const Command&) = delete;
     Command& operator=(const Command&) = delete;
+
+    /** @brief Move constructor - allows command transfer */
     Command(Command&&) = default;
+
+    /** @brief Move assignment operator - allows command reassignment */
     Command& operator=(Command&&) = default;
 };
 

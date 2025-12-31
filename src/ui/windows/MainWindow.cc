@@ -18,6 +18,10 @@
 #include "../../core/VaultError.h"
 #include "../../core/VaultFormatV2.h"
 #include "../../core/commands/AccountCommands.h"
+#include "../../core/repositories/AccountRepository.h"
+#include "../../core/repositories/GroupRepository.h"
+#include "../../core/services/AccountService.h"
+#include "../../core/services/GroupService.h"
 #include "../../utils/SettingsValidator.h"
 #include "../../utils/ImportExport.h"
 #include "../../utils/helpers/FuzzyMatch.h"
@@ -29,7 +33,7 @@
 
 using KeepTower::safe_ustring_to_string;
 #ifdef HAVE_YUBIKEY_SUPPORT
-#include "../../core/YubiKeyManager.h"
+#include "../../core/managers/YubiKeyManager.h"
 #include "../dialogs/YubiKeyManagerDialog.h"
 #endif
 #include "record.pb.h"
@@ -49,7 +53,9 @@ MainWindow::MainWindow()
       m_updating_selection(false),
       m_is_locked(false),
       m_selected_account_index(-1),
-      m_vault_manager(std::make_unique<VaultManager>()) {
+      m_vault_manager(std::make_unique<VaultManager>()),
+      m_account_controller(nullptr),  // Initialized after vault_manager
+      m_search_controller(std::make_unique<SearchController>()) {
 
     // Set window properties
     set_title(PROJECT_NAME);
@@ -79,13 +85,15 @@ MainWindow::MainWindow()
 
                 // Monitor system theme changes
                 m_theme_changed_connection = m_desktop_settings->signal_changed("color-scheme").connect(
-                    [this, gtk_settings](const Glib::ustring& key) {
+                    [this, gtk_settings]([[maybe_unused]] const Glib::ustring& key) {
                         auto system_color_scheme = m_desktop_settings->get_string("color-scheme");
                         gtk_settings->property_gtk_application_prefer_dark_theme() = (system_color_scheme == "prefer-dark");
                     }
                 );
+            } catch (const std::exception& e) {
+                KeepTower::Log::debug("MainWindow: Could not monitor theme changes: {}", e.what());
             } catch (...) {
-                // Schema not available or error reading it
+                KeepTower::Log::debug("MainWindow: Could not monitor theme changes (unknown error)");
             }
 
             if (!applied) {
@@ -102,7 +110,7 @@ MainWindow::MainWindow()
     }
 
     // Monitor app's color-scheme setting changes (when user changes it in preferences)
-    settings->signal_changed("color-scheme").connect([this](const Glib::ustring& key) {
+    settings->signal_changed("color-scheme").connect([this]([[maybe_unused]] const Glib::ustring& key) {
         auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
         Glib::ustring color_scheme = settings->get_string("color-scheme");
         auto gtk_settings = Gtk::Settings::get_default();
@@ -157,60 +165,6 @@ MainWindow::MainWindow()
     m_vault_manager->set_backup_enabled(backup_enabled);
     m_vault_manager->set_backup_count(backup_count);
 
-    // Set up window actions
-    add_action("preferences", sigc::mem_fun(*this, &MainWindow::on_preferences));
-    add_action("import-csv", sigc::mem_fun(*this, &MainWindow::on_import_from_csv));
-    m_export_action = add_action("export-csv", sigc::mem_fun(*this, &MainWindow::on_export_to_csv));
-    add_action("migrate-v1-to-v2", sigc::mem_fun(*this, &MainWindow::on_migrate_v1_to_v2));
-    add_action("delete-account", sigc::mem_fun(*this, &MainWindow::on_delete_account));
-    add_action("create-group", sigc::mem_fun(*this, &MainWindow::on_create_group));
-    add_action("rename-group", [this]() {
-        if (!m_context_menu_group_id.empty() && m_vault_manager) {
-            // Find the group name
-            auto groups = m_vault_manager->get_all_groups();
-            for (const auto& group : groups) {
-                if (group.group_id() == m_context_menu_group_id) {
-                    on_rename_group(m_context_menu_group_id, group.group_name());
-                    break;
-                }
-            }
-        }
-    });
-    add_action("delete-group", [this]() {
-        if (!m_context_menu_group_id.empty()) {
-            on_delete_group(m_context_menu_group_id);
-        }
-    });
-    add_action("undo", sigc::mem_fun(*this, &MainWindow::on_undo));
-    add_action("redo", sigc::mem_fun(*this, &MainWindow::on_redo));
-#ifdef HAVE_YUBIKEY_SUPPORT
-    // Use lambdas for all YubiKey actions - better lifetime management with GTK4
-    add_action("test-yubikey", [this]() {
-        on_test_yubikey();
-    });
-    add_action("manage-yubikeys", [this]() {
-        on_manage_yubikeys();
-    });
-#endif
-
-    // Phase 4: V2 vault user management actions
-    m_change_password_action = add_action("change-password", sigc::mem_fun(*this, &MainWindow::on_change_my_password));
-    m_logout_action = add_action("logout", sigc::mem_fun(*this, &MainWindow::on_logout));
-    m_manage_users_action = add_action("manage-users", sigc::mem_fun(*this, &MainWindow::on_manage_users));
-
-    // Initially disable V2-only actions (enabled when V2 vault opens)
-    m_change_password_action->set_enabled(false);
-    m_logout_action->set_enabled(false);
-    m_manage_users_action->set_enabled(false);
-
-    // Set keyboard shortcuts
-    auto app = get_application();
-    if (app) {
-        app->set_accel_for_action("win.preferences", "<Ctrl>comma");
-        app->set_accel_for_action("win.undo", "<Ctrl>Z");
-        app->set_accel_for_action("win.redo", "<Ctrl><Shift>Z");
-    }
-
     // Setup undo/redo state change callback
     m_undo_manager.set_state_changed_callback([this](bool can_undo, bool can_redo) {
         update_undo_redo_sensitivity(can_undo, can_redo);
@@ -261,38 +215,8 @@ MainWindow::MainWindow()
     m_add_account_button.set_tooltip_text("Add Account");
     m_header_bar.pack_end(m_add_account_button);
 
-    // Primary menu (hamburger menu)
-    m_primary_menu = Gio::Menu::create();
-
-    // Edit section
-    auto edit_section = Gio::Menu::create();
-    edit_section->append("_Undo", "win.undo");
-    edit_section->append("_Redo", "win.redo");
-    m_primary_menu->append_section(edit_section);
-
-    // Actions section
-    auto actions_section = Gio::Menu::create();
-    actions_section->append("_Preferences", "win.preferences");
-    actions_section->append("_Import Accounts...", "win.import-csv");
-    actions_section->append("_Export Accounts...", "win.export-csv");
-#ifdef HAVE_YUBIKEY_SUPPORT
-    actions_section->append("Manage _YubiKeys", "win.manage-yubikeys");
-    actions_section->append("Test _YubiKey", "win.test-yubikey");
-#endif
-    m_primary_menu->append_section(actions_section);
-
-    // Phase 4: V2 vault user section (initially hidden, enabled when V2 vault opens)
-    auto user_section = Gio::Menu::create();
-    user_section->append("_Change My Password", "win.change-password");
-    user_section->append("Manage _Users", "win.manage-users");  // Admin-only, controlled by enable/disable
-    user_section->append("_Logout", "win.logout");
-    m_primary_menu->append_section(user_section);
-
-    // Help section
-    auto help_section = Gio::Menu::create();
-    help_section->append("_Keyboard Shortcuts", "win.show-help-overlay");
-    help_section->append("_About KeepTower", "app.about");
-    m_primary_menu->append_section(help_section);
+    // Phase 5: Create primary menu via MenuManager
+    m_primary_menu = m_menu_manager->create_primary_menu();
 
     m_menu_button.set_icon_name("open-menu-symbolic");
     m_menu_button.set_menu_model(m_primary_menu);
@@ -349,6 +273,226 @@ MainWindow::MainWindow()
     // Instantiate new widgets
     m_account_tree_widget = std::make_unique<AccountTreeWidget>();
     m_account_detail_widget = std::make_unique<AccountDetailWidget>();
+
+    // Phase 1: Initialize view controllers
+    m_account_controller = std::make_unique<AccountViewController>(m_vault_manager.get());
+
+    // Connect AccountViewController signals
+    m_account_controller->signal_list_updated().connect(
+        [this](const auto& accounts, const auto& groups, [[maybe_unused]] size_t total) {
+            // Update the tree widget with filtered accounts
+            if (m_account_tree_widget) {
+                m_account_tree_widget->set_data(groups, accounts);
+            }
+            // Update status label
+            std::string status = m_vault_open ?
+                ("Vault opened: " + m_current_vault_path + " (" + std::to_string(accounts.size()) + " accounts)") :
+                "No vault open";
+            m_status_label.set_text(status);
+        });
+
+    m_account_controller->signal_error().connect(
+        [this](const std::string& error_msg) {
+            show_error_dialog(error_msg);
+        });
+
+    // Phase 1.3: Initialize security controllers
+    m_auto_lock_manager = std::make_unique<KeepTower::AutoLockManager>();
+    m_clipboard_manager = std::make_unique<KeepTower::ClipboardManager>(get_clipboard());
+
+    // Phase 5: Initialize DialogManager
+    m_dialog_manager = std::make_unique<UI::DialogManager>(*this, m_vault_manager.get());
+
+    // Phase 5: Initialize MenuManager
+    m_menu_manager = std::make_unique<UI::MenuManager>(*this, m_vault_manager.get());
+
+    // Phase 5: Initialize UIStateManager
+    UI::UIStateManager::UIWidgets widgets{
+        &m_save_button,
+        &m_close_button,
+        &m_add_account_button,
+        &m_search_entry,
+        &m_status_label,
+        &m_session_label
+    };
+    m_ui_state_manager = std::make_unique<UI::UIStateManager>(widgets, m_vault_manager.get());
+
+    // Phase 5: Initialize V2AuthenticationHandler
+    m_v2_auth_handler = std::make_unique<UI::V2AuthenticationHandler>(
+        *this, m_vault_manager.get(), m_dialog_manager.get());
+
+    // Phase 5: Initialize VaultIOHandler
+    m_vault_io_handler = std::make_unique<UI::VaultIOHandler>(
+        *this, m_vault_manager.get(), m_dialog_manager.get());
+
+    // Phase 5h: Initialize YubiKeyHandler
+    m_yubikey_handler = std::make_unique<UI::YubiKeyHandler>(
+        *this, m_vault_manager.get());
+
+    // Phase 5i: Initialize GroupHandler
+    m_group_handler = std::make_unique<UI::GroupHandler>(
+        *this,
+        m_vault_manager.get(),
+        m_group_service.get(),
+        m_dialog_manager.get(),
+        [this](const std::string& message) { m_status_label.set_text(message); },
+        [this]() { update_account_list(); }
+    );
+
+    // Phase 5j: Initialize AccountEditHandler
+    m_account_edit_handler = std::make_unique<UI::AccountEditHandler>(
+        *this,
+        m_vault_manager.get(),
+        &m_undo_manager,
+        m_dialog_manager.get(),
+        m_account_detail_widget.get(),
+        &m_search_entry,
+        [this](const std::string& message) { m_status_label.set_text(message); },
+        [this]() {
+            clear_account_details();
+            update_account_list();
+            filter_accounts(m_search_entry.get_text());
+        },
+        [this]() { return m_selected_account_index; },
+        [this]() { return is_undo_redo_enabled(); }
+    );
+
+    // Phase 5k: Initialize AutoLockHandler
+    m_auto_lock_handler = std::make_unique<UI::AutoLockHandler>(
+        *this,
+        m_vault_manager.get(),
+        m_auto_lock_manager.get(),
+        m_dialog_manager.get(),
+        m_ui_state_manager.get(),
+        m_vault_open,
+        m_is_locked,
+        m_current_vault_path,
+        m_cached_master_password,
+        [this]() { save_current_account(); },
+        [this]() { on_close_vault(); },
+        [this]() { update_account_list(); },
+        [this](const Glib::ustring& text) { filter_accounts(text); },
+        [this](const std::string& path) { handle_v2_vault_open(path); },
+        [this]() { return is_v2_vault_open(); },
+        [this]() { return m_vault_manager && m_vault_manager->is_modified(); },
+        [this]() { return m_search_entry.get_text(); }
+    );
+
+    // Phase 5l: Initialize UserAccountHandler
+    m_user_account_handler = std::make_unique<UI::UserAccountHandler>(
+        *this,
+        m_vault_manager.get(),
+        m_dialog_manager.get(),
+        m_current_vault_path,
+        [this](const std::string& message) { m_status_label.set_text(message); },
+        [this](const std::string& message) { show_error_dialog(message); },
+        [this]() { on_close_vault(); },
+        [this](const std::string& path) { handle_v2_vault_open(path); },
+        [this]() { return is_v2_vault_open(); },
+        [this]() { return is_current_user_admin(); },
+        [this]() { return prompt_save_if_modified(); }
+    );
+
+    // Phase 5l: Initialize VaultOpenHandler
+    m_vault_open_handler = std::make_unique<UI::VaultOpenHandler>(
+        *this,
+        m_vault_manager.get(),
+        m_dialog_manager.get(),
+        m_ui_state_manager.get(),
+        m_vault_open,
+        m_is_locked,
+        m_current_vault_path,
+        m_cached_master_password,
+        [this](const std::string& message) { show_error_dialog(message); },
+        [this](const std::string& message, const std::string& title) {
+            m_dialog_manager->show_info_dialog(message, title);
+        },
+        [this](const std::string& path) { return detect_vault_version(path); },
+        [this](const std::string& path) { handle_v2_vault_open(path); },
+        [this]() { initialize_repositories(); },
+        [this]() { update_account_list(); },
+        [this]() { update_tag_filter_dropdown(); },
+        [this]() { clear_account_details(); },
+        [this](bool can_undo, bool can_redo) { update_undo_redo_sensitivity(can_undo, can_redo); },
+        [this]() { update_menu_for_role(); },
+        [this]() { update_session_display(); },
+        [this]() { on_user_activity(); }
+    );
+
+    // Phase 5: Setup window actions via MenuManager (after MenuManager is initialized)
+    std::map<std::string, std::function<void()>> action_callbacks = {
+        {"preferences", [this]() { on_preferences(); }},
+        {"import-csv", [this]() { on_import_from_csv(); }},
+        {"migrate-v1-to-v2", [this]() { on_migrate_v1_to_v2(); }},
+        {"delete-account", [this]() { on_delete_account(); }},
+        {"create-group", [this]() { on_create_group(); }},
+        {"rename-group", [this]() {
+            if (!m_context_menu_group_id.empty() && m_vault_manager) {
+                auto groups = m_vault_manager->get_all_groups();
+                for (const auto& group : groups) {
+                    if (group.group_id() == m_context_menu_group_id) {
+                        on_rename_group(m_context_menu_group_id, group.group_name());
+                        break;
+                    }
+                }
+            }
+        }},
+        {"delete-group", [this]() {
+            if (!m_context_menu_group_id.empty()) {
+                on_delete_group(m_context_menu_group_id);
+            }
+        }},
+        {"undo", [this]() { on_undo(); }},
+        {"redo", [this]() { on_redo(); }},
+#ifdef HAVE_YUBIKEY_SUPPORT
+        {"test-yubikey", [this]() { on_test_yubikey(); }},
+        {"manage-yubikeys", [this]() { on_manage_yubikeys(); }},
+#endif
+    };
+    m_menu_manager->setup_actions(action_callbacks);
+
+    // Setup V2-specific actions separately to capture return values
+    m_export_action = add_action("export-csv", sigc::mem_fun(*this, &MainWindow::on_export_to_csv));
+    m_change_password_action = add_action("change-password", sigc::mem_fun(*this, &MainWindow::on_change_my_password));
+    m_logout_action = add_action("logout", sigc::mem_fun(*this, &MainWindow::on_logout));
+    m_manage_users_action = add_action("manage-users", sigc::mem_fun(*this, &MainWindow::on_manage_users));
+
+    // Pass action references to MenuManager for enable/disable
+    m_menu_manager->set_action_references(
+        m_export_action,
+        m_change_password_action,
+        m_logout_action,
+        m_manage_users_action
+    );
+
+    // Initially disable V2-only actions
+    m_change_password_action->set_enabled(false);
+    m_logout_action->set_enabled(false);
+    m_manage_users_action->set_enabled(false);
+
+    // Setup keyboard shortcuts via MenuManager
+    m_menu_manager->setup_keyboard_shortcuts(get_application());
+
+    // Connect AutoLockManager signals
+    m_auto_lock_manager->signal_auto_lock_triggered().connect(
+        [this]() {
+            on_auto_lock_timeout();  // Returns bool but signal is void
+        });
+
+    // Connect ClipboardManager signals
+    m_clipboard_manager->signal_copied().connect(
+        [this]([[maybe_unused]] const std::string& text) {
+            // Update status to show password copied (don't show the password itself)
+            m_status_label.set_text("Password copied to clipboard");
+        });
+
+    m_clipboard_manager->signal_cleared().connect(
+        [this]() {
+            // Update status when clipboard is cleared
+            if (m_vault_open) {
+                m_status_label.set_text("Clipboard cleared");
+            }
+        });
 
     // Load and apply sort direction from settings
     {
@@ -501,7 +645,7 @@ MainWindow::MainWindow()
                         display_account_details(idx);
                         update_tag_filter_dropdown();
                     } else {
-                        g_warning("MainWindow: Could not find account with id: %s", account_id.c_str());
+                        KeepTower::Log::warning("MainWindow: Could not find account with id: {}", account_id);
                     }
                 }
             )
@@ -559,8 +703,8 @@ MainWindow::MainWindow()
     }
         // [REMOVED] Legacy TreeView star column click logic (migrated to AccountTreeWidget)
 
-    // Setup activity monitoring for auto-lock
-    setup_activity_monitoring();
+    // Phase 5k: Setup activity monitoring for auto-lock via AutoLockHandler
+    m_auto_lock_handler->setup_activity_monitoring();
 
     // Initially disable search and details
     m_search_entry.set_sensitive(false);
@@ -576,15 +720,13 @@ MainWindow::~MainWindow() {
     }
     m_signal_connections.clear();
 
-    // Clear clipboard if password was copied
-    if (m_clipboard_timeout.connected()) {
-        m_clipboard_timeout.disconnect();
-        get_clipboard()->set_text("");
+    // Phase 1.3: Clear clipboard and stop auto-lock using controllers
+    if (m_clipboard_manager) {
+        m_clipboard_manager->clear_immediately();
     }
 
-    // Disconnect auto-lock timeout
-    if (m_auto_lock_timeout.connected()) {
-        m_auto_lock_timeout.disconnect();
+    if (m_auto_lock_manager) {
+        m_auto_lock_manager->stop();
     }
 
     // Clear cached password
@@ -595,356 +737,17 @@ MainWindow::~MainWindow() {
 }
 
 void MainWindow::on_new_vault() {
-    // Show file save dialog to choose location for new vault
-    auto dialog = Gtk::make_managed<Gtk::FileChooserDialog>(*this, "Create New Vault",
-                                         Gtk::FileChooser::Action::SAVE);
-    dialog->set_modal(true);
-    dialog->add_button("_Cancel", Gtk::ResponseType::CANCEL);
-    dialog->add_button("_Create", Gtk::ResponseType::OK);
-
-    // Add file filter
-    auto filter = Gtk::FileFilter::create();
-    filter->set_name("Vault files");
-    filter->add_pattern("*.vault");
-    dialog->add_filter(filter);
-
-    auto filter_all = Gtk::FileFilter::create();
-    filter_all->set_name("All files");
-    filter_all->add_pattern("*");
-    dialog->add_filter(filter_all);
-
-    // Set vault filter as default
-    dialog->set_filter(filter);
-
-    dialog->set_current_name("Untitled.vault");
-
-    dialog->signal_response().connect([this, dialog](int response) {
-        if (response == Gtk::ResponseType::OK) {
-            // Show combined username + password creation dialog
-            auto pwd_dialog = Gtk::make_managed<CreatePasswordDialog>(*this);
-            Glib::ustring vault_path = dialog->get_file()->get_path();
-
-            pwd_dialog->signal_response().connect([this, pwd_dialog, vault_path](int pwd_response) {
-                if (pwd_response == Gtk::ResponseType::OK) {
-                    Glib::ustring admin_username = pwd_dialog->get_username();
-                    Glib::ustring password = pwd_dialog->get_password();
-                    bool require_yubikey = pwd_dialog->get_yubikey_enabled();
-
-                    // Load default FEC preferences for new vault
-                    auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
-                    bool use_rs = settings->get_boolean("use-reed-solomon");
-                    int rs_redundancy = settings->get_int("rs-redundancy-percent");
-                    m_vault_manager->apply_default_fec_preferences(use_rs, rs_redundancy);
-
-                    // Load vault user password history default setting
-                    int vault_password_history_depth = settings->get_int("vault-user-password-history-depth");
-                    vault_password_history_depth = std::clamp(vault_password_history_depth, 0, 24);
-
-                    KeepTower::VaultSecurityPolicy policy;
-                    policy.min_password_length = 8;  // NIST minimum
-                    policy.pbkdf2_iterations = 100000;  // Default iterations
-                    policy.password_history_depth = vault_password_history_depth;
-                    policy.require_yubikey = require_yubikey;
-
-#ifdef HAVE_YUBIKEY_SUPPORT
-                    // Show touch prompt if YubiKey is required
-                    YubiKeyPromptDialog* touch_dialog = nullptr;
-                    if (require_yubikey) {
-                        pwd_dialog->hide();
-                        touch_dialog = Gtk::make_managed<YubiKeyPromptDialog>(*this,
-                            YubiKeyPromptDialog::PromptType::TOUCH);
-                        touch_dialog->present();
-
-                        // Force GTK to process events and render the dialog
-                        auto context = Glib::MainContext::get_default();
-                        while (context->pending()) {
-                            context->iteration(false);
-                        }
-                        g_usleep(150000);  // 150ms
-                    }
-#endif
-
-                    // Create V2 vault with admin account
-                    auto result = m_vault_manager->create_vault_v2(
-                        safe_ustring_to_string(vault_path, "vault_path"),
-                        admin_username,
-                        password,
-                        policy
-                    );
-
-#ifdef HAVE_YUBIKEY_SUPPORT
-                    if (touch_dialog) {
-                        touch_dialog->hide();
-                    }
-#endif
-                        if (result) {
-                            // Apply default preferences from GSettings to new vault
-                            auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
-
-                            // Apply auto-lock settings
-                            bool auto_lock_enabled = SettingsValidator::is_auto_lock_enabled(settings);
-                            int auto_lock_timeout = SettingsValidator::get_auto_lock_timeout(settings);
-                            m_vault_manager->set_auto_lock_enabled(auto_lock_enabled);
-                            m_vault_manager->set_auto_lock_timeout(auto_lock_timeout);
-
-                            // Apply clipboard timeout
-                            int clipboard_timeout = SettingsValidator::get_clipboard_timeout(settings);
-                            m_vault_manager->set_clipboard_timeout(clipboard_timeout);
-
-                            // Apply undo/redo settings
-                            bool undo_redo_enabled = settings->get_boolean("undo-redo-enabled");
-                            int undo_history_limit = settings->get_int("undo-history-limit");
-                            m_vault_manager->set_undo_redo_enabled(undo_redo_enabled);
-                            m_vault_manager->set_undo_history_limit(undo_history_limit);
-
-                            // Apply account password history settings
-                            bool account_pwd_history_enabled = settings->get_boolean("password-history-enabled");
-                            int account_pwd_history_limit = settings->get_int("password-history-limit");
-                            m_vault_manager->set_account_password_history_enabled(account_pwd_history_enabled);
-                            m_vault_manager->set_account_password_history_limit(account_pwd_history_limit);
-
-                            // Apply FEC (Reed-Solomon) settings to vault metadata
-                            // Note: apply_default_fec_preferences() was called before vault creation
-                            // but we need to persist these settings to the vault
-                            bool fec_enabled = settings->get_boolean("use-reed-solomon");
-                            int fec_redundancy = settings->get_int("rs-redundancy-percent");
-                            m_vault_manager->set_reed_solomon_enabled(fec_enabled);
-                            m_vault_manager->set_rs_redundancy_percent(fec_redundancy);
-
-                            // Apply backup settings to vault manager
-                            bool backup_enabled = settings->get_boolean("backup-enabled");
-                            int backup_count = settings->get_int("backup-count");
-                            m_vault_manager->set_backup_enabled(backup_enabled);
-                            m_vault_manager->set_backup_count(backup_count);
-
-                            // Save vault to persist all default preferences
-                            if (!m_vault_manager->save_vault()) {
-                                KeepTower::Log::error("Failed to save vault with default preferences");
-                            }
-
-                            m_current_vault_path = vault_path;
-                            m_vault_open = true;
-                            m_is_locked = false;
-                            m_save_button.set_sensitive(true);
-                            m_close_button.set_sensitive(true);
-                            m_add_account_button.set_sensitive(true);
-                            m_search_entry.set_sensitive(true);
-
-                            update_account_list();
-                            update_tag_filter_dropdown();
-                            clear_account_details();
-
-                            // Initialize undo/redo state
-                            update_undo_redo_sensitivity(false, false);
-
-                            // Update menu for V2 vault (enable user management, etc.)
-                            update_menu_for_role();
-                            update_session_display();
-
-                            // Start activity monitoring for auto-lock
-                            on_user_activity();
-
-                            // Show success dialog with username reminder
-                            auto info_dialog = Gtk::make_managed<Gtk::MessageDialog>(
-                                *this,
-                                "Vault Created Successfully",
-                                false,
-                                Gtk::MessageType::INFO,
-                                Gtk::ButtonsType::OK,
-                                true
-                            );
-                            info_dialog->set_secondary_text(
-                                "Your vault has been created successfully.\n\n"
-                                "Username: " + admin_username + "\n\n"
-                                "Remember this username - you will need it to reopen the vault. "
-                                "You can add additional users through the User Management dialog (Tools → Manage Users)."
-                            );
-                            info_dialog->signal_response().connect([info_dialog](int) {
-                                info_dialog->hide();
-                            });
-                            info_dialog->show();
-                        } else {
-                        constexpr std::string_view error_msg{"Failed to create vault"};
-                        auto error_dialog = Gtk::make_managed<Gtk::MessageDialog>(*this, std::string{error_msg},
-                            false, Gtk::MessageType::ERROR, Gtk::ButtonsType::OK, true);
-                        error_dialog->signal_response().connect([=](int) {
-                            error_dialog->hide();
-                        });
-                        error_dialog->show();
-                    }
-                }
-                pwd_dialog->hide();
-            });
-            pwd_dialog->show();
-        }
-        dialog->hide();
-    });
-
-    dialog->show();
+    // Phase 5l: Delegate to VaultOpenHandler
+    if (m_vault_open_handler) {
+        m_vault_open_handler->handle_new_vault();
+    }
 }
 
 void MainWindow::on_open_vault() {
-    auto dialog = Gtk::make_managed<Gtk::FileChooserDialog>(*this, "Open Vault",
-                                         Gtk::FileChooser::Action::OPEN);
-    dialog->set_modal(true);
-    dialog->add_button("_Cancel", Gtk::ResponseType::CANCEL);
-    dialog->add_button("_Open", Gtk::ResponseType::OK);
-
-    // Add file filter
-    auto filter = Gtk::FileFilter::create();
-    filter->set_name("Vault files");
-    filter->add_pattern("*.vault");
-    dialog->add_filter(filter);
-
-    auto filter_all = Gtk::FileFilter::create();
-    filter_all->set_name("All files");
-    filter_all->add_pattern("*");
-    dialog->add_filter(filter_all);
-
-    // Set vault filter as default
-    dialog->set_filter(filter);
-
-    dialog->signal_response().connect([this, dialog](int response) {
-        if (response == Gtk::ResponseType::OK) {
-            Glib::ustring vault_path = dialog->get_file()->get_path();
-            std::string vault_path_str = safe_ustring_to_string(vault_path, "vault_path");
-
-            // STEP 1: Detect vault version
-            auto version_opt = detect_vault_version(vault_path_str);
-            if (!version_opt) {
-                show_error_dialog("Unable to read vault file or invalid format");
-                dialog->hide();
-                return;
-            }
-
-            uint32_t version = *version_opt;
-
-            // STEP 2: Route to appropriate authentication method
-            if (version == 2) {
-                // V2 multi-user vault - use new authentication flow
-                dialog->hide();
-                handle_v2_vault_open(vault_path_str);
-                return;
-            }
-
-            // STEP 3: V1 vault - use legacy password dialog authentication
-            // (Original code path below)
-
-#ifdef HAVE_YUBIKEY_SUPPORT
-            // Check if vault requires YubiKey
-            std::string yubikey_serial;
-            bool yubikey_required = m_vault_manager->check_vault_requires_yubikey(safe_ustring_to_string(vault_path, "vault_path"), yubikey_serial);
-
-            if (yubikey_required) {
-                // Check if YubiKey is present
-                YubiKeyManager yk_manager;
-                [[maybe_unused]] bool yk_init = yk_manager.initialize();
-
-                if (!yk_manager.is_yubikey_present()) {
-                    // Show "Insert YubiKey" dialog
-                    auto yk_dialog = Gtk::make_managed<YubiKeyPromptDialog>(*this,
-                        YubiKeyPromptDialog::PromptType::INSERT, yubikey_serial);
-
-                    yk_dialog->signal_response().connect([this, yk_dialog, vault_path](int yk_response) {
-                        if (yk_response == Gtk::ResponseType::OK) {
-                            // User clicked Retry - try opening again
-                            yk_dialog->hide();
-                            on_open_vault();  // Restart the process
-                            return;
-                        }
-                        yk_dialog->hide();
-                    });
-
-                    yk_dialog->show();
-                    dialog->hide();
-                    return;
-                }
-            }
-#endif
-
-            // Show password dialog to decrypt vault
-            auto pwd_dialog = Gtk::make_managed<PasswordDialog>(*this);
-            pwd_dialog->signal_response().connect([this, pwd_dialog, vault_path](int pwd_response) {
-                if (pwd_response == Gtk::ResponseType::OK) {
-                    Glib::ustring password = pwd_dialog->get_password();
-
-#ifdef HAVE_YUBIKEY_SUPPORT
-                    // Check again if YubiKey is required (for touch prompt)
-                    std::string yubikey_serial;
-                    bool yubikey_required = m_vault_manager->check_vault_requires_yubikey(safe_ustring_to_string(vault_path, "vault_path"), yubikey_serial);
-
-                    YubiKeyPromptDialog* touch_dialog = nullptr;
-                    if (yubikey_required) {
-                        // Hide password dialog to show touch prompt
-                        pwd_dialog->hide();
-
-                        // Show touch prompt dialog
-                        touch_dialog = Gtk::make_managed<YubiKeyPromptDialog>(*this,
-                            YubiKeyPromptDialog::PromptType::TOUCH);
-                        touch_dialog->present();
-
-                        // Force GTK to process events and render the dialog
-                        auto context = Glib::MainContext::get_default();
-                        while (context->pending()) {
-                            context->iteration(false);
-                        }
-
-                        // Additional small delay to ensure dialog is fully rendered
-                        g_usleep(150000);  // 150ms
-                    }
-#endif
-
-                    auto result = m_vault_manager->open_vault(safe_ustring_to_string(vault_path, "vault_path"), password);
-
-#ifdef HAVE_YUBIKEY_SUPPORT
-                    // Hide touch prompt if it was shown
-                    if (touch_dialog) {
-                        touch_dialog->hide();
-                    }
-#endif
-
-                    if (result) {
-                        m_current_vault_path = vault_path;
-                        m_vault_open = true;
-                        m_is_locked = false;
-                        m_save_button.set_sensitive(true);
-                        m_close_button.set_sensitive(true);
-                        m_add_account_button.set_sensitive(true);
-                        m_search_entry.set_sensitive(true);
-
-                        // Cache password for auto-lock/unlock
-                        m_cached_master_password = safe_ustring_to_string(password, "master_password");
-
-                        update_account_list();
-                        update_tag_filter_dropdown();
-
-                        // Initialize undo/redo state
-                        update_undo_redo_sensitivity(false, false);
-
-                        // Update menu for V2 vault if applicable
-                        update_menu_for_role();
-                        update_session_display();
-
-                        // Start activity monitoring for auto-lock
-                        on_user_activity();
-                    } else {
-                        constexpr std::string_view error_msg{"Failed to open vault"};
-                        auto error_dialog = Gtk::make_managed<Gtk::MessageDialog>(*this, std::string{error_msg},
-                            false, Gtk::MessageType::ERROR, Gtk::ButtonsType::OK, true);
-                        error_dialog->signal_response().connect([=](int) {
-                            error_dialog->hide();
-                        });
-                        error_dialog->show();
-                    }
-                }
-                pwd_dialog->hide();
-            });
-            pwd_dialog->show();
-        }
-        dialog->hide();
-    });
-
-    dialog->show();
+    // Phase 5l: Delegate to VaultOpenHandler
+    if (m_vault_open_handler) {
+        m_vault_open_handler->handle_open_vault();
+    }
 }
 
 void MainWindow::on_save_vault() {
@@ -973,15 +776,13 @@ void MainWindow::on_close_vault() {
 
     KeepTower::Log::info("MainWindow: Proceeding with vault close");
 
-    // Clear clipboard if password was copied
-    if (m_clipboard_timeout.connected()) {
-        m_clipboard_timeout.disconnect();
-        get_clipboard()->set_text("");
+    // Phase 1.3: Clear clipboard and stop auto-lock using controllers
+    if (m_clipboard_manager) {
+        m_clipboard_manager->clear_immediately();
     }
 
-    // Stop auto-lock timer
-    if (m_auto_lock_timeout.connected()) {
-        m_auto_lock_timeout.disconnect();
+    if (m_auto_lock_manager) {
+        m_auto_lock_manager->stop();
     }
 
     // Disconnect drag-and-drop signal handlers for memory safety
@@ -1013,17 +814,18 @@ void MainWindow::on_close_vault() {
     // Clear undo/redo history
     m_undo_manager.clear();
 
+    // Phase 2: Reset repositories
+    reset_repositories();
+
+    // Phase 5: Use UIStateManager for state management
+    m_ui_state_manager->set_vault_closed();
+
+    // Reset local state cache to maintain consistency
     m_vault_open = false;
     m_is_locked = false;
     m_current_vault_path.clear();
-    m_save_button.set_sensitive(false);
-    m_close_button.set_sensitive(false);
-    m_add_account_button.set_sensitive(false);
-    m_search_entry.set_sensitive(false);
-    m_search_entry.set_text("");
 
     // Phase 4: Reset V2 UI elements
-    m_session_label.set_visible(false);
     update_menu_for_role();  // Disable V2-specific menu items
 
     // Clear widget-based UI
@@ -1031,7 +833,6 @@ void MainWindow::on_close_vault() {
         m_account_tree_widget->set_data({}, {});
     }
     clear_account_details();
-    m_status_label.set_text("No vault open");
 }
 
 void MainWindow::on_migrate_v1_to_v2() {
@@ -1041,110 +842,13 @@ void MainWindow::on_migrate_v1_to_v2() {
         return;
     }
 
-    // Check if already V2 (V2 vaults have multi-user support)
-    // V1 vaults don't have the is_v2_vault flag set
-    // We can detect this by checking if we have any V2-specific features
-    auto session = m_vault_manager->get_current_user_session();
-    if (session.has_value()) {
-        show_error_dialog("This vault is already in V2 multi-user format.\nNo migration needed.");
-        return;
-    }
-
-    // Show migration dialog
-    auto* migration_dialog = Gtk::make_managed<VaultMigrationDialog>(*this, m_current_vault_path.raw());
-
-    migration_dialog->signal_response().connect([this, migration_dialog](int response) {
-        if (response == Gtk::ResponseType::OK) {
-            // Get migration parameters
-            auto admin_username = migration_dialog->get_admin_username();
-            auto admin_password = migration_dialog->get_admin_password();
-            auto min_length = migration_dialog->get_min_password_length();
-            auto iterations = migration_dialog->get_pbkdf2_iterations();
-
-            // Load vault user password history default setting
-            auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
-            int vault_password_history_depth = settings->get_int("vault-user-password-history-depth");
-            vault_password_history_depth = std::clamp(vault_password_history_depth, 0, 24);
-
-            // Create security policy
-            KeepTower::VaultSecurityPolicy policy;
-            policy.min_password_length = min_length;
-            policy.pbkdf2_iterations = iterations;
-            policy.password_history_depth = vault_password_history_depth;
-            policy.require_yubikey = false;
-
-            // Perform migration
-            auto result = m_vault_manager->convert_v1_to_v2(admin_username, admin_password, policy);
-
-            if (result) {
-                // Success - update UI to V2 mode
-                update_session_display();
-
-                // Show success dialog
-                auto* success_dialog = Gtk::make_managed<Gtk::MessageDialog>(
-                    *this,
-                    "Migration Successful",
-                    false,
-                    Gtk::MessageType::INFO,
-                    Gtk::ButtonsType::OK,
-                    true
-                );
-                success_dialog->set_secondary_text(
-                    "Your vault has been successfully upgraded to V2 multi-user format.\n\n"
-                    "• Administrator account: " + admin_username.raw() + "\n"
-                    "• Backup created: " + m_current_vault_path.raw() + ".v1.backup\n"
-                    "• You can now add additional users via Tools → Manage Users"
-                );
-                success_dialog->set_modal(true);
-                success_dialog->set_hide_on_close(true);
-
-                success_dialog->signal_response().connect([success_dialog](int) {
-                    success_dialog->hide();
-                });
-
-                success_dialog->show();
-
-                // Enable V2-only features
-                if (m_manage_users_action) {
-                    m_manage_users_action->set_enabled(true);
-                }
-
-            } else {
-                // Migration failed - show error
-                std::string error_message = "Failed to migrate vault to V2 format.\n\n";
-
-                switch (result.error()) {
-                    case KeepTower::VaultError::VaultNotOpen:
-                        error_message += "Vault is not open.";
-                        break;
-                    case KeepTower::VaultError::InvalidUsername:
-                        error_message += "Invalid username format.";
-                        break;
-                    case KeepTower::VaultError::InvalidPassword:
-                        error_message += "Invalid password format.";
-                        break;
-                    case KeepTower::VaultError::WeakPassword:
-                        error_message += "Password does not meet minimum length requirement.";
-                        break;
-                    case KeepTower::VaultError::FileWriteError:
-                        error_message += "Failed to create backup file.";
-                        break;
-                    case KeepTower::VaultError::CryptoError:
-                        error_message += "Cryptographic operation failed.";
-                        break;
-                    default:
-                        error_message += "Unknown error occurred.";
-                        break;
-                }
-
-                show_error_dialog(error_message);
-            }
+    // Phase 5g: Delegate to VaultIOHandler
+    m_vault_io_handler->handle_migration(m_current_vault_path, m_vault_open, [this]() {
+        update_session_display();
+        if (m_manage_users_action) {
+            m_manage_users_action->set_enabled(true);
         }
-
-        migration_dialog->hide();
     });
-
-    migration_dialog->show();
 }
 
 void MainWindow::on_add_account() {
@@ -1156,66 +860,8 @@ void MainWindow::on_add_account() {
     // Save the current account before creating a new one
     save_current_account();
 
-    // Create new account record with current timestamp
-    keeptower::AccountRecord new_account;
-    new_account.set_id(std::to_string(std::time(nullptr)));  // Use timestamp as unique ID string
-    new_account.set_created_at(std::time(nullptr));
-    new_account.set_modified_at(std::time(nullptr));
-    new_account.set_account_name("New Account");
-    new_account.set_user_name("");
-    new_account.set_password("");
-    new_account.set_email("");
-    new_account.set_website("");
-    new_account.set_notes("");
-
-    // Create command with UI callback
-    auto ui_callback = [this]() {
-        // Clear search filter so new account is visible
-        m_search_entry.set_text("");
-
-        // Update the display first
-        update_account_list();
-
-        // Select the newly added account (it will be at the end)
-        auto accounts = m_vault_manager->get_all_accounts();
-        if (!accounts.empty()) {
-            int new_index = accounts.size() - 1;
-
-            // Display the account details
-            display_account_details(new_index);
-
-            // Focus the name field and select all text for easy editing (only on first add, not redo)
-            Glib::signal_idle().connect_once([this]() {
-                if (m_account_detail_widget && m_selected_account_index >= 0) {
-                    m_account_detail_widget->focus_account_name_entry();
-                }
-            });
-        } else {
-            clear_account_details();
-        }
-
-        m_status_label.set_text("Account added");
-    };
-
-    auto command = std::make_unique<AddAccountCommand>(
-        m_vault_manager.get(),
-        std::move(new_account),
-        ui_callback
-    );
-
-    // Check if undo/redo is enabled
-    if (is_undo_redo_enabled()) {
-        if (!m_undo_manager.execute_command(std::move(command))) {
-            constexpr std::string_view error_msg{"Failed to add account"};
-            m_status_label.set_text(std::string{error_msg});
-        }
-    } else {
-        // Execute directly without undo history
-        if (!command->execute()) {
-            constexpr std::string_view error_msg{"Failed to add account"};
-            m_status_label.set_text(std::string{error_msg});
-        }
-    }
+    // Phase 5j: Delegate to AccountEditHandler
+    m_account_edit_handler->handle_add();
 }
 
 void MainWindow::on_copy_password() {
@@ -1227,32 +873,20 @@ void MainWindow::on_copy_password() {
         return;
     }
 
-    // Get the clipboard and set text
-    auto clipboard = get_clipboard();
-    clipboard->set_text(password);
+    // Phase 1.3: Use ClipboardManager for secure clipboard handling
+    if (m_clipboard_manager) {
+        // Get validated clipboard timeout from settings
+        auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
+        const int timeout_seconds = SettingsValidator::get_clipboard_timeout(settings);
+        m_clipboard_manager->set_clear_timeout_seconds(timeout_seconds);
 
-    // Get validated clipboard timeout from settings
-    auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
-    const int timeout_seconds = SettingsValidator::get_clipboard_timeout(settings);
+        // Copy password (will auto-clear after timeout)
+        m_clipboard_manager->copy_text(password);
 
-    const std::string copied_msg = std::format("Password copied to clipboard (will clear in {}s)", timeout_seconds);
-    m_status_label.set_text(copied_msg);
-
-    // Cancel previous timeout if exists
-    if (m_clipboard_timeout.connected()) {
-        m_clipboard_timeout.disconnect();
+        // Status updated via signal handler
+        const std::string copied_msg = std::format("Password copied to clipboard (will clear in {}s)", timeout_seconds);
+        m_status_label.set_text(copied_msg);
     }
-
-    // Schedule clipboard clear after configured timeout
-    m_clipboard_timeout = Glib::signal_timeout().connect(
-        [clipboard, this]() {
-            clipboard->set_text("");
-            constexpr std::string_view cleared_msg{"Clipboard cleared for security"};
-            m_status_label.set_text(std::string{cleared_msg});
-            return false;  // Don't repeat
-        },
-        timeout_seconds * 1000  // Convert seconds to milliseconds
-    );
 }
 
 void MainWindow::on_toggle_password_visibility() {
@@ -1314,157 +948,17 @@ void MainWindow::on_selection_changed() {
 // [REMOVED] Legacy on_account_right_click (migrated to AccountTreeWidget)
 
 void MainWindow::update_account_list() {
-    // Widget-based UI update
-    if (!m_vault_manager || !m_account_tree_widget) {
+    // Phase 1: Delegate to AccountViewController
+    if (!m_account_controller) {
         return;
     }
 
-    auto all_accounts = m_vault_manager->get_all_accounts();
-    auto groups = m_vault_manager->get_all_groups();
+    // Refresh account list through controller
+    // The controller will emit signal_list_updated which we connected to update the UI
+    m_account_controller->refresh_account_list();
 
-    // Filter accounts based on user permissions (V2 multi-user vaults)
-    std::vector<keeptower::AccountRecord> viewable_accounts;
-    viewable_accounts.reserve(all_accounts.size());
-
-    for (size_t i = 0; i < all_accounts.size(); ++i) {
-        if (m_vault_manager->can_view_account(i)) {
-            viewable_accounts.push_back(all_accounts[i]);
-        }
-    }
-
-    m_account_tree_widget->set_data(groups, viewable_accounts);
-
-    m_status_label.set_text("Vault opened: " + m_current_vault_path +
-                           " (" + std::to_string(viewable_accounts.size()) + " accounts)");
-    return;
-
-    // [LEGACY TreeView code below - kept for reference, no longer executed]
-    /*
-    m_account_list_store->clear();
-    m_filtered_indices.clear();
-
-    // Add "Favorites" group with favorited accounts
-    std::vector<size_t> favorite_indices;
-    for (size_t i = 0; i < accounts.size(); i++) {
-        if (accounts[i].is_favorite()) {
-            favorite_indices.push_back(i);
-        }
-    }
-
-    if (!favorite_indices.empty()) {
-        auto favorites_group_row = *(m_account_list_store->append());
-        favorites_group_row[m_columns.m_col_is_group] = true;
-        favorites_group_row[m_columns.m_col_account_name] = "⭐ Favorites";
-        favorites_group_row[m_columns.m_col_user_name] = "";
-        favorites_group_row[m_columns.m_col_index] = -1;
-        favorites_group_row[m_columns.m_col_group_id] = "favorites";
-        favorites_group_row[m_columns.m_col_is_favorite] = false;
-
-        // Sort favorites alphabetically
-        std::sort(favorite_indices.begin(), favorite_indices.end(),
-            [&accounts](size_t a, size_t b) {
-                return accounts[a].account_name() < accounts[b].account_name();
-            });
-
-        for (size_t index : favorite_indices) {
-            auto child_row = *(m_account_list_store->append(favorites_group_row.children()));
-            child_row[m_columns.m_col_is_group] = false;
-            child_row[m_columns.m_col_is_favorite] = true;
-            child_row[m_columns.m_col_account_name] = accounts[index].account_name();
-            child_row[m_columns.m_col_user_name] = accounts[index].user_name();
-            child_row[m_columns.m_col_index] = index;
-            child_row[m_columns.m_col_group_id] = "";
-        }
-    }
-
-    // Add user-created groups
-    for (const auto& group : groups) {
-        // Skip system group (favorites)
-        if (group.group_id() == "favorites") continue;
-
-        // Get accounts in this group
-        std::vector<size_t> group_account_indices;
-        for (size_t i = 0; i < accounts.size(); i++) {
-            if (m_vault_manager->is_account_in_group(i, group.group_id())) {
-                group_account_indices.push_back(i);
-            }
-        }
-
-        // Only show group if it has accounts
-        if (group_account_indices.empty()) continue;
-
-        auto group_row = *(m_account_list_store->append());
-        group_row[m_columns.m_col_is_group] = true;
-        group_row[m_columns.m_col_account_name] = group.group_name();
-        group_row[m_columns.m_col_user_name] = "";
-        group_row[m_columns.m_col_index] = -1;
-        group_row[m_columns.m_col_group_id] = group.group_id();
-        group_row[m_columns.m_col_is_favorite] = false;
-
-        // Sort accounts alphabetically
-        std::sort(group_account_indices.begin(), group_account_indices.end(),
-            [&accounts](size_t a, size_t b) {
-                return accounts[a].account_name() < accounts[b].account_name();
-            });
-
-        for (size_t index : group_account_indices) {
-            auto child_row = *(m_account_list_store->append(group_row.children()));
-            child_row[m_columns.m_col_is_group] = false;
-            child_row[m_columns.m_col_is_favorite] = accounts[index].is_favorite();
-            child_row[m_columns.m_col_account_name] = accounts[index].account_name();
-            child_row[m_columns.m_col_user_name] = accounts[index].user_name();
-            child_row[m_columns.m_col_index] = index;
-            child_row[m_columns.m_col_group_id] = "";
-        }
-    }
-
-    // Add "All Accounts" group with all ungrouped accounts
-    std::vector<size_t> ungrouped_indices;
-    for (size_t i = 0; i < accounts.size(); i++) {
-        bool is_in_any_group = false;
-        for (const auto& group : groups) {
-            if (m_vault_manager->is_account_in_group(i, group.group_id())) {
-                is_in_any_group = true;
-                break;
-            }
-        }
-        if (!is_in_any_group) {
-            ungrouped_indices.push_back(i);
-        }
-    }
-
-    if (!ungrouped_indices.empty()) {
-        auto all_accounts_row = *(m_account_list_store->append());
-        all_accounts_row[m_columns.m_col_is_group] = true;
-        all_accounts_row[m_columns.m_col_account_name] = "All Accounts";
-        all_accounts_row[m_columns.m_col_user_name] = "";
-        all_accounts_row[m_columns.m_col_index] = -1;
-        all_accounts_row[m_columns.m_col_group_id] = "all";
-        all_accounts_row[m_columns.m_col_is_favorite] = false;
-
-        // Sort ungrouped accounts alphabetically
-        std::sort(ungrouped_indices.begin(), ungrouped_indices.end(),
-            [&accounts](size_t a, size_t b) {
-                return accounts[a].account_name() < accounts[b].account_name();
-            });
-
-        for (size_t index : ungrouped_indices) {
-            auto child_row = *(m_account_list_store->append(all_accounts_row.children()));
-            child_row[m_columns.m_col_is_group] = false;
-            child_row[m_columns.m_col_is_favorite] = accounts[index].is_favorite();
-            child_row[m_columns.m_col_account_name] = accounts[index].account_name();
-            child_row[m_columns.m_col_user_name] = accounts[index].user_name();
-            child_row[m_columns.m_col_index] = index;
-            child_row[m_columns.m_col_group_id] = "";
-        }
-    }
-
-    // Expand all groups by default
-    m_account_tree_view.expand_all();
-
-    m_status_label.set_text("Vault opened: " + m_current_vault_path +
-                           " (" + std::to_string(accounts.size()) + " accounts)");
-    */
+    // Update tag filter dropdown with current tags
+    update_tag_filter_dropdown();
 }
 
 void MainWindow::filter_accounts(const Glib::ustring& search_text) {
@@ -1501,7 +995,7 @@ void MainWindow::display_account_details(int index) {
     // Load account from VaultManager
     const auto* account = m_vault_manager->get_account(index);
     if (!account) {
-        g_warning("MainWindow::display_account_details - account is null at index %d", index);
+        KeepTower::Log::warning("MainWindow::display_account_details - account is null at index {}", index);
         m_account_detail_widget->clear();
         return;
     }
@@ -1529,6 +1023,20 @@ void MainWindow::display_account_details(int index) {
     }
 }
 
+/**
+ * @brief Save changes to the currently selected account
+ * @return true if save succeeded or nothing to save, false if validation failed
+ *
+ * Phase 3: Uses AccountService for comprehensive validation including:
+ * - Empty account name check
+ * - Field length limits (name, username, password, email, website, notes)
+ * - Email format validation (if email provided)
+ *
+ * Updates account fields and maintains password history if configured.
+ * Displays user-friendly error dialogs for validation failures.
+ *
+ * @note Does nothing if no account selected or vault closed
+ */
 bool MainWindow::save_current_account() {
     // Only save if we have a valid account selected
     if (m_selected_account_index < 0 || !m_vault_open) {
@@ -1538,7 +1046,7 @@ bool MainWindow::save_current_account() {
     // Validate the index is within bounds
     const auto accounts = m_vault_manager->get_all_accounts();
     if (m_selected_account_index >= static_cast<int>(accounts.size())) {
-        g_warning("Invalid account index %d (total accounts: %zu)",
+        KeepTower::Log::warning("Invalid account index {} (total accounts: {})",
                   m_selected_account_index, accounts.size());
         return true;  // Invalid state, but don't block navigation
     }
@@ -1551,47 +1059,57 @@ bool MainWindow::save_current_account() {
     const auto website = m_account_detail_widget->get_website();
     const auto notes = m_account_detail_widget->get_notes();
 
-    // Convert to Glib::ustring for validation functions
-    const Glib::ustring account_name_u(account_name);
-    const Glib::ustring user_name_u(user_name);
-    const Glib::ustring password_u(password);
-    const Glib::ustring email_u(email);
-    const Glib::ustring website_u(website);
-    const Glib::ustring notes_u(notes);
-
-    // Validate field lengths before saving
-    if (!validate_field_length("Account Name", account_name_u, UI::MAX_ACCOUNT_NAME_LENGTH)) {
-        return false;
-    }
-    if (!validate_field_length("Username", user_name_u, UI::MAX_USERNAME_LENGTH)) {
-        return false;
-    }
-    if (!validate_field_length("Password", password_u, UI::MAX_PASSWORD_LENGTH)) {
-        return false;
-    }
-
-    // Validate email format if not empty
-    if (!email.empty() && !validate_email_format(email_u)) {
-        return false;
-    }
-
-    if (!validate_field_length("Email", email_u, UI::MAX_EMAIL_LENGTH)) {
-        return false;
-    }
-    if (!validate_field_length("Website", website_u, UI::MAX_WEBSITE_LENGTH)) {
-        return false;
-    }
-
-    // Validate notes length
-    if (!validate_field_length("Notes", notes_u, UI::MAX_NOTES_LENGTH)) {
-        return false;
-    }
-
     // Get the current account from VaultManager
     auto* account = m_vault_manager->get_account_mutable(m_selected_account_index);
     if (!account) {
-        g_warning("Failed to get account at index %d", m_selected_account_index);
+        KeepTower::Log::warning("Failed to get account at index {}", m_selected_account_index);
         return true;  // Allow navigation even if account not found
+    }
+
+    // Create a temporary account record with new values for validation
+    keeptower::AccountRecord temp_account = *account;
+    temp_account.set_account_name(account_name);
+    temp_account.set_user_name(user_name);
+    temp_account.set_password(password);
+    temp_account.set_email(email);
+    temp_account.set_website(website);
+    temp_account.set_notes(notes);
+
+    // Phase 3: Use AccountService for validation
+    if (m_account_service) {
+        auto validation_result = m_account_service->validate_account(temp_account);
+        if (!validation_result) {
+            // Convert service error to user-friendly message
+            std::string error_msg;
+            switch (validation_result.error()) {
+                case KeepTower::ServiceError::VALIDATION_FAILED:
+                    error_msg = "Account name cannot be empty.";
+                    break;
+                case KeepTower::ServiceError::FIELD_TOO_LONG:
+                    error_msg = "One or more fields exceed maximum length.\n\n"
+                               "Maximum lengths:\n"
+                               "• Account Name: " + std::to_string(UI::MAX_ACCOUNT_NAME_LENGTH) + "\n"
+                               "• Username: " + std::to_string(UI::MAX_USERNAME_LENGTH) + "\n"
+                               "• Password: " + std::to_string(UI::MAX_PASSWORD_LENGTH) + "\n"
+                               "• Email: " + std::to_string(UI::MAX_EMAIL_LENGTH) + "\n"
+                               "• Website: " + std::to_string(UI::MAX_WEBSITE_LENGTH) + "\n"
+                               "• Notes: " + std::to_string(UI::MAX_NOTES_LENGTH);
+                    break;
+                case KeepTower::ServiceError::INVALID_EMAIL:
+                    error_msg = "Invalid email format.\n\n"
+                               "Email must be in the format: user@domain.ext\n\n"
+                               "Examples:\n"
+                               "  • john@example.com\n"
+                               "  • jane.doe@company.co.uk\n"
+                               "  • user+tag@mail.example.org";
+                    break;
+                default:
+                    error_msg = "Validation error: " + std::string(KeepTower::to_string(validation_result.error()));
+                    break;
+            }
+            show_error_dialog(error_msg);
+            return false;
+        }
     }
 
     // Check if user has permission to edit this account (V2 multi-user vaults)
@@ -1616,7 +1134,6 @@ bool MainWindow::save_current_account() {
     // Store the old account name to detect if it changed
     const std::string old_name = account->account_name();
     const std::string old_password = account->password();
-    const std::string new_password = password;
 
     // Check password history settings
     auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
@@ -1624,10 +1141,10 @@ bool MainWindow::save_current_account() {
     const int history_limit = SettingsValidator::get_password_history_limit(settings);
 
     // Check if password changed and prevent reuse
-    if (new_password != old_password && history_enabled) {
+    if (password != old_password && history_enabled) {
         // Check against previous passwords to prevent reuse
         for (int i = 0; i < account->password_history_size(); ++i) {
-            if (account->password_history(i) == new_password) {
+            if (account->password_history(i) == password) {
                 show_error_dialog("Password reuse detected!\n\n"
                     "This password was used previously. Please choose a different password.\n\n"
                     "Using unique passwords for each change improves security.");
@@ -1655,7 +1172,7 @@ bool MainWindow::save_current_account() {
     // Update the account with current field values
     account->set_account_name(account_name);
     account->set_user_name(user_name);
-    account->set_password(new_password);
+    account->set_password(password);
     account->set_email(email);
     account->set_website(website);
     account->set_notes(notes);
@@ -1683,7 +1200,7 @@ bool MainWindow::save_current_account() {
 }
 
 bool MainWindow::validate_field_length(const Glib::ustring& field_name, const Glib::ustring& value, int max_length) {
-    int current_length = value.length();
+    auto current_length = static_cast<int>(value.length());
 
     if (current_length > max_length) {
         Glib::ustring message = Glib::ustring::sprintf(
@@ -1726,7 +1243,7 @@ bool MainWindow::validate_email_format(const Glib::ustring& email) {
             return false;
         }
     } catch (const std::regex_error& e) {
-        g_warning("Email validation regex error: %s", e.what());
+        KeepTower::Log::warning("Email validation regex error: {}", e.what());
         return false;
     }
 
@@ -1804,17 +1321,11 @@ void MainWindow::on_sort_button_clicked() {
         (direction == SortDirection::ASCENDING) ? "ascending" : "descending");
 }
 
+// Phase 5: Delegate to DialogManager for consistent dialog handling
 void MainWindow::show_error_dialog(const Glib::ustring& message) {
-    auto* dialog = Gtk::make_managed<Gtk::MessageDialog>(*this, "Validation Error", false, Gtk::MessageType::ERROR, Gtk::ButtonsType::OK, true);
-    dialog->set_secondary_text(message);
-    dialog->set_modal(true);
-    dialog->set_hide_on_close(true);
-
-    dialog->signal_response().connect([dialog](int) {
-        dialog->hide();
-    });
-
-    dialog->show();
+    if (m_dialog_manager) {
+        m_dialog_manager->show_error_dialog(message.raw());
+    }
 }
 
 void MainWindow::on_tags_entry_activate() {
@@ -1935,98 +1446,15 @@ void MainWindow::on_preferences() {
 }
 
 void MainWindow::on_delete_account() {
-    // Determine which account to delete: context menu or selected account
-    int account_index = -1;
-
-    if (!m_context_menu_account_id.empty()) {
-        // Context menu delete
-        account_index = find_account_index_by_id(m_context_menu_account_id);
-    } else if (m_selected_account_index >= 0) {
-        // Button/keyboard delete
-        account_index = m_selected_account_index;
-    }
-
-    if (account_index < 0 || !m_vault_open) {
+    if (!m_vault_open) {
         return;
     }
 
-    // Check delete permissions (V2 multi-user vaults)
-    if (!m_vault_manager->can_delete_account(account_index)) {
-        show_error_dialog(
-            "You do not have permission to delete this account.\n\n"
-            "Only administrators can delete admin-protected accounts."
-        );
-        m_context_menu_account_id.clear();
-        return;
-    }
+    // Phase 5j: Delegate to AccountEditHandler
+    m_account_edit_handler->handle_delete(m_context_menu_account_id);
 
-    // Get account name for confirmation dialog
-    const auto* account = m_vault_manager->get_account(account_index);
-    if (!account) {
-        return;
-    }
-
-    const Glib::ustring account_name = account->account_name();
-
-    // Create confirmation dialog
-    auto dialog = Gtk::make_managed<Gtk::MessageDialog>(
-        *this,
-        "Delete Account?",
-        false,
-        Gtk::MessageType::WARNING,
-        Gtk::ButtonsType::NONE,
-        true
-    );
-
-    dialog->set_modal(true);
-    dialog->set_hide_on_close(true);
-
-    // Adjust message based on whether undo/redo is enabled
-    Glib::ustring message = "Are you sure you want to delete '" + account_name + "'?";
-    if (!is_undo_redo_enabled()) {
-        message += "\nThis action cannot be undone.";
-    }
-
-    dialog->set_secondary_text(message);
-
-    dialog->add_button("Cancel", Gtk::ResponseType::CANCEL);
-    auto delete_button = dialog->add_button("Delete", Gtk::ResponseType::OK);
-    delete_button->add_css_class("destructive-action");
-
-    dialog->signal_response().connect([this, dialog, account_index](int response) {
-        if (response == Gtk::ResponseType::OK) {
-            // Create command with UI callback
-            auto ui_callback = [this]() {
-                clear_account_details();
-                update_account_list();
-                filter_accounts(m_search_entry.get_text());
-            };
-
-            auto command = std::make_unique<DeleteAccountCommand>(
-                m_vault_manager.get(),
-                account_index,
-                ui_callback
-            );
-
-            // Check if undo/redo is enabled
-            if (is_undo_redo_enabled()) {
-                if (!m_undo_manager.execute_command(std::move(command))) {
-                    show_error_dialog("Failed to delete account");
-                }
-            } else {
-                // Execute directly without undo history
-                if (!command->execute()) {
-                    show_error_dialog("Failed to delete account");
-                }
-            }
-        }
-
-        // Clear context menu state
-        m_context_menu_account_id.clear();
-        dialog->hide();
-    });
-
-    dialog->show();
+    // Clear context menu state
+    m_context_menu_account_id.clear();
 }
 
 void MainWindow::on_import_from_csv() {
@@ -2035,157 +1463,11 @@ void MainWindow::on_import_from_csv() {
         return;
     }
 
-    // Create file chooser dialog
-    auto dialog = Gtk::make_managed<Gtk::FileChooserDialog>(*this, "Import Accounts", Gtk::FileChooser::Action::OPEN);
-    dialog->set_modal(true);
-    dialog->set_hide_on_close(true);
-
-    dialog->add_button("_Cancel", Gtk::ResponseType::CANCEL);
-    dialog->add_button("_Import", Gtk::ResponseType::OK);
-
-    // Add file filters for supported formats
-    auto csv_filter = Gtk::FileFilter::create();
-    csv_filter->set_name("CSV files (*.csv)");
-    csv_filter->add_pattern("*.csv");
-    dialog->add_filter(csv_filter);
-
-    auto keepass_filter = Gtk::FileFilter::create();
-    keepass_filter->set_name("KeePass XML (*.xml)");
-    keepass_filter->add_pattern("*.xml");
-    dialog->add_filter(keepass_filter);
-
-    auto onepassword_filter = Gtk::FileFilter::create();
-    onepassword_filter->set_name("1Password 1PIF (*.1pif)");
-    onepassword_filter->add_pattern("*.1pif");
-    dialog->add_filter(onepassword_filter);
-
-    // Add all files filter
-    auto all_filter = Gtk::FileFilter::create();
-    all_filter->set_name("All files");
-    all_filter->add_pattern("*");
-    dialog->add_filter(all_filter);
-
-    dialog->signal_response().connect([this, dialog](int response) {
-        if (response == Gtk::ResponseType::OK) {
-            auto file = dialog->get_file();
-            if (!file) {
-                dialog->hide();
-                return;
-            }
-
-            std::string path = file->get_path();
-
-            // Detect format from file extension and perform the import
-            std::expected<std::vector<keeptower::AccountRecord>, ImportExport::ImportError> result;
-            std::string format_name;
-
-            if (path.ends_with(".xml")) {
-                result = ImportExport::import_from_keepass_xml(path);
-                format_name = "KeePass XML";
-            } else if (path.ends_with(".1pif")) {
-                result = ImportExport::import_from_1password(path);
-                format_name = "1Password 1PIF";
-            } else {
-                // Default to CSV
-                result = ImportExport::import_from_csv(path);
-                format_name = "CSV";
-            }
-
-            if (result.has_value()) {
-                auto& accounts = result.value();
-
-                // Add each account to the vault, tracking failures
-                int imported_count = 0;
-                int failed_count = 0;
-                std::vector<std::string> failed_accounts;
-
-                for (const auto& account : accounts) {
-                    if (m_vault_manager->add_account(account)) {
-                        imported_count++;
-                    } else {
-                        failed_count++;
-                        // Limit failure list to avoid huge dialogs
-                        if (failed_accounts.size() < 10) {
-                            failed_accounts.push_back(account.account_name());
-                        }
-                    }
-                }
-
-                // Update UI
-                update_account_list();
-                filter_accounts(m_search_entry.get_text());
-
-                // Show result message (success or partial success)
-                std::string message;
-                Gtk::MessageType msg_type;
-
-                if (failed_count == 0) {
-                    message = std::format("Successfully imported {} account(s) from {} format.", imported_count, format_name);
-                    msg_type = Gtk::MessageType::INFO;
-                } else if (imported_count > 0) {
-                    message = std::format("Imported {} account(s) successfully.\n"
-                                         "{} account(s) failed to import.",
-                                         imported_count, failed_count);
-                    if (!failed_accounts.empty()) {
-                        message += "\n\nFailed accounts:\n";
-                        for (size_t i = 0; i < failed_accounts.size(); i++) {
-                            message += "• " + failed_accounts[i] + "\n";
-                        }
-                        if (static_cast<size_t>(failed_count) > failed_accounts.size()) {
-                            message += std::format("... and {} more", failed_count - static_cast<int>(failed_accounts.size()));
-                        }
-                    }
-                    msg_type = Gtk::MessageType::WARNING;
-                } else {
-                    message = "Failed to import all accounts.";
-                    msg_type = Gtk::MessageType::ERROR;
-                }
-
-                auto result_dialog = Gtk::make_managed<Gtk::MessageDialog>(
-                    *this,
-                    failed_count == 0 ? "Import Successful" : "Import Completed with Issues",
-                    false,
-                    msg_type,
-                    Gtk::ButtonsType::OK,
-                    true
-                );
-                result_dialog->set_modal(true);
-                result_dialog->set_hide_on_close(true);
-                result_dialog->set_secondary_text(message);
-                result_dialog->signal_response().connect([result_dialog](int) {
-                    result_dialog->hide();
-                });
-                result_dialog->show();
-            } else {
-                // Show error message
-                const char* error_msg = nullptr;
-                switch (result.error()) {
-                    case ImportExport::ImportError::FILE_NOT_FOUND:
-                        error_msg = "File not found";
-                        break;
-                    case ImportExport::ImportError::INVALID_FORMAT:
-                        error_msg = "Invalid CSV format";
-                        break;
-                    case ImportExport::ImportError::PARSE_ERROR:
-                        error_msg = "Failed to parse CSV file";
-                        break;
-                    case ImportExport::ImportError::UNSUPPORTED_VERSION:
-                        error_msg = "Unsupported file version";
-                        break;
-                    case ImportExport::ImportError::EMPTY_FILE:
-                        error_msg = "Empty file";
-                        break;
-                    case ImportExport::ImportError::ENCRYPTION_ERROR:
-                        error_msg = "Encryption error";
-                        break;
-                }
-                show_error_dialog(std::format("Import failed: {}", error_msg));
-            }
-        }
-        dialog->hide();
+    // Phase 5g: Delegate to VaultIOHandler
+    m_vault_io_handler->handle_import([this]() {
+        update_account_list();
+        filter_accounts(m_search_entry.get_text());
     });
-
-    dialog->show();
 }
 
 void MainWindow::on_export_to_csv() {
@@ -2194,904 +1476,54 @@ void MainWindow::on_export_to_csv() {
         return;
     }
 
-    // Security warning dialog (Step 1)
-    auto warning_dialog = Gtk::make_managed<Gtk::MessageDialog>(
-        *this,
-        "Export Accounts to Plaintext?",
-        false,
-        Gtk::MessageType::WARNING,
-        Gtk::ButtonsType::NONE,
-        true
-    );
-    warning_dialog->set_modal(true);
-    warning_dialog->set_hide_on_close(true);
-    warning_dialog->set_secondary_text(
-        "Warning: ALL export formats save passwords in UNENCRYPTED PLAINTEXT.\n\n"
-        "Supported formats: CSV, KeePass XML, 1Password 1PIF\n\n"
-        "The exported file will NOT be encrypted. Anyone with access to the file\n"
-        "will be able to read all your passwords.\n\n"
-        "To proceed, you must re-authenticate with your master password."
-    );
-
-    warning_dialog->add_button("_Cancel", Gtk::ResponseType::CANCEL);
-    auto export_button = warning_dialog->add_button("_Continue", Gtk::ResponseType::OK);
-    export_button->add_css_class("destructive-action");
-
-    warning_dialog->signal_response().connect([this, warning_dialog](int response) {
-        try {
-            warning_dialog->hide();
-
-            if (response != Gtk::ResponseType::OK) {
-                return;
-            }
-
-            // Schedule password dialog via idle callback (flat chain)
-            Glib::signal_idle().connect_once([this]() {
-                show_export_password_dialog();
-            });
-        } catch (const std::exception& e) {
-            KeepTower::Log::error("Exception in export warning handler: {}", e.what());
-            show_error_dialog(std::format("Export failed: {}", e.what()));
-        } catch (...) {
-            KeepTower::Log::error("Unknown exception in export warning handler");
-            show_error_dialog("Export failed due to unknown error");
-        }
-    });
-
-    warning_dialog->show();
+    // Phase 5g: Delegate to VaultIOHandler
+    m_vault_io_handler->handle_export(m_current_vault_path, m_vault_open);
 }
 
-void MainWindow::show_export_password_dialog() {
-    try {
-        // Step 2: Show password dialog (warning dialog is now fully closed)
-        auto* password_dialog = Gtk::make_managed<PasswordDialog>(*this);
-        password_dialog->set_title("Authenticate to Export");
-        password_dialog->set_modal(true);
-        password_dialog->set_hide_on_close(true);
-
-        password_dialog->signal_response().connect([this, password_dialog](int response) {
-            if (response != Gtk::ResponseType::OK) {
-                password_dialog->hide();
-                return;
-            }
-
-            try {
-                Glib::ustring password = password_dialog->get_password();
-
-#ifdef HAVE_YUBIKEY_SUPPORT
-                // If vault requires YubiKey, show touch prompt and do authentication synchronously
-                YubiKeyPromptDialog* touch_dialog = nullptr;
-                if (m_vault_manager && m_vault_manager->is_using_yubikey()) {
-                    // Get YubiKey serial
-                    YubiKeyManager yk_manager;
-                    if (!yk_manager.initialize() || !yk_manager.is_yubikey_present()) {
-                        password_dialog->hide();
-                        show_error_dialog("YubiKey not detected.");
-                        return;
-                    }
-
-                    auto device_info = yk_manager.get_device_info();
-                    if (!device_info) {
-                        password_dialog->hide();
-                        show_error_dialog("Failed to get YubiKey information.");
-                        return;
-                    }
-
-                    std::string serial_number = device_info->serial_number;
-
-                    // Hide password dialog to show touch prompt
-                    password_dialog->hide();
-
-                    // Show touch prompt dialog
-                    touch_dialog = Gtk::make_managed<YubiKeyPromptDialog>(*this,
-                        YubiKeyPromptDialog::PromptType::TOUCH);
-                    touch_dialog->present();
-
-                    // Force GTK to process events and render the dialog
-                    auto context = Glib::MainContext::get_default();
-                    while (context->pending()) {
-                        context->iteration(false);
-                    }
-
-                    // Small delay to ensure dialog is fully rendered
-                    g_usleep(150000);  // 150ms
-
-                    // Perform authentication with YubiKey (blocking call) - SYNCHRONOUSLY
-                    bool auth_success = m_vault_manager->verify_credentials(password, serial_number);
-
-                    // Hide touch prompt
-                    if (touch_dialog) {
-                        touch_dialog->hide();
-                    }
-
-                    if (!auth_success) {
-                        // Securely clear password before returning (Glib::ustring)
-                        if (!password.empty()) {
-                            volatile char* p = const_cast<char*>(password.data());
-                            std::memset(const_cast<char*>(p), 0, password.bytes());
-                            password.clear();
-                        }
-                        show_error_dialog("YubiKey authentication failed. Export cancelled.");
-                        return;
-                    }
-                } else
-#endif
-                {
-                    // No YubiKey - just verify password
-                    password_dialog->hide();
-
-                    bool auth_success = m_vault_manager->verify_credentials(password);
-
-                    if (!auth_success) {
-                        // Securely clear password before returning (Glib::ustring)
-                        if (!password.empty()) {
-                            volatile char* p = const_cast<char*>(password.data());
-                            std::memset(const_cast<char*>(p), 0, password.bytes());
-                            password.clear();
-                        }
-                        show_error_dialog("Authentication failed. Export cancelled.");
-                        return;
-                    }
-                }
-
-                // Securely clear password after successful authentication (Glib::ustring)
-                if (!password.empty()) {
-                    volatile char* p = const_cast<char*>(password.data());
-                    std::memset(const_cast<char*>(p), 0, password.bytes());
-                    password.clear();
-                }
-
-                // Authentication successful - show file chooser
-                show_export_file_chooser();
-
-            } catch (const std::exception& e) {
-                KeepTower::Log::error("Exception in password dialog handler: {}", e.what());
-                show_error_dialog(std::format("Authentication failed: {}", e.what()));
-                password_dialog->hide();
-            } catch (...) {
-                KeepTower::Log::error("Unknown exception in password dialog handler");
-                show_error_dialog("Authentication failed due to unknown error");
-                password_dialog->hide();
-            }
-        });
-
-        password_dialog->show();
-    } catch (const std::exception& e) {
-        KeepTower::Log::error("Exception showing password dialog: {}", e.what());
-        show_error_dialog(std::format("Failed to show authentication dialog: {}", e.what()));
-    }
-}
-
-void MainWindow::show_export_file_chooser() {
-    try {
-        // Validate state before proceeding
-        if (!m_vault_open || !m_vault_manager) {
-            show_error_dialog("Export cancelled: vault is not open");
-            return;
-        }
-
-        // Ensure we're in main GTK thread and event loop is ready
-        auto context = Glib::MainContext::get_default();
-        if (!context) {
-            KeepTower::Log::error("No GTK main context available");
-            show_error_dialog("Internal error: GTK context unavailable");
-            return;
-        }
-
-        // Process any pending events before showing new dialog
-        while (context->pending()) {
-            context->iteration(false);
-        }
-
-        // Show file chooser for export location (all previous dialogs are now closed)
-        KeepTower::Log::info("Creating file chooser dialog");
-        auto dialog = Gtk::make_managed<Gtk::FileChooserDialog>(*this, "Export Accounts", Gtk::FileChooser::Action::SAVE);
-        KeepTower::Log::info("File chooser dialog created successfully");
-        dialog->set_modal(true);
-        dialog->set_hide_on_close(true);
-
-        dialog->add_button("_Cancel", Gtk::ResponseType::CANCEL);
-        dialog->add_button("_Export", Gtk::ResponseType::OK);
-
-        // Set default filename
-        dialog->set_current_name("passwords_export.csv");
-
-        // Add file filters for different formats
-        auto csv_filter = Gtk::FileFilter::create();
-        csv_filter->set_name("CSV files (*.csv)");
-        csv_filter->add_pattern("*.csv");
-        dialog->add_filter(csv_filter);
-
-        auto keepass_filter = Gtk::FileFilter::create();
-        keepass_filter->set_name("KeePass XML (*.xml) - Not fully tested");
-        keepass_filter->add_pattern("*.xml");
-        dialog->add_filter(keepass_filter);
-
-        auto onepassword_filter = Gtk::FileFilter::create();
-        onepassword_filter->set_name("1Password 1PIF (*.1pif) - Not fully tested");
-        onepassword_filter->add_pattern("*.1pif");
-        dialog->add_filter(onepassword_filter);
-
-        auto all_filter = Gtk::FileFilter::create();
-        all_filter->set_name("All files");
-        all_filter->add_pattern("*");
-        dialog->add_filter(all_filter);
-
-        // Update file extension when filter changes
-        dialog->property_filter().signal_changed().connect([dialog, csv_filter, keepass_filter, onepassword_filter]() {
-            auto current_filter = dialog->get_filter();
-            std::string current_name = dialog->get_current_name();
-
-            // Remove existing extension
-            size_t dot_pos = current_name.find_last_of('.');
-            std::string base_name = (dot_pos != std::string::npos) ? current_name.substr(0, dot_pos) : current_name;
-
-            // Add appropriate extension based on filter
-            if (current_filter == csv_filter) {
-                dialog->set_current_name(base_name + ".csv");
-            } else if (current_filter == keepass_filter) {
-                dialog->set_current_name(base_name + ".xml");
-            } else if (current_filter == onepassword_filter) {
-                dialog->set_current_name(base_name + ".1pif");
-            }
-        });
-
-        dialog->signal_response().connect([this, dialog](int response) {
-            try {
-                if (response == Gtk::ResponseType::OK) {
-                    auto file = dialog->get_file();
-                    if (!file) {
-                        dialog->hide();
-                        return;
-                    }
-
-                    std::string path = file->get_path();
-
-                    // Get all accounts from vault (optimized with reserve)
-                    std::vector<keeptower::AccountRecord> accounts;
-                    int account_count = m_vault_manager->get_account_count();
-                    accounts.reserve(account_count);  // Pre-allocate
-
-                    for (int i = 0; i < account_count; i++) {
-                        const auto* account = m_vault_manager->get_account(i);
-                        if (account) {
-                            accounts.emplace_back(*account);  // Use emplace_back
-                        }
-                    }
-
-                    // Detect format from file extension
-                    std::expected<void, ImportExport::ExportError> result;
-                    std::string format_name;
-                    std::string warning_text = "Warning: This file contains UNENCRYPTED passwords!";
-
-                    if (path.ends_with(".xml")) {
-                        result = ImportExport::export_to_keepass_xml(path, accounts);
-                        format_name = "KeePass XML";
-                        warning_text += "\n\nNOTE: KeePass import compatibility not fully tested.";
-                    } else if (path.ends_with(".1pif")) {
-                        result = ImportExport::export_to_1password_1pif(path, accounts);
-                        format_name = "1Password 1PIF";
-                        warning_text += "\n\nNOTE: 1Password import compatibility not fully tested.";
-                    } else {
-                        // Default to CSV (or if .csv extension)
-                        result = ImportExport::export_to_csv(path, accounts);
-                        format_name = "CSV";
-                    }
-
-                    if (result.has_value()) {
-                        // Show success message
-                        auto success_dialog = Gtk::make_managed<Gtk::MessageDialog>(
-                            *this,
-                            "Export Successful",
-                            false,
-                            Gtk::MessageType::INFO,
-                            Gtk::ButtonsType::OK,
-                            true
-                        );
-                        success_dialog->set_modal(true);
-                        success_dialog->set_hide_on_close(true);
-                        success_dialog->set_secondary_text(
-                            std::format("Successfully exported {} account(s) to {} format:\n{}\n\n{}",
-                                       accounts.size(), format_name, path, warning_text)
-                        );
-                        success_dialog->signal_response().connect([success_dialog](int) {
-                            success_dialog->hide();
-                        });
-                        success_dialog->show();
-                    } else {
-                        // Show error message
-                        const char* error_msg = nullptr;
-                        switch (result.error()) {
-                            case ImportExport::ExportError::FILE_WRITE_ERROR:
-                                error_msg = "Failed to write file";
-                                break;
-                            case ImportExport::ExportError::PERMISSION_DENIED:
-                                error_msg = "Permission denied";
-                                break;
-                            case ImportExport::ExportError::INVALID_DATA:
-                                error_msg = "Invalid data";
-                                break;
-                        }
-                        show_error_dialog(std::format("Export failed: {}", error_msg));
-                    }
-                }
-                dialog->hide();
-            } catch (const std::exception& e) {
-                KeepTower::Log::error("Exception in file chooser handler: {}", e.what());
-                show_error_dialog(std::format("Export failed: {}", e.what()));
-                dialog->hide();
-            } catch (...) {
-                KeepTower::Log::error("Unknown exception in file chooser handler");
-                show_error_dialog("Export failed due to unknown error");
-                dialog->hide();
-            }
-        });
-
-        dialog->show();
-    } catch (const std::exception& e) {
-        KeepTower::Log::error("Exception showing file chooser: {}", e.what());
-        show_error_dialog(std::format("Failed to show file chooser: {}", e.what()));
-    }
-}
 
 void MainWindow::on_generate_password() {
     if (!m_vault_open || m_selected_account_index < 0) {
         return;
     }
 
-    // Create password generator options dialog
-    auto* dialog = Gtk::make_managed<Gtk::Dialog>("Generate Password", *this, true);
-    dialog->add_button("_Cancel", Gtk::ResponseType::CANCEL);
-    dialog->add_button("_Generate", Gtk::ResponseType::OK);
-    dialog->set_default_response(Gtk::ResponseType::OK);
-
-    auto* box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 12);
-    box->set_margin(24);
-
-    // Password length selector
-    auto* length_box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 12);
-    auto* length_label = Gtk::make_managed<Gtk::Label>("Password Length:");
-    length_label->set_xalign(0.0);
-    auto* length_spin = Gtk::make_managed<Gtk::SpinButton>();
-    length_spin->set_range(8, 64);
-    length_spin->set_increments(1, 5);
-    length_spin->set_value(20);
-    length_spin->set_hexpand(true);
-    length_box->append(*length_label);
-    length_box->append(*length_spin);
-
-    // Character type options
-    auto* uppercase_check = Gtk::make_managed<Gtk::CheckButton>("Include Uppercase (A-Z)");
-    uppercase_check->set_active(true);
-    auto* lowercase_check = Gtk::make_managed<Gtk::CheckButton>("Include Lowercase (a-z)");
-    lowercase_check->set_active(true);
-    auto* digits_check = Gtk::make_managed<Gtk::CheckButton>("Include Digits (2-9)");
-    digits_check->set_active(true);
-    auto* symbols_check = Gtk::make_managed<Gtk::CheckButton>("Include Symbols (!@#$%...)");
-    symbols_check->set_active(true);
-    auto* ambiguous_check = Gtk::make_managed<Gtk::CheckButton>("Exclude ambiguous (0/O, 1/l/I)");
-    ambiguous_check->set_active(true);
-
-    box->append(*length_box);
-    box->append(*uppercase_check);
-    box->append(*lowercase_check);
-    box->append(*digits_check);
-    box->append(*symbols_check);
-    box->append(*ambiguous_check);
-
-    dialog->get_content_area()->append(*box);
-
-    dialog->signal_response().connect([this, dialog, length_spin, uppercase_check, lowercase_check,
-                                       digits_check, symbols_check, ambiguous_check](int response) {
-        if (response == Gtk::ResponseType::OK) {
-            const int length = static_cast<int>(length_spin->get_value());
-
-            // Build charset based on options
-            std::string charset;
-            if (lowercase_check->get_active()) {
-                charset += ambiguous_check->get_active() ? "abcdefghjkmnpqrstuvwxyz" : "abcdefghijklmnopqrstuvwxyz";
-            }
-            if (uppercase_check->get_active()) {
-                charset += ambiguous_check->get_active() ? "ABCDEFGHJKMNPQRSTUVWXYZ" : "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-            }
-            if (digits_check->get_active()) {
-                charset += ambiguous_check->get_active() ? "23456789" : "0123456789";
-            }
-            if (symbols_check->get_active()) {
-                charset += "!@#$%^&*()-_=+[]{}|;:,.<>?";
-            }
-
-            if (charset.empty()) {
-                show_error_dialog("Please select at least one character type.");
-                dialog->hide();
-                return;
-            }
-
-            // Generate password
-            std::random_device rd;
-            if (rd.entropy() == 0.0) {
-                g_warning("std::random_device has zero entropy, password may be less secure");
-            }
-
-            std::mt19937 gen(rd());
-            std::uniform_int_distribution<std::size_t> dis(0, charset.size() - 1);
-
-            std::string password;
-            password.reserve(length);
-
-            for (int i = 0; i < length; ++i) {
-                password += charset[dis(gen)];
-            }
-
-            m_account_detail_widget->set_password(password);
-            m_status_label.set_text(std::format("Generated {}-character password", length));
-        }
-        dialog->hide();
-    });
-
-    dialog->show();
-}
-
-void MainWindow::setup_activity_monitoring() {
-    // Create event controllers to monitor user activity
-    auto key_controller = Gtk::EventControllerKey::create();
-    key_controller->signal_key_pressed().connect(
-        [this](guint, guint, Gdk::ModifierType) {
-            on_user_activity();
-            return false;  // Don't block event
-        }, false);
-    add_controller(key_controller);
-
-    auto motion_controller = Gtk::EventControllerMotion::create();
-    motion_controller->signal_motion().connect(
-        [this](double, double) {
-            on_user_activity();
-        });
-    add_controller(motion_controller);
-
-    auto click_controller = Gtk::GestureClick::create();
-    click_controller->signal_pressed().connect(
-        [this](int, double, double) {
-            on_user_activity();
-        });
-    add_controller(click_controller);
+    // Phase 5j: Delegate to AccountEditHandler
+    m_account_edit_handler->handle_generate_password();
 }
 
 void MainWindow::on_user_activity() {
-    if (!m_vault_open || m_is_locked) {
-        return;
+    // Phase 5k: Delegate to AutoLockHandler
+    if (m_auto_lock_handler) {
+        m_auto_lock_handler->handle_user_activity();
     }
-
-    // Check if auto-lock is enabled
-    // CRITICAL: Read from vault if open (security policy), otherwise from GSettings (user preference)
-    bool auto_lock_enabled;
-    if (m_vault_manager && m_vault_manager->is_vault_open()) {
-        auto_lock_enabled = m_vault_manager->get_auto_lock_enabled();
-    } else {
-        static const auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
-        auto_lock_enabled = SettingsValidator::is_auto_lock_enabled(settings);
-    }
-
-    if (!auto_lock_enabled) {
-        return;
-    }
-
-    // Cancel previous timeout if exists
-    if (m_auto_lock_timeout.connected()) {
-        m_auto_lock_timeout.disconnect();
-    }
-
-    // Get timeout from vault if open, otherwise from defaults
-    int timeout_seconds;
-    if (m_vault_manager && m_vault_manager->is_vault_open()) {
-        timeout_seconds = m_vault_manager->get_auto_lock_timeout();
-        // Clamp to valid range (60-3600 seconds)
-        timeout_seconds = std::clamp(timeout_seconds, 60, 3600);
-    } else {
-        static const auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
-        timeout_seconds = SettingsValidator::get_auto_lock_timeout(settings);
-    }
-
-    // Schedule auto-lock after validated timeout
-    m_auto_lock_timeout = Glib::signal_timeout().connect(
-        sigc::mem_fun(*this, &MainWindow::on_auto_lock_timeout),
-        timeout_seconds * 1000  // Convert seconds to milliseconds
-    );
 }
 
 bool MainWindow::on_auto_lock_timeout() {
-    if (!m_vault_open || m_is_locked) {
-        return false;
+    // Phase 5k: Delegate to AutoLockHandler
+    if (m_auto_lock_handler) {
+        return m_auto_lock_handler->handle_auto_lock_timeout();
     }
-
-    // For V2 vaults, auto-lock means automatic logout (no cached password)
-    if (is_v2_vault_open()) {
-        KeepTower::Log::info("MainWindow: Auto-lock timeout triggered for V2 vault, forcing logout");
-
-        // Auto-save only if vault has been modified (security timeout)
-        bool had_unsaved_changes = false;
-        if (m_vault_manager && m_vault_manager->is_modified()) {
-            had_unsaved_changes = true;
-            save_current_account();
-            m_vault_manager->save_vault();
-        }
-
-        // Force logout without allowing cancellation (security timeout)
-        std::string vault_path = m_current_vault_path;  // Save path before close
-        on_close_vault();
-
-        // Show notification that auto-lock occurred
-        auto info_dialog = Gtk::make_managed<Gtk::MessageDialog>(*this,
-            "Session Timeout", false, Gtk::MessageType::INFO, Gtk::ButtonsType::OK, true);
-
-        if (had_unsaved_changes) {
-            info_dialog->set_secondary_text("Your session has been automatically logged out due to inactivity.\nAny unsaved changes have been saved.");
-        } else {
-            info_dialog->set_secondary_text("Your session has been automatically logged out due to inactivity.");
-        }
-
-        info_dialog->signal_response().connect([info_dialog, this, vault_path](int) {
-            info_dialog->hide();
-            // Reopen the same vault file (will show login dialog)
-            if (!vault_path.empty()) {
-                handle_v2_vault_open(vault_path);
-            }
-        });
-        info_dialog->show();
-    } else {
-        // For V1 vaults, use traditional lock/unlock mechanism
-        lock_vault();
-    }
-    return false;  // Don't repeat
+    return false;
 }
 
 void MainWindow::lock_vault() {
-    if (!m_vault_open || m_is_locked) {
-        return;
+    // Phase 5k: Delegate to AutoLockHandler
+    if (m_auto_lock_handler) {
+        m_auto_lock_handler->lock_vault();
     }
-
-    // This should only be called for V1 vaults
-    if (is_v2_vault_open()) {
-        KeepTower::Log::warning("MainWindow: lock_vault() called for V2 vault, use logout instead");
-        return;
-    }
-
-    // Password should already be cached from when vault was opened
-    if (m_cached_master_password.empty()) {
-        // Can't lock without being able to unlock
-        g_warning("Cannot lock vault - master password not cached! This shouldn't happen.");
-        return;
-    }
-
-    // Save any unsaved changes
-    save_current_account();
-    if (!m_vault_manager->save_vault()) {
-        g_warning("Failed to save vault before locking");
-    }
-
-    // Set locked state
-    m_is_locked = true;
-
-    // Disable UI
-    m_add_account_button.set_sensitive(false);
-    m_save_button.set_sensitive(false);
-    m_search_entry.set_sensitive(false);
-    clear_account_details();
-
-    // Clear clipboard
-    if (m_clipboard_timeout.connected()) {
-        m_clipboard_timeout.disconnect();
-        get_clipboard()->set_text("");
-    }
-
-    // Update status
-    using namespace std::string_view_literals;
-    m_status_label.set_text(std::string{"Vault locked due to inactivity"sv});
-
-    // Hide account details for security (clears fields and sets m_selected_account_index = -1)
-    clear_account_details();
-
-    // Clear widget-based UI
-    if (m_account_tree_widget) {
-        m_account_tree_widget->set_data({}, {});
-    }
-
-    // Create unlock dialog using Gtk::Window for full control
-    auto* dialog = Gtk::make_managed<Gtk::Window>();
-    dialog->set_transient_for(*this);
-    dialog->set_modal(true);
-    dialog->set_title("Vault Locked - Authentication Required");
-    dialog->set_default_size(450, 200);
-    dialog->set_resizable(false);
-
-    // Create main layout
-    auto* main_box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 0);
-
-    // Content area
-    auto* content_box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 12);
-    content_box->set_margin_start(24);
-    content_box->set_margin_end(24);
-    content_box->set_margin_top(24);
-    content_box->set_margin_bottom(24);
-
-    auto* message_label = Gtk::make_managed<Gtk::Label>();
-    message_label->set_markup("<b>Your vault has been locked due to inactivity.</b>");
-    message_label->set_wrap(true);
-    message_label->set_xalign(0.0);
-    content_box->append(*message_label);
-
-    auto* instruction_label = Gtk::make_managed<Gtk::Label>("Enter your master password to unlock and continue working.");
-    instruction_label->set_wrap(true);
-    instruction_label->set_xalign(0.0);
-    content_box->append(*instruction_label);
-
-    auto* password_entry = Gtk::make_managed<Gtk::Entry>();
-    password_entry->set_visibility(false);
-    password_entry->set_placeholder_text("Enter master password to unlock");
-    content_box->append(*password_entry);
-
-    main_box->append(*content_box);
-
-    // Button area
-    auto* button_box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 6);
-    button_box->set_margin_start(24);
-    button_box->set_margin_end(24);
-    button_box->set_margin_bottom(24);
-    button_box->set_halign(Gtk::Align::END);
-
-    auto* cancel_button = Gtk::make_managed<Gtk::Button>("_Cancel");
-    cancel_button->set_use_underline(true);
-    button_box->append(*cancel_button);
-
-    auto* ok_button = Gtk::make_managed<Gtk::Button>("_OK");
-    ok_button->set_use_underline(true);
-    ok_button->add_css_class("suggested-action");
-    button_box->append(*ok_button);
-
-    main_box->append(*button_box);
-    dialog->set_child(*main_box);
-
-    // Handle OK button
-    ok_button->signal_clicked().connect([this, dialog, password_entry]() {
-        const std::string entered_password{safe_ustring_to_string(password_entry->get_text(), "unlock_password")};
-
-#ifdef HAVE_YUBIKEY_SUPPORT
-        // Check if YubiKey is required for this vault
-        std::string yubikey_serial;
-        bool yubikey_required = m_vault_manager->check_vault_requires_yubikey(m_current_vault_path, yubikey_serial);
-
-        YubiKeyPromptDialog* touch_dialog = nullptr;
-        if (yubikey_required) {
-            // Show touch prompt dialog
-            touch_dialog = Gtk::make_managed<YubiKeyPromptDialog>(*dialog,
-                YubiKeyPromptDialog::PromptType::TOUCH);
-            touch_dialog->present();
-
-            // Force GTK to process events and render the dialog
-            auto context = Glib::MainContext::get_default();
-            while (context->pending()) {
-                context->iteration(false);
-            }
-            g_usleep(150000);  // 150ms delay for rendering
-        }
-#endif
-
-        // Verify password by attempting to open vault
-        const auto temp_vault = std::make_unique<VaultManager>();
-        const bool success = temp_vault->open_vault(std::string{m_current_vault_path}, entered_password);
-
-#ifdef HAVE_YUBIKEY_SUPPORT
-        // Hide touch prompt if it was shown
-        if (touch_dialog) {
-            touch_dialog->hide();
-        }
-#endif
-
-        if (success && entered_password == m_cached_master_password) {
-            // Unlock successful
-            m_is_locked = false;
-
-            // Re-enable UI
-            m_add_account_button.set_sensitive(true);
-            m_save_button.set_sensitive(true);
-            m_search_entry.set_sensitive(true);
-
-            // Restore account list and selection
-            update_account_list();
-            filter_accounts(m_search_entry.get_text());
-
-            // Reset activity monitoring
-            on_user_activity();
-
-            using namespace std::string_view_literals;
-            m_status_label.set_text(std::string{"Vault unlocked"sv});
-
-            delete dialog;
-        } else {
-            // Unlock failed - could be wrong password or missing YubiKey
-            password_entry->set_text("");
-            password_entry->grab_focus();
-
-#ifdef HAVE_YUBIKEY_SUPPORT
-            // Provide more specific error message if YubiKey is required
-            const char* error_message = "Unlock Failed";
-            const char* error_detail;
-            if (yubikey_required) {
-                error_detail = "Unable to unlock vault. This could be due to:\n"
-                              "• Incorrect password\n"
-                              "• YubiKey not inserted\n"
-                              "• YubiKey not touched in time\n"
-                              "• Wrong YubiKey inserted\n\n"
-                              "Please verify your password and ensure the correct YubiKey is connected.";
-            } else {
-                error_detail = "The password you entered is incorrect. Please try again.";
-            }
-#else
-            const char* error_message = "Incorrect Password";
-            const char* error_detail = "The password you entered is incorrect. Please try again.";
-#endif
-
-            auto* error_dialog = Gtk::make_managed<Gtk::MessageDialog>(
-                *dialog,
-                error_message,
-                false,
-                Gtk::MessageType::ERROR,
-                Gtk::ButtonsType::OK,
-                true
-            );
-            error_dialog->set_secondary_text(error_detail);
-            error_dialog->signal_response().connect([error_dialog, password_entry](int) {
-                error_dialog->hide();
-                password_entry->grab_focus();
-            });
-            error_dialog->show();
-        }
-    });
-
-    // Handle Cancel button
-    cancel_button->signal_clicked().connect([this, dialog]() {
-        // Save and close application
-        if (m_vault_open) {
-            save_current_account();
-            if (!m_vault_manager->save_vault()) {
-                g_warning("Failed to save vault before closing locked application");
-            }
-        }
-
-        delete dialog;
-        close();
-    });
-
-    // Handle Enter key in password entry
-    password_entry->signal_activate().connect([ok_button]() {
-        ok_button->activate();
-    });
-
-    // Show the unlock dialog and set focus
-    dialog->present();
-    password_entry->grab_focus();
 }
 
-std::string MainWindow::get_master_password_for_lock() {
-    // We need to get the master password to cache it for unlock
-    // This is called when locking, so we prompt the user
-    auto* dialog = Gtk::make_managed<Gtk::MessageDialog>(
-        *this,
-        "Verify Password for Auto-Lock",
-        false,
-        Gtk::MessageType::QUESTION,
-        Gtk::ButtonsType::OK_CANCEL
-    );
-    dialog->set_secondary_text("Enter your master password to verify your identity.\nThis allows the vault to auto-lock after inactivity and be unlocked with the same password.");
-    dialog->set_modal(true);
-    dialog->set_hide_on_close(true);
 
-    auto* content = dialog->get_message_area();
-    auto* password_entry = Gtk::make_managed<Gtk::Entry>();
-    password_entry->set_visibility(false);
-    password_entry->set_placeholder_text("Enter master password");
-    password_entry->set_margin_start(12);
-    password_entry->set_margin_end(12);
-    password_entry->set_margin_top(12);
-    password_entry->set_activates_default(true);
-    content->append(*password_entry);
-
-    dialog->set_default_response(Gtk::ResponseType::OK);
-
-    std::string result;
-    dialog->signal_response().connect([&result, password_entry](const int response) {
-        if (response == Gtk::ResponseType::OK) {
-            result = std::string{password_entry->get_text()};
-        }
-    });
-
-    dialog->set_hide_on_close(true);
-    dialog->show();
-
-    // Wait for dialog to close (use modern GTK4 pattern)
-    while (dialog->get_visible()) {
-        g_main_context_iteration(nullptr, true);
-    }
-
-    return result;
-}
 
 #ifdef HAVE_YUBIKEY_SUPPORT
 void MainWindow::on_test_yubikey() {
-    using namespace KeepTower::Log;
-
-    info("Testing YubiKey detection...");
-
-    YubiKeyManager yk_manager{};
-
-    // Initialize YubiKey subsystem
-    if (!yk_manager.initialize()) {
-        auto dialog = Gtk::AlertDialog::create("YubiKey Initialization Failed");
-        dialog->set_detail("Could not initialize YubiKey subsystem. Make sure the required libraries are installed.");
-        dialog->set_buttons({"OK"});
-        dialog->choose(*this, {});
-        error("YubiKey initialization failed");
-        return;
-    }
-
-    // Test challenge-response functionality FIRST (without calling get_device_info)
-    // This avoids any state issues from yk_get_status()
-    std::string challenge_result;
-    const unsigned char test_challenge[64] = {
-        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-        0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
-        0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
-        0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20,
-        0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28,
-        0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f, 0x30,
-        0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38,
-        0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, 0x3f, 0x40
-    };
-
-    auto challenge_resp = yk_manager.challenge_response(
-        std::span<const unsigned char>(test_challenge, 64),
-        true,  // require_touch
-        15000  // 15 second timeout
-    );
-
-    if (challenge_resp.success) {
-        // Now get device info for display
-        auto device_info = yk_manager.get_device_info();
-
-        const std::string message = device_info ?
-            std::format(
-                "YubiKey Test Results\n\n"
-                "Serial Number: {}\n"
-                "Firmware Version: {}\n"
-                "Slot 2 Configured: Yes\n\n"
-                "✓ Challenge-Response Working\n"
-                "HMAC-SHA1 response received successfully!",
-                device_info->serial_number,
-                device_info->version_string()
-            ) :
-            "✓ Challenge-Response Working\nHMAC-SHA1 response received successfully!";
-
-        auto dialog = Gtk::AlertDialog::create("YubiKey Test Passed");
-        dialog->set_detail(message);
-        dialog->set_buttons({"OK"});
-        dialog->choose(*this, {});
-        info("YubiKey test passed");
-    } else {
-        challenge_result = std::format("✗ Challenge-Response Failed\n{}",
-                                      challenge_resp.error_message);
-
-        auto dialog = Gtk::AlertDialog::create("YubiKey Test Failed");
-        dialog->set_detail(challenge_result);
-        dialog->set_buttons({"OK"});
-        dialog->choose(*this, {});
-        warning("YubiKey challenge-response failed: {}", challenge_resp.error_message);
-    }
+    // Phase 5h: Delegate to YubiKeyHandler
+    m_yubikey_handler->handle_test();
 }
 #endif
 
 #ifdef HAVE_YUBIKEY_SUPPORT
 void MainWindow::on_manage_yubikeys() {
-    // Check if vault is open
+    // Check if vault is open first
     if (!m_vault_open) {
         auto dialog = Gtk::AlertDialog::create("No Vault Open");
         dialog->set_detail("Please open a vault first.");
@@ -3100,19 +1532,8 @@ void MainWindow::on_manage_yubikeys() {
         return;
     }
 
-    auto keys = m_vault_manager->get_yubikey_list();
-
-    if (keys.empty()) {
-        auto dialog = Gtk::AlertDialog::create("Vault Not YubiKey-Protected");
-        dialog->set_detail("This vault does not use YubiKey authentication.");
-        dialog->set_buttons({"OK"});
-        dialog->choose(*this, {});
-        return;
-    }
-
-    // Show YubiKey manager dialog (managed by GTK)
-    auto* dialog = Gtk::make_managed<YubiKeyManagerDialog>(*this, m_vault_manager.get());
-    dialog->show();
+    // Phase 5h: Delegate to YubiKeyHandler
+    m_yubikey_handler->handle_manage();
 }
 #endif
 
@@ -3188,70 +1609,51 @@ bool MainWindow::is_undo_redo_enabled() const {
 // Account Groups Implementation
 // ============================================================================
 
+/**
+ * @brief Create a new account group with validation
+ *
+ * Phase 3: Uses GroupService for business logic validation:
+ * - Empty name check
+ * - Length limit (100 characters)
+ * - Duplicate name detection
+ *
+ * Displays user-friendly error messages for validation failures.
+ * On success, updates the account tree view and status label.
+ *
+ * @note Does nothing if vault is not open
+ */
 void MainWindow::on_create_group() {
     if (!m_vault_open) {
         return;
     }
 
-    auto* dialog = Gtk::make_managed<GroupCreateDialog>(*this);
-    dialog->set_modal(true);
-    dialog->set_hide_on_close(true);
-
-    dialog->signal_response().connect([this, dialog](int result) {
-        dialog->hide();
-
-        if (result != static_cast<int>(Gtk::ResponseType::OK)) {
-            return;
-        }
-
-        auto group_name = dialog->get_group_name();
-        if (group_name.empty()) {
-            return;
-        }
-
-        // Create the group
-        std::string group_id = m_vault_manager->create_group(safe_ustring_to_string(group_name, "group_name"));
-        if (group_id.empty()) {
-            show_error_dialog("Failed to create group. The name may already exist or be invalid.");
-            return;
-        }
-
-        m_status_label.set_text("Group created: " + group_name);
-        update_account_list();
-    });
-
-    dialog->present();
+    // Phase 5i: Delegate to GroupHandler
+    m_group_handler->handle_create();
 }
 
+/**
+ * @brief Rename an existing account group with validation
+ * @param group_id Unique identifier of the group to rename
+ * @param current_name Current name of the group (for dialog display)
+ *
+ * Phase 3: Uses GroupService for business logic validation:
+ * - Empty name check
+ * - Length limit (100 characters)
+ * - Duplicate name detection
+ * - Group existence verification
+ *
+ * Displays user-friendly error messages for validation failures.
+ * On success, updates the account tree view and status label.
+ *
+ * @note Does nothing if vault is not open or group_id is empty
+ */
 void MainWindow::on_rename_group(const std::string& group_id, const Glib::ustring& current_name) {
     if (!m_vault_open || group_id.empty()) {
         return;
     }
 
-    auto* dialog = Gtk::make_managed<GroupRenameDialog>(*this, current_name);
-    dialog->set_modal(true);
-    dialog->set_hide_on_close(true);
-
-    dialog->signal_response().connect([this, dialog, group_id, current_name](int result) {
-        dialog->hide();
-
-        if (result != static_cast<int>(Gtk::ResponseType::OK)) {
-            return;
-        }
-
-        auto new_name = dialog->get_group_name();
-        // [REMOVED] Legacy account list update logic (migrated to AccountTreeWidget)
-
-        // Rename the group in vault manager
-        if (m_vault_manager->rename_group(group_id, safe_ustring_to_string(new_name, "group_name"))) {
-            m_status_label.set_text("Group renamed");
-            update_account_list();
-        } else {
-            show_error_dialog("Failed to rename group");
-        }
-    });
-
-    dialog->present();
+    // Phase 5i: Delegate to GroupHandler
+    m_group_handler->handle_rename(group_id, current_name);
 }
 
 void MainWindow::on_delete_group(const std::string& group_id) {
@@ -3259,32 +1661,8 @@ void MainWindow::on_delete_group(const std::string& group_id) {
         return;
     }
 
-    // Confirm deletion
-    auto dialog = std::make_unique<Gtk::MessageDialog>(
-        *this,
-        "Delete this group?",
-        false,
-        Gtk::MessageType::QUESTION,
-        Gtk::ButtonsType::YES_NO,
-        true
-    );
-    dialog->set_secondary_text("Accounts in this group will not be deleted.");
-
-    dialog->signal_response().connect([this, dialog_ptr = dialog.get(), group_id](int response) {
-        if (response == static_cast<int>(Gtk::ResponseType::YES)) {
-            if (m_vault_manager->delete_group(group_id)) {
-                m_status_label.set_text("Group deleted");
-                update_account_list();
-            } else {
-                show_error_dialog("Failed to delete group");
-            }
-        }
-        dialog_ptr->hide();
-    });
-
-    dialog->set_modal(true);
-    dialog->show();
-    dialog.release(); // Dialog will delete itself
+    // Phase 5i: Delegate to GroupHandler
+    m_group_handler->handle_delete(group_id);
 }
 
 // Helper methods for widget-based UI
@@ -3339,7 +1717,10 @@ void MainWindow::on_account_reordered(const std::string& account_id, const std::
         // Adding to a group - just add without removing from other groups
         // This allows accounts to be members of multiple groups
         if (!m_vault_manager->is_account_in_group(idx, target_group_id)) {
-            m_vault_manager->add_account_to_group(idx, target_group_id);
+            if (!m_vault_manager->add_account_to_group(idx, target_group_id)) {
+                KeepTower::Log::warning("Failed to add account to group");
+                return;
+            }
         }
     }
 
@@ -3357,7 +1738,10 @@ void MainWindow::on_account_reordered(const std::string& account_id, const std::
 // Handle group drag-and-drop reorder
 void MainWindow::on_group_reordered(const std::string& group_id, int new_index) {
     if (!m_vault_manager) return;
-    m_vault_manager->reorder_group(group_id, new_index);
+    if (!m_vault_manager->reorder_group(group_id, new_index)) {
+        KeepTower::Log::warning("Failed to reorder group");
+        return;
+    }
 
     // Defer UI refresh until after drag operation completes
     Glib::signal_idle().connect_once([this]() {
@@ -3376,95 +1760,34 @@ void MainWindow::show_account_context_menu(const std::string& account_id, Gtk::W
         return;
     }
 
-    // Store account_id for use by action handlers
-    m_context_menu_account_id = account_id;
-
-    // Create main menu
-    auto menu = Gio::Menu::create();
-
-    // Add "Add to Group" submenu if there are groups
-    if (m_vault_manager) {
-        auto groups = m_vault_manager->get_all_groups();
-        auto accounts = m_vault_manager->get_all_accounts();
-
-        if (account_index < accounts.size()) {
-            const auto& account = accounts[account_index];
-
-            // Build "Add to Group" submenu
-            if (!groups.empty()) {
-                auto groups_menu = Gio::Menu::create();
-                for (const auto& group : groups) {
-                    if (group.group_id() != "favorites") {  // Skip system groups
-                        // Create a simple action for this specific group
-                        std::string action_name = "add-to-group-" + group.group_id();
-                        remove_action(action_name);  // Remove if it exists
-                        add_action(action_name, [this, gid = group.group_id()]() {
-                            if (!m_context_menu_account_id.empty() && m_vault_manager) {
-                                int idx = find_account_index_by_id(m_context_menu_account_id);
-                                if (idx >= 0) {
-                                    m_vault_manager->add_account_to_group(idx, gid);
-                                    update_account_list();
-                                }
-                            }
-                        });
-                        groups_menu->append(group.group_name(), "win." + action_name);
+    // Phase 5: Use MenuManager to create context menu
+    auto popover = m_menu_manager->create_account_context_menu(
+        account_id,
+        account_index,
+        widget,
+        [this](const std::string& gid) {
+            if (!m_context_menu_account_id.empty() && m_vault_manager) {
+                int idx = find_account_index_by_id(m_context_menu_account_id);
+                if (idx >= 0) {
+                    if (m_vault_manager->add_account_to_group(idx, gid)) {
+                        update_account_list();
                     }
                 }
-                if (groups_menu->get_n_items() > 0) {
-                    menu->append_submenu("Add to Group", groups_menu);
-                }
             }
-
-            // Build "Remove from Group" submenu if account belongs to any groups
-            std::vector<std::string> account_groups;
-            for (int i = 0; i < account.groups_size(); ++i) {
-                account_groups.push_back(account.groups(i).group_id());
-            }
-
-            if (!account_groups.empty()) {
-                auto remove_groups_menu = Gio::Menu::create();
-                for (const auto& gid : account_groups) {
-                    // Find the group name
-                    std::string group_name = gid;
-                    for (const auto& group : groups) {
-                        if (group.group_id() == gid) {
-                            group_name = group.group_name();
-                            break;
-                        }
+        },
+        [this](const std::string& gid) {
+            if (!m_context_menu_account_id.empty() && m_vault_manager) {
+                int idx = find_account_index_by_id(m_context_menu_account_id);
+                if (idx >= 0) {
+                    if (m_vault_manager->remove_account_from_group(idx, gid)) {
+                        update_account_list();
                     }
-
-                    // Create action for removing from this group
-                    std::string action_name = "remove-from-group-" + gid;
-                    remove_action(action_name);  // Remove if it exists
-                    add_action(action_name, [this, gid]() {
-                        if (!m_context_menu_account_id.empty() && m_vault_manager) {
-                            int idx = find_account_index_by_id(m_context_menu_account_id);
-                            if (idx >= 0) {
-                                m_vault_manager->remove_account_from_group(idx, gid);
-                                update_account_list();
-                            }
-                        }
-                    });
-                    remove_groups_menu->append(group_name, "win." + action_name);
                 }
-                menu->append_submenu("Remove from Group", remove_groups_menu);
             }
         }
-    }
+    );
 
-    // Add separator and destructive delete action
-    auto delete_section = Gio::Menu::create();
-    delete_section->append("Delete Account", "win.delete-account");
-    menu->append_section(delete_section);
-
-    // Create managed popover that persists until hidden
-    auto popover = Gtk::make_managed<Gtk::PopoverMenu>();
-    popover->set_menu_model(menu);
-    popover->set_parent(*widget);
-    popover->set_has_arrow(true);
-    popover->set_autohide(true);
-
-    // Position at click location (widget-relative coordinates)
+    // Position at click location
     Gdk::Rectangle rect;
     rect.set_x(static_cast<int>(x));
     rect.set_y(static_cast<int>(y));
@@ -3481,39 +1804,10 @@ void MainWindow::show_group_context_menu(const std::string& group_id, Gtk::Widge
         return;
     }
 
-    // Store group_id for use by action handlers
-    m_context_menu_group_id = group_id;
+    // Phase 5: Use MenuManager to create context menu
+    auto popover = m_menu_manager->create_group_context_menu(group_id, widget);
 
-    // Create a popover menu with group actions
-    auto menu = Gio::Menu::create();
-
-    // For "All Accounts", only show "New Group" option
-    // For user groups, show all options
-    auto actions_section = Gio::Menu::create();
-    actions_section->append("New Group...", "win.create-group");
-
-    if (group_id != "all") {
-        // Only show rename/delete for user-created groups
-        actions_section->append("Rename Group...", "win.rename-group");
-        menu->append_section(actions_section);
-
-        // Destructive delete action in separate section
-        auto delete_section = Gio::Menu::create();
-        delete_section->append("Delete Group...", "win.delete-group");
-        menu->append_section(delete_section);
-    } else {
-        // For "All Accounts", just show the create option
-        menu->append_section(actions_section);
-    }
-
-    // Create managed popover that persists until hidden
-    auto popover = Gtk::make_managed<Gtk::PopoverMenu>();
-    popover->set_menu_model(menu);
-    popover->set_parent(*widget);
-    popover->set_has_arrow(true);
-    popover->set_autohide(true);
-
-    // Position at click location (widget-relative coordinates)
+    // Position at click location
     Gdk::Rectangle rect;
     rect.set_x(static_cast<int>(x));
     rect.set_y(static_cast<int>(y));
@@ -3554,376 +1848,34 @@ std::optional<uint32_t> MainWindow::detect_vault_version(const std::string& vaul
 }
 
 void MainWindow::handle_v2_vault_open(const std::string& vault_path) {
-    // Check if YubiKey is required for this vault
-    std::string yubikey_serial;
-    bool yubikey_required = m_vault_manager->check_vault_requires_yubikey(vault_path, yubikey_serial);
-
-#ifdef HAVE_YUBIKEY_SUPPORT
-    if (yubikey_required) {
-        // Check if YubiKey is present
-        YubiKeyManager yk_manager;
-        [[maybe_unused]] bool yk_init = yk_manager.initialize();
-
-        if (!yk_manager.is_yubikey_present()) {
-            // Show "Insert YubiKey" dialog
-            auto yk_dialog = Gtk::make_managed<YubiKeyPromptDialog>(*this,
-                YubiKeyPromptDialog::PromptType::INSERT, yubikey_serial);
-
-            yk_dialog->signal_response().connect([this, yk_dialog, vault_path](int yk_response) {
-                if (yk_response == Gtk::ResponseType::OK) {
-                    // User clicked Retry
-                    yk_dialog->hide();
-                    handle_v2_vault_open(vault_path);  // Retry
-                    return;
-                }
-                yk_dialog->hide();
-            });
-
-            yk_dialog->show();
-            return;
-        }
-    }
-#endif
-
-    // Show V2 user login dialog (username + password)
-    auto login_dialog = Gtk::make_managed<V2UserLoginDialog>(*this, yubikey_required);
-
-    login_dialog->signal_response().connect([this, login_dialog, vault_path, yubikey_required](int response) {
-        if (response != Gtk::ResponseType::OK) {
-            login_dialog->hide();
-            return;
-        }
-
-        // Get credentials from dialog
-        auto creds = login_dialog->get_credentials();
-        login_dialog->hide();
-
-#ifdef HAVE_YUBIKEY_SUPPORT
-        // Show YubiKey touch prompt if required
-        YubiKeyPromptDialog* touch_dialog = nullptr;
-        if (yubikey_required) {
-            touch_dialog = Gtk::make_managed<YubiKeyPromptDialog>(*this,
-                YubiKeyPromptDialog::PromptType::TOUCH);
-            touch_dialog->present();
-
-            // Force GTK to process events and render the dialog
-            auto context = Glib::MainContext::get_default();
-            while (context->pending()) {
-                context->iteration(false);
-            }
-            g_usleep(150000);  // 150ms delay for dialog rendering
-        }
-#endif
-
-        // Attempt V2 vault authentication
-        auto result = m_vault_manager->open_vault_v2(vault_path, creds.username, creds.password);
-
-        // Clear credentials immediately after use
-        creds.clear();
-
-#ifdef HAVE_YUBIKEY_SUPPORT
-        // Hide touch prompt if shown
-        if (touch_dialog) {
-            touch_dialog->hide();
-        }
-#endif
-
-        if (!result) {
-            // Authentication failed - show error
-            std::string error_message = "Authentication failed";
-            if (result.error() == KeepTower::VaultError::AuthenticationFailed) {
-                error_message = "Invalid username or password";
-            } else if (result.error() == KeepTower::VaultError::UserNotFound) {
-                error_message = "User not found";
-            }
-
-            show_error_dialog(error_message);
-            return;
-        }
-
-        // Successfully authenticated - check for password change requirement
-        KeepTower::Log::info("MainWindow: Authentication succeeded, getting user session");
-        auto session_opt = m_vault_manager->get_current_user_session();
-        if (!session_opt) {
-            KeepTower::Log::error("MainWindow: No session after successful authentication!");
-            show_error_dialog("Internal error: No session after successful authentication");
-            return;
-        }
-
-        const auto& session = *session_opt;
-        KeepTower::Log::info("MainWindow: Session obtained - username='{}', password_change_required={}",
-            session.username, session.password_change_required);
-
-        // Check if password change is required (first login with temporary password)
-        if (session.password_change_required) {
-            KeepTower::Log::info("MainWindow: Password change required, calling handler");
-            handle_password_change_required(session.username);
-            return;  // Stop here - vault setup will complete after password change
-        }
-
-        // Complete vault opening
-        KeepTower::Log::info("MainWindow: About to call complete_vault_opening()");
-        complete_vault_opening(vault_path, session.username);
-        KeepTower::Log::info("MainWindow: Returned from complete_vault_opening()");
-    });
-
-    login_dialog->show();
-}
-
-void MainWindow::handle_password_change_required(const std::string& username) {
-    // Get vault security policy for min password length
-    auto policy_opt = m_vault_manager->get_vault_security_policy();
-    const uint32_t min_length = policy_opt ? policy_opt->min_password_length : 12;
-
-    // Show password change dialog in forced mode
-    auto change_dialog = Gtk::make_managed<ChangePasswordDialog>(*this, min_length, true);
-
-    change_dialog->signal_response().connect([this, change_dialog, username, min_length](int response) {
-        if (response != Gtk::ResponseType::OK) {
-            // User cancelled - close vault (cannot use without changing password)
-            change_dialog->hide();
-            on_close_vault();
-            show_error_dialog("Password change is required to access this vault.\nVault has been closed.");
-            return;
-        }
-
-        // Get new password
-        auto req = change_dialog->get_request();
-        change_dialog->hide();
-
-        // Validate password BEFORE showing YubiKey prompt
-        // This allows fail-fast for invalid passwords without YubiKey interaction
-        auto validation = m_vault_manager->validate_new_password(username, req.new_password);
-        if (!validation) {
-            // Validation failed - show error and retry
-            std::string error_msg = "Failed to validate password";
-            if (validation.error() == KeepTower::VaultError::WeakPassword) {
-                error_msg = "New password must be at least " + std::to_string(min_length) + " characters";
-            } else if (validation.error() == KeepTower::VaultError::PasswordReused) {
-                error_msg = "This password was used previously. Please choose a different password.";
-            }
-
-            auto error_dialog = Gtk::make_managed<Gtk::MessageDialog>(
-                *this, error_msg, false, Gtk::MessageType::ERROR, Gtk::ButtonsType::OK, true);
-            error_dialog->signal_response().connect([this, username](int) {
-                // Retry after error
-                handle_password_change_required(username);
-            });
-            error_dialog->present();
-
-            req.clear();
-            return;
-        }
-
-#ifdef HAVE_YUBIKEY_SUPPORT
-        // Validation passed - now show YubiKey prompt if enrolled
-        YubiKeyPromptDialog* touch_dialog = nullptr;
-        auto users = m_vault_manager->list_users();
-        for (const auto& user : users) {
-            if (user.username == username && user.yubikey_enrolled) {
-                touch_dialog = Gtk::make_managed<YubiKeyPromptDialog>(*this,
-                    YubiKeyPromptDialog::PromptType::TOUCH);
-                touch_dialog->present();
-
-                // Force GTK to process events and render the dialog
-                auto context = Glib::MainContext::get_default();
-                while (context->pending()) {
-                    context->iteration(false);
-                }
-                g_usleep(150000);  // 150ms to ensure dialog is visible
-                break;
-            }
-        }
-#endif
-
-        // Attempt password change (password already validated, just needs YubiKey operations)
-        auto result = m_vault_manager->change_user_password(username, req.current_password, req.new_password);
-
-#ifdef HAVE_YUBIKEY_SUPPORT
-        if (touch_dialog) {
-            touch_dialog->hide();
-        }
-#endif
-
-        // Clear passwords immediately
-        req.clear();
-
-        if (!result) {
-            // Password change failed
-            std::string error_msg = "Failed to change password";
-            if (result.error() == KeepTower::VaultError::WeakPassword) {
-                error_msg = "New password must be at least " + std::to_string(min_length) + " characters";
-            } else if (result.error() == KeepTower::VaultError::PasswordReused) {
-                error_msg = "This password was used previously. Please choose a different password.";
-            }
-
-            // Show error dialog, then retry after it's dismissed
-            auto error_dialog = Gtk::make_managed<Gtk::MessageDialog>(
-                *this, error_msg, false, Gtk::MessageType::ERROR, Gtk::ButtonsType::OK, true);
-            error_dialog->set_title("Password Change Failed");
-            error_dialog->signal_response().connect([this, error_dialog, username](int) {
-                error_dialog->hide();
-                // Retry password change after error dialog is dismissed
-                handle_password_change_required(username);
-            });
-            error_dialog->show();
-            return;
-        }
-
-        // Password changed successfully - save vault
+    // Phase 5f: Delegate V2 authentication to handler
+    m_v2_auth_handler->handle_vault_open(vault_path, [this](const std::string& path, const std::string& username) {
+        // Save vault after successful authentication (for password changes, etc.)
         on_save_vault();
-
-        // Check if YubiKey enrollment is now required
-        auto session_opt = m_vault_manager->get_current_user_session();
-        if (session_opt && session_opt->requires_yubikey_enrollment) {
-            // Show YubiKey enrollment dialog (required by policy)
-            handle_yubikey_enrollment_required(username);
-            return;
-        }
-
         // Complete vault opening
-        complete_vault_opening(m_current_vault_path, username);
+        complete_vault_opening(path, username);
     });
-
-    change_dialog->show();
 }
 
-void MainWindow::handle_yubikey_enrollment_required(const std::string& username) {
-#ifdef HAVE_YUBIKEY_SUPPORT
-    // Show message dialog explaining YubiKey enrollment requirement
-    auto info_dialog = Gtk::make_managed<Gtk::MessageDialog>(
-        *this,
-        "YubiKey enrollment is required by vault policy.\n\n"
-        "You must enroll your YubiKey to access this vault.\n\n"
-        "Please ensure your YubiKey is connected, then click OK to continue.",
-        false,
-        Gtk::MessageType::INFO,
-        Gtk::ButtonsType::OK_CANCEL,
-        true);
-    info_dialog->set_title("YubiKey Enrollment Required");
 
-    info_dialog->signal_response().connect([this, info_dialog, username](int response) {
-        info_dialog->hide();
 
-        if (response != Gtk::ResponseType::OK) {
-            // User cancelled - close vault
-            on_close_vault();
-            show_error_dialog("YubiKey enrollment is required.\nVault has been closed.");
-            return;
-        }
 
-        // Get user's current password (they just changed it)
-        auto pwd_dialog = Gtk::make_managed<Gtk::MessageDialog>(
-            *this,
-            "Enter your password to enroll YubiKey:",
-            false,
-            Gtk::MessageType::QUESTION,
-            Gtk::ButtonsType::OK_CANCEL,
-            true);
-        pwd_dialog->set_title("Password Required");
-
-        auto* entry = Gtk::make_managed<Gtk::Entry>();
-        entry->set_visibility(false);
-        entry->set_activates_default(true);
-        pwd_dialog->get_content_area()->append(*entry);
-        pwd_dialog->set_default_response(Gtk::ResponseType::OK);
-
-        pwd_dialog->signal_response().connect([this, pwd_dialog, entry, username](int pwd_response) {
-            if (pwd_response != Gtk::ResponseType::OK) {
-                pwd_dialog->hide();
-                on_close_vault();
-                show_error_dialog("YubiKey enrollment cancelled.\nVault has been closed.");
-                return;
-            }
-
-            auto password = entry->get_text();
-            pwd_dialog->hide();
-
-            // Show YubiKey touch prompt
-            auto touch_dialog = Gtk::make_managed<YubiKeyPromptDialog>(*this,
-                YubiKeyPromptDialog::PromptType::TOUCH);
-            touch_dialog->present();
-
-            // Force GTK to process events
-            auto context = Glib::MainContext::get_default();
-            while (context->pending()) {
-                context->iteration(false);
-            }
-            g_usleep(150000);  // 150ms delay
-
-            // Attempt YubiKey enrollment
-            auto result = m_vault_manager->enroll_yubikey_for_user(username, password);
-
-            // Clear password
-            entry->set_text("");
-            password = "";
-
-            touch_dialog->hide();
-
-            if (!result) {
-                std::string error_msg = "Failed to enroll YubiKey";
-                if (result.error() == KeepTower::VaultError::YubiKeyNotPresent) {
-                    error_msg = "YubiKey not detected. Please connect your YubiKey and try again.";
-                } else if (result.error() == KeepTower::VaultError::AuthenticationFailed) {
-                    error_msg = "Incorrect password.";
-                }
-
-                // Show error and retry
-                auto error_dialog = Gtk::make_managed<Gtk::MessageDialog>(
-                    *this, error_msg, false, Gtk::MessageType::ERROR, Gtk::ButtonsType::OK, true);
-                error_dialog->set_title("Enrollment Failed");
-                error_dialog->signal_response().connect([this, error_dialog, username](int) {
-                    error_dialog->hide();
-                    handle_yubikey_enrollment_required(username);  // Retry
-                });
-                error_dialog->show();
-                return;
-            }
-
-            // YubiKey enrolled successfully
-            on_save_vault();
-            complete_vault_opening(m_current_vault_path, username);
-
-            // Show success message
-            auto success_dialog = Gtk::make_managed<Gtk::MessageDialog>(
-                *this,
-                "YubiKey enrolled successfully!\n\nYour YubiKey will be required for all future logins.",
-                false,
-                Gtk::MessageType::INFO,
-                Gtk::ButtonsType::OK,
-                true);
-            success_dialog->set_title("Enrollment Complete");
-            success_dialog->signal_response().connect([success_dialog](int) {
-                success_dialog->hide();
-            });
-            success_dialog->show();
-        });
-
-        pwd_dialog->show();
-    });
-
-    info_dialog->show();
-#else
-    // YubiKey support not compiled - close vault
-    on_close_vault();
-    show_error_dialog("YubiKey enrollment required but YubiKey support is not available.\nVault has been closed.");
-#endif
-}
 
 void MainWindow::complete_vault_opening(const std::string& vault_path, const std::string& username) {
     KeepTower::Log::info("MainWindow: complete_vault_opening() called - vault_path='{}', username='{}'", vault_path, username);
 
-    // Vault opened successfully
-    KeepTower::Log::info("MainWindow: Setting member variables");
+    // Phase 5: Use UIStateManager for state management
+    KeepTower::Log::info("MainWindow: Setting vault opened state");
+    m_ui_state_manager->set_vault_opened(vault_path, username);
+
+    // Maintain local state cache for quick access without manager queries
     m_current_vault_path = vault_path;
     m_vault_open = true;
     m_is_locked = false;
 
-    KeepTower::Log::info("MainWindow: Setting button sensitivities");
-    m_save_button.set_sensitive(true);
-    m_close_button.set_sensitive(true);
-    m_add_account_button.set_sensitive(true);
-    m_search_entry.set_sensitive(true);
+    // Phase 2: Initialize repositories for data access
+    KeepTower::Log::info("MainWindow: Initializing repositories");
+    initialize_repositories();
 
     // Update UI with session information
     KeepTower::Log::info("MainWindow: About to call update_session_display()");
@@ -3945,49 +1897,19 @@ void MainWindow::complete_vault_opening(const std::string& vault_path, const std
     on_user_activity();
 
     KeepTower::Log::info("MainWindow: Setting status label");
-    m_status_label.set_text("Vault opened: " + vault_path + " (User: " + username + ")");
+    m_ui_state_manager->set_status("Vault opened: " + vault_path + " (User: " + username + ")");
     KeepTower::Log::info("MainWindow: complete_vault_opening() completed successfully");
 }
 
 void MainWindow::update_session_display() {
     KeepTower::Log::info("MainWindow: update_session_display() called");
 
-    auto session_opt = m_vault_manager->get_current_user_session();
-    if (!session_opt) {
-        // No active session (V1 vault or not logged in)
-        KeepTower::Log::info("MainWindow: No active session, hiding session label");
-        m_session_label.set_visible(false);
-        return;
-    }
+    // Phase 5: Delegate to UIStateManager
+    m_ui_state_manager->update_session_display([this]() {
+        KeepTower::Log::info("MainWindow: Calling update_menu_for_role() from UIStateManager callback");
+        update_menu_for_role();
+    });
 
-    const auto& session = *session_opt;
-    KeepTower::Log::info("MainWindow: Session found: username='{}', role={}, password_change_required={}",
-        session.username, static_cast<int>(session.role), session.password_change_required);
-
-    // Format session info: "User: alice (Admin)"
-    std::string role_str = (session.role == KeepTower::UserRole::ADMINISTRATOR) ? "Admin" : "User";
-    std::string session_text;
-
-    try {
-        session_text = "User: " + session.username + " (" + role_str + ")";
-
-        if (session.password_change_required) {
-            session_text += " [Password change required]";
-        }
-
-        KeepTower::Log::info("MainWindow: Setting session label text: '{}'", session_text);
-        m_session_label.set_text(session_text);
-        m_session_label.set_visible(true);
-        KeepTower::Log::info("MainWindow: Session label updated successfully");
-    } catch (const std::exception& e) {
-        KeepTower::Log::error("MainWindow: Error updating session display: {}", e.what());
-        m_session_label.set_text("User: " + session.username);
-        m_session_label.set_visible(true);
-    }
-
-    // Phase 4: Update menu visibility based on role
-    KeepTower::Log::info("MainWindow: Calling update_menu_for_role()");
-    update_menu_for_role();
     KeepTower::Log::info("MainWindow: update_session_display() completed");
 }
 
@@ -3996,213 +1918,35 @@ void MainWindow::update_session_display() {
 // ============================================================================
 
 void MainWindow::on_change_my_password() {
-    if (!m_vault_manager || !is_v2_vault_open()) {
-        show_error_dialog("No V2 vault is open");
-        return;
+    // Phase 5l: Delegate to UserAccountHandler
+    if (m_user_account_handler) {
+        m_user_account_handler->handle_change_password();
     }
-
-    auto session_opt = m_vault_manager->get_current_user_session();
-    if (!session_opt) {
-        show_error_dialog("No active user session");
-        return;
-    }
-
-    const auto& session = *session_opt;
-
-    // Get vault security policy for password requirements
-    auto policy_opt = m_vault_manager->get_vault_security_policy();
-    const uint32_t min_length = policy_opt ? policy_opt->min_password_length : 12;
-
-    // Show password change dialog (voluntary mode)
-    auto* change_dialog = new ChangePasswordDialog(*this, min_length, false);  // false = voluntary
-
-    change_dialog->signal_response().connect([this, change_dialog, username = session.username, min_length](int response) {
-        if (response != Gtk::ResponseType::OK) {
-            change_dialog->hide();
-            delete change_dialog;
-            return;
-        }
-
-        // Get new password
-        auto req = change_dialog->get_request();
-        change_dialog->hide();
-        delete change_dialog;
-
-        // Validate password BEFORE showing YubiKey prompt
-        // This allows fail-fast for invalid passwords without YubiKey interaction
-        auto validation = m_vault_manager->validate_new_password(username, req.new_password);
-        if (!validation) {
-            // Validation failed - show error
-            std::string error_msg = "Failed to validate password";
-            if (validation.error() == KeepTower::VaultError::WeakPassword) {
-                error_msg = "New password must be at least " + std::to_string(min_length) + " characters";
-            } else if (validation.error() == KeepTower::VaultError::PasswordReused) {
-                error_msg = "This password was used previously. Please choose a different password.";
-            }
-
-            show_error_dialog(error_msg);
-            req.clear();
-            return;
-        }
-
-#ifdef HAVE_YUBIKEY_SUPPORT
-        // Validation passed - now show YubiKey prompt if enrolled
-        YubiKeyPromptDialog* touch_dialog = nullptr;
-        auto users = m_vault_manager->list_users();
-        for (const auto& user : users) {
-            if (user.username == username && user.yubikey_enrolled) {
-                touch_dialog = Gtk::make_managed<YubiKeyPromptDialog>(*this,
-                    YubiKeyPromptDialog::PromptType::TOUCH);
-                touch_dialog->present();
-
-                // Force GTK to process events and render the dialog
-                auto context = Glib::MainContext::get_default();
-                while (context->pending()) {
-                    context->iteration(false);
-                }
-                g_usleep(150000);  // 150ms to ensure dialog is visible
-                break;
-            }
-        }
-#endif
-
-        // Attempt password change (password already validated, just needs YubiKey operations)
-        auto result = m_vault_manager->change_user_password(username, req.current_password, req.new_password);
-
-#ifdef HAVE_YUBIKEY_SUPPORT
-        if (touch_dialog) {
-            touch_dialog->hide();
-        }
-#endif
-
-        // Clear passwords immediately
-        req.clear();
-
-        if (!result) {
-            // Password change failed
-            std::string error_msg = "Failed to change password";
-            if (result.error() == KeepTower::VaultError::AuthenticationFailed) {
-                error_msg = "Current password is incorrect";
-            } else if (result.error() == KeepTower::VaultError::WeakPassword) {
-                error_msg = "New password must be at least " + std::to_string(min_length) + " characters";
-            } else if (result.error() == KeepTower::VaultError::PasswordReused) {
-                error_msg = "This password was used previously. Please choose a different password.";
-            }
-
-            show_error_dialog(error_msg);
-            return;
-        }
-
-        // Password changed successfully
-        m_status_label.set_text("Password changed successfully");
-
-        auto* success_dlg = new Gtk::MessageDialog(
-            *this,
-            "Password changed successfully",
-            false,
-            Gtk::MessageType::INFO
-        );
-        success_dlg->set_modal(true);
-        success_dlg->signal_response().connect([success_dlg](int) {
-            success_dlg->hide();
-            delete success_dlg;
-        });
-        success_dlg->show();
-    });
-
-    change_dialog->show();
 }
 
 void MainWindow::on_logout() {
-    if (!m_vault_manager || !is_v2_vault_open()) {
-        return;
-    }
-
-    // Prompt to save if modified
-    if (!prompt_save_if_modified()) {
-        return;  // User cancelled
-    }
-
-    // Save vault before logout (prompt_save_if_modified already handles saving)
-
-    // Close vault (this logs out the user)
-    std::string vault_path = m_current_vault_path;  // Save path before close
-    on_close_vault();
-
-    // Reopen the same vault file (will show login dialog)
-    if (!vault_path.empty()) {
-        handle_v2_vault_open(vault_path);
+    // Phase 5l: Delegate to UserAccountHandler
+    if (m_user_account_handler) {
+        m_user_account_handler->handle_logout();
     }
 }
 
 void MainWindow::on_manage_users() {
-    if (!m_vault_manager || !is_v2_vault_open()) {
-        show_error_dialog("No V2 vault is open");
-        return;
+    // Phase 5l: Delegate to UserAccountHandler
+    if (m_user_account_handler) {
+        m_user_account_handler->handle_manage_users();
     }
-
-    // Check if current user is administrator
-    if (!is_current_user_admin()) {
-        show_error_dialog("Only administrators can manage users");
-        return;
-    }
-
-    auto session_opt = m_vault_manager->get_current_user_session();
-    if (!session_opt) {
-        show_error_dialog("No active user session");
-        return;
-    }
-
-    // Show user management dialog
-    auto* dialog = new UserManagementDialog(*this, *m_vault_manager, session_opt->username);
-
-    // Handle relogin request
-    dialog->m_signal_request_relogin.connect([this](const std::string& new_username) {
-        // Store vault path before closing
-        std::string vault_path = m_current_vault_path;
-
-        // Close current vault (logout)
-        on_close_vault();
-
-        // Reopen vault with login dialog (it will default to the last username)
-        handle_v2_vault_open(vault_path);
-    });
-
-    dialog->signal_response().connect([dialog](int) {
-        dialog->hide();
-        delete dialog;
-    });
-
-    dialog->show();
 }
 
 void MainWindow::update_menu_for_role() {
     KeepTower::Log::info("MainWindow: update_menu_for_role() called");
 
-    // Only update if V2 vault is open
-    if (!is_v2_vault_open()) {
-        KeepTower::Log::info("MainWindow: No V2 vault open, disabling V2-specific menu actions");
-        // Disable all V2-specific actions for V1 vaults or when no vault is open
-        m_change_password_action->set_enabled(false);
-        m_logout_action->set_enabled(false);
-        m_manage_users_action->set_enabled(false);
-        // For V1 vaults, export is allowed (single-user)
-        m_export_action->set_enabled(true);
-        KeepTower::Log::info("MainWindow: update_menu_for_role() completed (no V2 vault)");
-        return;
-    }
+    // Phase 5: Delegate to MenuManager
+    bool is_v2 = is_v2_vault_open();
+    bool is_admin = is_v2 && is_current_user_admin();
+    m_menu_manager->update_menu_for_role(is_v2, is_admin, m_vault_open);
 
-    KeepTower::Log::info("MainWindow: V2 vault detected, updating menu");
-    // Enable change password and logout for all V2 users
-    m_change_password_action->set_enabled(true);
-    m_logout_action->set_enabled(true);
-
-    // Enable user management and export only for administrators
-    bool is_admin = is_current_user_admin();
-    KeepTower::Log::info("MainWindow: User is admin: {}", is_admin);
-    m_manage_users_action->set_enabled(is_admin);
-    m_export_action->set_enabled(is_admin);
-    KeepTower::Log::info("MainWindow: update_menu_for_role() completed (V2 mode)");
+    KeepTower::Log::info("MainWindow: update_menu_for_role() completed (V2={}, Admin={})", is_v2, is_admin);
 }
 
 bool MainWindow::is_v2_vault_open() const noexcept {
@@ -4232,4 +1976,84 @@ bool MainWindow::is_current_user_admin() const noexcept {
     }
 
     return session_opt->is_admin();
+}
+
+/**
+ * @brief Initialize repositories after vault opening
+ *
+ * Creates AccountRepository and GroupRepository instances that provide
+ * a data access abstraction layer over VaultManager. This is part of the
+ * Phase 2 refactoring to introduce the Repository Pattern.
+ *
+ * The repositories provide:
+ * - Clean separation between data access and business logic
+ * - Consistent error handling with std::expected
+ * - Testability through interface-based design
+ * - Foundation for future service layer (Phase 3)
+ *
+ * @note Should be called immediately after successful vault opening
+ * @note Logs warning and returns early if VaultManager is null
+ */
+void MainWindow::initialize_repositories() {
+    if (!m_vault_manager) {
+        KeepTower::Log::warning("Cannot initialize repositories: VaultManager is null");
+        return;
+    }
+
+    KeepTower::Log::info("Initializing repositories for data access");
+    m_account_repo = std::make_unique<KeepTower::AccountRepository>(m_vault_manager.get());
+    m_group_repo = std::make_unique<KeepTower::GroupRepository>(m_vault_manager.get());
+
+    // Phase 3: Initialize services after repositories
+    initialize_services();
+}
+
+/**
+ * @brief Reset repositories when vault is closed
+ *
+ * Destroys the repository instances to free resources and ensure that
+ * no data access operations can be attempted on a closed vault.
+ * Part of the Phase 2 refactoring cleanup process.
+ *
+ * @note Should be called before setting m_vault_open to false
+ */
+void MainWindow::reset_repositories() {
+    KeepTower::Log::info("Resetting repositories (vault closed)");
+
+    // Phase 3: Reset services before repositories
+    reset_services();
+
+    m_account_repo.reset();
+    m_group_repo.reset();
+}
+
+/**
+ * @brief Initialize services after repositories are created
+ *
+ * Creates AccountService and GroupService instances that wrap repositories
+ * to provide business logic validation. Part of Phase 3 refactoring.
+ *
+ * @note Requires repositories to be initialized first
+ */
+void MainWindow::initialize_services() {
+    if (!m_account_repo || !m_group_repo) {
+        KeepTower::Log::warning("Cannot initialize services: repositories are null");
+        return;
+    }
+
+    KeepTower::Log::info("Initializing services for business logic");
+    m_account_service = std::make_unique<KeepTower::AccountService>(m_account_repo.get());
+    m_group_service = std::make_unique<KeepTower::GroupService>(m_group_repo.get());
+}
+
+/**
+ * @brief Reset services when vault is closed
+ *
+ * Destroys service instances to free resources.
+ * Part of Phase 3 refactoring cleanup process.
+ */
+void MainWindow::reset_services() {
+    KeepTower::Log::info("Resetting services (vault closed)");
+    m_account_service.reset();
+    m_group_service.reset();
 }

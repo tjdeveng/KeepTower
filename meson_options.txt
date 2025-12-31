@@ -9,6 +9,12 @@ option('tests',
   description: 'Build and run tests'
 )
 
+option('coverage',
+  type: 'boolean',
+  value: false,
+  description: 'Build with code coverage support (gcov/lcov)'
+)
+
 option('documentation',
   type: 'boolean',
   value: false,

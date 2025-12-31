@@ -89,7 +89,11 @@ public:
     // Non-copyable but moveable
     ReedSolomon(const ReedSolomon&) = delete;
     ReedSolomon& operator=(const ReedSolomon&) = delete;
+
+    /** @brief Move constructor - transfers Reed-Solomon context */
     ReedSolomon(ReedSolomon&&) noexcept;
+
+    /** @brief Move assignment - transfers Reed-Solomon context */
     ReedSolomon& operator=(ReedSolomon&&) noexcept;
 
     /**

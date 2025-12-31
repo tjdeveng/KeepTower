@@ -75,6 +75,9 @@ bool result = m_vault_manager->create_vault(vault_path, password);
  * @test Test that undo-redo-enabled preference defaults to true
  */
 TEST_F(UndoRedoPreferencesTest, DefaultEnabledValue) {
+    // Reset to schema default first to test actual default, not user override
+    m_settings->reset("undo-redo-enabled");
+
     // Default should be true (enabled)
     bool enabled = m_settings->get_boolean("undo-redo-enabled");
     EXPECT_TRUE(enabled) << "Default undo-redo-enabled should be true";
@@ -84,6 +87,9 @@ TEST_F(UndoRedoPreferencesTest, DefaultEnabledValue) {
  * @test Test that undo-history-limit preference defaults to 50
  */
 TEST_F(UndoRedoPreferencesTest, DefaultHistoryLimit) {
+    // Reset to schema default first to test actual default, not user override
+    m_settings->reset("undo-history-limit");
+
     // Default should be 50
     int limit = m_settings->get_int("undo-history-limit");
     EXPECT_EQ(limit, 50) << "Default undo-history-limit should be 50";

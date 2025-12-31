@@ -19,6 +19,9 @@
  */
 class GroupRenameDialog : public Gtk::Dialog {
 public:
+    /** @brief Construct group rename dialog
+     *  @param parent Parent window for modal dialog
+     *  @param current_name Current group name to pre-populate */
     GroupRenameDialog(Gtk::Window& parent, const Glib::ustring& current_name);
     virtual ~GroupRenameDialog() = default;
 

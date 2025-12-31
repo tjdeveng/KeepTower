@@ -38,6 +38,12 @@ vault_manager_common_sources = [
     '../src/core/KeyWrapping.cc',
     '../src/core/VaultFormatV2.cc',
     '../src/core/PasswordHistory.cc',
+    '../src/core/crypto/VaultCrypto.cc',
+    '../src/core/io/VaultIO.cc',
+    '../src/core/serialization/VaultSerialization.cc',
+    '../src/core/format/VaultFormat.cc',
+    '../src/core/managers/AccountManager.cc',
+    '../src/core/managers/GroupManager.cc',
     proto_gen
 ]
 
@@ -56,7 +62,7 @@ vault_manager_deps = [
 
 # Add YubiKey support if available
 if yubikey_available
-    vault_manager_sources += files('../src/core/YubiKeyManager.cc')
+    vault_manager_sources += files('../src/core/managers/YubiKeyManager.cc')
     vault_manager_deps += [ykpers_dep, libyubikey_dep]
 endif
 
@@ -81,7 +87,7 @@ fips_mode_deps = [
 ]
 
 if yubikey_available
-    fips_mode_sources += files('../src/core/YubiKeyManager.cc')
+    fips_mode_sources += files('../src/core/managers/YubiKeyManager.cc')
     fips_mode_deps += [ykpers_dep, libyubikey_dep]
 endif
 
@@ -107,7 +113,7 @@ memory_locking_deps = [
 ]
 
 if yubikey_available
-    memory_locking_sources += files('../src/core/YubiKeyManager.cc')
+    memory_locking_sources += files('../src/core/managers/YubiKeyManager.cc')
     memory_locking_deps += [ykpers_dep, libyubikey_dep]
 endif
 
@@ -137,7 +143,7 @@ security_sources = [
 
 security_deps = [protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
 if yubikey_available
-    security_sources += files('../src/core/YubiKeyManager.cc')
+    security_sources += files('../src/core/managers/YubiKeyManager.cc')
     security_deps += [ykpers_dep, libyubikey_dep]
 endif
 
@@ -178,7 +184,7 @@ vault_rs_sources = [
 
 vault_rs_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
 if yubikey_available
-    vault_rs_sources += files('../src/core/YubiKeyManager.cc')
+    vault_rs_sources += files('../src/core/managers/YubiKeyManager.cc')
     vault_rs_deps += [ykpers_dep, libyubikey_dep]
 endif
 
@@ -197,7 +203,7 @@ fec_pref_sources = [
 
 fec_pref_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
 if yubikey_available
-    fec_pref_sources += files('../src/core/YubiKeyManager.cc')
+    fec_pref_sources += files('../src/core/managers/YubiKeyManager.cc')
     fec_pref_deps += [ykpers_dep, libyubikey_dep]
 endif
 
@@ -248,7 +254,7 @@ vault_helpers_sources = [
 
 vault_helpers_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
 if yubikey_available
-    vault_helpers_sources += files('../src/core/YubiKeyManager.cc')
+    vault_helpers_sources += files('../src/core/managers/YubiKeyManager.cc')
     vault_helpers_deps += [ykpers_dep, libyubikey_dep]
 endif
 
@@ -275,7 +281,7 @@ undo_redo_sources = [
 
 undo_redo_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
 if yubikey_available
-    undo_redo_sources += files('../src/core/YubiKeyManager.cc')
+    undo_redo_sources += files('../src/core/managers/YubiKeyManager.cc')
     undo_redo_deps += [ykpers_dep, libyubikey_dep]
 endif
 
@@ -310,7 +316,7 @@ secure_memory_sources = [
 
 secure_memory_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
 if yubikey_available
-    secure_memory_sources += files('../src/core/YubiKeyManager.cc')
+    secure_memory_sources += files('../src/core/managers/YubiKeyManager.cc')
     secure_memory_deps += [ykpers_dep, libyubikey_dep]
 endif
 
@@ -331,7 +337,7 @@ undo_redo_prefs_sources = [
 
 undo_redo_prefs_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
 if yubikey_available
-    undo_redo_prefs_sources += files('../src/core/YubiKeyManager.cc')
+    undo_redo_prefs_sources += files('../src/core/managers/YubiKeyManager.cc')
     undo_redo_prefs_deps += [ykpers_dep, libyubikey_dep]
 endif
 
@@ -352,7 +358,7 @@ account_groups_sources = [
 
 account_groups_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
 if yubikey_available
-    account_groups_sources += files('../src/core/YubiKeyManager.cc')
+    account_groups_sources += files('../src/core/managers/YubiKeyManager.cc')
     account_groups_deps += [ykpers_dep, libyubikey_dep]
 endif
 
@@ -390,7 +396,7 @@ v2_auth_sources = [
 ] + vault_manager_common_sources
 v2_auth_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
 if yubikey_available
-    v2_auth_sources += files('../src/core/YubiKeyManager.cc')
+    v2_auth_sources += files('../src/core/managers/YubiKeyManager.cc')
     v2_auth_deps += [ykpers_dep, libyubikey_dep]
 endif
 
@@ -410,7 +416,7 @@ migration_test_sources = [
 ] + vault_manager_common_sources
 migration_test_deps = [protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
 if yubikey_available
-    migration_test_sources += files('../src/core/YubiKeyManager.cc')
+    migration_test_sources += files('../src/core/managers/YubiKeyManager.cc')
     migration_test_deps += [ykpers_dep, libyubikey_dep]
 endif
 
@@ -428,7 +434,7 @@ v2_creation_test_sources = [
 ] + vault_manager_common_sources
 v2_creation_test_deps = [protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
 if yubikey_available
-    v2_creation_test_sources += files('../src/core/YubiKeyManager.cc')
+    v2_creation_test_sources += files('../src/core/managers/YubiKeyManager.cc')
     v2_creation_test_deps += [ykpers_dep, libyubikey_dep]
 endif
 
@@ -452,7 +458,7 @@ password_history_test_deps = [
     libcorrect_dep
 ]
 if yubikey_available
-    password_history_test_sources += files('../src/core/YubiKeyManager.cc')
+    password_history_test_sources += files('../src/core/managers/YubiKeyManager.cc')
     password_history_test_deps += [ykpers_dep, libyubikey_dep]
 endif
 
@@ -465,3 +471,213 @@ password_history_test = executable(
 
 test('password_history', password_history_test)
 
+# AccountViewController tests (Phase 1 refactoring)
+account_view_controller_test_sources = [
+    'test_account_view_controller.cc',
+    '../src/ui/controllers/AccountViewController.cc',
+    '../src/core/repositories/AccountRepository.cc',
+    '../src/core/repositories/GroupRepository.cc',
+    '../src/core/VaultManagerV2.cc',
+] + vault_manager_common_sources
+
+account_view_controller_test_deps = [
+    gtest_dep,
+    protobuf_dep,
+    openssl_dep,
+    giomm_dep,
+    libcorrect_dep
+]
+
+if yubikey_available
+    account_view_controller_test_sources += files('../src/core/managers/YubiKeyManager.cc')
+    account_view_controller_test_deps += [ykpers_dep, libyubikey_dep]
+endif
+
+account_view_controller_test = executable(
+    'account_view_controller_test',
+    account_view_controller_test_sources,
+    dependencies: account_view_controller_test_deps,
+    include_directories: test_inc
+)
+
+test('account_view_controller', account_view_controller_test)
+
+# SearchController tests (Phase 1 refactoring)
+search_controller_test_sources = [
+    'test_search_controller.cc',
+    '../src/ui/controllers/SearchController.cc',
+    proto_gen
+]
+
+search_controller_test_deps = [
+    gtest_dep,
+    protobuf_dep
+]
+
+search_controller_test = executable(
+    'search_controller_test',
+    search_controller_test_sources,
+    dependencies: search_controller_test_deps,
+    include_directories: test_inc
+)
+
+test('search_controller', search_controller_test)
+
+# AutoLockManager tests (Phase 1.3 refactoring)
+auto_lock_manager_test_sources = [
+    'test_auto_lock_manager.cc',
+    '../src/ui/controllers/AutoLockManager.cc'
+]
+
+auto_lock_manager_test_deps = [
+    gtest_dep,
+    giomm_dep
+]
+
+auto_lock_manager_test = executable(
+    'auto_lock_manager_test',
+    auto_lock_manager_test_sources,
+    dependencies: auto_lock_manager_test_deps,
+    include_directories: test_inc
+)
+
+test('auto_lock_manager', auto_lock_manager_test)
+
+# ClipboardManager tests (Phase 1.3 refactoring)
+clipboard_manager_test_sources = [
+    'test_clipboard_manager.cc',
+    '../src/ui/controllers/ClipboardManager.cc'
+]
+
+clipboard_manager_test_deps = [
+    gtest_dep,
+    gtkmm_dep,
+    giomm_dep
+]
+
+clipboard_manager_test = executable(
+    'clipboard_manager_test',
+    clipboard_manager_test_sources,
+    dependencies: clipboard_manager_test_deps,
+    include_directories: test_inc
+)
+
+test('clipboard_manager', clipboard_manager_test)
+
+# AccountRepository tests (Phase 2 refactoring)
+account_repository_test_sources = [
+    'test_account_repository.cc',
+    '../src/core/repositories/AccountRepository.cc',
+    '../src/core/VaultManagerV2.cc',
+] + vault_manager_common_sources
+
+account_repository_test_deps = [
+    gtest_dep,
+    protobuf_dep,
+    openssl_dep,
+    giomm_dep,
+    libcorrect_dep
+]
+
+if yubikey_available
+    account_repository_test_sources += files('../src/core/managers/YubiKeyManager.cc')
+    account_repository_test_deps += [ykpers_dep, libyubikey_dep]
+endif
+
+account_repository_test = executable(
+    'account_repository_test',
+    account_repository_test_sources,
+    dependencies: account_repository_test_deps,
+    include_directories: test_inc
+)
+
+test('account_repository', account_repository_test)
+
+# GroupRepository tests (Phase 2 refactoring)
+group_repository_test_sources = [
+    'test_group_repository.cc',
+    '../src/core/repositories/GroupRepository.cc',
+    '../src/core/VaultManagerV2.cc',
+] + vault_manager_common_sources
+
+group_repository_test_deps = [
+    gtest_dep,
+    protobuf_dep,
+    openssl_dep,
+    giomm_dep,
+    libcorrect_dep
+]
+
+if yubikey_available
+    group_repository_test_sources += files('../src/core/managers/YubiKeyManager.cc')
+    group_repository_test_deps += [ykpers_dep, libyubikey_dep]
+endif
+
+group_repository_test = executable(
+    'group_repository_test',
+    group_repository_test_sources,
+    dependencies: group_repository_test_deps,
+    include_directories: test_inc
+)
+
+test('group_repository', group_repository_test)
+
+# AccountService tests (Phase 3 refactoring - Service Layer)
+account_service_test_sources = [
+    'test_account_service.cc',
+    '../src/core/services/AccountService.cc',
+    '../src/core/repositories/AccountRepository.cc',
+    '../src/core/VaultManagerV2.cc',
+] + vault_manager_common_sources
+
+account_service_test_deps = [
+    gtest_dep,
+    protobuf_dep,
+    openssl_dep,
+    giomm_dep,
+    libcorrect_dep
+]
+
+if yubikey_available
+    account_service_test_sources += files('../src/core/managers/YubiKeyManager.cc')
+    account_service_test_deps += [ykpers_dep, libyubikey_dep]
+endif
+
+account_service_test = executable(
+    'account_service_test',
+    account_service_test_sources,
+    dependencies: account_service_test_deps,
+    include_directories: test_inc
+)
+
+test('account_service', account_service_test)
+
+# GroupService tests (Phase 3 refactoring - Service Layer)
+group_service_test_sources = [
+    'test_group_service.cc',
+    '../src/core/services/GroupService.cc',
+    '../src/core/repositories/GroupRepository.cc',
+    '../src/core/VaultManagerV2.cc',
+] + vault_manager_common_sources
+
+group_service_test_deps = [
+    gtest_dep,
+    protobuf_dep,
+    openssl_dep,
+    giomm_dep,
+    libcorrect_dep
+]
+
+if yubikey_available
+    group_service_test_sources += files('../src/core/managers/YubiKeyManager.cc')
+    group_service_test_deps += [ykpers_dep, libyubikey_dep]
+endif
+
+group_service_test = executable(
+    'group_service_test',
+    group_service_test_sources,
+    dependencies: group_service_test_deps,
+    include_directories: test_inc
+)
+
+test('group_service', group_service_test)

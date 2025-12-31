@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/tjdeveng/KeepTower/workflows/CI/badge.svg)](https://github.com/tjdeveng/KeepTower/actions/workflows/ci.yml)
 [![Build](https://github.com/tjdeveng/KeepTower/workflows/Build/badge.svg)](https://github.com/tjdeveng/KeepTower/actions/workflows/build.yml)
+[![codecov](https://codecov.io/gh/tjdeveng/KeepTower/branch/main/graph/badge.svg)](https://codecov.io/gh/tjdeveng/KeepTower)
 [![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.2.8--beta-orange.svg)](CHANGELOG.md)
 

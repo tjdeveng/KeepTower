@@ -1,9 +1,41 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2025 tjdeveng
-//
-// CommonPasswords.h - Comprehensive common password list
-// Based on industry breach data and NIST SP 800-63B guidelines
-// Sources: Have I Been Pwned, SplashData, NordPass annual reports
+
+/**
+ * @file CommonPasswords.h
+ * @brief Comprehensive common password blacklist for strength validation
+ *
+ * Contains a curated list of 227 commonly used passwords compiled from real-world
+ * data breaches and security research. Used to prevent users from selecting weak
+ * passwords that appear in breach databases.
+ *
+ * @section sources Data Sources
+ * - **Have I Been Pwned** (Troy Hunt's breach database)
+ * - **SplashData** annual worst passwords report
+ * - **NordPass** annual most common passwords report
+ * - **NIST SP 800-63B** guidelines
+ *
+ * @section categories Password Categories
+ * - Top 20 most breached passwords
+ * - Sequential numbers and patterns
+ * - Keyboard walking patterns
+ * - Common words and phrases
+ * - Sports teams and names
+ * - Profanity and slang
+ * - Leet speak variations
+ * - Date and year patterns
+ *
+ * @section security Security Considerations
+ * This list is intentionally kept in memory (not loaded from file) to ensure
+ * password checks work even if the filesystem is compromised. The list is
+ * compiled into the binary at build time.
+ *
+ * @warning Do not remove passwords from this list without security review
+ *
+ * @section usage Usage
+ * Used by PasswordStrengthValidator during password creation and change operations.
+ * Passwords matching any entry in this list are rejected as too weak.
+ */
 
 #ifndef KEEPTOWER_COMMON_PASSWORDS_H
 #define KEEPTOWER_COMMON_PASSWORDS_H
@@ -13,13 +45,14 @@
 
 namespace KeepTower {
 
-// Common passwords from real-world breaches and patterns
-// This list includes:
-// - Top breached passwords (from Have I Been Pwned)
-// - Sequential numbers and keyboard patterns
-// - Common words and names
-// - Leet speak variations
-// - Year patterns
+/**
+ * @brief Common password blacklist from real-world breaches
+ *
+ * Array of 227 common passwords that should never be accepted. Passwords are
+ * stored as string_view for zero-copy, compile-time initialization.
+ *
+ * @note Case-insensitive comparison should be used when checking passwords
+ */
 inline constexpr std::array<std::string_view, 227> COMMON_PASSWORDS = {
     // Top 20 most common from breaches
     "password",
@@ -251,7 +284,9 @@ inline constexpr std::array<std::string_view, 227> COMMON_PASSWORDS = {
     "dragon123",
 };
 
-// Helper function to check if a password is in the common list
+/** @brief Check if password is in common passwords list
+ *  @param password Password to check (case-insensitive)
+ *  @return true if password is in the common passwords list */
 inline bool is_common_password(std::string_view password) {
     // Convert to lowercase for case-insensitive comparison
     std::string lower_pass;

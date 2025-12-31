@@ -27,6 +27,12 @@
 #include "ReedSolomon.h"
 #include "MultiUserTypes.h"
 #include "VaultFormatV2.h"
+#include "crypto/VaultCrypto.h"
+#include "io/VaultIO.h"
+#include "serialization/VaultSerialization.h"
+#include "format/VaultFormat.h"
+#include "managers/AccountManager.h"
+#include "managers/GroupManager.h"
 
 // Forward declare for conditional compilation
 #if __has_include("config.h")
@@ -34,10 +40,11 @@
 #endif
 
 #ifdef HAVE_YUBIKEY_SUPPORT
-#include "YubiKeyManager.h"
+#include "managers/YubiKeyManager.h"
 #endif
 
 // Forward declarations for OpenSSL types
+/** @brief OpenSSL cipher context structure (opaque type) */
 typedef struct evp_cipher_ctx_st EVP_CIPHER_CTX;
 
 /**
@@ -1233,7 +1240,12 @@ public:
      */
     bool is_v2_vault() const { return m_vault_open && m_is_v2_vault; }
 
+    /** @brief Get path of currently open vault
+     *  @return Vault file path (empty if no vault open) */
     std::string get_current_vault_path() const { return m_current_vault_path; }
+
+    /** @brief Check if vault has unsaved modifications
+     *  @return true if vault has been modified since last save */
     bool is_modified() const { return m_modified; }
 
     // Reed-Solomon error correction
@@ -1469,59 +1481,16 @@ public:
 #endif
 
 private:
-    // Helper structures for vault parsing
-    struct VaultFileMetadata {
-        std::vector<uint8_t> salt;
-        std::vector<uint8_t> iv;
-        bool has_fec = false;
-        uint8_t fec_redundancy = 0;
-        bool requires_yubikey = false;
-        std::string yubikey_serial;
-        std::vector<uint8_t> yubikey_challenge;
-    };
-
-    struct ParsedVaultData {
-        VaultFileMetadata metadata;
-        std::vector<uint8_t> ciphertext;
-    };
-
     // Helper methods for open_vault() refactoring
-    KeepTower::VaultResult<ParsedVaultData> parse_vault_format(const std::vector<uint8_t>& file_data);
-    KeepTower::VaultResult<std::vector<uint8_t>> decode_with_reed_solomon(
-        const std::vector<uint8_t>& encoded_data,
-        uint32_t original_size,
-        uint8_t redundancy);
 #ifdef HAVE_YUBIKEY_SUPPORT
     KeepTower::VaultResult<> authenticate_yubikey(
-        const VaultFileMetadata& metadata,
+        const KeepTower::VaultFileMetadata& metadata,
         std::vector<uint8_t>& encryption_key);
 #endif
     KeepTower::VaultResult<keeptower::VaultData> decrypt_and_parse_vault(
         const std::vector<uint8_t>& ciphertext,
         const std::vector<uint8_t>& key,
         const std::vector<uint8_t>& iv);
-
-    // Cryptographic operations
-    bool derive_key(const Glib::ustring& password,
-                    std::span<const uint8_t> salt,
-                    std::vector<uint8_t>& key);
-
-    bool encrypt_data(std::span<const uint8_t> plaintext,
-                      std::span<const uint8_t> key,
-                      std::vector<uint8_t>& ciphertext,
-                      std::vector<uint8_t>& iv);
-
-    bool decrypt_data(std::span<const uint8_t> ciphertext,
-                      std::span<const uint8_t> key,
-                      std::span<const uint8_t> iv,
-                      std::vector<uint8_t>& plaintext);
-
-    // File I/O
-    bool read_vault_file(const std::string& path, std::vector<uint8_t>& data);
-    bool write_vault_file(const std::string& path, const std::vector<uint8_t>& data);
-
-    // Generate random bytes for salt and IV
-    std::vector<uint8_t> generate_random_bytes(size_t length);
 
     // Secure memory clearing and locking
     void secure_clear(std::vector<uint8_t>& data);
@@ -1531,14 +1500,8 @@ private:
     void unlock_memory(std::vector<uint8_t>& data);
     void unlock_memory(void* data, size_t size);  // Overload for std::array and raw pointers
 
-    // Backup management
-    KeepTower::VaultResult<> create_backup(std::string_view path);
-    KeepTower::VaultResult<> restore_from_backup(std::string_view path);
-
     // Schema migration
     bool migrate_vault_schema();
-    void cleanup_old_backups(std::string_view path, int max_backups);
-    std::vector<std::string> list_backups(std::string_view path);
 
     // State
     bool m_vault_open;
@@ -1575,6 +1538,10 @@ private:
 
     // In-memory vault data (protobuf)
     keeptower::VaultData m_vault_data;
+
+    // Managers for specific responsibilities
+    std::unique_ptr<KeepTower::AccountManager> m_account_manager;
+    std::unique_ptr<KeepTower::GroupManager> m_group_manager;
 
     // Vault file format constants
     static constexpr uint32_t VAULT_MAGIC = 0x4B505457;  // "KPTW" (KeepTower)

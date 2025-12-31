@@ -56,7 +56,10 @@ std::string export_error_to_string(ExportError error) {
     }
 }
 
-// Helper: Escape CSV field (handle commas, quotes, newlines)
+/** @brief Escape CSV field for RFC 4180 compliance
+ *  @param field Field text to escape
+ *  @return Escaped field with quotes if needed
+ *  @note Adds quotes if field contains comma, quote, or newline */
 static std::string escape_csv_field(const std::string& field) {
     if (field.find(',') == std::string::npos &&
         field.find('"') == std::string::npos &&
@@ -81,7 +84,9 @@ static std::string escape_csv_field(const std::string& field) {
     return escaped;
 }
 
-// Helper: Unescape CSV field
+/** @brief Unescape CSV field (remove quotes and unescape double quotes)
+ *  @param field Escaped CSV field
+ *  @return Unescaped field text */
 static std::string unescape_csv_field(const std::string& field) {
     if (field.empty()) {
         return field;
@@ -106,7 +111,9 @@ static std::string unescape_csv_field(const std::string& field) {
     return field;
 }
 
-// Helper: Parse CSV line considering quoted fields
+/** @brief Parse CSV line into fields (respects quoted fields)
+ *  @param line CSV line to parse
+ *  @return Vector of unescaped field values */
 static std::vector<std::string> parse_csv_line(const std::string& line) {
     std::vector<std::string> fields;
     std::string current_field;
@@ -258,7 +265,9 @@ export_to_csv(const std::string& filepath,
     }
 }
 
-// Helper: Escape XML special characters
+/** @brief Escape XML special characters
+ *  @param text Text to escape
+ *  @return XML-safe text with entities (&lt; &gt; &amp; &quot; &apos;) */
 static std::string escape_xml(const std::string& text) {
     std::string escaped;
     escaped.reserve(text.size() + 20);
@@ -277,7 +286,8 @@ static std::string escape_xml(const std::string& text) {
     return escaped;
 }
 
-// Helper: Get current timestamp in ISO 8601 format
+/** @brief Get current timestamp in ISO 8601 format
+ *  @return Timestamp string (e.g., "2025-12-30T10:30:00Z") */
 static std::string get_iso_timestamp() {
     std::time_t now = std::time(nullptr);
     char buffer[25];
@@ -468,7 +478,10 @@ export_to_1password_1pif(const std::string& filepath,
     }
 }
 
-// Helper: Extract text between XML tags (simple parser for our exported format)
+/** @brief Extract text content between XML tags
+ *  @param xml XML document to search
+ *  @param tag Tag name to extract (without angle brackets)
+ *  @return Tag content (empty if tag not found) */
 static std::string extract_xml_value(std::string_view xml, std::string_view tag) {
 #ifdef HAS_STD_FORMAT
     std::string open_tag = std::format("<{}>", tag);
@@ -493,7 +506,9 @@ static std::string extract_xml_value(std::string_view xml, std::string_view tag)
     return std::string(xml.substr(start, end - start));
 }
 
-// Helper: Unescape XML entities
+/** @brief Unescape XML entities
+ *  @param text XML text with entities
+ *  @return Unescaped text (entities replaced with characters) */
 static std::string unescape_xml(const std::string& text) {
     std::string result = text;
 

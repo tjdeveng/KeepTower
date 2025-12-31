@@ -1,4 +1,17 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2025 tjdeveng
 
+/**
+ * @file GroupRowWidget.h
+ * @brief Custom GTK4 widget for displaying account group entries
+ *
+ * Provides an expandable/collapsible group row widget with:
+ * - Group name display
+ * - Expand/collapse functionality
+ * - Child account container
+ * - Drag-and-drop reordering
+ * - Right-click context menu support
+ */
 
 #pragma once
 #include <sigc++/sigc++.h>
@@ -16,40 +29,81 @@ namespace keeptower {
     class AccountGroup;
 }
 
+/**
+ * @class GroupRowWidget
+ * @brief Expandable group row with child account container
+ *
+ * Interactive group widget that can contain child account rows. Supports
+ * expand/collapse animation, drag-and-drop reordering, and serves as a
+ * drop target for accounts being moved between groups.
+ */
 class GroupRowWidget : public Gtk::Box {
 public:
+    /** @brief Construct empty group row widget */
     GroupRowWidget();
+
+    /** @brief Destructor */
     ~GroupRowWidget() override;
 
-    // Set group data (from keeptower::AccountGroup)
+    /**
+     * @brief Set group data to display
+     * @param group AccountGroup protobuf message
+     */
     void set_group(const keeptower::AccountGroup& group);
 
-    // Get current group id
+    /**
+     * @brief Get current group ID
+     * @return Group unique identifier
+     */
     std::string group_id() const;
 
-    // Set selected state
+    /**
+     * @brief Set visual selection state
+     * @param selected true to highlight as selected
+     */
     void set_selected(bool selected);
 
-    // Expand/collapse the group
+    /**
+     * @brief Expand or collapse group (show/hide children)
+     * @param expanded true to expand, false to collapse
+     */
     void set_expanded(bool expanded);
+
+    /**
+     * @brief Check if group is currently expanded
+     * @return true if expanded (children visible)
+     */
     bool is_expanded() const;
 
-    // Add a child widget (account row) to this group
+    /**
+     * @brief Add account row as child
+     * @param child Account widget to add
+     */
     void add_child(Gtk::Widget& child);
 
-    // Clear all child widgets
+    /** @brief Remove all child account widgets */
     void clear_children();
 
-    // Signal: emitted when this group is selected
+    /**
+     * @brief Signal emitted when group is clicked
+     * @return Signal with group_id parameter
+     */
     sigc::signal<void(std::string)>& signal_selected();
 
-    // Signal: emitted when this group is reordered (drag-and-drop)
+    /**
+     * @brief Signal emitted during drag-and-drop reorder
+     * @return Signal with (group_id, new_position) parameters
+     */
     sigc::signal<void(std::string, int)>& signal_reordered();
 
-    // Signal: emitted when an account is dropped into this group
-    sigc::signal<void(std::string, std::string)>& signal_account_dropped();  // account_id, group_id
+    /**
+     * @brief Signal emitted when an account is dropped into this group
+     * @return Signal with (account_id, group_id) parameters
+     */
+    sigc::signal<void(std::string, std::string)>& signal_account_dropped();
 
-    // Signal: emitted when this group is right-clicked
+    /** @brief Signal emitted when group is right-clicked
+     *  @return Signal with (group_id, widget, x, y) parameters for context menu */
     sigc::signal<void(std::string, Gtk::Widget*, double, double)>& signal_right_clicked();
 
 private:

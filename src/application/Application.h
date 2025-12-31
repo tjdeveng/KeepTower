@@ -23,7 +23,7 @@ class MainWindow;
  * @section actions Application Actions
  * - `quit` - Exit the application
  * - `about` - Show about dialog
- * - `preferences` - Show preferences dialog (TODO)
+ * - `preferences` - Show preferences dialog
  */
 class Application : public Gtk::Application {
 public:

@@ -29,40 +29,106 @@ public:
     virtual ~AccountDetailWidget();
 
     // Public API to display account details
+
+    /** @brief Display account record in widget
+     *  @param account Pointer to AccountRecord to display (nullptr to clear) */
     void display_account(const keeptower::AccountRecord* account);
+
+    /** @brief Clear all fields and reset widget state */
     void clear();
 
     // Getters for edited values
+
+    /** @brief Get edited account name
+     *  @return Account name from entry field */
     std::string get_account_name() const;
+
+    /** @brief Get edited username
+     *  @return Username from entry field */
     std::string get_user_name() const;
+
+    /** @brief Get edited password
+     *  @return Password from entry field */
     std::string get_password() const;
+
+    /** @brief Get edited email address
+     *  @return Email from entry field */
     std::string get_email() const;
+
+    /** @brief Get edited website URL
+     *  @return Website from entry field */
     std::string get_website() const;
+
+    /** @brief Get edited notes
+     *  @return Notes from text view */
     std::string get_notes() const;
+
+    /** @brief Get tags as comma-separated string
+     *  @return Tags from entry field */
     std::string get_tags() const;
-    std::vector<std::string> get_all_tags() const;  // Get all tags as vector
+
+    /** @brief Get all tags as vector
+     *  @return Vector of individual tags */
+    std::vector<std::string> get_all_tags() const;
 
     // Privacy controls (V2 multi-user)
+
+    /** @brief Get admin-only viewable flag state
+     *  @return true if "Admin Only Viewable" is checked */
     [[nodiscard]] bool get_admin_only_viewable() const;
+
+    /** @brief Get admin-only deletable flag state
+     *  @return true if "Admin Only Deletable" is checked */
     [[nodiscard]] bool get_admin_only_deletable() const;
 
     // Setters for enabling/disabling editing
+
+    /** @brief Enable or disable all field editing
+     *  @param editable true to allow editing, false for read-only */
     void set_editable(bool editable);
-    void set_password(const std::string& password);  // For password generation
-    void set_privacy_controls_editable(bool editable);  // Control privacy checkboxes separately
-    void set_delete_button_sensitive(bool sensitive);  // Control delete button
+
+    /** @brief Programmatically set password field
+     *  @param password Password string (e.g., from generator) */
+    void set_password(const std::string& password);
+
+    /** @brief Enable or disable privacy checkbox editing
+     *  @param editable true to allow editing privacy flags */
+    void set_privacy_controls_editable(bool editable);
+
+    /** @brief Enable or disable delete button
+     *  @param sensitive true to enable delete button */
+    void set_delete_button_sensitive(bool sensitive);
 
     // Track if account has been modified
+
+    /** @brief Check if any field has been modified
+     *  @return true if account has unsaved changes */
     [[nodiscard]] bool is_modified() const { return m_is_modified; }
+
+    /** @brief Reset modification flag (after save) */
     void reset_modified_flag() { m_is_modified = false; }
 
     // Focus management
+
+    /** @brief Set keyboard focus to account name entry field */
     void focus_account_name_entry();
 
     // Signals
+
+    /** @brief Signal emitted when any field is modified
+     *  @return Signal with no parameters */
     sigc::signal<void()> signal_modified();
+
+    /** @brief Signal emitted when delete button is clicked
+     *  @return Signal with no parameters */
     sigc::signal<void()> signal_delete_requested();
+
+    /** @brief Signal emitted when generate password button is clicked
+     *  @return Signal with no parameters */
     sigc::signal<void()> signal_generate_password();
+
+    /** @brief Signal emitted when copy password button is clicked
+     *  @return Signal with no parameters */
     sigc::signal<void()> signal_copy_password();
 
 private:

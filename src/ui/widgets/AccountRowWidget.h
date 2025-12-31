@@ -1,4 +1,16 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2025 tjdeveng
 
+/**
+ * @file AccountRowWidget.h
+ * @brief Custom GTK4 widget for displaying account entries in list view
+ *
+ * Provides a rich, interactive row widget for password accounts with:
+ * - Favorite star toggle
+ * - Drag-and-drop reordering
+ * - Right-click context menu support
+ * - Selection highlighting
+ */
 
 #pragma once
 #include <sigc++/sigc++.h>
@@ -16,38 +28,75 @@ namespace keeptower {
     class AccountRecord;
 }
 
+/**
+ * @class AccountRowWidget
+ * @brief Interactive account list row with drag-and-drop support
+ *
+ * Custom GTK4 widget that displays a single account entry with:
+ * - Account name label
+ * - Favorite star icon (toggleable)
+ * - Visual selection state
+ * - Drag-and-drop reordering
+ * - Right-click context menu integration
+ */
 class AccountRowWidget : public Gtk::Box {
 public:
+    /** @brief Construct empty account row widget */
     AccountRowWidget();
+
+    /** @brief Destructor */
     ~AccountRowWidget() override;
 
-    // Set account data (from keeptower::AccountRecord)
+    /**
+     * @brief Set account data to display
+     * @param account AccountRecord protobuf message
+     */
     void set_account(const keeptower::AccountRecord& account);
 
-    // Get current account id
+    /**
+     * @brief Get current account ID
+     * @return Account unique identifier
+     */
     std::string account_id() const;
 
-    // Set selected state
+    /**
+     * @brief Set visual selection state
+     * @param selected true to highlight as selected
+     */
     void set_selected(bool selected);
 
-    // Signal: emitted when this account is selected
+    /**
+     * @brief Signal emitted when account is clicked
+     * @return Signal with account_id parameter
+     */
     sigc::signal<void(std::string)>& signal_selected();
 
-    // Signal: emitted when favorite star is toggled
+    /**
+     * @brief Signal emitted when favorite star is toggled
+     * @return Signal with account_id parameter
+     */
     sigc::signal<void(std::string)>& signal_favorite_toggled();
 
-    // Signal: emitted when this account is reordered (drag-and-drop)
+    /**
+     * @brief Signal emitted during drag-and-drop reorder
+     * @return Signal with (account_id, new_position) parameters
+     */
     sigc::signal<void(std::string, int)>& signal_reordered();
 
-    // Signal: emitted when an account is dropped onto this account
-    sigc::signal<void(std::string, std::string)>& signal_account_dropped_on_account();  // dragged_id, target_id
+    /**
+     * @brief Signal emitted when another account is dropped on this one
+     * @return Signal with (dragged_id, target_id) parameters
+     */
+    sigc::signal<void(std::string, std::string)>& signal_account_dropped_on_account();
 
-    // Signal: emitted when this account is right-clicked
+    /**
+     * @brief Signal emitted on right-click for context menu
+     * @return Signal with (account_id, widget, x, y) parameters
+     */
     sigc::signal<void(std::string, Gtk::Widget*, double, double)>& signal_right_clicked();
 
 private:
-    // Internal widgets
-    Gtk::Image m_favorite_icon;
+    Gtk::Image m_favorite_icon;  ///< Favorite star icon
     Gtk::Label m_label;
     Gtk::Label m_username_label;
 

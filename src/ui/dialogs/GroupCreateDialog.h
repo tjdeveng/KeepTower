@@ -18,6 +18,8 @@
  */
 class GroupCreateDialog : public Gtk::Dialog {
 public:
+    /** @brief Construct group creation dialog
+     *  @param parent Parent window for modal dialog */
     GroupCreateDialog(Gtk::Window& parent);
     virtual ~GroupCreateDialog() = default;
 

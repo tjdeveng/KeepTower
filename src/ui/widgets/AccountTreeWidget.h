@@ -1,5 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2025 tjdeveng
 
+/**
+ * @file AccountTreeWidget.h
+ * @brief Hierarchical account/group tree view widget
+ *
+ * Provides a complete tree-based view of accounts and groups with:
+ * - Hierarchical group/account display
+ * - Search and tag filtering
+ * - Configurable sorting (A-Z, Z-A)
+ * - Drag-and-drop reordering
+ * - Favorite toggling
+ */
 
 #pragma once
 #include <sigc++/sigc++.h>
@@ -14,37 +26,94 @@
 #include "AccountRowWidget.h"
 #include "record.pb.h"
 
+/**
+ * @brief Sort direction for account/group display
+ */
 enum class SortDirection {
-    ASCENDING,  // A-Z
-    DESCENDING  // Z-A
+    ASCENDING,   ///< A-Z alphabetical
+    DESCENDING   ///< Z-A reverse alphabetical
 };
 
+/**
+ * @class AccountTreeWidget
+ * @brief Complete hierarchical view of accounts and groups
+ *
+ * Main tree widget that orchestrates the display of all accounts and groups.
+ * Manages filtering, sorting, drag-and-drop, and event propagation.
+ *
+ * @section features Features
+ * - Group-based hierarchical organization
+ * - Real-time search filtering (name, username, email, website, tags)
+ * - Tag-based filtering
+ * - Sortable (A-Z, Z-A)
+ * - Drag-and-drop account reordering
+ * - Favorite management
+ * - Context menu integration
+ */
 class AccountTreeWidget : public Gtk::Box {
 public:
+    /** @brief Construct empty tree widget */
     AccountTreeWidget();
+
+    /** @brief Destructor */
     ~AccountTreeWidget() override;
 
-    // Set the groups and accounts to display
+    /**
+     * @brief Set data to display in tree
+     * @param groups Vector of account groups
+     * @param accounts Vector of account records
+     */
     void set_data(const std::vector<keeptower::AccountGroup>& groups,
                  const std::vector<keeptower::AccountRecord>& accounts);
 
-    // Filtering: apply search text and tag filter
+    /**
+     * @brief Apply search and tag filters
+     * @param search_text Text to search for in account fields
+     * @param tag_filter Tag to filter by (empty for all)
+     * @param field_filter Bitmask of fields to search
+     */
     void set_filters(const std::string& search_text, const std::string& tag_filter, int field_filter);
+
+    /** @brief Clear all active filters */
     void clear_filters();
 
-    // Sorting: set sort direction and toggle
+    /**
+     * @brief Set sort direction
+     * @param direction ASCENDING or DESCENDING
+     */
     void set_sort_direction(SortDirection direction);
+
+    /**
+     * @brief Get current sort direction
+     * @return Current sort direction
+     */
     SortDirection get_sort_direction() const;
+
+    /** @brief Toggle between A-Z and Z-A */
     void toggle_sort_direction();
 
-    // Signal: emitted when an account row is right-clicked
+    /** @brief Signal emitted on account right-click */
     sigc::signal<void(std::string, Gtk::Widget*, double, double)>& signal_account_right_click();
+
+    /** @brief Signal emitted on group right-click */
     sigc::signal<void(std::string, Gtk::Widget*, double, double)>& signal_group_right_click();
+
+    /** @brief Signal emitted when account is selected */
     sigc::signal<void(std::string)>& signal_account_selected();
+
+    /** @brief Signal emitted when group is selected */
     sigc::signal<void(std::string)>& signal_group_selected();
+
+    /** @brief Signal emitted when favorite is toggled */
     sigc::signal<void(std::string)>& signal_favorite_toggled();
+
+    /** @brief Signal emitted when account is reordered via drag-and-drop */
     sigc::signal<void(std::string, std::string, int)>& signal_account_reordered();
+
+    /** @brief Signal emitted when group is reordered via drag-and-drop */
     sigc::signal<void(std::string, int)>& signal_group_reordered();
+
+    /** @brief Signal emitted when sort direction changes */
     sigc::signal<void(SortDirection)>& signal_sort_direction_changed();
 
 private:

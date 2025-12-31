@@ -77,6 +77,7 @@ VaultManager::VaultManager()
     : m_vault_open(false),
       m_modified(false),
       m_is_v2_vault(false),
+      m_v2_dek{},  // Zero-initialize 32-byte DEK for security
       m_use_reed_solomon(false),
       m_rs_redundancy_percent(DEFAULT_RS_REDUNDANCY),
       m_fec_loaded_from_file(false),
@@ -87,28 +88,55 @@ VaultManager::VaultManager()
       m_pbkdf2_iterations(DEFAULT_PBKDF2_ITERATIONS) {
 
 #ifdef __linux__
-    // Increase RLIMIT_MEMLOCK to allow locking ~10MB of sensitive memory
-    // This is required for V2 vaults with multiple users and YubiKey challenges
-    struct rlimit limit;
-    limit.rlim_cur = 10 * 1024 * 1024;  // 10MB current limit
-    limit.rlim_max = 10 * 1024 * 1024;  // 10MB maximum limit
-    if (setrlimit(RLIMIT_MEMLOCK, &limit) == 0) {
-        KeepTower::Log::debug("VaultManager: Increased RLIMIT_MEMLOCK to 10MB");
+    // Check if we need to increase RLIMIT_MEMLOCK for sensitive memory locking
+    // V2 vaults with multiple users need ~50 KB worst case
+    // We request 10 MB for safety margin, but only warn if below 5 MB (100x actual need)
+    struct rlimit current_limit{};
+    if (getrlimit(RLIMIT_MEMLOCK, &current_limit) == 0) {
+        constexpr rlim_t MIN_REQUIRED = 5UL * 1024 * 1024;  // 5 MB (100x actual ~50 KB need)
+        constexpr rlim_t DESIRED = 10UL * 1024 * 1024;      // 10 MB (optimal safety margin)
+
+        if (current_limit.rlim_cur >= MIN_REQUIRED) {
+            // Current limit is sufficient - no action needed
+            KeepTower::Log::debug("VaultManager: RLIMIT_MEMLOCK sufficient ({} KB available, {} KB minimum)",
+                                 current_limit.rlim_cur / 1024, MIN_REQUIRED / 1024);
+        } else {
+            // Current limit is low - try to increase, warn if we can't
+            struct rlimit new_limit{};
+            new_limit.rlim_cur = DESIRED;
+            new_limit.rlim_max = DESIRED;
+
+            if (setrlimit(RLIMIT_MEMLOCK, &new_limit) == 0) {
+                KeepTower::Log::debug("VaultManager: Increased RLIMIT_MEMLOCK to {} KB", DESIRED / 1024);
+            } else {
+                // Warning: current limit is insufficient and we can't increase it
+                KeepTower::Log::warning("VaultManager: Low RLIMIT_MEMLOCK ({} KB < {} KB recommended)",
+                                       current_limit.rlim_cur / 1024, MIN_REQUIRED / 1024);
+                KeepTower::Log::warning("VaultManager: Memory locking may fail for large vaults. Run with CAP_IPC_LOCK or increase ulimit -l to {} KB",
+                                       MIN_REQUIRED / 1024);
+            }
+        }
     } else {
-        KeepTower::Log::warning("VaultManager: Failed to increase RLIMIT_MEMLOCK: {} ({})",
+        KeepTower::Log::warning("VaultManager: Failed to query RLIMIT_MEMLOCK: {} ({})",
                                std::strerror(errno), errno);
-        KeepTower::Log::warning("VaultManager: Memory locking may fail. Run with CAP_IPC_LOCK or increase ulimit -l");
     }
 #endif
 }
 
-VaultManager::~VaultManager() {
+VaultManager::~VaultManager() noexcept {
     // Ensure sensitive data is securely erased
-    secure_clear(m_encryption_key);
-    secure_clear(m_salt);
-    secure_clear(m_yubikey_challenge);
-    OPENSSL_cleanse(m_v2_dek.data(), m_v2_dek.size());  // V2 vault DEK (std::array)
-    (void)close_vault();  // Explicitly ignore return value in destructor
+    try {
+        secure_clear(m_encryption_key);
+        secure_clear(m_salt);
+        secure_clear(m_yubikey_challenge);
+        OPENSSL_cleanse(m_v2_dek.data(), m_v2_dek.size());  // V2 vault DEK (std::array)
+        (void)close_vault();  // Explicitly ignore return value in destructor
+    } catch (const std::exception& e) {
+        // Log but don't propagate - destructors must not throw
+        KeepTower::Log::error("VaultManager destructor error: {}", e.what());
+    } catch (...) {
+        // Silently handle unknown exceptions in destructor
+    }
 }
 
 bool VaultManager::create_vault(const std::string& path,
@@ -117,16 +145,16 @@ bool VaultManager::create_vault(const std::string& path,
                                  std::string yubikey_serial) {
     if (m_vault_open) {
         if (!close_vault()) {
-            std::cerr << "Warning: Failed to close existing vault" << std::endl;
+            std::cerr << "Warning: Failed to close existing vault\n";
         }
     }
 
     // Generate new salt
-    m_salt = generate_random_bytes(SALT_LENGTH);
+    m_salt = KeepTower::VaultCrypto::generate_random_bytes(SALT_LENGTH);
 
     // Derive base encryption key from password
     std::vector<uint8_t> password_key(KEY_LENGTH);
-    if (!derive_key(password, m_salt, password_key)) {
+    if (!KeepTower::VaultCrypto::derive_key(password, m_salt, password_key, m_pbkdf2_iterations)) {
         return false;
     }
 
@@ -135,12 +163,12 @@ bool VaultManager::create_vault(const std::string& path,
     if (require_yubikey) {
 #ifdef HAVE_YUBIKEY_SUPPORT
         // Generate random challenge for this vault
-        m_yubikey_challenge = generate_random_bytes(YUBIKEY_CHALLENGE_SIZE);
+        m_yubikey_challenge = KeepTower::VaultCrypto::generate_random_bytes(YUBIKEY_CHALLENGE_SIZE);
 
         // Get YubiKey response
         YubiKeyManager yk_manager;
         if (!yk_manager.initialize()) {
-            std::cerr << "Failed to initialize YubiKey" << std::endl;
+            std::cerr << "Failed to initialize YubiKey" << '\n';
             secure_clear(password_key);
             return false;
         }
@@ -152,7 +180,7 @@ bool VaultManager::create_vault(const std::string& path,
         );
 
         if (!response.success) {
-            std::cerr << "YubiKey challenge-response failed: " << response.error_message << std::endl;
+            std::cerr << "YubiKey challenge-response failed: " << response.error_message << '\n';
             secure_clear(password_key);
             return false;
         }
@@ -183,7 +211,7 @@ bool VaultManager::create_vault(const std::string& path,
 
         KeepTower::Log::info("YubiKey-protected vault created with serial: {}", m_yubikey_serial);
 #else
-        std::cerr << "YubiKey support not compiled in" << std::endl;
+        std::cerr << "YubiKey support not compiled in" << '\n';
         secure_clear(password_key);
         return false;
 #endif
@@ -210,6 +238,10 @@ bool VaultManager::create_vault(const std::string& path,
 
     // Initialize empty vault data
     m_vault_data.Clear();
+
+    // Initialize managers
+    m_account_manager = std::make_unique<KeepTower::AccountManager>(m_vault_data, m_modified);
+    m_group_manager = std::make_unique<KeepTower::GroupManager>(m_vault_data, m_modified);
 
     // Initialize vault metadata
     auto* metadata = m_vault_data.mutable_metadata();
@@ -242,7 +274,7 @@ bool VaultManager::create_vault(const std::string& path,
 bool VaultManager::check_vault_requires_yubikey(const std::string& path, std::string& serial) {
     // Read vault file
     std::vector<uint8_t> file_data;
-    if (!read_vault_file(path, file_data)) {
+    if (!KeepTower::VaultIO::read_file(path, file_data, false, m_pbkdf2_iterations)) {
         return false;
     }
 
@@ -311,7 +343,8 @@ bool VaultManager::check_vault_requires_yubikey(const std::string& path, std::st
     // Read YubiKey serial
     uint8_t serial_len = file_data[offset++];
     if (offset + serial_len <= file_data.size()) {
-        serial.assign(file_data.begin() + offset, file_data.begin() + offset + serial_len);
+        serial.assign(file_data.begin() + static_cast<std::ptrdiff_t>(offset),
+                      file_data.begin() + static_cast<std::ptrdiff_t>(offset + serial_len));
     }
 
     return true;
@@ -321,163 +354,10 @@ bool VaultManager::check_vault_requires_yubikey(const std::string& path, std::st
 // Helper functions for open_vault() - Refactored for reduced complexity
 // ============================================================================
 
-KeepTower::VaultResult<VaultManager::ParsedVaultData>
-VaultManager::parse_vault_format(const std::vector<uint8_t>& file_data) {
-    ParsedVaultData result;
-
-    // Validate minimum file size
-    if (file_data.size() < SALT_LENGTH + IV_LENGTH) {
-        return std::unexpected(VaultError::CorruptedFile);
-    }
-
-    // Extract salt
-    result.metadata.salt.assign(file_data.begin(), file_data.begin() + SALT_LENGTH);
-
-    // Extract IV
-    result.metadata.iv.assign(
-        file_data.begin() + SALT_LENGTH,
-        file_data.begin() + SALT_LENGTH + IV_LENGTH);
-
-    size_t ciphertext_offset = SALT_LENGTH + IV_LENGTH;
-
-    // Check for flags byte and extended format
-    if (file_data.size() > SALT_LENGTH + IV_LENGTH + VAULT_HEADER_SIZE) {
-        uint8_t flags = file_data[SALT_LENGTH + IV_LENGTH];
-
-        // Check for YubiKey requirement
-        bool yubikey_required = (flags & FLAG_YUBIKEY_REQUIRED);
-        result.metadata.requires_yubikey = yubikey_required;
-
-        // Check for Reed-Solomon encoding
-        if (flags & FLAG_RS_ENABLED) {
-            uint8_t rs_redundancy = file_data[SALT_LENGTH + IV_LENGTH + 1];
-
-            // Validate redundancy is in acceptable range
-            if (rs_redundancy >= MIN_RS_REDUNDANCY && rs_redundancy <= MAX_RS_REDUNDANCY) {
-                // Extract original size (4 bytes, big-endian)
-                uint32_t original_size =
-                    (static_cast<uint32_t>(file_data[SALT_LENGTH + IV_LENGTH + 2]) << BIGENDIAN_SHIFT_24) |
-                    (static_cast<uint32_t>(file_data[SALT_LENGTH + IV_LENGTH + 3]) << BIGENDIAN_SHIFT_16) |
-                    (static_cast<uint32_t>(file_data[SALT_LENGTH + IV_LENGTH + 4]) << BIGENDIAN_SHIFT_8) |
-                    static_cast<uint32_t>(file_data[SALT_LENGTH + IV_LENGTH + 5]);
-
-                size_t data_offset = SALT_LENGTH + IV_LENGTH + VAULT_HEADER_SIZE;
-
-                // Account for YubiKey metadata if present
-                size_t yk_metadata_size = 0;
-                if (yubikey_required && data_offset < file_data.size()) {
-                    uint8_t serial_len = file_data[data_offset];
-                    yk_metadata_size = 1 + serial_len + YUBIKEY_CHALLENGE_SIZE;
-                }
-
-                size_t encoded_size = file_data.size() - data_offset - yk_metadata_size;
-
-                // Validate original size is reasonable
-                if (original_size > 0 &&
-                    original_size < MAX_VAULT_SIZE &&
-                    original_size <= encoded_size) {
-
-                    result.metadata.has_fec = true;
-                    result.metadata.fec_redundancy = rs_redundancy;
-                    ciphertext_offset += VAULT_HEADER_SIZE;  // Skip flags, redundancy, and original_size
-
-                    // Read YubiKey metadata if required (comes BEFORE RS-encoded data)
-                    if (yubikey_required && ciphertext_offset < file_data.size()) {
-                        uint8_t serial_len = file_data[ciphertext_offset++];
-                        result.metadata.yubikey_serial.assign(
-                            file_data.begin() + ciphertext_offset,
-                            file_data.begin() + ciphertext_offset + serial_len);
-                        ciphertext_offset += serial_len;
-                        result.metadata.yubikey_challenge.assign(
-                            file_data.begin() + ciphertext_offset,
-                            file_data.begin() + ciphertext_offset + YUBIKEY_CHALLENGE_SIZE);
-                        ciphertext_offset += YUBIKEY_CHALLENGE_SIZE;
-                    }
-
-                    // Extract RS-encoded data
-                    std::vector<uint8_t> encoded_data(
-                        file_data.begin() + ciphertext_offset,
-                        file_data.end());
-
-                    // Decode with Reed-Solomon
-                    auto decode_result = decode_with_reed_solomon(encoded_data, original_size, rs_redundancy);
-                    if (!decode_result) {
-                        return std::unexpected(decode_result.error());
-                    }
-                    result.ciphertext = std::move(decode_result.value());
-
-                    KeepTower::Log::info("Vault decoded with Reed-Solomon ({}% redundancy, {} -> {} bytes)",
-                                        rs_redundancy, encoded_data.size(), result.ciphertext.size());
-                } else {
-                    // Invalid size ratio - treat as legacy format
-                    result.ciphertext.assign(file_data.begin() + (SALT_LENGTH + IV_LENGTH), file_data.end());
-                }
-            } else {
-                // Invalid redundancy - treat as legacy format
-                result.ciphertext.assign(file_data.begin() + ciphertext_offset, file_data.end());
-            }
-        } else {
-            // No RS encoding, extract normal ciphertext
-            ciphertext_offset += 1;  // Skip flags byte
-
-            // Read YubiKey metadata if required (after flags byte)
-            if (yubikey_required && ciphertext_offset < file_data.size()) {
-                uint8_t serial_len = file_data[ciphertext_offset++];
-                result.metadata.yubikey_serial.assign(
-                    file_data.begin() + ciphertext_offset,
-                    file_data.begin() + ciphertext_offset + serial_len);
-                ciphertext_offset += serial_len;
-                result.metadata.yubikey_challenge.assign(
-                    file_data.begin() + ciphertext_offset,
-                    file_data.begin() + ciphertext_offset + YUBIKEY_CHALLENGE_SIZE);
-                ciphertext_offset += YUBIKEY_CHALLENGE_SIZE;
-            }
-
-            result.ciphertext.assign(file_data.begin() + ciphertext_offset, file_data.end());
-        }
-    } else {
-        // Legacy format without flags
-        result.ciphertext.assign(file_data.begin() + ciphertext_offset, file_data.end());
-    }
-
-    return result;
-}
-
-KeepTower::VaultResult<std::vector<uint8_t>>
-VaultManager::decode_with_reed_solomon(
-    const std::vector<uint8_t>& encoded_data,
-    uint32_t original_size,
-    uint8_t redundancy) {
-
-    // Create ReedSolomon instance if needed
-    if (!m_reed_solomon || m_rs_redundancy_percent != redundancy) {
-        m_reed_solomon = std::make_unique<ReedSolomon>(redundancy);
-    }
-
-    // Decode with Reed-Solomon
-    ReedSolomon::EncodedData encoded_struct{
-        .data = encoded_data,
-        .original_size = original_size,
-        .redundancy_percent = redundancy,
-        .block_size = 0,  // Not needed for decode
-        .num_data_blocks = 0,  // Not needed for decode
-        .num_parity_blocks = 0  // Not needed for decode
-    };
-
-    auto decode_result = m_reed_solomon->decode(encoded_struct);
-    if (!decode_result) {
-        KeepTower::Log::error("Reed-Solomon decoding failed: {}",
-                             ReedSolomon::error_to_string(decode_result.error()));
-        return std::unexpected(VaultError::DecodingFailed);
-    }
-
-    return decode_result.value();
-}
-
 #ifdef HAVE_YUBIKEY_SUPPORT
 KeepTower::VaultResult<>
 VaultManager::authenticate_yubikey(
-    const VaultFileMetadata& metadata,
+    const KeepTower::VaultFileMetadata& metadata,
     std::vector<uint8_t>& encryption_key) {
 
     if (metadata.yubikey_challenge.empty() || metadata.yubikey_serial.empty()) {
@@ -542,17 +422,17 @@ VaultManager::decrypt_and_parse_vault(
 
     // Decrypt data
     std::vector<uint8_t> plaintext;
-    if (!decrypt_data(ciphertext, key, iv, plaintext)) {
+    if (!KeepTower::VaultCrypto::decrypt_data(ciphertext, key, iv, plaintext)) {
         return std::unexpected(VaultError::DecryptionFailed);
     }
 
     // Deserialize protobuf data
-    keeptower::VaultData vault_data;
-    if (!vault_data.ParseFromArray(plaintext.data(), plaintext.size())) {
-        return std::unexpected(VaultError::InvalidProtobuf);
+    auto vault_result = KeepTower::VaultSerialization::deserialize(plaintext);
+    if (!vault_result) {
+        return std::unexpected(vault_result.error());
     }
 
-    return vault_data;
+    return std::move(vault_result.value());
 }
 
 // ============================================================================
@@ -562,31 +442,31 @@ VaultManager::decrypt_and_parse_vault(
 bool VaultManager::open_vault(const std::string& path, const Glib::ustring& password) {
     // 1. Close existing vault if needed
     if (m_vault_open && !close_vault()) {
-        std::cerr << "Warning: Failed to close existing vault" << std::endl;
+        std::cerr << "Warning: Failed to close existing vault" << '\n';
     }
 
     // 2. Read vault file
     std::vector<uint8_t> file_data;
-    if (!read_vault_file(path, file_data)) {
+    if (!KeepTower::VaultIO::read_file(path, file_data, false, m_pbkdf2_iterations)) {
         return false;
     }
 
     // 3. Parse vault format and extract metadata
-    auto parsed_result = parse_vault_format(file_data);
+    auto parsed_result = KeepTower::VaultFormat::parse(file_data);
     if (!parsed_result) {
         std::cerr << "Failed to parse vault format: "
-                  << static_cast<int>(parsed_result.error()) << std::endl;
+                  << static_cast<int>(parsed_result.error()) << '\n';
         return false;
     }
 
-    ParsedVaultData parsed_data = std::move(parsed_result.value());
-    VaultFileMetadata& metadata = parsed_data.metadata;
+    KeepTower::ParsedVaultData parsed_data = std::move(parsed_result.value());
+    KeepTower::VaultFileMetadata& metadata = parsed_data.metadata;
     std::vector<uint8_t>& ciphertext = parsed_data.ciphertext;
 
     // 4. Derive encryption key from password
     m_encryption_key.resize(KEY_LENGTH);
     m_salt = metadata.salt;
-    if (!derive_key(password, m_salt, m_encryption_key)) {
+    if (!KeepTower::VaultCrypto::derive_key(password, m_salt, m_encryption_key, m_pbkdf2_iterations)) {
         return false;
     }
 
@@ -596,14 +476,14 @@ bool VaultManager::open_vault(const std::string& path, const Glib::ustring& pass
         auto yk_result = authenticate_yubikey(metadata, m_encryption_key);
         if (!yk_result) {
             std::cerr << "YubiKey authentication failed: "
-                      << static_cast<int>(yk_result.error()) << std::endl;
+                      << static_cast<int>(yk_result.error()) << '\n';
             secure_clear(m_encryption_key);
             return false;
         }
     }
 #else
     if (metadata.requires_yubikey) {
-        std::cerr << "Vault requires YubiKey but YubiKey support is not compiled in" << std::endl;
+        std::cerr << "Vault requires YubiKey but YubiKey support is not compiled in" << '\n';
         return false;
     }
 #endif
@@ -618,7 +498,7 @@ bool VaultManager::open_vault(const std::string& path, const Glib::ustring& pass
     auto vault_result = decrypt_and_parse_vault(ciphertext, m_encryption_key, metadata.iv);
     if (!vault_result) {
         std::cerr << "Failed to decrypt/parse vault (wrong password?): "
-                  << static_cast<int>(vault_result.error()) << std::endl;
+                  << static_cast<int>(vault_result.error()) << '\n';
         return false;
     }
 
@@ -627,7 +507,7 @@ bool VaultManager::open_vault(const std::string& path, const Glib::ustring& pass
 
     // Migrate old schema if needed
     if (!migrate_vault_schema()) {
-        std::cerr << "Failed to migrate vault schema" << std::endl;
+        std::cerr << "Failed to migrate vault schema" << '\n';
         return false;
     }
 
@@ -657,6 +537,10 @@ bool VaultManager::open_vault(const std::string& path, const Glib::ustring& pass
     m_vault_open = true;
     m_modified = false;
 
+    // Initialize managers after vault data is loaded
+    m_account_manager = std::make_unique<KeepTower::AccountManager>(m_vault_data, m_modified);
+    m_group_manager = std::make_unique<KeepTower::GroupManager>(m_vault_data, m_modified);
+
     return true;
 }
 
@@ -677,18 +561,16 @@ bool VaultManager::save_vault() {
         metadata->set_last_modified(std::time(nullptr));
 
         // Serialize protobuf to binary
-        std::string serialized_data;
-        if (!m_vault_data.SerializeToString(&serialized_data)) {
+        auto serialized_result = KeepTower::VaultSerialization::serialize(m_vault_data);
+        if (!serialized_result) {
             KeepTower::Log::error("VaultManager: Failed to serialize vault data");
             return false;
         }
-
-        // Encrypt vault data
-        std::vector<uint8_t> plaintext(serialized_data.begin(), serialized_data.end());
+        std::vector<uint8_t> plaintext = std::move(serialized_result.value());
         std::vector<uint8_t> ciphertext;
-        std::vector<uint8_t> data_iv = generate_random_bytes(12);  // GCM uses 12-byte IV
+        std::vector<uint8_t> data_iv = KeepTower::VaultCrypto::generate_random_bytes(KeepTower::VaultCrypto::IV_LENGTH);
 
-        if (!encrypt_data(plaintext, m_v2_dek, ciphertext, data_iv)) {
+        if (!KeepTower::VaultCrypto::encrypt_data(plaintext, m_v2_dek, ciphertext, data_iv)) {
             KeepTower::Log::error("VaultManager: Failed to encrypt vault data");
             secure_clear(plaintext);
             return false;
@@ -696,11 +578,19 @@ bool VaultManager::save_vault() {
         secure_clear(plaintext);
 
         // Build V2 file format
+        if (!m_v2_header.has_value()) {
+            KeepTower::Log::error("VaultManager: V2 header not initialized");
+            return false;
+        }
         KeepTower::VaultFormatV2::V2FileHeader file_header;
         file_header.pbkdf2_iterations = m_v2_header->security_policy.pbkdf2_iterations;
         file_header.vault_header = *m_v2_header;
-        std::copy(data_iv.begin(), std::min(data_iv.begin() + 32, data_iv.end()), file_header.data_salt.begin());
-        std::copy(data_iv.begin(), std::min(data_iv.begin() + 12, data_iv.end()), file_header.data_iv.begin());
+        std::copy(data_iv.begin(),
+                  std::min(data_iv.begin() + static_cast<std::ptrdiff_t>(32), data_iv.end()),
+                  file_header.data_salt.begin());
+        std::copy(data_iv.begin(),
+                  std::min(data_iv.begin() + static_cast<std::ptrdiff_t>(12), data_iv.end()),
+                  file_header.data_iv.begin());
 
         // Write header with FEC (use configured redundancy if RS enabled, 0 if disabled)
         uint8_t fec_redundancy = m_use_reed_solomon ? m_rs_redundancy_percent : 0;
@@ -716,17 +606,17 @@ bool VaultManager::save_vault() {
 
         // Create backup before saving (non-fatal if it fails)
         if (m_backup_enabled) {
-            auto backup_result = create_backup(m_current_vault_path);
+            auto backup_result = KeepTower::VaultIO::create_backup(m_current_vault_path);
             if (!backup_result) {
                 KeepTower::Log::warning("VaultManager: Failed to create backup: {}", static_cast<int>(backup_result.error()));
             } else {
                 // Cleanup old backups after successful creation
-                cleanup_old_backups(m_current_vault_path, m_backup_count);
+                KeepTower::VaultIO::cleanup_old_backups(m_current_vault_path, m_backup_count);
             }
         }
 
         // Write to file
-        if (!write_vault_file(m_current_vault_path, file_data)) {
+        if (!KeepTower::VaultIO::write_file(m_current_vault_path, file_data, true, 0)) {
             KeepTower::Log::error("VaultManager: Failed to write vault file");
             return false;
         }
@@ -742,18 +632,17 @@ bool VaultManager::save_vault() {
     metadata->set_last_modified(std::time(nullptr));
 
     // Serialize protobuf to binary
-    std::string serialized_data;
-    if (!m_vault_data.SerializeToString(&serialized_data)) {
-        std::cerr << "Failed to serialize vault data" << std::endl;
+    auto serialized_result = KeepTower::VaultSerialization::serialize(m_vault_data);
+    if (!serialized_result) {
+        std::cerr << "Failed to serialize vault data\n";
         return false;
     }
-
-    std::vector<uint8_t> plaintext(serialized_data.begin(), serialized_data.end());
+    std::vector<uint8_t> plaintext = std::move(serialized_result.value());
 
     // Encrypt data
     std::vector<uint8_t> ciphertext;
-    std::vector<uint8_t> iv = generate_random_bytes(IV_LENGTH);
-    if (!encrypt_data(plaintext, m_encryption_key, ciphertext, iv)) {
+    std::vector<uint8_t> iv = KeepTower::VaultCrypto::generate_random_bytes(IV_LENGTH);
+    if (!KeepTower::VaultCrypto::encrypt_data(plaintext, m_encryption_key, ciphertext, iv)) {
         return false;
     }
 
@@ -805,7 +694,7 @@ bool VaultManager::save_vault() {
             uint8_t serial_len = static_cast<uint8_t>(std::min(m_yubikey_serial.length(), size_t{255}));
             file_data.push_back(serial_len);
             file_data.insert(file_data.end(), m_yubikey_serial.begin(),
-                           m_yubikey_serial.begin() + serial_len);
+                           m_yubikey_serial.begin() + static_cast<std::ptrdiff_t>(serial_len));
             file_data.insert(file_data.end(), m_yubikey_challenge.begin(), m_yubikey_challenge.end());
         }
 
@@ -820,7 +709,7 @@ bool VaultManager::save_vault() {
             uint8_t serial_len = static_cast<uint8_t>(std::min(m_yubikey_serial.length(), size_t{255}));
             file_data.push_back(serial_len);
             file_data.insert(file_data.end(), m_yubikey_serial.begin(),
-                           m_yubikey_serial.begin() + serial_len);
+                           m_yubikey_serial.begin() + static_cast<std::ptrdiff_t>(serial_len));
             file_data.insert(file_data.end(), m_yubikey_challenge.begin(), m_yubikey_challenge.end());
         }
 
@@ -830,16 +719,16 @@ bool VaultManager::save_vault() {
 
     // Create backup before saving (non-fatal if it fails)
     if (m_backup_enabled) {
-        auto backup_result = create_backup(m_current_vault_path);
+        auto backup_result = KeepTower::VaultIO::create_backup(m_current_vault_path);
         if (!backup_result) {
             KeepTower::Log::warning("Failed to create backup: {}", static_cast<int>(backup_result.error()));
         } else {
             // Cleanup old backups after successful creation
-            cleanup_old_backups(m_current_vault_path, m_backup_count);
+            KeepTower::VaultIO::cleanup_old_backups(m_current_vault_path, m_backup_count);
         }
     }
 
-    if (!write_vault_file(m_current_vault_path, file_data)) {
+    if (!KeepTower::VaultIO::write_file(m_current_vault_path, file_data, false, m_pbkdf2_iterations)) {
         return false;
     }
 
@@ -854,7 +743,7 @@ bool VaultManager::close_vault() {
     }
 
     // FIPS-140-3 Compliance: Unlock and zeroize all cryptographic key material (Section 7.9)
-    if (m_is_v2_vault && m_v2_header) {
+    if (m_is_v2_vault && m_v2_header.has_value()) {
         // Unlock and clear V2 Data Encryption Key (DEK)
         unlock_memory(m_v2_dek.data(), m_v2_dek.size());
         OPENSSL_cleanse(m_v2_dek.data(), m_v2_dek.size());
@@ -884,6 +773,10 @@ bool VaultManager::close_vault() {
     m_vault_data.Clear();
     m_current_vault_path.clear();
 
+    // Clear managers
+    m_account_manager.reset();
+    m_group_manager.reset();
+
     m_vault_open = false;
     m_modified = false;
 
@@ -895,58 +788,51 @@ bool VaultManager::add_account(const keeptower::AccountRecord& account) {
         return false;
     }
 
-    auto* new_account = m_vault_data.add_accounts();
-    new_account->CopyFrom(account);
-    m_modified = true;
-    return true;
+    return m_account_manager->add_account(account);
 }
 
 std::vector<keeptower::AccountRecord> VaultManager::get_all_accounts() const {
-    std::vector<keeptower::AccountRecord> accounts;
-    for (int i = 0; i < m_vault_data.accounts_size(); i++) {
-        accounts.push_back(m_vault_data.accounts(i));
+    if (!m_account_manager) {
+        return {};
     }
-    return accounts;
+    return m_account_manager->get_all_accounts();
 }
 
 bool VaultManager::update_account(size_t index, const keeptower::AccountRecord& account) {
-    if (!m_vault_open || index >= static_cast<size_t>(m_vault_data.accounts_size())) {
+    if (!m_vault_open) {
         return false;
     }
 
-    m_vault_data.mutable_accounts(index)->CopyFrom(account);
-    m_modified = true;
-    return true;
+    return m_account_manager->update_account(index, account);
 }
 
 bool VaultManager::delete_account(size_t index) {
-    if (!m_vault_open || index >= static_cast<size_t>(m_vault_data.accounts_size())) {
+    if (!m_vault_open) {
         return false;
     }
 
-    // Remove account by shifting
-    auto* accounts = m_vault_data.mutable_accounts();
-    accounts->erase(accounts->begin() + index);
-    m_modified = true;
-    return true;
+    return m_account_manager->delete_account(index);
 }
 
 keeptower::AccountRecord* VaultManager::get_account_mutable(size_t index) {
-    if (!m_vault_open || index >= static_cast<size_t>(m_vault_data.accounts_size())) {
+    if (!m_vault_open) {
         return nullptr;
     }
-    return m_vault_data.mutable_accounts(index);
+    return m_account_manager->get_account_mutable(index);
 }
 
 const keeptower::AccountRecord* VaultManager::get_account(size_t index) const {
-    if (!m_vault_open || index >= static_cast<size_t>(m_vault_data.accounts_size())) {
+    if (!m_vault_open) {
         return nullptr;
     }
-    return &m_vault_data.accounts(index);
+    return m_account_manager->get_account(index);
 }
 
 size_t VaultManager::get_account_count() const {
-    return m_vault_data.accounts_size();
+    if (!m_account_manager) {
+        return 0;
+    }
+    return m_account_manager->get_account_count();
 }
 
 // ============================================================================
@@ -975,72 +861,11 @@ bool VaultManager::reorder_account(size_t old_index, size_t new_index) {
         return false;
     }
 
-    const size_t account_count = get_account_count();
-
-    // Security: Validate indices are within bounds
-    if (old_index >= account_count || new_index >= account_count) {
-        return false;
+    // Delegate to AccountManager and save changes
+    if (m_account_manager->reorder_account(old_index, new_index)) {
+        return save_vault();
     }
-
-    // Optimization: No-op if source and destination are the same
-    if (old_index == new_index) {
-        return true;
-    }
-
-    // Initialize global_display_order for all accounts if not already set
-    if (!has_custom_global_ordering()) {
-        for (size_t i = 0; i < account_count; i++) {
-            m_vault_data.mutable_accounts(i)->set_global_display_order(static_cast<int32_t>(i));
-        }
-    }
-
-    // Get the account being moved
-    auto* account_to_move = m_vault_data.mutable_accounts(old_index);
-
-    if (old_index < new_index) {
-        // Moving down: shift accounts up in the range [old_index+1, new_index]
-        for (size_t i = old_index + 1; i <= new_index; i++) {
-            auto* acc = m_vault_data.mutable_accounts(i);
-            acc->set_global_display_order(acc->global_display_order() - 1);
-        }
-        // Place the moved account at the end of the shifted range
-        account_to_move->set_global_display_order(
-            m_vault_data.accounts(new_index).global_display_order()
-        );
-    } else {
-        // Moving up: shift accounts down in the range [new_index, old_index-1]
-        for (size_t i = new_index; i < old_index; i++) {
-            auto* acc = m_vault_data.mutable_accounts(i);
-            acc->set_global_display_order(acc->global_display_order() + 1);
-        }
-        // Place the moved account at the start of the shifted range
-        account_to_move->set_global_display_order(
-            m_vault_data.accounts(new_index).global_display_order()
-        );
-    }
-
-    // Normalize display orders to ensure they're sequential (0, 1, 2, ...)
-    // This prevents gaps and keeps the logic simple
-    std::vector<std::pair<int32_t, size_t>> order_index_pairs;
-    order_index_pairs.reserve(account_count);
-
-    for (size_t i = 0; i < account_count; i++) {
-        order_index_pairs.emplace_back(
-            m_vault_data.accounts(i).global_display_order(),
-            i
-        );
-    }
-
-    std::sort(order_index_pairs.begin(), order_index_pairs.end());
-
-    for (size_t i = 0; i < account_count; i++) {
-        size_t account_idx = order_index_pairs[i].second;
-        m_vault_data.mutable_accounts(account_idx)->set_global_display_order(static_cast<int32_t>(i));
-    }
-
-    // Save changes
-    m_modified = true;
-    return save_vault();
+    return false;
 }
 
 bool VaultManager::reset_global_display_order() {
@@ -1050,7 +875,7 @@ bool VaultManager::reset_global_display_order() {
 
     const size_t account_count = get_account_count();
     for (size_t i = 0; i < account_count; i++) {
-        m_vault_data.mutable_accounts(i)->set_global_display_order(-1);
+        m_vault_data.mutable_accounts(static_cast<int>(i))->set_global_display_order(-1);
     }
 
     m_modified = true;
@@ -1075,716 +900,122 @@ bool VaultManager::has_custom_global_ordering() const {
 }
 
 // ============================================================================
-// Group Management (Phase 2 - Stub Implementations)
+// Group Management
 // ============================================================================
-
-// Account Groups Implementation (Phase 3)
-// ============================================================================
-
-namespace {
-    /**
-     * @brief Generate a UUID v4 for group IDs
-     * @return UUID string in format: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
-     *
-     * Security: Uses cryptographically secure random number generation
-     */
-    std::string generate_uuid() {
-        std::random_device rd;
-        std::mt19937_64 gen(rd());
-        std::uniform_int_distribution<uint64_t> dis;
-
-        // UUID v4 format: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
-        uint64_t part1 = dis(gen);
-        uint64_t part2 = dis(gen);
-
-        // Set version bits (4xxx)
-        part1 = (part1 & 0xFFFFFFFF0000FFFFULL) | 0x0000000040000000ULL;
-        // Set variant bits (yxxx where y = 8, 9, A, or B)
-        part2 = (part2 & 0x3FFFFFFFFFFFFFFFULL) | 0x8000000000000000ULL;
-
-        std::ostringstream oss;
-        oss << std::hex << std::setfill('0')
-            << std::setw(8) << ((part1 >> 32) & 0xFFFFFFFF) << '-'
-            << std::setw(4) << ((part1 >> 16) & 0xFFFF) << '-'
-            << std::setw(4) << (part1 & 0xFFFF) << '-'
-            << std::setw(4) << ((part2 >> 48) & 0xFFFF) << '-'
-            << std::setw(12) << (part2 & 0xFFFFFFFFFFFFULL);
-
-        return oss.str();
-    }
-
-    /**
-     * @brief Validate group name for security and usability
-     * @param name Proposed group name
-     * @return true if valid, false if invalid
-     *
-     * Security checks:
-     * - Not empty
-     * - Reasonable length (1-100 characters)
-     * - No control characters
-     * - No path traversal attempts
-     */
-    bool is_valid_group_name(std::string_view name) {
-        if (name.empty() || name.length() > 100) {
-            return false;
-        }
-
-        // Check for control characters and path traversal
-        for (char c : name) {
-            if (std::iscntrl(static_cast<unsigned char>(c))) {
-                return false;
-            }
-        }
-
-        // Reject names that could cause issues
-        if (name == "." || name == ".." || name.find('/') != std::string::npos ||
-            name.find('\\') != std::string::npos) {
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
-     * @brief Find a group by ID in the vault data
-     * @param vault_data Vault data to search
-     * @param group_id Group ID to find
-     * @return Pointer to group if found, nullptr otherwise
-     */
-    keeptower::AccountGroup* find_group_by_id(keeptower::VaultData& vault_data,
-                                               std::string_view group_id) {
-        for (int i = 0; i < vault_data.groups_size(); ++i) {
-            if (vault_data.groups(i).group_id() == group_id) {
-                return vault_data.mutable_groups(i);
-            }
-        }
-        return nullptr;
-    }
-
-    /**
-     * @brief Find a group by ID (const version)
-     */
-    const keeptower::AccountGroup* find_group_by_id(const keeptower::VaultData& vault_data,
-                                                     std::string_view group_id) {
-        for (int i = 0; i < vault_data.groups_size(); ++i) {
-            if (vault_data.groups(i).group_id() == group_id) {
-                return &vault_data.groups(i);
-            }
-        }
-        return nullptr;
-    }
-}
 
 std::string VaultManager::create_group(std::string_view name) {
-    // Security: Ensure vault is open
     if (!is_vault_open()) {
         return "";
     }
 
-    // Security: Validate group name
-    if (!is_valid_group_name(name)) {
-        return "";
-    }
-
-    // Convert to std::string for protobuf API
-    std::string name_str{name};
-
-    // Check for duplicate names (usability)
-    for (int i = 0; i < m_vault_data.groups_size(); ++i) {
-        if (m_vault_data.groups(i).group_name() == name_str) {
-            return "";  // Group with this name already exists
+    std::string group_id = m_group_manager->create_group(name);
+    if (!group_id.empty()) {
+        // Save vault after creating group
+        if (!save_vault()) {
+            // Note: GroupManager has already modified vault_data, but save failed
+            // In production, consider rollback mechanism
+            return "";
         }
     }
-
-    // Generate unique group ID
-    std::string group_id = generate_uuid();
-
-    // Create new group
-    auto* new_group = m_vault_data.add_groups();
-    new_group->set_group_id(group_id);
-    new_group->set_group_name(name_str);
-    new_group->set_is_system_group(false);
-    new_group->set_display_order(m_vault_data.groups_size() - 1);
-    new_group->set_is_expanded(true);  // New groups start expanded
-
-    // Mark as modified and save
-    m_modified = true;
-    if (!save_vault()) {
-        // Rollback: remove the group we just added
-        m_vault_data.mutable_groups()->RemoveLast();
-        return "";
-    }
-
     return group_id;
 }
 
 bool VaultManager::delete_group(std::string_view group_id) {
-    // Security: Ensure vault is open
     if (!is_vault_open()) {
         return false;
     }
 
-    // Security: Validate group ID format (basic check)
-    if (group_id.empty()) {
-        return false;
+    if (m_group_manager->delete_group(group_id)) {
+        return save_vault();
     }
-
-    // Find the group
-    int group_index = -1;
-    for (int i = 0; i < m_vault_data.groups_size(); ++i) {
-        if (m_vault_data.groups(i).group_id() == group_id) {
-            // Security: Prevent deletion of system groups
-            if (m_vault_data.groups(i).is_system_group()) {
-                return false;
-            }
-            group_index = i;
-            break;
-        }
-    }
-
-    if (group_index == -1) {
-        return false;  // Group not found
-    }
-
-    // Remove all references to this group from accounts
-    for (int i = 0; i < m_vault_data.accounts_size(); ++i) {
-        auto* account = m_vault_data.mutable_accounts(i);
-        auto* groups = account->mutable_groups();
-
-        // Remove matching group memberships
-        for (int j = groups->size() - 1; j >= 0; --j) {
-            if (groups->Get(j).group_id() == group_id) {
-                groups->erase(groups->begin() + j);
-            }
-        }
-    }
-
-    // Remove the group itself
-    m_vault_data.mutable_groups()->erase(
-        m_vault_data.mutable_groups()->begin() + group_index
-    );
-
-    // Mark as modified and save
-    m_modified = true;
-    return save_vault();
+    return false;
 }
 
 bool VaultManager::add_account_to_group(size_t account_index, std::string_view group_id) {
-    // Security: Ensure vault is open
     if (!is_vault_open()) {
         return false;
     }
 
-    // Security: Validate indices
-    if (account_index >= get_account_count()) {
-        return false;
+    if (m_group_manager->add_account_to_group(account_index, group_id)) {
+        return save_vault();
     }
-
-    // Security: Validate group exists
-    const auto* group = find_group_by_id(m_vault_data, group_id);
-    if (!group) {
-        return false;
-    }
-
-    auto* account = m_vault_data.mutable_accounts(account_index);
-
-    // Check if already in group (prevent duplicates)
-    for (const auto& membership : account->groups()) {
-        if (membership.group_id() == group_id) {
-            return true;  // Already in group, success (idempotent)
-        }
-    }
-
-    // Add group membership - convert string_view to string for protobuf API
-    auto* membership = account->add_groups();
-    membership->set_group_id(std::string{group_id});
-    membership->set_display_order(-1);  // Use automatic ordering initially
-
-    // Mark as modified and save
-    m_modified = true;
-    return save_vault();
+    return false;
 }
 
 bool VaultManager::remove_account_from_group(size_t account_index, std::string_view group_id) {
-    // Security: Ensure vault is open
     if (!is_vault_open()) {
         return false;
     }
 
-    // Security: Validate indices
-    if (account_index >= get_account_count()) {
-        return false;
+    if (m_group_manager->remove_account_from_group(account_index, group_id)) {
+        return save_vault();
     }
-
-    auto* account = m_vault_data.mutable_accounts(account_index);
-    auto* groups = account->mutable_groups();
-
-    // Find and remove the group membership
-    bool found = false;
-    for (int i = groups->size() - 1; i >= 0; --i) {
-        if (groups->Get(i).group_id() == group_id) {
-            groups->erase(groups->begin() + i);
-            found = true;
-            break;  // Only remove one membership (should be unique anyway)
-        }
-    }
-
-    if (!found) {
-        return true;  // Not in group, success (idempotent)
-    }
-
-    // Mark as modified and save
-    m_modified = true;
-    return save_vault();
+    return false;
 }
 
 bool VaultManager::reorder_account_in_group(size_t account_index,
                                             std::string_view group_id,
                                             int new_order) {
-    // Security: Ensure vault is open
     if (!is_vault_open()) {
         return false;
     }
 
-    // Security: Validate account index
-    if (account_index >= get_account_count()) {
-        return false;
+    if (m_group_manager->reorder_account_in_group(account_index, group_id, new_order)) {
+        return save_vault();
     }
-
-    // Validate group exists
-    const keeptower::AccountGroup* group = find_group_by_id(m_vault_data, std::string{group_id});
-    if (!group) {
-        return false;
-    }
-
-    // Validate new order is reasonable
-    if (new_order < 0) {
-        return false;
-    }
-
-    auto* account = m_vault_data.mutable_accounts(account_index);
-
-    // Find the membership for this group
-    for (int i = 0; i < account->groups_size(); ++i) {
-        auto* membership = account->mutable_groups(i);
-        if (membership->group_id() == group_id) {
-            membership->set_display_order(new_order);
-            m_modified = true;
-            return save_vault();
-        }
-    }
-
-    // Account is not in this group
     return false;
 }
 
 std::string VaultManager::get_favorites_group_id() {
-    // Security: Ensure vault is open
     if (!is_vault_open()) {
         return "";
     }
 
-    // Look for existing Favorites group
-    for (int i = 0; i < m_vault_data.groups_size(); ++i) {
-        const auto& group = m_vault_data.groups(i);
-        if (group.is_system_group() && group.group_name() == "Favorites") {
-            return group.group_id();
-        }
+    std::string group_id = m_group_manager->get_favorites_group_id();
+    if (!group_id.empty() && m_modified) {
+        // Save if favorites group was created (ignore result - favorites ID still valid)
+        (void)save_vault();
     }
-
-    // Create Favorites group if it doesn't exist
-    std::string group_id = generate_uuid();
-
-    auto* favorites_group = m_vault_data.add_groups();
-    favorites_group->set_group_id(group_id);
-    favorites_group->set_group_name("Favorites");
-    favorites_group->set_is_system_group(true);
-    favorites_group->set_display_order(0);  // Always first
-    favorites_group->set_is_expanded(true);  // Always expanded
-    favorites_group->set_icon("favorite");  // Special icon
-
-    // Save the new group
-    m_modified = true;
-    if (!save_vault()) {
-        // Rollback
-        m_vault_data.mutable_groups()->RemoveLast();
-        return "";
-    }
-
     return group_id;
 }
 
 bool VaultManager::is_account_in_group(size_t account_index, std::string_view group_id) const {
-    // Security: Validate indices
-    if (!is_vault_open() || account_index >= get_account_count()) {
+    if (!is_vault_open()) {
         return false;
     }
-
-    const auto& account = m_vault_data.accounts(account_index);
-
-    // Check if account has this group membership
-    for (const auto& membership : account.groups()) {
-        if (membership.group_id() == group_id) {
-            return true;
-        }
-    }
-
-    return false;
+    return m_group_manager->is_account_in_group(account_index, group_id);
 }
 
 std::vector<keeptower::AccountGroup> VaultManager::get_all_groups() const {
-    std::vector<keeptower::AccountGroup> groups;
-
-    if (!is_vault_open()) {
-        return groups;
+    if (!m_group_manager) {
+        return {};
     }
-
-    // Copy all groups from vault data
-    for (const auto& group : m_vault_data.groups()) {
-        groups.push_back(group);
-    }
-
-    return groups;
+    return m_group_manager->get_all_groups();
 }
 
 bool VaultManager::rename_group(std::string_view group_id, std::string_view new_name) {
-    // Security: Ensure vault is open
     if (!is_vault_open()) {
         return false;
     }
 
-    // Security: Validate new name
-    if (!is_valid_group_name(new_name)) {
-        return false;
+    if (m_group_manager->rename_group(group_id, new_name)) {
+        return save_vault();
     }
-
-    // Find the group
-    keeptower::AccountGroup* group = find_group_by_id(m_vault_data, std::string{group_id});
-    if (!group) {
-        return false;
-    }
-
-    // Security: Cannot rename system groups
-    if (group->is_system_group()) {
-        return false;
-    }
-
-    // Check for duplicate name (case-sensitive)
-    for (const auto& existing_group : m_vault_data.groups()) {
-        if (existing_group.group_id() != group_id &&
-            existing_group.group_name() == new_name) {
-            return false;  // Name already exists
-        }
-    }
-
-    // Update the group name
-    group->set_group_name(std::string{new_name});
-    m_modified = true;
-
-    // Save vault
-    if (!save_vault()) {
-        // Rollback on failure - protobuf doesn't have transaction support
-        // so we rely on the fact that save_vault() restores from backup
-        return false;
-    }
-
-    return true;
+    return false;
 }
 
 bool VaultManager::reorder_group(std::string_view group_id, int new_order) {
-    // Security: Ensure vault is open
     if (!is_vault_open()) {
         return false;
     }
 
-    // Validate new order is reasonable
-    if (new_order < 0) {
-        return false;
+    if (m_group_manager->reorder_group(group_id, new_order)) {
+        return save_vault();
     }
-
-    // Find the group
-    keeptower::AccountGroup* group = find_group_by_id(m_vault_data, std::string{group_id});
-    if (!group) {
-        return false;
-    }
-
-    // System groups always have display_order = 0, cannot be reordered
-    if (group->is_system_group()) {
-        return false;
-    }
-
-    // Update the display order
-    group->set_display_order(new_order);
-    m_modified = true;
-
-    // Save vault
-    return save_vault();
+    return false;
 }
 
-bool VaultManager::derive_key(const Glib::ustring& password,
-                              std::span<const uint8_t> salt,
-                              std::vector<uint8_t>& key) {
-    // Use PBKDF2 with SHA-256 (NIST recommended)
-    int result = PKCS5_PBKDF2_HMAC(
-        password.c_str(), password.bytes(),
-        salt.data(), salt.size(),
-        m_pbkdf2_iterations,
-        EVP_sha256(),
-        KEY_LENGTH,
-        key.data()
-    );
-
-    return result == 1;
-}
-
-bool VaultManager::encrypt_data(std::span<const uint8_t> plaintext,
-                                std::span<const uint8_t> key,
-                                std::vector<uint8_t>& ciphertext,
-                                std::vector<uint8_t>& iv) {
-    EVPCipherContext ctx;
-    if (!ctx.is_valid()) {
-        return false;
-    }
-
-    // Initialize encryption with AES-256-GCM
-    if (EVP_EncryptInit_ex(ctx.get(), EVP_aes_256_gcm(), nullptr, key.data(), iv.data()) != 1) {
-        return false;
-    }
-
-    // Allocate output buffer
-    ciphertext.resize(plaintext.size() + EVP_CIPHER_block_size(EVP_aes_256_gcm()) + 16);
-    int len = 0;
-    int ciphertext_len = 0;
-
-    // Encrypt
-    if (EVP_EncryptUpdate(ctx.get(), ciphertext.data(), &len, plaintext.data(), plaintext.size()) != 1) {
-        return false;
-    }
-    ciphertext_len = len;
-
-    // Finalize
-    if (EVP_EncryptFinal_ex(ctx.get(), ciphertext.data() + len, &len) != 1) {
-        return false;
-    }
-    ciphertext_len += len;
-
-    // Get authentication tag (GCM)
-    std::vector<uint8_t> tag(16);
-    if (EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_GCM_GET_TAG, 16, tag.data()) != 1) {
-        return false;
-    }
-
-    // Append tag to ciphertext
-    ciphertext.resize(ciphertext_len);
-    ciphertext.insert(ciphertext.end(), tag.begin(), tag.end());
-
-    return true;
-}
-
-bool VaultManager::decrypt_data(std::span<const uint8_t> ciphertext,
-                                std::span<const uint8_t> key,
-                                std::span<const uint8_t> iv,
-                                std::vector<uint8_t>& plaintext) {
-    if (ciphertext.size() < 16) {
-        return false;
-    }
-
-    // Extract authentication tag (last 16 bytes)
-    std::vector<uint8_t> tag(ciphertext.end() - 16, ciphertext.end());
-    std::vector<uint8_t> actual_ciphertext(ciphertext.begin(), ciphertext.end() - 16);
-
-    EVPCipherContext ctx;
-    if (!ctx.is_valid()) {
-        return false;
-    }
-
-    // Initialize decryption with AES-256-GCM
-    if (EVP_DecryptInit_ex(ctx.get(), EVP_aes_256_gcm(), nullptr, key.data(), iv.data()) != 1) {
-        return false;
-    }
-
-    // Allocate output buffer
-    plaintext.resize(actual_ciphertext.size() + EVP_CIPHER_block_size(EVP_aes_256_gcm()));
-    int len = 0;
-    int plaintext_len = 0;
-
-    // Decrypt
-    if (EVP_DecryptUpdate(ctx.get(), plaintext.data(), &len, actual_ciphertext.data(), actual_ciphertext.size()) != 1) {
-        return false;
-    }
-    plaintext_len = len;
-
-    // Set authentication tag
-    if (EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_GCM_SET_TAG, 16, tag.data()) != 1) {
-        return false;
-    }
-
-    // Finalize (verifies authentication tag)
-    if (EVP_DecryptFinal_ex(ctx.get(), plaintext.data() + len, &len) != 1) {
-        return false;
-    }
-    plaintext_len += len;
-
-    plaintext.resize(plaintext_len);
-
-    return true;
-}
-
-bool VaultManager::read_vault_file(const std::string& path, std::vector<uint8_t>& data) {
-    try {
-        std::ifstream file(path, std::ios::binary);
-        if (!file.is_open()) {
-            std::cerr << "Failed to open vault file: " << path << std::endl;
-            return false;
-        }
-
-        file.seekg(0, std::ios::end);
-        std::streamsize size = file.tellg();
-
-        if (size < 0) {
-            std::cerr << "Failed to determine vault file size" << std::endl;
-            return false;
-        }
-
-        file.seekg(0, std::ios::beg);
-
-        // Check if file has the new format with magic header
-        constexpr size_t HEADER_SIZE = sizeof(uint32_t) * 3;  // magic + version + iterations
-        uint32_t iterations = DEFAULT_PBKDF2_ITERATIONS;
-
-        if (size >= static_cast<std::streamsize>(HEADER_SIZE)) {
-            uint32_t magic, version;
-            file.read(reinterpret_cast<char*>(&magic), sizeof(magic));
-            file.read(reinterpret_cast<char*>(&version), sizeof(version));
-            file.read(reinterpret_cast<char*>(&iterations), sizeof(iterations));
-
-            if (magic == VAULT_MAGIC) {
-                m_pbkdf2_iterations = static_cast<int>(iterations);
-                KeepTower::Log::info("Vault format version {}, {} PBKDF2 iterations", version, iterations);
-
-                // V2 vaults: Header is part of data, rewind to beginning
-                // V1 vaults: Header is separate, skip it
-                if (version == 2) {
-                    file.seekg(0, std::ios::beg);  // Rewind for V2
-                } else {
-                    // V1: Adjust size to exclude header
-                    size -= HEADER_SIZE;
-                }
-            } else {
-                // Not a new format, rewind to beginning
-                KeepTower::Log::info("Legacy vault format detected (no header)");
-                file.seekg(0, std::ios::beg);
-                m_pbkdf2_iterations = DEFAULT_PBKDF2_ITERATIONS;
-            }
-        }
-
-        data.resize(static_cast<size_t>(size));
-        file.read(reinterpret_cast<char*>(data.data()), size);
-
-        if (!file.good() && !file.eof()) {
-            std::cerr << "Error reading vault file" << std::endl;
-            return false;
-        }
-
-        file.close();
-        return true;
-
-    } catch (const std::exception& e) {
-        std::cerr << "Exception reading vault file: " << e.what() << std::endl;
-        return false;
-    }
-}
-
-bool VaultManager::write_vault_file(const std::string& path, const std::vector<uint8_t>& data) {
-    namespace fs = std::filesystem;
-    const std::string temp_path = path + ".tmp";
-
-    try {
-        // Write to temporary file
-        {
-            std::ofstream file(temp_path, std::ios::binary | std::ios::trunc);
-            if (!file) {
-                std::cerr << "Failed to create temporary vault file" << std::endl;
-                return false;
-            }
-
-            // V2 vaults: data already contains full header, write directly
-            if (m_is_v2_vault) {
-                file.write(reinterpret_cast<const char*>(data.data()), data.size());
-                file.flush();
-
-                if (!file.good()) {
-                    std::cerr << "Failed to write V2 vault data" << std::endl;
-                    return false;
-                }
-            } else {
-                // V1 vaults: prepend legacy header format
-                uint32_t magic = VAULT_MAGIC;
-                uint32_t version = VAULT_VERSION;
-                uint32_t iterations = static_cast<uint32_t>(m_pbkdf2_iterations);
-
-                file.write(reinterpret_cast<const char*>(&magic), sizeof(magic));
-                file.write(reinterpret_cast<const char*>(&version), sizeof(version));
-                file.write(reinterpret_cast<const char*>(&iterations), sizeof(iterations));
-
-                // Write encrypted vault data
-                file.write(reinterpret_cast<const char*>(data.data()), data.size());
-                file.flush();
-
-                if (!file.good()) {
-                    std::cerr << "Failed to write vault data" << std::endl;
-                    return false;
-                }
-            }
-        }  // Close file before rename
-
-        // Atomic rename (POSIX guarantees atomicity)
-        fs::rename(temp_path, path);
-
-        // Set secure file permissions (owner read/write only)
-        #ifdef __linux__
-        chmod(path.c_str(), S_IRUSR | S_IWUSR);  // 0600
-        #elif defined(_WIN32)
-        // Windows permissions handled through ACLs (TODO: implement)
-        #endif
-
-        // Sync directory to ensure rename is durable
-        #ifdef __linux__
-        std::string dir_path = fs::path(path).parent_path().string();
-        int dir_fd = open(dir_path.c_str(), O_RDONLY | O_DIRECTORY);
-        if (dir_fd >= 0) {
-            fsync(dir_fd);
-            close(dir_fd);
-        }
-        #endif
-
-        // Set secure file permissions (owner read/write only)
-        fs::permissions(path,
-            fs::perms::owner_read | fs::perms::owner_write,
-            fs::perm_options::replace);
-
-        return true;
-
-    } catch (const fs::filesystem_error& e) {
-        std::cerr << "Filesystem error: " << e.what() << std::endl;
-        try {
-            fs::remove(temp_path);
-        } catch (...) {}
-        return false;
-    } catch (const std::exception& e) {
-        std::cerr << "Error writing vault: " << e.what() << std::endl;
-        try {
-            fs::remove(temp_path);
-        } catch (...) {}
-        return false;
-    }
-}
-
-std::vector<uint8_t> VaultManager::generate_random_bytes(size_t length) {
-    std::vector<uint8_t> bytes(length);
-    RAND_bytes(bytes.data(), length);
-    return bytes;
-}
+// File I/O methods have been moved to VaultIO class
 
 void VaultManager::secure_clear(std::vector<uint8_t>& data) {
     if (!data.empty()) {
@@ -1892,124 +1123,7 @@ void VaultManager::unlock_memory(void* data, size_t size) {
 #endif
 }
 
-KeepTower::VaultResult<> VaultManager::create_backup(std::string_view path) {
-    namespace fs = std::filesystem;
-    std::string path_str(path);
-
-    try {
-        if (!fs::exists(path_str)) {
-            return {};  // No file to backup
-        }
-
-        // Generate timestamp: YYYYmmdd_HHMMSS_milliseconds
-        auto now = std::chrono::system_clock::now();
-        auto time = std::chrono::system_clock::to_time_t(now);
-        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-            now.time_since_epoch()) % 1000;
-        std::ostringstream timestamp;
-        timestamp << std::put_time(std::localtime(&time), "%Y%m%d_%H%M%S")
-                  << "_" << std::setfill('0') << std::setw(3) << ms.count();
-
-        // Create timestamped backup path
-        std::string backup_path = path_str + ".backup." + timestamp.str();
-
-        fs::copy_file(path_str, backup_path, fs::copy_options::overwrite_existing);
-        KeepTower::Log::info("Created backup: {}", backup_path);
-
-        return {};
-    } catch (const fs::filesystem_error& e) {
-        KeepTower::Log::warning("Failed to create backup: {}", e.what());
-        // Don't fail the operation if backup fails
-        return {};
-    }
-}
-
-KeepTower::VaultResult<> VaultManager::restore_from_backup(std::string_view path) {
-    namespace fs = std::filesystem;
-    std::string path_str(path);
-
-    // Get all backups and restore from the most recent
-    auto backups = list_backups(path);
-
-    try {
-        if (backups.empty()) {
-            // Try legacy .backup format for backwards compatibility
-            std::string legacy_backup = path_str + ".backup";
-            if (fs::exists(legacy_backup)) {
-                fs::copy_file(legacy_backup, path_str, fs::copy_options::overwrite_existing);
-                KeepTower::Log::info("Restored from legacy backup: {}", legacy_backup);
-                return {};
-            }
-            KeepTower::Log::error("No backup files found for: {}", path_str);
-            return std::unexpected(VaultError::FileNotFound);
-        }
-
-        // Backups are sorted newest first, so restore from [0]
-        const std::string& backup_path = backups[0];
-        fs::copy_file(backup_path, path_str, fs::copy_options::overwrite_existing);
-        KeepTower::Log::info("Restored from backup: {}", backup_path);
-        return {};
-    } catch (const fs::filesystem_error& e) {
-        KeepTower::Log::error("Failed to restore backup: {}", e.what());
-        return std::unexpected(VaultError::FileReadFailed);
-    }
-}
-
-void VaultManager::cleanup_old_backups(std::string_view path, int max_backups) {
-    namespace fs = std::filesystem;
-
-    if (max_backups < 1) [[unlikely]] {
-        return;
-    }
-
-    auto backups = list_backups(path);
-
-    // Delete oldest backups (backups are sorted newest first)
-    for (size_t i = static_cast<size_t>(max_backups); i < backups.size(); ++i) {
-        try {
-            fs::remove(backups[i]);
-            KeepTower::Log::info("Deleted old backup: {}", backups[i]);
-        } catch (const fs::filesystem_error& e) {
-            KeepTower::Log::warning("Failed to delete backup {}: {}", backups[i], e.what());
-        }
-    }
-}
-
-std::vector<std::string> VaultManager::list_backups(std::string_view path) {
-    namespace fs = std::filesystem;
-    std::vector<std::string> backups;
-    std::string path_str(path);
-    std::string backup_prefix = path_str + ".backup.";
-
-    try {
-        fs::path vault_path(path_str);
-        fs::path parent_dir = vault_path.parent_path();
-
-        if (!fs::exists(parent_dir)) {
-            return backups;
-        }
-
-        // Find all backup files matching pattern
-        for (const auto& entry : fs::directory_iterator(parent_dir)) {
-            if (!entry.is_regular_file()) {
-                continue;
-            }
-
-            std::string filename = entry.path().string();
-            if (filename.starts_with(backup_prefix)) {
-                backups.push_back(filename);
-            }
-        }
-
-        // Sort by filename (timestamp is in filename), newest first
-        std::sort(backups.begin(), backups.end(), std::greater<std::string>());
-
-    } catch (const fs::filesystem_error& e) {
-        KeepTower::Log::warning("Failed to list backups: {}", e.what());
-    }
-
-    return backups;
-}
+// Backup management methods have been moved to VaultIO class
 
 bool VaultManager::set_rs_redundancy_percent(uint8_t percent) {
     if (percent < 5 || percent > 50) {
@@ -2153,65 +1267,7 @@ int VaultManager::get_account_password_history_limit() const {
 }
 
 bool VaultManager::migrate_vault_schema() {
-    // Get current schema version
-    auto* metadata = m_vault_data.mutable_metadata();
-    int32_t current_version = metadata->schema_version();
-
-    // Check if we have an old vault (version field was used in schema v1)
-    // In the old schema, VaultData had version and last_modified as direct fields
-    // In new schema, these are in VaultMetadata sub-message
-
-    // If schema_version is not set but we have accounts, this is a v1 vault
-    if (current_version == 0 && m_vault_data.accounts_size() > 0) {
-        KeepTower::Log::info("Migrating vault from schema v1 to v2");
-
-        // Migrate v1 to v2
-        // In v1, accounts had fields: id(1), created_at(2), modified_at(3),
-        // account_name(4), user_name(5), password(6), email(7), website(8), notes(9)
-        // In v2, these are at: id(1), account_name(2), user_name(3), password(4),
-        // email(5), website(6), created_at(16), modified_at(17), notes(19)
-
-        // Good news: protobuf is forward/backward compatible by field number
-        // The v1 fields will automatically map to v2 fields with same numbers
-        // We just need to set metadata
-
-        // Set metadata for migrated vault
-        metadata->set_schema_version(2);
-        metadata->set_created_at(std::time(nullptr));  // Unknown, use now
-        metadata->set_last_modified(std::time(nullptr));
-        metadata->set_last_accessed(std::time(nullptr));
-        metadata->set_access_count(1);
-
-        // Mark as modified so it gets saved with new schema
-        m_modified = true;
-
-        KeepTower::Log::info("Vault migrated successfully to schema v2");
-        return true;
-    }
-
-    // If schema version is 0 and no accounts, this is a new empty vault from v2
-    if (current_version == 0 && m_vault_data.accounts_size() == 0) {
-        // Initialize metadata for empty vault
-        metadata->set_schema_version(2);
-        metadata->set_created_at(std::time(nullptr));
-        metadata->set_last_modified(std::time(nullptr));
-        metadata->set_last_accessed(std::time(nullptr));
-        metadata->set_access_count(1);
-        return true;
-    }
-
-    // Already at current version or newer
-    if (current_version >= 2) {
-        // Update access tracking
-        metadata->set_last_accessed(std::time(nullptr));
-        metadata->set_access_count(metadata->access_count() + 1);
-        m_modified = true;  // Save access tracking
-        return true;
-    }
-
-    // Unknown version
-    KeepTower::Log::warning("Unknown vault schema version: {}", current_version);
-    return false;
+    return KeepTower::VaultSerialization::migrate_schema(m_vault_data, m_modified);
 }
 
 #ifdef HAVE_YUBIKEY_SUPPORT
@@ -2226,7 +1282,7 @@ std::vector<keeptower::YubiKeyEntry> VaultManager::get_yubikey_list() const {
     }
 
     // V2 vault: Return per-user YubiKey entries
-    if (m_is_v2_vault && m_v2_header) {
+    if (m_is_v2_vault && m_v2_header.has_value()) {
         Log::info("VaultManager", std::format("V2 vault detected, {} key slots", m_v2_header->key_slots.size()));
         for (size_t i = 0; i < m_v2_header->key_slots.size(); ++i) {
             const auto& slot = m_v2_header->key_slots[i];
@@ -2278,31 +1334,31 @@ std::vector<keeptower::YubiKeyEntry> VaultManager::get_yubikey_list() const {
 
 bool VaultManager::add_backup_yubikey(const std::string& name) {
     if (!m_vault_open || !m_yubikey_required) {
-        std::cerr << "Vault must be open and YubiKey-protected to add backup keys" << std::endl;
+        std::cerr << "Vault must be open and YubiKey-protected to add backup keys" << '\n';
         return false;
     }
 
     // Initialize YubiKey and get device info
     YubiKeyManager yk_manager;
     if (!yk_manager.initialize()) {
-        std::cerr << "Failed to initialize YubiKey" << std::endl;
+        std::cerr << "Failed to initialize YubiKey" << '\n';
         return false;
     }
 
     if (!yk_manager.is_yubikey_present()) {
-        std::cerr << "No YubiKey connected" << std::endl;
+        std::cerr << "No YubiKey connected" << '\n';
         return false;
     }
 
     auto device_info = yk_manager.get_device_info();
     if (!device_info) {
-        std::cerr << "Failed to get YubiKey device information" << std::endl;
+        std::cerr << "Failed to get YubiKey device information" << '\n';
         return false;
     }
 
     // Check if already registered
     if (is_yubikey_authorized(device_info->serial_number)) {
-        std::cerr << "YubiKey with serial " << device_info->serial_number << " is already registered" << std::endl;
+        std::cerr << "YubiKey with serial " << device_info->serial_number << " is already registered" << '\n';
         return false;
     }
 
@@ -2314,7 +1370,7 @@ bool VaultManager::add_backup_yubikey(const std::string& name) {
     );
 
     if (!response.success) {
-        std::cerr << "YubiKey challenge-response failed. Key may not be programmed with same HMAC secret." << std::endl;
+        std::cerr << "YubiKey challenge-response failed. Key may not be programmed with same HMAC secret.\n";
         return false;
     }
 
@@ -2332,7 +1388,7 @@ bool VaultManager::add_backup_yubikey(const std::string& name) {
 
 bool VaultManager::remove_yubikey(const std::string& serial) {
     if (!m_vault_open || !m_yubikey_required) {
-        std::cerr << "Vault must be open and YubiKey-protected" << std::endl;
+        std::cerr << "Vault must be open and YubiKey-protected" << '\n';
         return false;
     }
 
@@ -2344,7 +1400,7 @@ bool VaultManager::remove_yubikey(const std::string& serial) {
 
     // Cannot remove last key
     if (yk_config->yubikey_entries_size() <= 1) {
-        std::cerr << "Cannot remove the last YubiKey" << std::endl;
+        std::cerr << "Cannot remove the last YubiKey" << '\n';
         return false;
     }
 
@@ -2363,7 +1419,7 @@ bool VaultManager::remove_yubikey(const std::string& serial) {
         }
     }
 
-    std::cerr << "YubiKey with serial " << serial << " not found" << std::endl;
+    std::cerr << "YubiKey with serial " << serial << " not found\n";
     return false;
 }
 
@@ -2404,6 +1460,11 @@ bool VaultManager::verify_credentials(const Glib::ustring& password, const std::
     if (m_is_v2_vault) {
         if (!m_current_session) {
             return false;  // No active session
+        }
+
+        if (!m_v2_header.has_value()) {
+            KeepTower::Log::error("VaultManager: V2 header not initialized");
+            return false;
         }
 
         // Find current user's key slot
@@ -2476,7 +1537,7 @@ bool VaultManager::verify_credentials(const Glib::ustring& password, const std::
 
         // Derive password-based key first
         std::vector<uint8_t> password_key(KEY_LENGTH);
-        if (!derive_key(password, m_salt, password_key)) {
+        if (!KeepTower::VaultCrypto::derive_key(password, m_salt, password_key, m_pbkdf2_iterations)) {
             return false;
         }
 
@@ -2514,7 +1575,7 @@ bool VaultManager::verify_credentials(const Glib::ustring& password, const std::
 
     // No YubiKey required - just verify password
     std::vector<uint8_t> test_key(KEY_LENGTH);
-    if (!derive_key(password, m_salt, test_key)) {
+    if (!KeepTower::VaultCrypto::derive_key(password, m_salt, test_key, m_pbkdf2_iterations)) {
         return false;
     }
 

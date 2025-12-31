@@ -32,7 +32,7 @@ Complete reference for all KeepTower features.
    - Optional YubiKey authentication
 4. Vault is created and opened
 
-**File Formats:** 
+**File Formats:**
 - `.vault` - Encrypted binary format with optional Reed-Solomon encoding
 - V1: Single-user, AES-256-GCM
 - V2: Multi-user, role-based access, password history

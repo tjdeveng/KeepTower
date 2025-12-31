@@ -6,7 +6,7 @@
 # Project related configuration options
 #---------------------------------------------------------------------------
 PROJECT_NAME           = "KeepTower"
-PROJECT_NUMBER         = 0.2.3-beta
+PROJECT_NUMBER         = 0.2.9-beta
 PROJECT_BRIEF          = "Secure Password Manager with AES-256-GCM Encryption"
 PROJECT_LOGO           =
 OUTPUT_DIRECTORY       = docs/api

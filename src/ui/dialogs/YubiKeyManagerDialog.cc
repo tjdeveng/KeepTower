@@ -110,9 +110,8 @@ void YubiKeyManagerDialog::refresh_key_list() {
             // Name label with safety check
             auto* name_label = Gtk::make_managed<Gtk::Label>();
             std::string name_text = !key.name().empty() ? key.name() : "Unknown YubiKey";
-            // TODO: Once Ubuntu-latest CI uses GCC 14+ (better std::format support),
-            // revert to: name_label->set_markup(std::format("<b>{}</b>", Glib::Markup::escape_text(name_text)));
-            // Currently requires explicit std::string conversion for GCC 13 compatibility
+            // GCC 13 compatibility: explicit string conversion required for Glib::Markup::escape_text
+            // GCC 14+ will support direct usage: std::format("<b>{}</b>", Glib::Markup::escape_text(name_text))
             std::string escaped_name = Glib::Markup::escape_text(name_text);
             name_label->set_markup(std::format("<b>{}</b>", escaped_name));
             name_label->set_xalign(0.0);
@@ -134,12 +133,8 @@ void YubiKeyManagerDialog::refresh_key_list() {
                 }
             }
 
-            // TODO: Once Ubuntu-latest CI uses GCC 14+ (better std::format support),
-            // revert to inline Glib::Markup::escape_text() calls in std::format():
-            // info_label->set_markup(std::format("<small>Serial: {} • Added: {}</small>",
-            //                                   Glib::Markup::escape_text(serial_text),
-            //                                   Glib::Markup::escape_text(time_text)));
-            // Currently requires explicit std::string conversion for GCC 13 compatibility
+            // GCC 13 compatibility: explicit string conversion required for Glib::Markup::escape_text
+            // GCC 14+ will support inline calls: std::format("...", Glib::Markup::escape_text(...))
             std::string escaped_serial = Glib::Markup::escape_text(serial_text);
             std::string escaped_time = Glib::Markup::escape_text(time_text);
             info_label->set_markup(std::format("<small>Serial: {} • Added: {}</small>",

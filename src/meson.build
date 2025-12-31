@@ -59,19 +59,44 @@ sources = files(
   'ui/widgets/AccountRowWidget.cc',
   'ui/widgets/GroupRowWidget.cc',
   'ui/widgets/AccountDetailWidget.cc',
+  'ui/controllers/AccountViewController.cc',
+  'ui/controllers/SearchController.cc',
+  'ui/controllers/AutoLockManager.cc',
+  'ui/controllers/ClipboardManager.cc',
+  'ui/managers/DialogManager.cc',
+  'ui/managers/MenuManager.cc',
+  'ui/managers/UIStateManager.cc',
+  'ui/managers/V2AuthenticationHandler.cc',
+  'ui/managers/VaultIOHandler.cc',
+  'ui/managers/YubiKeyHandler.cc',
+  'ui/managers/GroupHandler.cc',
+  'ui/managers/AccountEditHandler.cc',
+  'ui/managers/AutoLockHandler.cc',
+  'ui/managers/UserAccountHandler.cc',
+  'ui/managers/VaultOpenHandler.cc',
   'core/VaultManager.cc',
   'core/VaultManagerV2.cc',
+  'core/repositories/AccountRepository.cc',
+  'core/repositories/GroupRepository.cc',
+  'core/services/AccountService.cc',
+  'core/services/GroupService.cc',
   'core/ReedSolomon.cc',
   'core/MultiUserTypes.cc',
   'core/KeyWrapping.cc',
   'core/VaultFormatV2.cc',
   'core/PasswordHistory.cc',
+  'core/crypto/VaultCrypto.cc',
+  'core/io/VaultIO.cc',
+  'core/serialization/VaultSerialization.cc',
+  'core/format/VaultFormat.cc',
+  'core/managers/AccountManager.cc',
+  'core/managers/GroupManager.cc',
   'utils/ImportExport.cc',
 )
 
 # Add YubiKey support if available
 if yubikey_available
-  sources += files('core/YubiKeyManager.cc')
+  sources += files('core/managers/YubiKeyManager.cc')
   sources += files('ui/dialogs/YubiKeyPromptDialog.cc')
   sources += files('ui/dialogs/YubiKeyManagerDialog.cc')
 endif
@@ -86,6 +111,7 @@ src_inc = include_directories(
   'ui',
   'ui/windows',
   'ui/dialogs',
+  'ui/controllers',
   'core',
   'utils',
 )

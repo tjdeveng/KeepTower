@@ -25,12 +25,73 @@ namespace KeepTower {
  * @brief Custom deleter for EVP_CIPHER_CTX that securely frees context
  */
 struct EVPCipherContextDeleter {
+    /** @brief Free OpenSSL cipher context
+     *  @param ctx Cipher context to free (nullptr-safe) */
     void operator()(EVP_CIPHER_CTX* ctx) const {
         if (ctx) {
             EVP_CIPHER_CTX_free(ctx);
         }
     }
 };
+
+/**
+ * @brief Secure allocator for std::vector that zeros memory on deallocation
+ *
+ * Provides automatic zeroization of sensitive data stored in vectors,
+ * ensuring cryptographic key material is cleared from memory.
+ *
+ * @tparam T Type of elements (typically uint8_t for crypto buffers)
+ *
+ * @section usage Usage Example
+ * @code
+ * // Use with std::vector for automatic zeroization
+ * std::vector<uint8_t, SecureAllocator<uint8_t>> key(32);
+ * // ... use key ...
+ * // Automatically zeroized on destruction
+ *
+ * // Or use the convenience alias:
+ * SecureVector<uint8_t> sensitive_data(256);
+ * // ... use sensitive_data ...
+ * // Automatically zeroized on destruction
+ * @endcode
+ */
+template<typename T>
+class SecureAllocator : public std::allocator<T> {
+public:
+    template<typename U>
+    struct rebind {
+        using other = SecureAllocator<U>;
+    };
+
+    SecureAllocator() noexcept = default;
+
+    template<typename U>
+    SecureAllocator(const SecureAllocator<U>&) noexcept {}
+
+    /**
+     * @brief Deallocate and securely zero memory
+     * @param p Pointer to memory to deallocate
+     * @param n Number of elements
+     */
+    void deallocate(T* p, std::size_t n) {
+        if (p) {
+            // Securely zero memory before deallocation
+            OPENSSL_cleanse(p, n * sizeof(T));
+            std::allocator<T>::deallocate(p, n);
+        }
+    }
+};
+
+/**
+ * @brief Convenience alias for std::vector with secure allocator
+ *
+ * Use this for any sensitive data that should be automatically
+ * zeroized on deallocation (keys, plaintext, passwords, etc.)
+ *
+ * @tparam T Type of elements (typically uint8_t)
+ */
+template<typename T>
+using SecureVector = std::vector<T, SecureAllocator<T>>;
 
 /**
  * @brief RAII wrapper for EVP_CIPHER_CTX
@@ -88,10 +149,15 @@ public:
     SecureBuffer& operator=(const SecureBuffer&) = delete;
 
     // Allow moving
+    /** @brief Move constructor - transfers data and clears source
+     *  @param other Source buffer to move from */
     SecureBuffer(SecureBuffer&& other) noexcept : data_(std::move(other.data_)) {
         other.secure_clear();
     }
 
+    /** @brief Move assignment - transfers data and clears source
+     *  @param other Source buffer to move from
+     *  @return Reference to this buffer */
     SecureBuffer& operator=(SecureBuffer&& other) noexcept {
         if (this != &other) {
             secure_clear();

@@ -168,6 +168,15 @@ if yubikey_available
   common_deps += [libyubikey_dep, ykpers_dep]
 endif
 
+# Code coverage support
+if get_option('coverage')
+  add_project_arguments('-fprofile-arcs', '-ftest-coverage', language: 'cpp')
+  add_project_link_arguments('-lgcov', '--coverage', language: 'cpp')
+  message('Code coverage: ENABLED')
+else
+  message('Code coverage: DISABLED (use -Dcoverage=true to enable)')
+endif
+
 # Configuration data
 conf_data = configuration_data()
 conf_data.set_quoted('PROJECT_NAME', project_name)
