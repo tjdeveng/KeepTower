@@ -7,16 +7,17 @@ gtest_dep = dependency('gtest', main: true, required: true)
 # Get dependencies from parent
 giomm_dep = dependency('giomm-2.68')
 
-# Include directories
-test_inc = include_directories(
-    '../src',
-    '../src/core',
-    '../src/ui',
-    '../src/ui/windows',
-    '../src/ui/dialogs',
-    '../build/src',  # For generated protobuf headers
-    '../build'       # For config.h
-)
+# Include directories - include project root for config.h and generated files
+test_inc = [
+    include_directories(
+        '../src',
+        '../src/core',
+        '../src/ui',
+        '../src/ui/windows',
+        '../src/ui/dialogs'
+    ),
+    root_inc  # From parent meson.build, provides access to config.h and build dir
+]
 
 # Generate protobuf sources for tests (same as in src/meson.build)
 fs = import('fs')
