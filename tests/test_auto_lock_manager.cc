@@ -204,6 +204,313 @@ TEST_F(AutoLockManagerTest, ConstantsAreReasonable) {
 }
 
 // ============================================================================
+// Comprehensive Edge Case Tests
+// ============================================================================
+
+TEST_F(AutoLockManagerTest, SetSameTimeoutTwice) {
+    AutoLockManager manager;
+    manager.set_timeout_seconds(300);
+
+    // Setting the same value again should be a no-op
+    manager.set_timeout_seconds(300);
+    EXPECT_EQ(manager.get_timeout_seconds(), 300);
+}
+
+TEST_F(AutoLockManagerTest, SetSameEnabledStateTwice) {
+    AutoLockManager manager;
+
+    // Enable twice
+    manager.set_enabled(true);
+    EXPECT_TRUE(manager.is_enabled());
+    manager.set_enabled(true);  // Should be no-op
+    EXPECT_TRUE(manager.is_enabled());
+
+    // Disable twice
+    manager.set_enabled(false);
+    EXPECT_FALSE(manager.is_enabled());
+    manager.set_enabled(false);  // Should be no-op
+    EXPECT_FALSE(manager.is_enabled());
+}
+
+TEST_F(AutoLockManagerTest, MinimumTimeoutBoundary) {
+    AutoLockManager manager;
+
+    manager.set_timeout_seconds(AutoLockManager::MIN_TIMEOUT);
+    EXPECT_EQ(manager.get_timeout_seconds(), AutoLockManager::MIN_TIMEOUT);
+
+    manager.set_timeout_seconds(AutoLockManager::MIN_TIMEOUT - 1);
+    EXPECT_EQ(manager.get_timeout_seconds(), AutoLockManager::MIN_TIMEOUT);
+}
+
+TEST_F(AutoLockManagerTest, MaximumTimeoutBoundary) {
+    AutoLockManager manager;
+
+    manager.set_timeout_seconds(AutoLockManager::MAX_TIMEOUT);
+    EXPECT_EQ(manager.get_timeout_seconds(), AutoLockManager::MAX_TIMEOUT);
+
+    manager.set_timeout_seconds(AutoLockManager::MAX_TIMEOUT + 1);
+    EXPECT_EQ(manager.get_timeout_seconds(), AutoLockManager::MAX_TIMEOUT);
+}
+
+TEST_F(AutoLockManagerTest, NegativeTimeoutClamped) {
+    AutoLockManager manager;
+
+    manager.set_timeout_seconds(-100);
+    EXPECT_EQ(manager.get_timeout_seconds(), AutoLockManager::MIN_TIMEOUT);
+}
+
+TEST_F(AutoLockManagerTest, ZeroTimeoutClamped) {
+    AutoLockManager manager;
+
+    manager.set_timeout_seconds(0);
+    EXPECT_EQ(manager.get_timeout_seconds(), AutoLockManager::MIN_TIMEOUT);
+}
+
+TEST_F(AutoLockManagerTest, VeryLargeTimeoutClamped) {
+    AutoLockManager manager;
+
+    manager.set_timeout_seconds(999999);
+    EXPECT_EQ(manager.get_timeout_seconds(), AutoLockManager::MAX_TIMEOUT);
+}
+
+TEST_F(AutoLockManagerTest, MultipleResetTimerCalls) {
+    AutoLockManager manager;
+    manager.set_enabled(true);
+
+    // Reset multiple times
+    for (int i = 0; i < 10; ++i) {
+        manager.reset_timer();
+        EXPECT_TRUE(manager.is_timer_active());
+    }
+}
+
+TEST_F(AutoLockManagerTest, StopThenRestart) {
+    AutoLockManager manager;
+    manager.set_enabled(true);
+    manager.reset_timer();
+    EXPECT_TRUE(manager.is_timer_active());
+
+    manager.stop();
+    EXPECT_FALSE(manager.is_timer_active());
+
+    manager.reset_timer();
+    EXPECT_TRUE(manager.is_timer_active());
+}
+
+TEST_F(AutoLockManagerTest, EnableAfterStop) {
+    AutoLockManager manager;
+    manager.set_enabled(true);
+    manager.reset_timer();
+
+    manager.stop();
+    EXPECT_FALSE(manager.is_timer_active());
+
+    // Enabling again should not automatically start timer
+    manager.set_enabled(false);
+    manager.set_enabled(true);
+    EXPECT_FALSE(manager.is_timer_active()) << "Timer should not auto-start on enable";
+}
+
+TEST_F(AutoLockManagerTest, TimeoutChangeWithNoActiveTimer) {
+    AutoLockManager manager;
+    manager.set_enabled(false);
+
+    // Change timeout without active timer
+    manager.set_timeout_seconds(180);
+    EXPECT_EQ(manager.get_timeout_seconds(), 180);
+    EXPECT_FALSE(manager.is_timer_active());
+}
+
+TEST_F(AutoLockManagerTest, DisableEnablePreservesTimeout) {
+    AutoLockManager manager;
+    manager.set_timeout_seconds(240);
+
+    manager.set_enabled(true);
+    manager.set_enabled(false);
+
+    EXPECT_EQ(manager.get_timeout_seconds(), 240) << "Timeout should persist";
+}
+
+TEST_F(AutoLockManagerTest, RapidEnableDisableCycles) {
+    AutoLockManager manager;
+
+    for (int i = 0; i < 20; ++i) {
+        manager.set_enabled(true);
+        manager.reset_timer();
+        manager.set_enabled(false);
+    }
+
+    EXPECT_FALSE(manager.is_enabled());
+    EXPECT_FALSE(manager.is_timer_active());
+}
+
+TEST_F(AutoLockManagerTest, MultipleStopCalls) {
+    AutoLockManager manager;
+    manager.set_enabled(true);
+    manager.reset_timer();
+
+    manager.stop();
+    manager.stop();
+    manager.stop();
+
+    EXPECT_FALSE(manager.is_timer_active());
+}
+
+TEST_F(AutoLockManagerTest, SignalConnectDisconnect) {
+    AutoLockManager manager;
+
+    bool signal_fired = false;
+    auto connection = manager.signal_auto_lock_triggered().connect([&signal_fired]() {
+        signal_fired = true;
+    });
+
+    EXPECT_TRUE(connection.connected());
+
+    connection.disconnect();
+    EXPECT_FALSE(connection.connected());
+
+    manager.signal_auto_lock_triggered().emit();
+    EXPECT_FALSE(signal_fired) << "Disconnected signal should not fire";
+}
+
+TEST_F(AutoLockManagerTest, MultipleSignalDisconnects) {
+    AutoLockManager manager;
+
+    int count = 0;
+    auto conn = manager.signal_auto_lock_triggered().connect([&count]() {
+        count++;
+    });
+
+    manager.signal_auto_lock_triggered().emit();
+    EXPECT_EQ(count, 1);
+
+    conn.disconnect();
+    manager.signal_auto_lock_triggered().emit();
+    EXPECT_EQ(count, 1) << "Count should not increase after disconnect";
+}
+
+TEST_F(AutoLockManagerTest, StateAfterConstruction) {
+    AutoLockManager manager;
+
+    EXPECT_FALSE(manager.is_enabled());
+    EXPECT_FALSE(manager.is_timer_active());
+    EXPECT_EQ(manager.get_timeout_seconds(), AutoLockManager::DEFAULT_TIMEOUT);
+}
+
+TEST_F(AutoLockManagerTest, BoundaryTimeoutValues) {
+    AutoLockManager manager;
+
+    // Test all boundary values
+    std::vector<int> test_values = {
+        59, 60, 61,           // Around MIN_TIMEOUT
+        299, 300, 301,        // Around DEFAULT_TIMEOUT
+        3599, 3600, 3601      // Around MAX_TIMEOUT
+    };
+
+    for (int val : test_values) {
+        manager.set_timeout_seconds(val);
+        int expected = std::clamp(val, AutoLockManager::MIN_TIMEOUT, AutoLockManager::MAX_TIMEOUT);
+        EXPECT_EQ(manager.get_timeout_seconds(), expected);
+    }
+}
+
+TEST_F(AutoLockManagerTest, EnableWithoutResetDoesNotStartTimer) {
+    AutoLockManager manager;
+
+    manager.set_enabled(true);
+    EXPECT_FALSE(manager.is_timer_active()) << "Timer should not start automatically on enable";
+}
+
+TEST_F(AutoLockManagerTest, DisableWithActiveTimerCleansUp) {
+    AutoLockManager manager;
+    manager.set_enabled(true);
+    manager.reset_timer();
+
+    ASSERT_TRUE(manager.is_timer_active());
+
+    manager.set_enabled(false);
+
+    EXPECT_FALSE(manager.is_timer_active());
+    EXPECT_FALSE(manager.is_enabled());
+}
+
+TEST_F(AutoLockManagerTest, TimeoutChangeRestartsTimerOnlyIfActive) {
+    AutoLockManager manager;
+    manager.set_enabled(true);
+
+    // Change timeout without active timer
+    manager.set_timeout_seconds(120);
+    EXPECT_FALSE(manager.is_timer_active());
+
+    // Start timer
+    manager.reset_timer();
+    EXPECT_TRUE(manager.is_timer_active());
+
+    // Change timeout with active timer
+    manager.set_timeout_seconds(180);
+    EXPECT_TRUE(manager.is_timer_active()) << "Timer should restart with new timeout";
+}
+
+TEST_F(AutoLockManagerTest, ResetTimerMultipleTimesKeepsTimerActive) {
+    AutoLockManager manager;
+    manager.set_enabled(true);
+
+    manager.reset_timer();
+    EXPECT_TRUE(manager.is_timer_active());
+
+    for (int i = 0; i < 5; ++i) {
+        manager.reset_timer();
+        EXPECT_TRUE(manager.is_timer_active());
+    }
+}
+
+TEST_F(AutoLockManagerTest, ExtremeTimeoutValues) {
+    AutoLockManager manager;
+
+    manager.set_timeout_seconds(INT_MIN);
+    EXPECT_EQ(manager.get_timeout_seconds(), AutoLockManager::MIN_TIMEOUT);
+
+    manager.set_timeout_seconds(INT_MAX);
+    EXPECT_EQ(manager.get_timeout_seconds(), AutoLockManager::MAX_TIMEOUT);
+}
+
+TEST_F(AutoLockManagerTest, GettersAreNoexcept) {
+    AutoLockManager manager;
+
+    // These should compile and run without throwing
+    EXPECT_NO_THROW({
+        [[maybe_unused]] bool enabled = manager.is_enabled();
+        [[maybe_unused]] int timeout = manager.get_timeout_seconds();
+        [[maybe_unused]] bool active = manager.is_timer_active();
+    });
+}
+
+TEST_F(AutoLockManagerTest, EmptySignalEmitIsNoOp) {
+    AutoLockManager manager;
+
+    // Emit signal with no connections
+    EXPECT_NO_THROW(manager.signal_auto_lock_triggered().emit());
+}
+
+TEST_F(AutoLockManagerTest, StateConsistencyAfterOperations) {
+    AutoLockManager manager;
+
+    // Complex sequence of operations
+    manager.set_enabled(true);
+    manager.set_timeout_seconds(120);
+    manager.reset_timer();
+    manager.set_timeout_seconds(180);
+    manager.stop();
+    manager.reset_timer();
+    manager.set_enabled(false);
+
+    // Final state check
+    EXPECT_FALSE(manager.is_enabled());
+    EXPECT_FALSE(manager.is_timer_active());
+    EXPECT_EQ(manager.get_timeout_seconds(), 180);
+}
+
+// ============================================================================
 // Main
 // ============================================================================
 

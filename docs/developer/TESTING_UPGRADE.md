@@ -39,7 +39,7 @@ Automatically instruments all source files with coverage tracking.
 
 **New File:** [.github/workflows/coverage.yml](../../.github/workflows/coverage.yml)
 
-**Platform:** Ubuntu 24.04  
+**Platform:** Ubuntu 24.04
 **Triggers:** Push to main, pull requests, manual dispatch
 
 **Workflow Steps:**
@@ -139,7 +139,7 @@ To reach **70%+ line coverage** (A+ threshold):
    - FuzzyMatch edge cases
    - Comprehensive validation tests
 
-**Estimated Effort:** 2-3 days of focused test development  
+**Estimated Effort:** 2-3 days of focused test development
 **Expected Result:** 75%+ line coverage → **A+ testing quality**
 
 ## Technical Notes

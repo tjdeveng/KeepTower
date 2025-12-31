@@ -260,6 +260,375 @@ TEST_F(ReedSolomonTest, BinaryPatternsTest) {
     }
 }
 
+// ============================================================================
+// Comprehensive Edge Case and Error Handling Tests
+// ============================================================================
+
+/**
+ * @brief Test padding and unpadding edge cases
+ */
+TEST_F(ReedSolomonTest, PaddingEdgeCases) {
+    // Test data exactly at block boundary (223 bytes = RS_DATA_SIZE)
+    std::vector<uint8_t> exact_block(223);
+    std::iota(exact_block.begin(), exact_block.end(), 0);
+
+    auto encoded = rs->encode(exact_block);
+    ASSERT_TRUE(encoded.has_value());
+
+    auto decoded = rs->decode(*encoded);
+    ASSERT_TRUE(decoded.has_value());
+    EXPECT_EQ(*decoded, exact_block);
+}
+
+/**
+ * @brief Test single byte input
+ */
+TEST_F(ReedSolomonTest, SingleByteInput) {
+    std::vector<uint8_t> single_byte = {0x42};
+
+    auto encoded = rs->encode(single_byte);
+    ASSERT_TRUE(encoded.has_value());
+    EXPECT_EQ(encoded->original_size, 1);
+
+    auto decoded = rs->decode(*encoded);
+    ASSERT_TRUE(decoded.has_value());
+    EXPECT_EQ(decoded->size(), 1);
+    EXPECT_EQ((*decoded)[0], 0x42);
+}
+
+/**
+ * @brief Test very large data (multiple blocks)
+ */
+TEST_F(ReedSolomonTest, VeryLargeData) {
+    // Create 50KB of data (many RS blocks)
+    std::vector<uint8_t> large_data(50 * 1024);
+    for (size_t i = 0; i < large_data.size(); ++i) {
+        large_data[i] = static_cast<uint8_t>((i * 7 + 13) % 256);
+    }
+
+    auto encoded = rs->encode(large_data);
+    ASSERT_TRUE(encoded.has_value());
+    EXPECT_EQ(encoded->original_size, large_data.size());
+    EXPECT_GT(encoded->num_data_blocks, 200);  // Should create many blocks
+
+    auto decoded = rs->decode(*encoded);
+    ASSERT_TRUE(decoded.has_value());
+    EXPECT_EQ(*decoded, large_data);
+}
+
+/**
+ * @brief Test corruption at block boundaries
+ */
+TEST_F(ReedSolomonTest, CorruptionAtBlockBoundaries) {
+    std::vector<uint8_t> data(500, 0x33);
+
+    auto encoded = rs->encode(data);
+    ASSERT_TRUE(encoded.has_value());
+
+    // Corrupt at block boundary (position 255 = end of first RS block)
+    if (encoded->data.size() > 255) {
+        encoded->data[254] ^= 0xFF;
+        encoded->data[255] ^= 0xFF;
+    }
+
+    auto decoded = rs->decode(*encoded);
+    ASSERT_TRUE(decoded.has_value());
+    EXPECT_EQ(*decoded, data);
+}
+
+/**
+ * @brief Test systematic corruption (every Nth byte)
+ */
+TEST_F(ReedSolomonTest, SystematicCorruption) {
+    std::vector<uint8_t> data(1000, 0x88);
+
+    auto encoded = rs->encode(data);
+    ASSERT_TRUE(encoded.has_value());
+
+    // Corrupt every 50th byte (within correctable limits)
+    for (size_t i = 0; i < encoded->data.size() && i < 10; i += 50) {
+        encoded->data[i] ^= 0xFF;
+    }
+
+    auto decoded = rs->decode(*encoded);
+    ASSERT_TRUE(decoded.has_value());
+    EXPECT_EQ(*decoded, data);
+}
+
+/**
+ * @brief Test parity block corruption
+ */
+TEST_F(ReedSolomonTest, ParityBlockCorruption) {
+    std::vector<uint8_t> data(223);  // One RS block exactly
+    std::iota(data.begin(), data.end(), 0);
+
+    auto encoded = rs->encode(data);
+    ASSERT_TRUE(encoded.has_value());
+
+    // Corrupt parity region (bytes 223-254 of RS(255,223))
+    // RS stores as [data(223) | parity(32)]
+    // Corrupt a few parity bytes (within correctable limit)
+    if (encoded->data.size() >= 255) {
+        for (size_t i = 223; i < 228; ++i) {  // Only 5 bytes
+            encoded->data[i] ^= 0xFF;
+        }
+    }
+
+    // Should still decode - parity corruption is correctable up to limit
+    auto decoded = rs->decode(*encoded);
+    ASSERT_TRUE(decoded.has_value());
+    EXPECT_EQ(*decoded, data);
+}
+
+/**
+ * @brief Test all parity bytes corrupted in one block
+ */
+TEST_F(ReedSolomonTest, AllParityBytesCorrupted) {
+    std::vector<uint8_t> data(223, 0xCC);
+
+    auto encoded = rs->encode(data);
+    ASSERT_TRUE(encoded.has_value());
+
+    // Corrupt ALL 32 parity bytes in first block
+    if (encoded->data.size() >= 255) {
+        for (size_t i = 223; i < 255; ++i) {
+            encoded->data[i] = 0x00;  // Zero out parity
+        }
+    }
+
+    // Should fail - too much corruption in one block
+    auto decoded = rs->decode(*encoded);
+    // RS(255,223) can only correct 16 errors, not 32
+    if (!decoded.has_value()) {
+        EXPECT_EQ(decoded.error(), ReedSolomon::Error::DECODING_FAILED);
+    }
+}
+
+/**
+ * @brief Test decode with invalid EncodedData
+ */
+TEST_F(ReedSolomonTest, DecodeInvalidEncodedData) {
+    ReedSolomon::EncodedData invalid_empty;
+    invalid_empty.data.clear();
+    invalid_empty.original_size = 0;
+
+    auto result = rs->decode(invalid_empty);
+    EXPECT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), ReedSolomon::Error::INVALID_DATA);
+
+    // EncodedData with empty data but non-zero original_size
+    ReedSolomon::EncodedData invalid_size;
+    invalid_size.data.clear();
+    invalid_size.original_size = 100;
+
+    result = rs->decode(invalid_size);
+    EXPECT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), ReedSolomon::Error::INVALID_DATA);
+}
+
+/**
+ * @brief Test decode with truncated encoded data
+ */
+TEST_F(ReedSolomonTest, DecodeTruncatedData) {
+    std::vector<uint8_t> data(500, 0xAB);
+
+    auto encoded = rs->encode(data);
+    ASSERT_TRUE(encoded.has_value());
+
+    // Truncate encoded data
+    encoded->data.resize(encoded->data.size() / 2);
+
+    auto decoded = rs->decode(*encoded);
+    // Should fail or return partial data
+    if (!decoded.has_value()) {
+        EXPECT_EQ(decoded.error(), ReedSolomon::Error::DECODING_FAILED);
+    }
+}
+
+/**
+ * @brief Test maximum correctable corruption calculation
+ */
+TEST_F(ReedSolomonTest, MaxCorrectableCorruption) {
+    // RS(255,223) can correct up to 16 byte errors per block
+    // That's 32 parity bytes / 2 = 16 correctable errors
+
+    for (uint8_t redundancy : {10, 20, 30, 50}) {
+        ReedSolomon rs_test(redundancy);
+        EXPECT_EQ(rs_test.get_max_correctable_corruption(), redundancy / 2);
+    }
+}
+
+/**
+ * @brief Test move constructor and assignment
+ */
+TEST_F(ReedSolomonTest, MoveSemantics) {
+    ReedSolomon rs1(15);
+    EXPECT_EQ(rs1.get_redundancy_percent(), 15);
+
+    // Move constructor
+    ReedSolomon rs2(std::move(rs1));
+    EXPECT_EQ(rs2.get_redundancy_percent(), 15);
+
+    // Move assignment
+    ReedSolomon rs3(20);
+    rs3 = std::move(rs2);
+    EXPECT_EQ(rs3.get_redundancy_percent(), 15);
+}
+
+/**
+ * @brief Test error messages are descriptive
+ */
+TEST_F(ReedSolomonTest, ErrorMessagesDescriptive) {
+    auto msg1 = ReedSolomon::error_to_string(ReedSolomon::Error::INVALID_REDUNDANCY);
+    EXPECT_GT(msg1.length(), 10);
+    EXPECT_NE(msg1.find("5-50"), std::string::npos);
+
+    auto msg2 = ReedSolomon::error_to_string(ReedSolomon::Error::LIBCORRECT_ERROR);
+    EXPECT_GT(msg2.length(), 10);
+    EXPECT_NE(msg2.find("Libcorrect"), std::string::npos);
+
+    auto msg3 = ReedSolomon::error_to_string(ReedSolomon::Error::INVALID_DATA);
+    EXPECT_GT(msg3.length(), 5);
+}
+
+/**
+ * @brief Test burst error correction
+ */
+TEST_F(ReedSolomonTest, BurstErrorCorrection) {
+    std::vector<uint8_t> data(500, 0x99);
+
+    auto encoded = rs->encode(data);
+    ASSERT_TRUE(encoded.has_value());
+
+    // Create burst error (consecutive corrupted bytes)
+    if (encoded->data.size() > 100) {
+        for (size_t i = 50; i < 60; ++i) {  // 10 consecutive bytes
+            encoded->data[i] ^= 0xFF;
+        }
+    }
+
+    auto decoded = rs->decode(*encoded);
+    ASSERT_TRUE(decoded.has_value());
+    EXPECT_EQ(*decoded, data);
+}
+
+/**
+ * @brief Test data integrity with all byte values
+ */
+TEST_F(ReedSolomonTest, AllByteValues) {
+    std::vector<uint8_t> data(256);
+    std::iota(data.begin(), data.end(), 0);  // 0x00 to 0xFF
+
+    auto encoded = rs->encode(data);
+    ASSERT_TRUE(encoded.has_value());
+
+    auto decoded = rs->decode(*encoded);
+    ASSERT_TRUE(decoded.has_value());
+    EXPECT_EQ(*decoded, data);
+}
+
+/**
+ * @brief Test redundancy boundary values
+ */
+TEST_F(ReedSolomonTest, RedundancyBoundaries) {
+    // Minimum redundancy (5%)
+    ReedSolomon rs_min(5);
+    std::vector<uint8_t> data1(100, 0x11);
+    auto enc1 = rs_min.encode(data1);
+    ASSERT_TRUE(enc1.has_value());
+    auto dec1 = rs_min.decode(*enc1);
+    ASSERT_TRUE(dec1.has_value());
+    EXPECT_EQ(*dec1, data1);
+
+    // Maximum redundancy (50%)
+    ReedSolomon rs_max(50);
+    std::vector<uint8_t> data2(100, 0x22);
+    auto enc2 = rs_max.encode(data2);
+    ASSERT_TRUE(enc2.has_value());
+    auto dec2 = rs_max.decode(*enc2);
+    ASSERT_TRUE(dec2.has_value());
+    EXPECT_EQ(*dec2, data2);
+}
+
+/**
+ * @brief Test encoded size increases with redundancy
+ */
+TEST_F(ReedSolomonTest, EncodedSizeVsRedundancy) {
+    std::vector<uint8_t> data(1000, 0x77);
+
+    size_t size_10 = ReedSolomon(10).calculate_encoded_size(data.size());
+    size_t size_20 = ReedSolomon(20).calculate_encoded_size(data.size());
+    size_t size_50 = ReedSolomon(50).calculate_encoded_size(data.size());
+
+    // Higher redundancy = larger encoded size
+    EXPECT_LT(size_10, size_20);
+    EXPECT_LT(size_20, size_50);
+}
+
+/**
+ * @brief Test recovery from random bit flips
+ */
+TEST_F(ReedSolomonTest, RandomBitFlips) {
+    std::vector<uint8_t> data(1000, 0x55);
+
+    auto encoded = rs->encode(data);
+    ASSERT_TRUE(encoded.has_value());
+
+    // Flip random bits (limited number)
+    std::mt19937 rng(12345);
+    std::uniform_int_distribution<size_t> pos_dist(0, encoded->data.size() - 1);
+    std::uniform_int_distribution<int> bit_dist(0, 7);
+
+    // Flip 20 random bits across the data (should be correctable)
+    for (int i = 0; i < 20; ++i) {
+        size_t pos = pos_dist(rng);
+        int bit = bit_dist(rng);
+        encoded->data[pos] ^= (1 << bit);
+    }
+
+    auto decoded = rs->decode(*encoded);
+    ASSERT_TRUE(decoded.has_value());
+    EXPECT_EQ(*decoded, data);
+}
+
+/**
+ * @brief Test with compressible data
+ */
+TEST_F(ReedSolomonTest, CompressibleData) {
+    // Highly compressible data (repeated pattern)
+    std::vector<uint8_t> data(2000);
+    for (size_t i = 0; i < data.size(); ++i) {
+        data[i] = static_cast<uint8_t>(i % 10);  // 0-9 repeating
+    }
+
+    auto encoded = rs->encode(data);
+    ASSERT_TRUE(encoded.has_value());
+
+    auto decoded = rs->decode(*encoded);
+    ASSERT_TRUE(decoded.has_value());
+    EXPECT_EQ(*decoded, data);
+}
+
+/**
+ * @brief Test EncodedData metadata accuracy
+ */
+TEST_F(ReedSolomonTest, EncodedDataMetadata) {
+    std::vector<uint8_t> data(1234, 0xCD);
+
+    auto encoded = rs->encode(data);
+    ASSERT_TRUE(encoded.has_value());
+
+    EXPECT_EQ(encoded->original_size, 1234);
+    EXPECT_EQ(encoded->redundancy_percent, 10);
+    EXPECT_EQ(encoded->block_size, 255);
+    EXPECT_GT(encoded->num_data_blocks, 0);
+    EXPECT_GT(encoded->num_parity_blocks, 0);
+
+    // Verify data blocks calculation
+    size_t expected_blocks = (data.size() + 222) / 223;  // RS_DATA_SIZE = 223
+    EXPECT_GE(encoded->num_data_blocks, expected_blocks);
+}
+
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

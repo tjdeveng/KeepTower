@@ -435,6 +435,169 @@ TEST_F(VaultManagerV2Test, ListUsersReturnsActiveOnly) {
 }
 
 // ============================================================================
+// Password Validation and History Tests
+// ============================================================================
+
+TEST_F(VaultManagerV2Test, ValidateNewPasswordEnforcesMinLength) {
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 12;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpass123", policy));
+
+    // Try password too short for admin
+    auto result = vault_manager.validate_new_password("admin", "short");
+    EXPECT_FALSE(result);
+    EXPECT_EQ(result.error(), VaultError::WeakPassword);
+}
+
+// Note: VaultSecurityPolicy doesn't have max_password_length - testing min length is sufficient
+
+TEST_F(VaultManagerV2Test, ValidateNewPasswordRejectsPasswordHistory) {
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 8;
+    policy.password_history_depth = 3;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "alice", "password001", policy));
+
+    // Change password twice
+    ASSERT_TRUE(vault_manager.change_user_password("alice", "password001", "password002"));
+    ASSERT_TRUE(vault_manager.change_user_password("alice", "password002", "password003"));
+
+    // Try to reuse password001 (should fail)
+    auto result = vault_manager.change_user_password("alice", "password003", "password001");
+    EXPECT_FALSE(result);
+    EXPECT_EQ(result.error(), VaultError::PasswordReused);
+}
+
+TEST_F(VaultManagerV2Test, ClearUserPasswordHistorySuccessful) {
+    VaultSecurityPolicy policy;
+    policy.password_history_depth = 5;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpass123", policy));
+
+    // Add user
+    ASSERT_TRUE(vault_manager.add_user("bob", "bobpass12345", UserRole::STANDARD_USER));
+
+    // Change password a few times to build history
+    ASSERT_TRUE(vault_manager.change_user_password("bob", "bobpass12345", "bobpass23456"));
+    ASSERT_TRUE(vault_manager.change_user_password("bob", "bobpass23456", "bobpass34567"));
+
+    // Clear history (admin only)
+    auto result = vault_manager.clear_user_password_history("bob");
+    ASSERT_TRUE(result) << "Admin should be able to clear password history";
+
+    // Now bob can reuse old password
+    auto reuse_result = vault_manager.change_user_password("bob", "bobpass34567", "bobpass12345");
+    EXPECT_TRUE(reuse_result) << "Should allow password reuse after history cleared";
+}
+
+TEST_F(VaultManagerV2Test, ClearPasswordHistoryRequiresAdmin) {
+    VaultSecurityPolicy policy;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpass123", policy));
+    ASSERT_TRUE(vault_manager.add_user("alice", "alicepass123", UserRole::STANDARD_USER));
+    ASSERT_TRUE(vault_manager.add_user("bob", "bobpass12345", UserRole::STANDARD_USER));
+    ASSERT_TRUE(vault_manager.save_vault());
+    ASSERT_TRUE(vault_manager.close_vault());
+
+    // Login as alice (not admin)
+    ASSERT_TRUE(vault_manager.open_vault_v2(test_vault_path.string(), "alice", "alicepass123"));
+
+    // Try to clear bob's history (should fail)
+    auto result = vault_manager.clear_user_password_history("bob");
+    EXPECT_FALSE(result);
+    EXPECT_EQ(result.error(), VaultError::PermissionDenied);
+}
+
+// ============================================================================
+// Admin Password Reset Tests
+// ============================================================================
+
+TEST_F(VaultManagerV2Test, AdminResetUserPasswordSuccessful) {
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 8;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpass123", policy));
+    ASSERT_TRUE(vault_manager.add_user("bob", "bobpass12345", UserRole::STANDARD_USER, false));
+
+    // Admin resets bob's password
+    auto result = vault_manager.admin_reset_user_password("bob", "newresetpass");
+    ASSERT_TRUE(result) << "Admin should be able to reset user password";
+
+    ASSERT_TRUE(vault_manager.save_vault());
+    ASSERT_TRUE(vault_manager.close_vault());
+
+    // Bob can login with new password
+    auto bob_session = vault_manager.open_vault_v2(test_vault_path.string(), "bob", "newresetpass");
+    ASSERT_TRUE(bob_session);
+    EXPECT_TRUE(bob_session->password_change_required) << "Should require password change after admin reset";
+}
+
+TEST_F(VaultManagerV2Test, AdminResetPasswordRequiresAdmin) {
+    VaultSecurityPolicy policy;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpass123", policy));
+    ASSERT_TRUE(vault_manager.add_user("alice", "alicepass123", UserRole::STANDARD_USER));
+    ASSERT_TRUE(vault_manager.add_user("bob", "bobpass12345", UserRole::STANDARD_USER));
+    ASSERT_TRUE(vault_manager.save_vault());
+    ASSERT_TRUE(vault_manager.close_vault());
+
+    // Login as alice (not admin)
+    ASSERT_TRUE(vault_manager.open_vault_v2(test_vault_path.string(), "alice", "alicepass123"));
+
+    // Try to reset bob's password (should fail)
+    auto result = vault_manager.admin_reset_user_password("bob", "newpassword123");
+    EXPECT_FALSE(result);
+    EXPECT_EQ(result.error(), VaultError::PermissionDenied);
+}
+
+TEST_F(VaultManagerV2Test, AdminResetPasswordClearsHistory) {
+    VaultSecurityPolicy policy;
+    policy.password_history_depth = 3;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpass123", policy));
+    ASSERT_TRUE(vault_manager.add_user("bob", "bobpass12345", UserRole::STANDARD_USER));
+
+    // Bob changes password to build history
+    ASSERT_TRUE(vault_manager.change_user_password("bob", "bobpass12345", "bobpass23456"));
+    ASSERT_TRUE(vault_manager.change_user_password("bob", "bobpass23456", "bobpass34567"));
+
+    // Admin resets password (clears history)
+    ASSERT_TRUE(vault_manager.admin_reset_user_password("bob", "adminreset123"));
+    ASSERT_TRUE(vault_manager.save_vault());
+    ASSERT_TRUE(vault_manager.close_vault());
+
+    // Bob logs in with reset password
+    ASSERT_TRUE(vault_manager.open_vault_v2(test_vault_path.string(), "bob", "adminreset123"));
+
+    // Bob can now use old password (history cleared)
+    auto result = vault_manager.change_user_password("bob", "adminreset123", "bobpass12345");
+    EXPECT_TRUE(result) << "Should allow old password after admin reset clears history";
+}
+
+// ============================================================================
+// Permission Check Tests
+// ============================================================================
+
+// Note: can_view_account and can_delete_account tests require account ownership
+// tracking which is not yet implemented in the account record protobuf schema
+
+TEST_F(VaultManagerV2Test, GetSecurityPolicyReturnsCorrectValues) {
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 16;
+    policy.password_history_depth = 5;
+    policy.pbkdf2_iterations = 200000;
+    policy.require_yubikey = false;
+
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpassword123", policy));
+
+    auto retrieved_policy = vault_manager.get_vault_security_policy();
+    ASSERT_TRUE(retrieved_policy);
+    EXPECT_EQ(retrieved_policy->min_password_length, 16);
+}
+
+// ============================================================================
 // Integration: Full Multi-User Workflow
 // ============================================================================
 

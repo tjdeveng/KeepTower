@@ -346,6 +346,174 @@ TEST_F(PasswordHistoryTest, TrimHistoryDoesNothingIfBelowDepth) {
     EXPECT_EQ(history.size(), 2);
 }
 
+/**
+ * Test: is_password_reused() handles empty password gracefully
+ */
+TEST_F(PasswordHistoryTest, IsPasswordReusedRejectsEmptyPassword) {
+    Glib::ustring valid_password = "ValidPassword123";
+    Glib::ustring empty_password = "";
+
+    // Create history with valid password
+    auto entry = PasswordHistory::hash_password(valid_password);
+    ASSERT_TRUE(entry.has_value());
+
+    std::vector<PasswordHistoryEntry> history = { entry.value() };
+
+    // Empty password should return false (not consider it reused)
+    EXPECT_FALSE(PasswordHistory::is_password_reused(empty_password, history));
+}
+
+/**
+ * Test: add_to_history() with zero max_depth clears history
+ */
+TEST_F(PasswordHistoryTest, AddToHistoryWithZeroDepthClearsHistory) {
+    std::vector<PasswordHistoryEntry> history;
+
+    // Add some entries first
+    for (int i = 0; i < 3; i++) {
+        auto entry = PasswordHistory::hash_password("Password" + std::to_string(i));
+        ASSERT_TRUE(entry.has_value());
+        history.push_back(entry.value());
+    }
+
+    EXPECT_EQ(history.size(), 3);
+
+    // Add with zero depth (disables history)
+    auto new_entry = PasswordHistory::hash_password("NewPassword");
+    ASSERT_TRUE(new_entry.has_value());
+    PasswordHistory::add_to_history(history, new_entry.value(), 0);
+
+    // Should clear all history
+    EXPECT_EQ(history.size(), 0);
+}
+
+/**
+ * Test: trim_history() with zero max_depth clears history
+ */
+TEST_F(PasswordHistoryTest, TrimHistoryWithZeroDepthClearsHistory) {
+    std::vector<PasswordHistoryEntry> history;
+
+    // Add some entries
+    for (int i = 0; i < 5; i++) {
+        auto entry = PasswordHistory::hash_password("Password" + std::to_string(i));
+        ASSERT_TRUE(entry.has_value());
+        history.push_back(entry.value());
+    }
+
+    EXPECT_EQ(history.size(), 5);
+
+    // Trim with zero depth
+    PasswordHistory::trim_history(history, 0);
+
+    // Should clear all history
+    EXPECT_EQ(history.size(), 0);
+}
+
+/**
+ * Test: hash_password() generates unique hashes for similar passwords
+ */
+TEST_F(PasswordHistoryTest, HashPasswordDistinguishesSimilarPasswords) {
+    Glib::ustring password1 = "Password123";
+    Glib::ustring password2 = "Password124";  // Only last character different
+
+    auto entry1 = PasswordHistory::hash_password(password1);
+    auto entry2 = PasswordHistory::hash_password(password2);
+
+    ASSERT_TRUE(entry1.has_value());
+    ASSERT_TRUE(entry2.has_value());
+
+    // Hashes should be different even for similar passwords
+    EXPECT_NE(entry1->hash, entry2->hash);
+}
+
+/**
+ * Test: is_password_reused() with large history (stress test)
+ */
+TEST_F(PasswordHistoryTest, IsPasswordReusedWithLargeHistory) {
+    std::vector<PasswordHistoryEntry> history;
+
+    // Create large history (24 entries - max allowed depth)
+    for (int i = 0; i < 24; i++) {
+        auto entry = PasswordHistory::hash_password("OldPassword" + std::to_string(i));
+        ASSERT_TRUE(entry.has_value());
+        history.push_back(entry.value());
+    }
+
+    // Test password that matches last entry
+    EXPECT_TRUE(PasswordHistory::is_password_reused("OldPassword23", history));
+
+    // Test password that doesn't match any
+    EXPECT_FALSE(PasswordHistory::is_password_reused("NewUniquePassword", history));
+}
+
+/**
+ * Test: hash_password() with very long password
+ */
+TEST_F(PasswordHistoryTest, HashPasswordWithVeryLongPassword) {
+    // Create 128-character password (max reasonable length)
+    std::string long_password_str(128, 'a');
+    long_password_str[0] = 'P';  // Ensure it starts with capital
+    long_password_str[127] = '!';  // Ensure it has special char
+    Glib::ustring long_password = long_password_str;
+
+    auto entry = PasswordHistory::hash_password(long_password);
+
+    ASSERT_TRUE(entry.has_value());
+    EXPECT_EQ(entry->salt.size(), 32);
+    EXPECT_EQ(entry->hash.size(), 48);
+}
+
+/**
+ * Test: hash_password() with single character password
+ */
+TEST_F(PasswordHistoryTest, HashPasswordWithSingleCharacter) {
+    Glib::ustring single_char = "x";
+
+    auto entry = PasswordHistory::hash_password(single_char);
+
+    ASSERT_TRUE(entry.has_value());
+    EXPECT_EQ(entry->salt.size(), 32);
+    EXPECT_EQ(entry->hash.size(), 48);
+}
+
+/**
+ * Test: hash_password() with special characters and whitespace
+ */
+TEST_F(PasswordHistoryTest, HashPasswordWithSpecialCharactersAndWhitespace) {
+    Glib::ustring special_password = "  Password with spaces!@#$%^&*()  ";
+
+    auto entry = PasswordHistory::hash_password(special_password);
+
+    ASSERT_TRUE(entry.has_value());
+
+    // Verify leading/trailing spaces are preserved
+    std::vector<PasswordHistoryEntry> history = { entry.value() };
+    EXPECT_TRUE(PasswordHistory::is_password_reused(special_password, history));
+    EXPECT_FALSE(PasswordHistory::is_password_reused("Password with spaces!@#$%^&*()", history));
+}
+
+/**
+ * Test: add_to_history() preserves order correctly
+ */
+TEST_F(PasswordHistoryTest, AddToHistoryPreservesOrder) {
+    std::vector<PasswordHistoryEntry> history;
+    std::vector<int64_t> timestamps;
+
+    // Add entries with delays to ensure different timestamps
+    for (int i = 0; i < 5; i++) {
+        auto entry = PasswordHistory::hash_password("Password" + std::to_string(i));
+        ASSERT_TRUE(entry.has_value());
+        timestamps.push_back(entry->timestamp);
+        PasswordHistory::add_to_history(history, entry.value(), 10);
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+
+    // Verify entries are in order (oldest to newest)
+    for (size_t i = 0; i < history.size() - 1; i++) {
+        EXPECT_LE(history[i].timestamp, history[i + 1].timestamp);
+    }
+}
+
 // ============================================================================
 // VaultManager Integration Tests
 // ============================================================================

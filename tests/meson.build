@@ -370,6 +370,58 @@ account_groups_test = executable(
 )
 
 test('Account Groups Tests', account_groups_test)
+
+# Group Manager unit tests (direct testing for coverage)
+group_manager_sources = [
+    'test_group_manager.cc',
+    '../src/core/managers/GroupManager.cc',
+    proto_gen
+]
+group_manager_deps = [gtest_dep, protobuf_dep]
+
+group_manager_test = executable(
+    'group_manager_test',
+    group_manager_sources,
+    dependencies: group_manager_deps,
+    include_directories: test_inc
+)
+
+test('Group Manager Unit Tests', group_manager_test)
+# VaultFormatV2 unit tests
+vault_format_v2_sources = [
+    'test_vault_format_v2.cc',
+    '../src/core/VaultFormatV2.cc',
+    '../src/core/ReedSolomon.cc',
+    '../src/core/MultiUserTypes.cc',
+    proto_gen
+]
+vault_format_v2_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
+
+vault_format_v2_test = executable(
+    'vault_format_v2_test',
+    vault_format_v2_sources,
+    dependencies: vault_format_v2_deps,
+    include_directories: test_inc
+)
+
+test('VaultFormatV2 Unit Tests', vault_format_v2_test)
+
+# KeyWrapping unit tests
+key_wrapping_sources = [
+    'test_key_wrapping.cc',
+    '../src/core/KeyWrapping.cc'
+]
+key_wrapping_deps = [gtest_dep, openssl_dep, giomm_dep]
+
+key_wrapping_test = executable(
+    'key_wrapping_test',
+    key_wrapping_sources,
+    dependencies: key_wrapping_deps,
+    include_directories: test_inc
+)
+
+test('KeyWrapping Unit Tests', key_wrapping_test)
+
 # Multi-User Infrastructure tests
 multiuser_sources = [
     'test_multiuser.cc',
@@ -470,6 +522,73 @@ password_history_test = executable(
 )
 
 test('password_history', password_history_test)
+
+# VaultCrypto unit tests (AES-256-GCM encryption and PBKDF2)
+vault_crypto_test_sources = [
+    'test_vault_crypto.cc',
+    '../src/core/crypto/VaultCrypto.cc'
+]
+vault_crypto_test_deps = [gtest_dep, openssl_dep, giomm_dep]
+
+vault_crypto_test = executable(
+    'vault_crypto_test',
+    vault_crypto_test_sources,
+    dependencies: vault_crypto_test_deps,
+    include_directories: test_inc
+)
+
+test('vault_crypto', vault_crypto_test)
+
+# VaultIO unit tests (File I/O operations)
+vault_io_test_sources = [
+    'test_vault_io.cc',
+    '../src/core/io/VaultIO.cc'
+]
+vault_io_test_deps = [gtest_dep, giomm_dep]
+
+vault_io_test = executable(
+    'vault_io_test',
+    vault_io_test_sources,
+    dependencies: vault_io_test_deps,
+    include_directories: test_inc
+)
+
+test('vault_io', vault_io_test)
+
+# VaultFormat unit tests (Format parsing and encoding) - Temporarily disabled
+# vault_format_test_sources = [
+#     'test_vault_format.cc',
+#     '../src/core/format/VaultFormat.cc',
+#     '../src/core/ReedSolomon.cc'
+# ]
+# vault_format_test_deps = [gtest_dep, giomm_dep, libcorrect_dep]
+
+# vault_format_test = executable(
+#     'vault_format_test',
+#     vault_format_test_sources,
+#     dependencies: vault_format_test_deps,
+#     include_directories: test_inc
+# )
+
+# test('vault_format', vault_format_test)
+
+# VaultSerialization unit tests (Protobuf serialization)
+# Fixed protobuf API compatibility (string IDs)
+vault_serialization_test_sources = [
+    'test_vault_serialization.cc',
+    '../src/core/serialization/VaultSerialization.cc',
+    proto_gen
+]
+vault_serialization_test_deps = [gtest_dep, protobuf_dep]
+
+vault_serialization_test = executable(
+    'vault_serialization_test',
+    vault_serialization_test_sources,
+    dependencies: vault_serialization_test_deps,
+    include_directories: test_inc
+)
+
+test('vault_serialization', vault_serialization_test)
 
 # AccountViewController tests (Phase 1 refactoring)
 account_view_controller_test_sources = [
