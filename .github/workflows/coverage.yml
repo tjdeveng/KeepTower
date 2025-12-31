@@ -105,7 +105,7 @@ jobs:
       run: |
         export LD_LIBRARY_PATH="/tmp/openssl-install/lib64:/tmp/openssl-install/lib:$LD_LIBRARY_PATH"
         sudo apt-get install -y xvfb
-        xvfb-run -a meson test -C build-coverage --print-errorlogs
+        xvfb-run -a meson test -C build-coverage --print-errorlogs --timeout-multiplier 1.5
 
     - name: Generate coverage report
       run: |
