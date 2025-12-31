@@ -48,6 +48,14 @@ keeptower
 *.dSYM/
 *.su
 *.idb
+
+# Coverage files
+*.gcov
+*.gcda
+*.gcno
+*.info
+coverage_report/
+htmlcov/
 *.pdb
 
 # Log files
