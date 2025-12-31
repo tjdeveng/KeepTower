@@ -3,7 +3,7 @@
 
 #include "MenuManager.h"
 #include "../../core/VaultManager.h"
-#include "../../../build/config.h"
+#include <config.h>
 
 namespace UI {
 
