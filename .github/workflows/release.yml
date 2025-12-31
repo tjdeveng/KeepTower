@@ -130,8 +130,11 @@ jobs:
         export GSETTINGS_SCHEMA_DIR=\"${{ github.workspace }}/build/data\"
         ulimit -l 10240 2>/dev/null || echo \"Warning: Could not increase memory lock limit\"
 
-        # Run tests
-        meson test -C build --print-errorlogs
+        # Install xvfb for headless GTK tests
+        sudo apt-get install -y xvfb
+
+        # Run tests with xvfb
+        xvfb-run -a meson test -C build --print-errorlogs
 
         mkdir -p dist/keeptower-${{ needs.create-release.outputs.version }}-${{ matrix.artifact }}-x86_64
         cp build/src/keeptower dist/keeptower-${{ needs.create-release.outputs.version }}-${{ matrix.artifact }}-x86_64/

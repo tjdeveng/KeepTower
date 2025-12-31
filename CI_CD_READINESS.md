@@ -72,7 +72,8 @@ libyubikey-dev      # YubiKey library
 - GSettings schema directory: `${{ github.workspace }}/build/data`
 - OpenSSL FIPS config: `/tmp/openssl-install/ssl/openssl.cnf`
 - Memory lock limit increased: `ulimit -l 10240`
-- Tests run with: `meson test -C build --verbose --print-errorlogs`
+- **xvfb** for headless GTK/clipboard tests
+- Tests run with: `xvfb-run -a meson test -C build --verbose --print-errorlogs`
 
 ---
 
@@ -210,6 +211,7 @@ curl
 | gettext | i18n support | Latest | ✅ |
 | curl | Download OpenSSL | Latest | ✅ |
 | **perl** | **OpenSSL Configure** | **5.x** | **✅ CRITICAL** |
+| **xvfb** | **Headless X server** | **Latest** | **✅ CRITICAL** |
 | desktop-file-utils | .desktop validation | Latest | ✅ |
 | libykpers-1-dev | YubiKey support | 1.20.0 | ✅ |
 | libyubikey-dev | YubiKey library | Latest | ✅ |

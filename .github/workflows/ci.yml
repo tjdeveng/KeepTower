@@ -186,8 +186,11 @@ jobs:
         echo "  OPENSSL_MODULES=$OPENSSL_MODULES"
         echo "  LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
 
-        # Run tests with increased verbosity
-        meson test -C build --verbose --print-errorlogs
+        # Install xvfb for headless GTK tests (clipboard, UI tests)
+        sudo apt-get install -y xvfb
+
+        # Run tests with xvfb-run for GTK/clipboard tests in headless environment
+        xvfb-run -a meson test -C build --verbose --print-errorlogs
 
     - name: Display test summary
       if: always()
