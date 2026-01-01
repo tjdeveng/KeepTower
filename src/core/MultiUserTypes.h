@@ -237,7 +237,7 @@ struct VaultSecurityPolicy {
     static constexpr size_t RESERVED_BYTES_1 = 0;
 
     /** @brief Reserved bytes for future expansion (second block) */
-    static constexpr size_t RESERVED_BYTES_2 = 43;
+    static constexpr size_t RESERVED_BYTES_2 = 44;
 };
 
 /**
