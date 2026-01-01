@@ -184,6 +184,86 @@ class VaultManagerAndUIAndCryptoAndEverything {
   - Log security events appropriately
   - Handle all error conditions
 
+### FIPS-140-3 Compliance Requirements
+
+KeepTower supports optional FIPS-140-3 validated cryptographic operations. When contributing cryptographic code, ensure compliance with these requirements:
+
+**Approved Algorithms Only:**
+- **Encryption**: AES-256-GCM (approved), avoid RC4, DES, 3DES
+- **Key Derivation**: PBKDF2-HMAC-SHA256/SHA512 (approved), avoid MD5, SHA1
+- **Random Number Generation**: Use OpenSSL FIPS-approved DRBG
+- **Key Wrapping**: AES Key Wrap (RFC 3394) with 256-bit keys
+- **Hashing**: SHA-256, SHA-512 (approved), avoid MD5, SHA1
+
+**OpenSSL FIPS Module:**
+- Always use OpenSSL 3.5.0+ APIs
+- Check FIPS mode: `FIPS_mode()` returns 1 when enabled
+- Use approved functions: `EVP_*` APIs (not deprecated low-level APIs)
+- No direct calls to `AES_encrypt()`, use `EVP_EncryptInit_ex()`
+
+**Key Management:**
+- Minimum key sizes: AES-256 (256 bits), HMAC (256 bits)
+- Secure key generation using FIPS-approved RNG
+- Key zeroization: Use `OPENSSL_cleanse()` to clear keys from memory
+- No hardcoded keys or weak key derivation
+
+**Self-Tests:**
+- Cryptographic operations must pass FIPS Known Answer Tests (KATs)
+- Add unit tests that verify FIPS mode compatibility
+- Test both FIPS-enabled and FIPS-disabled modes
+
+**Code Examples:**
+
+```cpp
+// Good: FIPS-approved AES-256-GCM encryption
+EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
+EVP_EncryptInit_ex(ctx, EVP_aes_256_gcm(), nullptr, key, iv);
+EVP_EncryptUpdate(ctx, ciphertext, &len, plaintext, plaintext_len);
+
+// Bad: Deprecated low-level API (not FIPS-approved)
+AES_KEY aes_key;
+AES_set_encrypt_key(key, 256, &aes_key);
+AES_encrypt(plaintext, ciphertext, &aes_key);
+
+// Good: FIPS-approved PBKDF2
+PKCS5_PBKDF2_HMAC(password, password_len, salt, salt_len,
+                  100000, EVP_sha256(), key_len, key);
+
+// Bad: Weak algorithm (MD5 not FIPS-approved)
+PKCS5_PBKDF2_HMAC(password, password_len, salt, salt_len,
+                  1000, EVP_md5(), key_len, key);
+
+// Good: Secure key cleanup
+OPENSSL_cleanse(key, key_len);
+
+// Bad: May be optimized away by compiler
+memset(key, 0, key_len);
+```
+
+**Testing FIPS Compliance:**
+
+```bash
+# Build with FIPS support
+meson setup build -Dfips_mode=true
+
+# Run FIPS tests
+meson test -C build test_security_features
+
+# Verify FIPS mode at runtime
+./build/src/keeptower --fips-check
+```
+
+**Important Notes:**
+- FIPS mode is **optional** and not required for normal operation
+- Test both FIPS-enabled and disabled modes
+- Document any FIPS-related code with clear comments
+- See [INSTALL.md](INSTALL.md#fips-140-3-support) for FIPS setup details
+
+**Resources:**
+- [NIST FIPS 140-3 Standard](https://csrc.nist.gov/publications/detail/fips/140/3/final)
+- [OpenSSL FIPS 3.0 Module](https://www.openssl.org/docs/fips.html)
+- [NIST Approved Algorithms](https://csrc.nist.gov/projects/cryptographic-algorithm-validation-program)
+
 ### File Organization
 
 - **Headers**: One class per header file

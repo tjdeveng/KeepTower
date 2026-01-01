@@ -298,6 +298,51 @@ src/
 - Update `meson.build`
 - Add header comments with license
 
+### FIPS-140-3 Compliance
+
+KeepTower supports optional FIPS-140-3 validated cryptography. Contributors must follow these requirements when working with cryptographic code:
+
+**Approved Algorithms:**
+- ✅ **Encryption**: AES-256-GCM
+- ✅ **Key Derivation**: PBKDF2-HMAC-SHA256/SHA512
+- ✅ **Hashing**: SHA-256, SHA-512
+- ✅ **Key Wrapping**: AES Key Wrap (RFC 3394)
+- ✅ **RNG**: OpenSSL FIPS DRBG
+- ❌ **Not Allowed**: MD5, SHA1, RC4, DES, 3DES
+
+**OpenSSL Requirements:**
+- Use OpenSSL 3.5.0+ APIs exclusively
+- Use high-level `EVP_*` APIs (not deprecated low-level functions)
+- Check FIPS mode: `FIPS_mode()` before FIPS-only operations
+- Always use `OPENSSL_cleanse()` for key zeroization
+
+**Key Requirements:**
+- Minimum key sizes: AES-256 (256 bits), HMAC (256 bits)
+- No hardcoded keys or weak derivation
+- Secure random generation using FIPS-approved RNG
+- Proper key cleanup with `OPENSSL_cleanse()`
+
+**Example:**
+```cpp
+// ✅ GOOD: FIPS-approved EVP API
+EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
+EVP_EncryptInit_ex(ctx, EVP_aes_256_gcm(), nullptr, key, iv);
+
+// ❌ BAD: Deprecated low-level API
+AES_KEY aes_key;
+AES_set_encrypt_key(key, 256, &aes_key);
+```
+
+**Testing:**
+- Test both FIPS-enabled and disabled modes
+- Run `meson test -C build test_security_features`
+- Verify FIPS KATs pass
+
+**Resources:**
+- See [INSTALL.md](../../INSTALL.md#fips-140-3-support) for setup
+- [NIST FIPS 140-3](https://csrc.nist.gov/publications/detail/fips/140/3/final)
+- [OpenSSL FIPS Module](https://www.openssl.org/docs/fips.html)
+
 ### Commit Messages
 
 Follow conventional commits format:
