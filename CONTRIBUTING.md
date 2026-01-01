@@ -115,6 +115,58 @@ Good first issues are labeled with `good first issue`. These are:
 - Use range-based for loops
 - Use `constexpr` where possible
 
+### Object-Oriented Design Principles
+
+KeepTower follows SOLID principles to maintain clean, maintainable code:
+
+**Single Responsibility Principle (SRP):**
+- Each class should have one reason to change
+- Avoid "god objects" that do everything
+- If a class name contains "And" or "Manager", consider splitting it
+- Example: `VaultManager` (vault ops) vs `VaultCrypto` (encryption)
+
+**Open/Closed Principle (OCP):**
+- Open for extension, closed for modification
+- Use interfaces/abstract classes for extensibility
+- Example: `VaultFormat` interface allows V1/V2 implementations
+
+**Liskov Substitution Principle (LSP):**
+- Derived classes must be substitutable for base classes
+- Honor parent class contracts and invariants
+
+**Interface Segregation Principle (ISP):**
+- Many small, focused interfaces over large monolithic ones
+- Clients shouldn't depend on unused methods
+
+**Dependency Inversion Principle (DIP):**
+- Depend on abstractions, not concretions
+- Use dependency injection where appropriate
+
+**Additional Best Practices:**
+- **Composition over Inheritance**: Prefer object composition
+- **Encapsulation**: Keep implementation private, minimal public interface
+- **Const Correctness**: Mark non-mutating methods `const`
+- **No Naked News**: Always use smart pointers for ownership
+- **Rule of Zero**: Let compiler generate special members when possible
+
+**Example:**
+```cpp
+// Good: Single responsibility, clear interface
+class PasswordValidator {
+    [[nodiscard]] bool validate(const std::string& password) const;
+    [[nodiscard]] std::vector<std::string> get_issues(const std::string& password) const;
+};
+
+// Bad: God object with multiple responsibilities
+class VaultManagerAndUIAndCryptoAndEverything {
+    void create_vault();
+    void show_window();
+    void encrypt_data();
+    void send_network_request();
+    // Violates SRP!
+};
+```
+
 ### Security Considerations
 
 - **Memory Safety**:

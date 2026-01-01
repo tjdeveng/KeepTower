@@ -182,6 +182,76 @@ All tests should pass before submitting changes.
 - Keep functions focused and small
 - Comment complex logic
 
+### Object-Oriented Design Principles
+
+KeepTower follows SOLID principles and modern OOP best practices:
+
+**Single Responsibility Principle (SRP):**
+- Each class should have one, and only one, reason to change
+- Avoid "god objects" that try to do everything
+- Example: `VaultManager` handles vault operations, `VaultCrypto` handles encryption
+- If a class name has "And" or "Manager", consider splitting it
+
+**Open/Closed Principle (OCP):**
+- Classes should be open for extension, closed for modification
+- Use interfaces and abstract base classes for extensibility
+- Example: `VaultFormat` interface allows V1/V2 vault implementations
+
+**Liskov Substitution Principle (LSP):**
+- Derived classes must be substitutable for their base classes
+- Don't break parent class contracts in derived classes
+- Ensure derived classes honor preconditions/postconditions
+
+**Interface Segregation Principle (ISP):**
+- Prefer small, focused interfaces over large, monolithic ones
+- Clients shouldn't depend on methods they don't use
+- Example: Separate read/write interfaces rather than one large interface
+
+**Dependency Inversion Principle (DIP):**
+- Depend on abstractions, not concretions
+- High-level modules shouldn't depend on low-level modules
+- Use dependency injection where appropriate
+
+**Additional OOP Best Practices:**
+
+- **Composition over Inheritance:** Prefer composing objects over deep inheritance hierarchies
+- **Encapsulation:** Keep implementation details private, expose minimal public interface
+- **Immutability:** Prefer `const` methods and immutable objects where possible
+- **RAII (Resource Acquisition Is Initialization):** Use constructors/destructors for resource management
+- **No Raw Pointers:** Use smart pointers (`std::unique_ptr`, `std::shared_ptr`) for ownership
+- **Const Correctness:** Mark methods `const` when they don't modify state
+- **Rule of Zero/Five:** Either define all special members or none (let compiler generate them)
+
+**Class Design Guidelines:**
+
+```cpp
+// Good: Single responsibility, clear purpose
+class PasswordValidator {
+    bool validate(const std::string& password) const;
+    std::vector<std::string> get_strength_issues(const std::string& password) const;
+};
+
+// Bad: Multiple responsibilities (god object)
+class VaultManagerAndUIAndCryptoAndEverything {
+    void create_vault();
+    void show_window();
+    void encrypt_data();
+    void send_network_request();
+    // ... hundreds of methods
+};
+
+// Good: Clear ownership with unique_ptr
+class AccountManager {
+    std::unique_ptr<Account> m_active_account;
+};
+
+// Good: Const correctness
+class VaultReader {
+    [[nodiscard]] const Account* get_account(size_t index) const;
+    [[nodiscard]] size_t get_account_count() const;
+};
+```
+
 **C++ Style:**
 - **Indentation:** 4 spaces (no tabs)
 - **Braces:** Opening brace on same line
