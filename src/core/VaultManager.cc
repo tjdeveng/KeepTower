@@ -176,6 +176,7 @@ bool VaultManager::create_vault(const std::string& path,
 
         auto response = yk_manager.challenge_response(
             std::span<const unsigned char>(m_yubikey_challenge.data(), m_yubikey_challenge.size()),
+            YubiKeyAlgorithm::HMAC_SHA1,  // V1 vaults use SHA-1
             false,  // don't require touch for vault operations
             YUBIKEY_TIMEOUT_MS
         );
@@ -392,7 +393,12 @@ VaultManager::authenticate_yubikey(
     }
 
     // Perform challenge-response
-    auto response = yk_manager.challenge_response(metadata.yubikey_challenge, 2);
+    auto response = yk_manager.challenge_response(
+        metadata.yubikey_challenge,
+        YubiKeyAlgorithm::HMAC_SHA1,  // V1 vaults use SHA-1
+        false,
+        YUBIKEY_TIMEOUT_MS
+    );
     if (!response.success) {
         KeepTower::Log::error("YubiKey challenge-response failed: {}", response.error_message);
         return std::unexpected(VaultError::YubiKeyChallengeResponseFailed);
@@ -1366,6 +1372,7 @@ bool VaultManager::add_backup_yubikey(const std::string& name) {
     // Verify the key works with the current challenge
     auto response = yk_manager.challenge_response(
         std::span<const unsigned char>(m_yubikey_challenge.data(), m_yubikey_challenge.size()),
+        YubiKeyAlgorithm::HMAC_SHA1,  // V1 vaults use SHA-1
         false,
         YUBIKEY_TIMEOUT_MS
     );
@@ -1516,7 +1523,7 @@ bool VaultManager::verify_credentials(const Glib::ustring& password, const std::
                                  device_info->serial_number, user_slot->yubikey_serial);
 
             if (device_info->serial_number != serial) {
-                KeepTower::Log::error("VaultManager: Serial mismatch - provided '{}' != device '{}}'",
+                KeepTower::Log::error("VaultManager: Serial mismatch - provided '{}' != device '{}'",
                                      serial, device_info->serial_number);
                 return false;  // Provided serial doesn't match connected device
             }
@@ -1535,7 +1542,12 @@ bool VaultManager::verify_credentials(const Glib::ustring& password, const std::
 
             // Perform challenge-response
             KeepTower::Log::debug("VaultManager: Starting YubiKey challenge-response (timeout: {}ms)", YUBIKEY_TIMEOUT_MS);
-            auto cr_result = yk_manager.challenge_response(user_slot->yubikey_challenge, true, YUBIKEY_TIMEOUT_MS);
+            auto cr_result = yk_manager.challenge_response(
+                user_slot->yubikey_challenge,
+                YubiKeyAlgorithm::HMAC_SHA1,  // Legacy vaults use SHA-1
+                true,
+                YUBIKEY_TIMEOUT_MS
+            );
             if (!cr_result.success) {
                 KeepTower::Log::error("YubiKey challenge-response failed in verify_credentials: {}",
                                      cr_result.error_message);
@@ -1621,7 +1633,12 @@ bool VaultManager::verify_credentials(const Glib::ustring& password, const std::
         }
 
         // Perform challenge-response
-        auto cr_result = yk_manager.challenge_response(m_yubikey_challenge, true, YUBIKEY_TIMEOUT_MS);
+        auto cr_result = yk_manager.challenge_response(
+            m_yubikey_challenge,
+            YubiKeyAlgorithm::HMAC_SHA1,  // V1 vaults use SHA-1
+            true,
+            YUBIKEY_TIMEOUT_MS
+        );
         if (!cr_result.success) {
             KeepTower::Log::error("YubiKey challenge-response failed in verify_credentials: {}",
                                  cr_result.error_message);

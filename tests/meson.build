@@ -294,6 +294,14 @@ undo_redo_test = executable(
     include_directories: test_inc
 )
 
+# YubiKey Algorithm tests (FIPS-140-3 compliance framework)
+yubikey_algorithms_test = executable(
+    'yubikey_algorithms_test',
+    'test_yubikey_algorithms.cc',
+    dependencies: [gtest_dep],
+    include_directories: test_inc
+)
+
 # Register all tests
 # VaultManager concurrency tests can be flaky under heavy CI load - allow retry
 test('VaultManager Tests', vault_manager_test, timeout: 60, should_fail: false, priority: -10)
@@ -310,6 +318,7 @@ test('Fuzzy Match Tests', fuzzy_match_test)
 test('Undo/Redo Tests', undo_redo_test)
 test('FIPS Mode Tests', fips_mode_test)
 test('Memory Locking Security Tests', memory_locking_test)
+test('YubiKey Algorithm Tests', yubikey_algorithms_test)
 
 # Secure memory tests
 secure_memory_sources = [

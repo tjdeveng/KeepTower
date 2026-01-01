@@ -58,6 +58,7 @@ void YubiKeyHandler::handle_test() {
 
     auto challenge_resp = yk_manager.challenge_response(
         std::span<const unsigned char>(test_challenge, 64),
+        YubiKeyAlgorithm::HMAC_SHA256,  // Use FIPS-approved algorithm for testing
         true,  // require_touch
         15000  // 15 second timeout
     );

@@ -347,6 +347,7 @@ Notes</a></li>
 <li><a href="#for-organizations" id="toc-for-organizations">For
 Organizations</a></li>
 <li><a href="#references" id="toc-references">References</a></li>
+<li><a href="#yubikey-fips-configuration" id="toc-yubikey-fips-configuration">YubiKey FIPS Configuration</a></li>
 </ul></li>
 <li><a href="#encryption" id="toc-encryption">Encryption</a>
 <ul>
@@ -416,7 +417,11 @@ security measures implemented.</p>
 <h2 id="table-of-contents">Table of Contents</h2>
 <ul>
 <li><a href="#security-overview">Security Overview</a></li>
-<li><a href="#fips-140-3-compliance">FIPS 140-3 Compliance</a></li>
+<li><a href="#fips-140-3-compliance">FIPS 140-3 Compliance</a>
+<ul>
+<li><a href="#yubikey-fips-configuration">YubiKey FIPS
+Configuration</a></li>
+</ul></li>
 <li><a href="#encryption">Encryption</a></li>
 <li><a href="#key-derivation">Key Derivation</a></li>
 <li><a href="#memory-protection">Memory Protection</a></li>
@@ -557,6 +562,38 @@ for Block Cipher Modes: GCM</a></li>
 <li><strong>OpenSSL FIPS:</strong> <a href="https://www.openssl.org/docs/fips.html">OpenSSL FIPS
 Module</a></li>
 </ul>
+<h3 id="yubikey-fips-configuration">YubiKey FIPS Configuration</h3>
+<p>KeepTower supports hardware-backed vault encryption using YubiKey
+devices in FIPS-compliant mode. To use YubiKey with FIPS 140-3 approved
+algorithms, your YubiKey must be configured to use
+<strong>HMAC-SHA256</strong> instead of the legacy HMAC-SHA1.</p>
+<p><strong>Quick Start:</strong></p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Automated setup (recommended)</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./scripts/configure-yubikey-fips.sh</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Or configure manually with ykman</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="ex">ykman</span> otp chalresp <span class="at">--touch</span> <span class="at">--generate</span> 2</span></code></pre></div>
+<p><strong>📖 Complete Setup Guide:</strong> See <a href="YUBIKEY_FIPS_SETUP.md">YUBIKEY_FIPS_SETUP.md</a> for: - Hardware
+compatibility verification (YubiKey 5 Series firmware 5.0+) -
+Step-by-step configuration instructions (ykman and ykpersonalize
+methods) - FIPS algorithm verification procedures - Troubleshooting
+common configuration issues - Migration from legacy SHA-1
+configurations</p>
+<p><strong>🔧 Automated Configuration Script:</strong> Use
+<code>scripts/configure-yubikey-fips.sh</code> for: - Interactive setup
+with prerequisite checking - Automatic firmware compatibility
+verification - FIPS-compliant HMAC-SHA256 configuration - Configuration
+testing and verification - Options: <code>--slot &lt;1|2&gt;</code>,
+<code>--no-touch</code>, <code>--check-only</code>,
+<code>--help</code></p>
+<p><strong>Requirements:</strong> - YubiKey 5 Series (firmware 5.0+) -
+YubiKey Manager (<code>ykman</code>) or YubiKey Personalization Tools
+(<code>ykpersonalize</code>) - For FIPS-certified hardware: YubiKey 5
+FIPS (firmware 5.4.3+)</p>
+<p><strong>FIPS-Approved Algorithm:</strong> - ✅
+<strong>HMAC-SHA256</strong> (FIPS 198-1, FIPS 180-4) - REQUIRED for
+FIPS compliance - ❌ <strong>HMAC-SHA1</strong> (legacy) - Not
+FIPS-approved, maintained for backward compatibility only</p>
 <hr />
 <h2 id="encryption">Encryption</h2>
 <h3 id="algorithm-aes-256-gcm">Algorithm: AES-256-GCM</h3>

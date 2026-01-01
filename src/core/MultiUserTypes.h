@@ -179,10 +179,29 @@ struct VaultSecurityPolicy {
     uint32_t password_history_depth = 5;
 
     /**
-     * @brief YubiKey HMAC-SHA1 challenge (shared by all users)
+     * @brief YubiKey HMAC algorithm (default: SHA-256 for FIPS)
      *
-     * Random 64-byte challenge generated at vault creation.
+     * Specifies which HMAC algorithm the vault's YubiKey challenge uses.
+     * All enrolled YubiKeys must use the same algorithm.
+     *
+     * FIPS-140-3 Compliance:
+     * - ✅ HMAC-SHA256 (32-byte response) - FIPS-approved default
+     * - ❌ HMAC-SHA1 (20-byte response) - Legacy only, not FIPS-approved
+     * - ✅ HMAC-SHA3-256 (32-byte) - Future support, quantum-resistant
+     *
+     * @note Vaults created before FIPS migration use SHA-1 (field = 0x01)
+     * @note New vaults default to SHA-256 (field = 0x02)
+     */
+    uint8_t yubikey_algorithm = 0x02;  ///< YubiKeyAlgorithm enum value
+
+    /**
+     * @brief YubiKey challenge data (size varies by algorithm)
+     *
+     * Random challenge generated at vault creation.
      * All users' YubiKeys are programmed with the SAME challenge-response secret.
+     *
+     * Challenge size: Fixed at 64 bytes (YUBIKEY_CHALLENGE_SIZE)
+     * Response size: Depends on algorithm (20-64 bytes)
      *
      * @section shared_challenge Why Shared Challenge?
      * - Simpler YubiKey deployment (admin programs all keys identically)
@@ -210,15 +229,15 @@ struct VaultSecurityPolicy {
 
     /**
      * @brief Get serialized size in bytes
-     * @return 121 bytes (1 + 4 + 4 + 4 + 64 + 44)
+     * @return 122 bytes (1 + 1 + 4 + 4 + 4 + 64 + 44)
      */
-    static constexpr size_t SERIALIZED_SIZE = 121;
+    static constexpr size_t SERIALIZED_SIZE = 122;
 
     /** @brief Reserved bytes for future expansion (first block) */
     static constexpr size_t RESERVED_BYTES_1 = 0;
 
     /** @brief Reserved bytes for future expansion (second block) */
-    static constexpr size_t RESERVED_BYTES_2 = 44;
+    static constexpr size_t RESERVED_BYTES_2 = 43;
 };
 
 /**

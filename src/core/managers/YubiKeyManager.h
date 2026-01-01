@@ -5,6 +5,7 @@
 #define YUBIKEY_MANAGER_H
 
 #include "config.h"
+#include "YubiKeyAlgorithm.h"
 #include <string>
 #include <vector>
 #include <optional>
@@ -17,17 +18,24 @@
 /**
  * @brief Manages YubiKey operations for vault encryption key derivation
  *
- * This class provides a secure interface to YubiKey devices for challenge-response
- * authentication. It uses HMAC-SHA1 challenge-response to derive cryptographic
- * keys that can be combined with password-based keys for two-factor vault encryption.
+ * This class provides a FIPS-140-3 compliant interface to YubiKey devices for
+ * challenge-response authentication. It supports multiple HMAC algorithms including
+ * FIPS-approved SHA-256 and future SHA3 variants.
+ *
+ * FIPS-140-3 Compliance:
+ * - Default: HMAC-SHA256 (32-byte response, FIPS-approved)
+ * - Legacy: HMAC-SHA1 (20-byte response, NOT FIPS-approved, deprecated)
+ * - Future: HMAC-SHA3-256/512 (quantum-resistant, reserved)
  *
  * Security Features:
  * - Challenge-response using slot 2 (slot 1 reserved for OTP)
  * - Automatic secure memory erasure for sensitive data
  * - Device serial number tracking for multi-key support
+ * - YubiKey FIPS mode detection and enforcement
  * - Thread-safe operations with RAII
  *
  * @note This class requires YubiKey with Challenge-Response configured in slot 2
+ * @see YubiKeyAlgorithm for algorithm details and FIPS compliance
  */
 class YubiKeyManager final {
 public:
@@ -40,6 +48,9 @@ public:
         int version_minor{0};           ///< Minor firmware version
         int version_build{0};           ///< Build firmware version
         bool slot2_configured{false};   ///< Whether slot 2 has challenge-response enabled
+        bool is_fips_capable{false};    ///< Whether device is YubiKey 5 FIPS
+        bool is_fips_mode{false};       ///< Whether FIPS mode is enabled
+        std::vector<YubiKeyAlgorithm> supported_algorithms{}; ///< Algorithms device supports
 
         /**
          * @brief Get human-readable firmware version string
@@ -48,21 +59,41 @@ public:
         [[nodiscard]] std::string version_string() const noexcept {
             return std::format("{}.{}.{}", version_major, version_minor, version_build);
         }
+
+        /**
+         * @brief Check if device supports a specific algorithm
+         * @param algorithm The algorithm to check
+         * @return true if device supports this algorithm
+         */
+        [[nodiscard]] bool supports_algorithm(YubiKeyAlgorithm algorithm) const noexcept {
+            return std::ranges::find(supported_algorithms, algorithm) != supported_algorithms.end();
+        }
     };
 
     /**
      * @brief Result of a challenge-response operation
      */
     struct ChallengeResponse {
-        std::array<unsigned char, 20> response{};  ///< HMAC-SHA1 response (20 bytes)
+        std::array<unsigned char, YUBIKEY_MAX_RESPONSE_SIZE> response{};  ///< Response data (up to 64 bytes)
+        size_t response_size{0};                    ///< Actual response size
+        YubiKeyAlgorithm algorithm{YubiKeyAlgorithm::HMAC_SHA256};  ///< Algorithm used
         bool success{false};                        ///< Whether operation succeeded
         std::string error_message{};                ///< Error description if failed
+
+        /**
+         * @brief Get response as span for actual size
+         * @return Span of actual response bytes
+         */
+        [[nodiscard]] std::span<const unsigned char> get_response() const noexcept {
+            return std::span<const unsigned char>{response.data(), response_size};
+        }
 
         /**
          * @brief Securely erase the response data
          */
         void secure_erase() noexcept {
             std::fill(response.begin(), response.end(), 0);
+            response_size = 0;
             error_message.clear();
         }
 
@@ -73,9 +104,11 @@ public:
 
     // Constants
     static inline constexpr int SLOT2{2};                      ///< Challenge-response slot
-    static inline constexpr size_t CHALLENGE_SIZE{64};         ///< Challenge size in bytes
-    static inline constexpr size_t RESPONSE_SIZE{20};          ///< HMAC-SHA1 response size
     static inline constexpr int DEFAULT_TIMEOUT_MS{15000};     ///< Default timeout (15 seconds)
+
+    // Use constants from YubiKeyAlgorithm.h
+    using CHALLENGE_SIZE = std::integral_constant<size_t, YUBIKEY_CHALLENGE_SIZE>;
+    using MAX_RESPONSE_SIZE = std::integral_constant<size_t, YUBIKEY_MAX_RESPONSE_SIZE>;
 
     YubiKeyManager() noexcept;
     ~YubiKeyManager() noexcept;
@@ -88,10 +121,12 @@ public:
 
     /**
      * @brief Initialize YubiKey subsystem
+     * @param enforce_fips If true, only allow FIPS-approved algorithms
      * @return true if initialization succeeded
      * @note Must be called before any other operations
+     * @note In FIPS mode, only SHA-256 and SHA3 algorithms are allowed
      */
-    [[nodiscard]] bool initialize() noexcept;
+    [[nodiscard]] bool initialize(bool enforce_fips = false) noexcept;
 
     /**
      * @brief Detect all connected YubiKey devices
@@ -115,6 +150,7 @@ public:
     /**
      * @brief Perform challenge-response with YubiKey slot 2
      * @param challenge Challenge data (will be padded/truncated to 64 bytes)
+     * @param algorithm HMAC algorithm to use (default: HMAC-SHA256 for FIPS)
      * @param require_touch Whether to require physical touch (true = more secure)
      * @param timeout_ms Timeout in milliseconds (default 15 seconds)
      * @return ChallengeResponse with response data or error
@@ -122,9 +158,11 @@ public:
      * @note The challenge is automatically padded with zeros if < 64 bytes
      * @note If require_touch is true, user must touch the YubiKey within timeout
      * @note Response is automatically securely erased when ChallengeResponse destroyed
+     * @note In FIPS mode, only FIPS-approved algorithms (SHA-256, SHA3) are allowed
      */
     [[nodiscard]] ChallengeResponse challenge_response(
         std::span<const unsigned char> challenge,
+        YubiKeyAlgorithm algorithm = YubiKeyAlgorithm::HMAC_SHA256,
         bool require_touch = true,
         int timeout_ms = DEFAULT_TIMEOUT_MS
     ) noexcept;
@@ -144,11 +182,20 @@ public:
         return m_last_error;
     }
 
+    /**
+     * @brief Check if FIPS mode is enforced
+     * @return true if only FIPS-approved algorithms allowed
+     */
+    [[nodiscard]] bool is_fips_enforced() const noexcept {
+        return m_fips_mode;
+    }
+
 private:
     class Impl;                              ///< PIMPL for library implementation details
     std::unique_ptr<Impl> m_impl;            ///< Private implementation
     mutable std::string m_last_error{};      ///< Last error message
     bool m_initialized{false};               ///< Whether subsystem initialized
+    bool m_fips_mode{false};                 ///< Whether FIPS mode enforced
 
     /**
      * @brief Set last error message

@@ -168,7 +168,7 @@ public:
                              uint32_t iterations);
 
     /**
-     * @brief Combine KEK with YubiKey response
+     * @brief Combine KEK with YubiKey response (legacy SHA-1, 20 bytes)
      *
      * XORs the KEK with the YubiKey HMAC-SHA1 response to create a
      * two-factor authentication key. This binds the password and YubiKey
@@ -180,10 +180,31 @@ public:
      *
      * @note yubikey_response is zero-padded to 32 bytes before XOR
      * @note This matches LUKS2 YubiKey integration approach
+     * @deprecated Use combine_with_yubikey_v2() for FIPS compliance
      */
     [[nodiscard]] static std::array<uint8_t, KEK_SIZE>
     combine_with_yubikey(const std::array<uint8_t, KEK_SIZE>& kek,
                          const std::array<uint8_t, YUBIKEY_RESPONSE_SIZE>& yubikey_response);
+
+    /**
+     * @brief Combine KEK with YubiKey response (variable-length, FIPS-compliant)
+     *
+     * XORs the KEK with YubiKey challenge-response output. Supports:
+     * - HMAC-SHA1: 20 bytes (legacy, NOT FIPS-approved)
+     * - HMAC-SHA256: 32 bytes (FIPS-approved, recommended)
+     * - HMAC-SHA512: 64 bytes (FIPS-approved, hashed to 32 bytes)
+     *
+     * @param kek Key Encryption Key (from password, 32 bytes)
+     * @param yubikey_response YubiKey response (20-64 bytes)
+     * @return Combined KEK (32 bytes)
+     *
+     * @note Response > 32 bytes is hashed with SHA-256 to 32 bytes
+     * @note Response < 32 bytes is zero-padded to 32 bytes
+     * @note For FIPS compliance, use SHA-256 (32-byte response)
+     */
+    [[nodiscard]] static std::array<uint8_t, KEK_SIZE>
+    combine_with_yubikey_v2(const std::array<uint8_t, KEK_SIZE>& kek,
+                            const std::vector<uint8_t>& yubikey_response);
 
     /**
      * @brief Generate random DEK for new vault

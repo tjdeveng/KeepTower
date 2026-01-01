@@ -7,6 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **FIPS-140-3 Compliant YubiKey Multi-Algorithm Support:**
+  - YubiKeyAlgorithm enum framework for extensible algorithm support
+  - HMAC-SHA256 (32-byte), HMAC-SHA512 (64-byte) support
+  - HMAC-SHA3-256/SHA3-512 reserved for future YubiKey firmware
+  - YubiKey 5 FIPS Edition detection and enforcement
+  - Variable-length challenge-response handling (20/32/64 bytes)
+  - Algorithm metadata helpers (response_size, name, is_fips_approved)
+  - 35 unit tests for algorithm specifications and FIPS compliance
+- **YubiKey FIPS Configuration Tools and Documentation:**
+  - Comprehensive user guide: `docs/user/YUBIKEY_FIPS_SETUP.md`
+  - Automated configuration script: `scripts/configure-yubikey-fips.sh`
+  - Interactive setup with compatibility checking and verification
+  - Support for both ykman (modern) and ykpersonalize (legacy) tools
+  - FIPS compliance section added to security documentation
+  - Command-line options: --slot, --no-touch, --check-only, --help
+
+### Changed
+- **YubiKey Challenge-Response API:**
+  - `YubiKeyManager::challenge_response()` now requires `YubiKeyAlgorithm` parameter
+  - Default algorithm: HMAC-SHA256 (FIPS-approved)
+  - V1 vaults continue using HMAC-SHA1 for backward compatibility
+  - V2 vaults store algorithm in `VaultSecurityPolicy` (1 byte, field 0x42)
+  - `KeyWrapping::combine_with_yubikey_v2()` added for variable-length responses
+
+### Deprecated
+- **HMAC-SHA1 for New Vaults:**
+  - SHA-1 explicitly marked as NOT FIPS-140-3 approved
+  - Only used for legacy V1 vault compatibility
+  - Rejected in FIPS enforcement mode
+
+### Security
+- **FIPS-140-3 Compliance Enhancement:**
+  - SHA-1 prohibited per NIST SP 800-140B (deprecated since 2011)
+  - SHA-256/SHA-512 as default FIPS-approved algorithms
+  - FIPS mode can be enforced at YubiKey initialization
+  - Quantum-resistant SHA3 algorithms reserved for future use
+- **Enhanced Memory Security:**
+  - All cryptographic buffers now cleared with `OPENSSL_cleanse()`
+  - FIPS-140-3 Section 7.9 compliance (SSP zeroization)
+  - Prevents compiler optimization from removing security cleanups
+  - Applies to: YubiKey challenge/response buffers, KEK normalization
+
+### Technical
+- **Vault Format Changes:**
+  - `VaultSecurityPolicy` size: 121→122 bytes (+1 for yubikey_algorithm field)
+  - Backward compatible deserialization (0x00 → 0x01 for SHA-1)
+  - `RESERVED_BYTES_2`: 44→43 bytes
+- **Build Requirements:**
+  - Compatible with GCC 13 (Ubuntu 24.04) and GCC 15 (Fedora)
+  - Standard `enum class : uint8_t` syntax (not C++23-specific)
+
+### Documentation
+- Comprehensive FIPS YubiKey compliance audit (`docs/audits/FIPS_YUBIKEY_COMPLIANCE_ISSUE.md`)
+- Algorithm specifications with NIST SP 800-140B references
+- YubiKey firmware compatibility matrix
+
 ## [0.3.0-beta] - 2025-12-29
 
 ### Added

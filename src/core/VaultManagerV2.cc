@@ -120,9 +120,10 @@ KeepTower::VaultResult<> VaultManager::create_vault_v2(
         // Use first 20 bytes as challenge (HMAC-SHA1 challenge-response size)
         std::copy_n(challenge_salt.value().begin(), 20, admin_yubikey_challenge.begin());
 
-        // Initialize YubiKey manager
+        // Initialize YubiKey manager with FIPS enforcement based on policy algorithm
         YubiKeyManager yk_manager;
-        if (!yk_manager.initialize()) {
+        const bool enforce_fips = (policy.yubikey_algorithm != 0x01);  // Not SHA-1
+        if (!yk_manager.initialize(enforce_fips)) {
             Log::error("VaultManager: Failed to initialize YubiKey");
             return std::unexpected(VaultError::YubiKeyError);
         }
@@ -132,12 +133,19 @@ KeepTower::VaultResult<> VaultManager::create_vault_v2(
             return std::unexpected(VaultError::YubiKeyNotPresent);
         }
 
-        // Perform challenge-response
+        // Get algorithm from policy (default SHA-256 for new vaults)
+        const YubiKeyAlgorithm algorithm = static_cast<YubiKeyAlgorithm>(policy.yubikey_algorithm);
+        Log::info("VaultManager: Using YubiKey algorithm: {} (FIPS: {})",
+                  yubikey_algorithm_name(algorithm),
+                  yubikey_algorithm_is_fips_approved(algorithm) ? "YES" : "NO");
+
+        // Perform challenge-response with configured algorithm
         auto response = yk_manager.challenge_response(
             std::span<const unsigned char>(admin_yubikey_challenge.data(),
                                           admin_yubikey_challenge.size()),
-            false,  // don't require touch for vault operations (usability)
-            5000    // 5 second timeout
+            algorithm,  // Use algorithm from policy
+            false,      // don't require touch for vault creation (usability)
+            5000        // 5 second timeout
         );
 
         if (!response.success) {
@@ -150,14 +158,19 @@ KeepTower::VaultResult<> VaultManager::create_vault_v2(
         auto device_info = yk_manager.get_device_info();
         if (device_info) {
             admin_yubikey_serial = device_info->serial_number;
-            Log::info("VaultManager: Admin YubiKey enrolled with serial: {}",
-                      admin_yubikey_serial);
+            Log::info("VaultManager: Admin YubiKey enrolled with serial: {} (FIPS: {})",
+                      admin_yubikey_serial,
+                      device_info->is_fips_mode ? "YES" : (device_info->is_fips_capable ? "capable" : "NO"));
         }
 
-        // Combine KEK with YubiKey response (XOR first 20 bytes)
-        std::array<uint8_t, 20> yk_response_array;
-        std::copy_n(response.response.begin(), 20, yk_response_array.begin());
-        final_kek = KeyWrapping::combine_with_yubikey(final_kek, yk_response_array);
+        // Combine KEK with YubiKey response (use actual response size)
+        // Response size varies: SHA-1=20, SHA-256=32, SHA-512=64 bytes
+        const size_t response_size = yubikey_algorithm_response_size(algorithm);
+        Log::debug("VaultManager: YubiKey response size: {} bytes", response_size);
+
+        std::vector<uint8_t> yk_response_vec(response.get_response().begin(),
+                                              response.get_response().end());
+        final_kek = KeyWrapping::combine_with_yubikey_v2(final_kek, yk_response_vec);
 
         admin_yubikey_enrolled = true;
         Log::info("VaultManager: Admin KEK combined with YubiKey response");
@@ -395,8 +408,11 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
         // Use user's unique challenge
         const auto& challenge = user_slot->yubikey_challenge;
 
+        // Perform challenge-response
+        const YubiKeyAlgorithm algorithm = static_cast<YubiKeyAlgorithm>(file_header.vault_header.security_policy.yubikey_algorithm);
         auto response = yk_manager.challenge_response(
             std::span<const unsigned char>(challenge.data(), challenge.size()),
+            algorithm,
             false,  // don't require touch for vault access (usability)
             5000    // 5 second timeout
         );
@@ -845,7 +861,8 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
         std::array<uint8_t, 20> user_challenge;
         std::copy_n(user_slot->yubikey_challenge.begin(), 20, user_challenge.begin());
 
-        auto response = yk_manager.challenge_response(user_challenge, false, 5000);
+        const YubiKeyAlgorithm algorithm = static_cast<YubiKeyAlgorithm>(m_v2_header->security_policy.yubikey_algorithm);
+        auto response = yk_manager.challenge_response(user_challenge, algorithm, false, 5000);
         if (!response.success) {
             Log::error("VaultManager: YubiKey challenge-response failed: {}",
                        response.error_message);
@@ -908,7 +925,8 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
         std::array<uint8_t, 20> user_challenge;
         std::copy_n(user_slot->yubikey_challenge.begin(), 20, user_challenge.begin());
 
-        auto response = yk_manager.challenge_response(user_challenge, false, 5000);
+        const YubiKeyAlgorithm algorithm = static_cast<YubiKeyAlgorithm>(m_v2_header->security_policy.yubikey_algorithm);
+        auto response = yk_manager.challenge_response(user_challenge, algorithm, false, 5000);
         if (!response.success) {
             Log::error("VaultManager: YubiKey challenge-response failed: {}",
                        response.error_message);
@@ -1200,7 +1218,13 @@ KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
 
     // Perform YubiKey challenge-response (require touch = true for enrollment security)
     Log::info("VaultManager: Performing YubiKey challenge-response (touch required)");
-    auto response = yk_manager.challenge_response(user_challenge, true, 15000);
+    const YubiKeyAlgorithm algorithm = static_cast<YubiKeyAlgorithm>(m_v2_header->security_policy.yubikey_algorithm);
+    auto response = yk_manager.challenge_response(
+        user_challenge,
+        algorithm,
+        true,
+        15000
+    );
     if (!response.success) {
         Log::error("VaultManager: YubiKey challenge-response failed: {}",
                    response.error_message);
@@ -1317,7 +1341,8 @@ KeepTower::VaultResult<> VaultManager::unenroll_yubikey_for_user(
     std::array<uint8_t, 20> user_challenge;
     std::copy_n(user_slot->yubikey_challenge.begin(), 20, user_challenge.begin());
 
-    auto response = yk_manager.challenge_response(user_challenge, false, 5000);
+    const YubiKeyAlgorithm algorithm = static_cast<YubiKeyAlgorithm>(m_v2_header->security_policy.yubikey_algorithm);
+    auto response = yk_manager.challenge_response(user_challenge, algorithm, false, 5000);
     if (!response.success) {
         Log::error("VaultManager: YubiKey challenge-response failed: {}",
                    response.error_message);

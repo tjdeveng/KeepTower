@@ -167,6 +167,66 @@ KeyWrapping::combine_with_yubikey(const std::array<uint8_t, KEK_SIZE>& kek,
         combined_kek[i] ^= yubikey_response[i];
     }
 
+    // Note: yubikey_response is const reference, caller responsible for cleanup
+    // combined_kek will be moved/copied to caller and secured there
+    return combined_kek;
+}
+
+std::array<uint8_t, KeyWrapping::KEK_SIZE>
+KeyWrapping::combine_with_yubikey_v2(const std::array<uint8_t, KEK_SIZE>& kek,
+                                      const std::vector<uint8_t>& yubikey_response) {
+
+    std::array<uint8_t, KEK_SIZE> combined_kek = kek;
+    std::array<uint8_t, KEK_SIZE> normalized_response{};
+
+    if (yubikey_response.empty()) {
+        Log::error("KeyWrapping: Empty YubiKey response");
+        return kek;  // Return unchanged KEK on error
+    }
+
+    // Normalize response to KEK_SIZE (32 bytes)
+    if (yubikey_response.size() <= KEK_SIZE) {
+        // Response ≤ 32 bytes: zero-pad to 32 bytes
+        // SHA-1 (20 bytes) → pad with 12 zeros
+        // SHA-256 (32 bytes) → use as-is
+        std::copy(yubikey_response.begin(), yubikey_response.end(), normalized_response.begin());
+        Log::debug("KeyWrapping: YubiKey response {} bytes, zero-padded to 32",
+                   yubikey_response.size());
+    } else {
+        // Response > 32 bytes: hash with SHA-256 to 32 bytes
+        // SHA-512 (64 bytes) → hash to 32 bytes
+        unsigned char hash[EVP_MAX_MD_SIZE];
+        unsigned int hash_len = 0;
+
+        EVP_MD_CTX* mdctx = EVP_MD_CTX_new();
+        if (!mdctx) {
+            Log::error("KeyWrapping: Failed to create hash context");
+            return kek;
+        }
+
+        if (EVP_DigestInit_ex(mdctx, EVP_sha256(), nullptr) != 1 ||
+            EVP_DigestUpdate(mdctx, yubikey_response.data(), yubikey_response.size()) != 1 ||
+            EVP_DigestFinal_ex(mdctx, hash, &hash_len) != 1) {
+            Log::error("KeyWrapping: Failed to hash YubiKey response");
+            EVP_MD_CTX_free(mdctx);
+            return kek;
+        }
+
+        EVP_MD_CTX_free(mdctx);
+        std::copy_n(hash, KEK_SIZE, normalized_response.begin());
+        Log::debug("KeyWrapping: YubiKey response {} bytes, hashed to 32 with SHA-256",
+                   yubikey_response.size());
+    }
+
+    // XOR KEK with normalized response
+    for (size_t i = 0; i < KEK_SIZE; ++i) {
+        combined_kek[i] ^= normalized_response[i];
+    }
+
+    // Secure cleanup - use OPENSSL_cleanse for cryptographic material
+    // FIPS-140-3 Section 7.9: Zeroization of SSPs (Security-Sensitive Parameters)
+    OPENSSL_cleanse(normalized_response.data(), normalized_response.size());
+
     return combined_kek;
 }
 

@@ -38,6 +38,57 @@ Removes KeepTower configuration and cache files. Safe to run - **never touches v
 
 ---
 
+### `configure-yubikey-fips.sh`
+
+Interactive script to configure YubiKey devices for FIPS-140-3 compliant use with KeepTower.
+
+**Usage:**
+```bash
+# Interactive mode (recommended)
+./scripts/configure-yubikey-fips.sh
+
+# Check only (no configuration changes)
+./scripts/configure-yubikey-fips.sh --check-only
+
+# Specify slot and options
+./scripts/configure-yubikey-fips.sh --slot 2 --no-touch
+
+# Show help
+./scripts/configure-yubikey-fips.sh --help
+```
+
+**What it does:**
+- Checks YubiKey firmware compatibility (requires 5.0+)
+- Verifies prerequisite tools (ykman or ykpersonalize)
+- Inspects current YubiKey configuration
+- Configures HMAC-SHA256 challenge-response (FIPS-approved)
+- Tests the configured slot with a test challenge
+- Provides detailed verification output
+
+**Options:**
+- `--slot <1|2>`: Configure specific slot (default: 2)
+- `--no-touch`: Disable touch requirement (not recommended)
+- `--check-only`: Check configuration without making changes
+- `--help`: Display detailed usage information
+
+**When to use:**
+- Initial YubiKey setup for KeepTower
+- Migrating from legacy HMAC-SHA1 to FIPS-compliant HMAC-SHA256
+- Verifying FIPS compliance of existing configuration
+- Troubleshooting YubiKey authentication issues
+
+**Safety:**
+- Shows current configuration before making changes
+- Requires confirmation before overwriting existing slots
+- Supports both ykman (modern) and ykpersonalize (legacy) tools
+- Generates cryptographically secure random secrets
+
+**Documentation:**
+- See [docs/user/YUBIKEY_FIPS_SETUP.md](../docs/user/YUBIKEY_FIPS_SETUP.md) for complete setup guide
+- See [docs/user/05-security.md](../docs/user/05-security.md#yubikey-fips-configuration) for FIPS compliance overview
+
+---
+
 ### `generate-help.sh`
 
 Generates HTML help documentation from Markdown sources using pandoc.

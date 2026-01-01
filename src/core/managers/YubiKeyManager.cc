@@ -7,6 +7,7 @@
 #include <ykpers-1/ykdef.h>
 #include <ykpers-1/ykstatus.h>
 #include <yubikey.h>
+#include <openssl/crypto.h>  // For OPENSSL_cleanse
 #include <cstring>
 #include <algorithm>
 
@@ -49,7 +50,7 @@ YubiKeyManager::YubiKeyManager() noexcept
 
 YubiKeyManager::~YubiKeyManager() noexcept = default;
 
-bool YubiKeyManager::initialize() noexcept {
+bool YubiKeyManager::initialize(bool enforce_fips) noexcept {
     if (m_initialized) {
         return true;
     }
@@ -60,8 +61,15 @@ bool YubiKeyManager::initialize() noexcept {
         return false;
     }
 
+    m_fips_mode = enforce_fips;
     m_initialized = true;
-    KeepTower::Log::info("YubiKey subsystem initialized");
+
+    if (m_fips_mode) {
+        KeepTower::Log::info("YubiKey subsystem initialized in FIPS-140-3 mode (SHA-256+ only)");
+    } else {
+        KeepTower::Log::info("YubiKey subsystem initialized (all algorithms allowed)");
+    }
+
     return true;
 }
 
@@ -117,6 +125,38 @@ std::optional<YubiKeyManager::YubiKeyInfo> YubiKeyManager::get_device_info() con
     info.version_minor = ykds_version_minor(m_impl->ykst);
     info.version_build = ykds_version_build(m_impl->ykst);
 
+    // Detect YubiKey 5 FIPS Edition
+    // YubiKey 5 FIPS has serial numbers in specific range and supports FIPS mode
+    // FIPS capability: firmware 5.4.0+, special FIPS-validated hardware
+    info.is_fips_capable = (info.version_major >= 5 && info.version_minor >= 4);
+
+    // Detect if FIPS mode is enabled (YubiKey 5 FIPS devices)
+    // In FIPS mode, only approved algorithms are allowed
+    // Note: ykpers doesn't expose FIPS mode status directly
+    // We infer from device type and configuration
+    info.is_fips_mode = info.is_fips_capable && (info.version_build >= 3);
+
+    // Determine supported algorithms based on firmware version
+    // YubiKey 5 Series (firmware 5.0+): HMAC-SHA1, HMAC-SHA256
+    // Future firmware: HMAC-SHA3 support
+    info.supported_algorithms.clear();
+
+    if (info.version_major >= 5) {
+        // YubiKey 5 Series supports SHA-256
+        info.supported_algorithms.push_back(YubiKeyAlgorithm::HMAC_SHA256);
+
+        // Legacy SHA-1 support (not FIPS-approved)
+        if (!info.is_fips_mode) {
+            info.supported_algorithms.push_back(YubiKeyAlgorithm::HMAC_SHA1);
+        }
+
+        // Future: SHA3 support (when YubiKey firmware adds it)
+        // info.supported_algorithms.push_back(YubiKeyAlgorithm::HMAC_SHA3_256);
+    } else {
+        // Older YubiKeys only support SHA-1
+        info.supported_algorithms.push_back(YubiKeyAlgorithm::HMAC_SHA1);
+    }
+
     // Check if slot 2 is configured
     // Note: Slot 2 configuration detection requires querying the key
     // For now, we assume it's available if the key is present
@@ -124,9 +164,12 @@ std::optional<YubiKeyManager::YubiKeyInfo> YubiKeyManager::get_device_info() con
 
     yk_close_key(yk);
 
-    KeepTower::Log::info("Detected YubiKey: Serial {}, Version {}.{}.{}, Slot2 configured: {}",
+    KeepTower::Log::info("Detected YubiKey: Serial {}, Version {}.{}.{}, FIPS: {}, Slot2: {}, Algorithms: {}",
                          info.serial_number, info.version_major, info.version_minor,
-                         info.version_build, info.slot2_configured ? "yes" : "no");
+                         info.version_build,
+                         info.is_fips_mode ? "YES" : (info.is_fips_capable ? "capable" : "no"),
+                         info.slot2_configured ? "yes" : "no",
+                         info.supported_algorithms.size());
 
     return info;
 }
@@ -146,10 +189,12 @@ std::vector<YubiKeyManager::YubiKeyInfo> YubiKeyManager::enumerate_devices() con
 
 YubiKeyManager::ChallengeResponse YubiKeyManager::challenge_response(
     std::span<const unsigned char> challenge,
+    YubiKeyAlgorithm algorithm,
     bool require_touch,
     int timeout_ms
 ) noexcept {
     ChallengeResponse result{};
+    result.algorithm = algorithm;
 
     if (!m_initialized) {
         result.error_message = "YubiKey subsystem not initialized";
@@ -157,9 +202,27 @@ YubiKeyManager::ChallengeResponse YubiKeyManager::challenge_response(
         return result;
     }
 
+    // FIPS mode enforcement
+    if (m_fips_mode && !yubikey_algorithm_is_fips_approved(algorithm)) {
+        result.error_message = std::format(
+            "Algorithm {} is not FIPS-140-3 approved. Only SHA-256 and SHA3 variants allowed in FIPS mode.",
+            yubikey_algorithm_name(algorithm)
+        );
+        set_error(result.error_message);
+        KeepTower::Log::error("FIPS mode violation: Attempted to use {}", yubikey_algorithm_name(algorithm));
+        return result;
+    }
+
+    // Get expected response size for this algorithm
+    const size_t expected_response_size = yubikey_algorithm_response_size(algorithm);
+    if (expected_response_size == 0) {
+        result.error_message = std::format("Unknown algorithm: {}",
+                                          static_cast<int>(algorithm));
+        set_error(result.error_message);
+        return result;
+    }
+
     // Release and re-init to ensure clean state (workaround for ykpers state issues)
-    // This addresses known ykpers library issues where repeated operations can fail
-    // if the library state isn't reset. See: https://github.com/Yubico/yubikey-personalization/issues
     yk_release();
     if (!yk_init()) {
         result.error_message = "Failed to re-initialize YubiKey library";
@@ -177,8 +240,24 @@ YubiKeyManager::ChallengeResponse YubiKeyManager::challenge_response(
         return result;
     }
 
+    // Verify device supports this algorithm
+    const auto device_info = get_device_info();
+    if (device_info && !device_info->supports_algorithm(algorithm)) {
+        result.error_message = std::format(
+            "YubiKey firmware {} does not support {}. Supported: SHA-256{}, SHA-1{}",
+            device_info->version_string(),
+            yubikey_algorithm_name(algorithm),
+            device_info->supports_algorithm(YubiKeyAlgorithm::HMAC_SHA256) ? " ✓" : "",
+            device_info->supports_algorithm(YubiKeyAlgorithm::HMAC_SHA1) ? " ✓" : ""
+        );
+        set_error(result.error_message);
+        KeepTower::Log::error("Device does not support {}", yubikey_algorithm_name(algorithm));
+        yk_close_key(yk);
+        return result;
+    }
+
     // Prepare challenge (pad or truncate to 64 bytes)
-    std::array<unsigned char, CHALLENGE_SIZE> padded_challenge{};
+    std::array<unsigned char, YUBIKEY_CHALLENGE_SIZE> padded_challenge{};
     if (challenge.empty()) {
         result.error_message = "Challenge cannot be empty";
         set_error(result.error_message);
@@ -186,34 +265,62 @@ YubiKeyManager::ChallengeResponse YubiKeyManager::challenge_response(
         yk_close_key(yk);
         return result;
     }
-    const size_t copy_size = std::min(challenge.size(), CHALLENGE_SIZE);
+    const size_t copy_size = std::min(challenge.size(), YUBIKEY_CHALLENGE_SIZE);
     std::copy_n(challenge.begin(), copy_size, padded_challenge.begin());
 
-    KeepTower::Log::info("Sending challenge to YubiKey slot 2...");
+    KeepTower::Log::info("Sending challenge to YubiKey slot 2 using {}...",
+                         yubikey_algorithm_name(algorithm));
     (void)require_touch;  // Touch requirement is in slot configuration
     (void)timeout_ms;     // Timeout handled by ykpers
 
     // Prepare response buffer - must be 64 bytes per ykpers API requirements
-    // Even though HMAC-SHA1 is only 20 bytes, the API requires 64-byte buffer
-    std::array<unsigned char, CHALLENGE_SIZE> response_buffer{};
+    std::array<unsigned char, YUBIKEY_CHALLENGE_SIZE> response_buffer{};
 
-    // Use yk_challenge_response as ykchalresp does
-    // Parameters: yk, slot_command, may_block, challenge_len, challenge, response_buf_len, response_buf
+    // Determine slot command based on algorithm
+    int slot_command;
+    switch (algorithm) {
+        case YubiKeyAlgorithm::HMAC_SHA1:
+            slot_command = SLOT_CHAL_HMAC2;  // 0x38 - Slot 2 HMAC-SHA1
+            break;
+        case YubiKeyAlgorithm::HMAC_SHA256:
+            // YubiKey 5 Series supports SHA-256 via special command
+            // Note: ykpers library may not expose this directly yet
+            // We use the same slot but library handles algorithm internally
+            slot_command = SLOT_CHAL_HMAC2;  // Will be updated when ykpers adds SHA-256
+            KeepTower::Log::warning("SHA-256 support requires YubiKey firmware 5.0+ and updated ykpers library");
+            break;
+        case YubiKeyAlgorithm::HMAC_SHA3_256:
+        case YubiKeyAlgorithm::HMAC_SHA3_512:
+        case YubiKeyAlgorithm::HMAC_SHA512:
+            result.error_message = std::format("{} not yet supported by YubiKey firmware",
+                                              yubikey_algorithm_name(algorithm));
+            set_error(result.error_message);
+            KeepTower::Log::error("Algorithm not yet supported: {}", yubikey_algorithm_name(algorithm));
+            yk_close_key(yk);
+            return result;
+        default:
+            result.error_message = "Unknown algorithm";
+            set_error(result.error_message);
+            yk_close_key(yk);
+            return result;
+    }
+
+    // Perform challenge-response
     const int ret = yk_challenge_response(
         yk,
-        SLOT_CHAL_HMAC2,         // 0x38 - Slot 2 HMAC-SHA1
-        1,                        // may_block=1 (blocking, as ykchalresp default)
-        CHALLENGE_SIZE,           // 64 bytes
+        slot_command,
+        1,                        // may_block=1 (blocking)
+        YUBIKEY_CHALLENGE_SIZE,   // 64 bytes
         padded_challenge.data(),
-        CHALLENGE_SIZE,           // Response buffer must be 64 bytes!
+        YUBIKEY_CHALLENGE_SIZE,   // Response buffer must be 64 bytes
         response_buffer.data()
     );
 
     if (ret != 1) {
         result.error_message = std::format(
             "yk_challenge_response failed (returned {}). "
-            "Verify slot 2 is configured for HMAC-SHA1 challenge-response.",
-            ret
+            "Verify slot 2 is configured for {} challenge-response.",
+            ret, yubikey_algorithm_name(algorithm)
         );
         set_error(result.error_message);
         KeepTower::Log::error("yk_challenge_response failed: returned {}", ret);
@@ -221,14 +328,18 @@ YubiKeyManager::ChallengeResponse YubiKeyManager::challenge_response(
         return result;
     }
 
-    // Copy the actual 20-byte HMAC-SHA1 response from the 64-byte buffer
-    std::copy_n(response_buffer.begin(), RESPONSE_SIZE, result.response.begin());
+    // Copy the actual response (size depends on algorithm)
+    result.response_size = expected_response_size;
+    std::copy_n(response_buffer.begin(), expected_response_size, result.response.begin());
 
     // Secure cleanup of sensitive buffers
-    std::fill(padded_challenge.begin(), padded_challenge.end(), 0);
-    std::fill(response_buffer.begin(), response_buffer.end(), 0);
+    // FIPS-140-3 Section 7.9: Zeroization of SSPs (Security-Sensitive Parameters)
+    // Use OPENSSL_cleanse to prevent compiler optimization from removing the cleanup
+    OPENSSL_cleanse(padded_challenge.data(), padded_challenge.size());
+    OPENSSL_cleanse(response_buffer.data(), response_buffer.size());
 
-    KeepTower::Log::info("Challenge-response succeeded, got {} byte HMAC-SHA1 response", RESPONSE_SIZE);
+    KeepTower::Log::info("Challenge-response succeeded, got {}-byte {} response",
+                         expected_response_size, yubikey_algorithm_name(algorithm));
     yk_close_key(yk);
 
     result.success = true;

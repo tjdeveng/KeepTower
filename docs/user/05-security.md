@@ -6,6 +6,7 @@ This document explains how KeepTower protects your passwords and the security me
 
 - [Security Overview](#security-overview)
 - [FIPS 140-3 Compliance](#fips-140-3-compliance)
+  - [YubiKey FIPS Configuration](#yubikey-fips-configuration)
 - [Encryption](#encryption)
 - [Key Derivation](#key-derivation)
 - [Memory Protection](#memory-protection)
@@ -161,6 +162,43 @@ OPENSSL_CONF=/path/to/openssl.cnf ./tests/fips_mode_test
 - **NIST SP 800-132:** [Recommendation for Password-Based Key Derivation](https://csrc.nist.gov/publications/detail/sp/800-132/final)
 - **NIST SP 800-38D:** [Recommendation for Block Cipher Modes: GCM](https://csrc.nist.gov/publications/detail/sp/800-38d/final)
 - **OpenSSL FIPS:** [OpenSSL FIPS Module](https://www.openssl.org/docs/fips.html)
+
+### YubiKey FIPS Configuration
+
+KeepTower supports hardware-backed vault encryption using YubiKey devices in FIPS-compliant mode. To use YubiKey with FIPS 140-3 approved algorithms, your YubiKey must be configured to use **HMAC-SHA256** instead of the legacy HMAC-SHA1.
+
+**Quick Start:**
+
+```bash
+# Automated setup (recommended)
+./scripts/configure-yubikey-fips.sh
+
+# Or configure manually with ykman
+ykman otp chalresp --touch --generate 2
+```
+
+**📖 Complete Setup Guide:** See [YUBIKEY_FIPS_SETUP.md](YUBIKEY_FIPS_SETUP.md) for:
+- Hardware compatibility verification (YubiKey 5 Series firmware 5.0+)
+- Step-by-step configuration instructions (ykman and ykpersonalize methods)
+- FIPS algorithm verification procedures
+- Troubleshooting common configuration issues
+- Migration from legacy SHA-1 configurations
+
+**🔧 Automated Configuration Script:** Use `scripts/configure-yubikey-fips.sh` for:
+- Interactive setup with prerequisite checking
+- Automatic firmware compatibility verification
+- FIPS-compliant HMAC-SHA256 configuration
+- Configuration testing and verification
+- Options: `--slot <1|2>`, `--no-touch`, `--check-only`, `--help`
+
+**Requirements:**
+- YubiKey 5 Series (firmware 5.0+)
+- YubiKey Manager (`ykman`) or YubiKey Personalization Tools (`ykpersonalize`)
+- For FIPS-certified hardware: YubiKey 5 FIPS (firmware 5.4.3+)
+
+**FIPS-Approved Algorithm:**
+- ✅ **HMAC-SHA256** (FIPS 198-1, FIPS 180-4) - REQUIRED for FIPS compliance
+- ❌ **HMAC-SHA1** (legacy) - Not FIPS-approved, maintained for backward compatibility only
 
 
 ---

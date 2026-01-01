@@ -79,28 +79,31 @@ std::vector<uint8_t> VaultSecurityPolicy::serialize() const {
     // Byte 0: require_yubikey flag
     result.push_back(require_yubikey ? 1 : 0);
 
-    // Bytes 1-4: min_password_length (big-endian)
+    // Byte 1: yubikey_algorithm (YubiKeyAlgorithm enum)
+    result.push_back(yubikey_algorithm);
+
+    // Bytes 2-5: min_password_length (big-endian)
     result.push_back(static_cast<uint8_t>((min_password_length >> 24) & 0xFF));
     result.push_back(static_cast<uint8_t>((min_password_length >> 16) & 0xFF));
     result.push_back(static_cast<uint8_t>((min_password_length >> 8) & 0xFF));
     result.push_back(static_cast<uint8_t>(min_password_length & 0xFF));
 
-    // Bytes 5-8: pbkdf2_iterations (big-endian)
+    // Bytes 6-9: pbkdf2_iterations (big-endian)
     result.push_back(static_cast<uint8_t>((pbkdf2_iterations >> 24) & 0xFF));
     result.push_back(static_cast<uint8_t>((pbkdf2_iterations >> 16) & 0xFF));
     result.push_back(static_cast<uint8_t>((pbkdf2_iterations >> 8) & 0xFF));
     result.push_back(static_cast<uint8_t>(pbkdf2_iterations & 0xFF));
 
-    // Bytes 9-12: password_history_depth (big-endian)
+    // Bytes 10-13: password_history_depth (big-endian)
     result.push_back(static_cast<uint8_t>((password_history_depth >> 24) & 0xFF));
     result.push_back(static_cast<uint8_t>((password_history_depth >> 16) & 0xFF));
     result.push_back(static_cast<uint8_t>((password_history_depth >> 8) & 0xFF));
     result.push_back(static_cast<uint8_t>(password_history_depth & 0xFF));
 
-    // Bytes 13-76: yubikey_challenge (64 bytes)
+    // Bytes 14-77: yubikey_challenge (64 bytes)
     result.insert(result.end(), yubikey_challenge.begin(), yubikey_challenge.end());
 
-    // Bytes 77-120: reserved for future use (44 bytes)
+    // Bytes 78-121: reserved for future use (43 bytes, reduced from 44)
     for (size_t i = 0; i < RESERVED_BYTES_2; ++i) {
         result.push_back(0);
     }
@@ -120,28 +123,33 @@ std::optional<VaultSecurityPolicy> VaultSecurityPolicy::deserialize(const std::v
     // Byte 0: require_yubikey
     policy.require_yubikey = (data[0] != 0);
 
-    // Bytes 1-4: min_password_length
-    policy.min_password_length = (static_cast<uint32_t>(data[1]) << 24) |
-                                 (static_cast<uint32_t>(data[2]) << 16) |
-                                 (static_cast<uint32_t>(data[3]) << 8) |
-                                 static_cast<uint32_t>(data[4]);
+    // Byte 1: yubikey_algorithm (with backward compatibility)
+    // If byte 1 is 0x00 (old format), default to SHA-1 for legacy vaults
+    // Otherwise, use the specified algorithm
+    policy.yubikey_algorithm = (data[1] == 0x00) ? 0x01 : data[1];  // 0x01 = HMAC_SHA1, 0x02 = HMAC_SHA256
 
-    // Bytes 5-8: pbkdf2_iterations
-    policy.pbkdf2_iterations = (static_cast<uint32_t>(data[5]) << 24) |
-                               (static_cast<uint32_t>(data[6]) << 16) |
-                               (static_cast<uint32_t>(data[7]) << 8) |
-                               static_cast<uint32_t>(data[8]);
+    // Bytes 2-5: min_password_length
+    policy.min_password_length = (static_cast<uint32_t>(data[2]) << 24) |
+                                 (static_cast<uint32_t>(data[3]) << 16) |
+                                 (static_cast<uint32_t>(data[4]) << 8) |
+                                 static_cast<uint32_t>(data[5]);
 
-    // Bytes 9-12: password_history_depth
-    policy.password_history_depth = (static_cast<uint32_t>(data[9]) << 24) |
-                                    (static_cast<uint32_t>(data[10]) << 16) |
-                                    (static_cast<uint32_t>(data[11]) << 8) |
-                                    static_cast<uint32_t>(data[12]);
+    // Bytes 6-9: pbkdf2_iterations
+    policy.pbkdf2_iterations = (static_cast<uint32_t>(data[6]) << 24) |
+                               (static_cast<uint32_t>(data[7]) << 16) |
+                               (static_cast<uint32_t>(data[8]) << 8) |
+                               static_cast<uint32_t>(data[9]);
 
-    // Bytes 13-76: yubikey_challenge
-    std::copy(data.begin() + 13, data.begin() + 77, policy.yubikey_challenge.begin());
+    // Bytes 10-13: password_history_depth
+    policy.password_history_depth = (static_cast<uint32_t>(data[10]) << 24) |
+                                    (static_cast<uint32_t>(data[11]) << 16) |
+                                    (static_cast<uint32_t>(data[12]) << 8) |
+                                    static_cast<uint32_t>(data[13]);
 
-    // Bytes 77-120: reserved (skip)
+    // Bytes 14-77: yubikey_challenge
+    std::copy(data.begin() + 14, data.begin() + 78, policy.yubikey_challenge.begin());
+
+    // Bytes 78-121: reserved (skip)
 
     // Validation
     if (policy.min_password_length < 8 || policy.min_password_length > 128) {

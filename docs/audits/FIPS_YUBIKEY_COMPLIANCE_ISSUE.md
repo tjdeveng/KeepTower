@@ -1,8 +1,8 @@
 # CRITICAL: YubiKey HMAC-SHA1 FIPS-140-3 Compliance Violation
 
-**Date:** 2026-01-01  
-**Severity:** CRITICAL  
-**Status:** IDENTIFIED - REQUIRES IMMEDIATE ACTION  
+**Date:** 2026-01-01
+**Severity:** CRITICAL
+**Status:** IDENTIFIED - REQUIRES IMMEDIATE ACTION
 **Impact:** Application cannot be certified as FIPS-140-3 compliant with current YubiKey implementation
 
 ---
@@ -154,14 +154,14 @@ struct ChallengeResponse {
 ```cpp
 struct KeySlot {
     // ... existing fields ...
-    
+
     // New field for hash algorithm
     enum class HashAlgorithm : uint8_t {
         HMAC_SHA1 = 0,   // Legacy
         HMAC_SHA256 = 1  // FIPS-approved
     };
     HashAlgorithm yubikey_hash_algorithm = HashAlgorithm::HMAC_SHA256;
-    
+
     // Challenge/response size depends on algorithm
     std::vector<uint8_t> yubikey_challenge;  // 64 bytes
     // Response: 20 bytes (SHA1) or 32 bytes (SHA256)
@@ -251,10 +251,10 @@ ykinfo -a
 TEST(YubiKeyManager, ChallengeResponseSHA256_FIPSCompliant) {
     YubiKeyManager yk;
     ASSERT_TRUE(yk.initialize());
-    
+
     std::array<uint8_t, 64> challenge = generate_random_challenge();
     auto result = yk.challenge_response_sha256(challenge, true);
-    
+
     ASSERT_TRUE(result.success);
     EXPECT_EQ(result.response.size(), 32);  // SHA-256 = 32 bytes
     EXPECT_EQ(result.algorithm, YubiKeyHashAlgorithm::SHA256);
@@ -263,10 +263,10 @@ TEST(YubiKeyManager, ChallengeResponseSHA256_FIPSCompliant) {
 TEST(YubiKeyManager, LegacySHA1_RejectedInFIPSMode) {
     #ifdef FIPS_MODE_ENABLED
     FIPS_mode_set(1);
-    
+
     YubiKeyManager yk;
     EXPECT_FALSE(yk.initialize());  // Should fail in FIPS mode
-    
+
     FIPS_mode_set(0);
     #endif
 }
@@ -364,8 +364,8 @@ TEST(YubiKeyManager, LegacySHA1_RejectedInFIPSMode) {
 
 ---
 
-**Document Owner:** Security Team  
-**Last Updated:** 2026-01-01  
+**Document Owner:** Security Team
+**Last Updated:** 2026-01-01
 **Next Review:** Upon completion of Phase 1 (FIPS check)
 
 **CRITICAL: This issue must be resolved before claiming FIPS-140-3 compliance.**
