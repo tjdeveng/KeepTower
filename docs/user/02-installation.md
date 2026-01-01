@@ -176,6 +176,8 @@ All tests should pass. If any fail, please report an issue on GitHub.
 
 ## Uninstalling
 
+### Remove System Files
+
 If you installed system-wide:
 
 ```bash
@@ -187,6 +189,26 @@ Or simply remove the build directory if you ran without installing:
 ```bash
 rm -rf build
 ```
+
+### Clean Settings (Optional)
+
+To remove configuration and cache files (useful for fresh reinstall or fixing corrupted settings):
+
+```bash
+./scripts/cleanup.sh
+```
+
+**What this removes:**
+- GSettings configuration (`com.tjdeveng.keeptower`)
+- Compiled GSchema cache
+- Application config directory (`~/.config/keeptower/`)
+
+**What this keeps:**
+- ✓ Your vault files (`*.vault`)
+- ✓ Vault backups (`*.vault.backup`)
+- ✓ All user data
+
+**Note:** Your vault files are never touched by any uninstall process. They remain your responsibility and must be manually deleted if desired.
 
 ---
 
