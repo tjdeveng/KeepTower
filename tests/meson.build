@@ -34,6 +34,7 @@ proto_gen = custom_target('record_proto_test',
 # Common VaultManager dependencies (for V2 vault support)
 vault_manager_common_sources = [
     '../src/core/VaultManager.cc',
+    '../src/core/VaultManagerV2.cc',
     '../src/core/ReedSolomon.cc',
     '../src/core/MultiUserTypes.cc',
     '../src/core/KeyWrapping.cc',
