@@ -83,6 +83,7 @@ VaultManager::VaultManager()
       m_fec_loaded_from_file(false),
       m_backup_enabled(true),
       m_backup_count(DEFAULT_BACKUP_COUNT),
+      m_backup_path(""),  // Empty = same directory as vault
       m_memory_locked(false),
       m_yubikey_required(false),
       m_pbkdf2_iterations(DEFAULT_PBKDF2_ITERATIONS) {
@@ -544,7 +545,7 @@ bool VaultManager::open_vault(const std::string& path, const Glib::ustring& pass
     return true;
 }
 
-bool VaultManager::save_vault() {
+bool VaultManager::save_vault(bool explicit_save) {
     if (!m_vault_open) {
         return false;
     }
@@ -604,14 +605,14 @@ bool VaultManager::save_vault() {
         std::vector<uint8_t> file_data = write_result.value();
         file_data.insert(file_data.end(), ciphertext.begin(), ciphertext.end());
 
-        // Create backup before saving (non-fatal if it fails)
-        if (m_backup_enabled) {
-            auto backup_result = KeepTower::VaultIO::create_backup(m_current_vault_path);
+        // Create backup before saving (only on explicit save, non-fatal if it fails)
+        if (explicit_save && m_backup_enabled) {
+            auto backup_result = KeepTower::VaultIO::create_backup(m_current_vault_path, m_backup_path);
             if (!backup_result) {
                 KeepTower::Log::warning("VaultManager: Failed to create backup: {}", static_cast<int>(backup_result.error()));
             } else {
                 // Cleanup old backups after successful creation
-                KeepTower::VaultIO::cleanup_old_backups(m_current_vault_path, m_backup_count);
+                KeepTower::VaultIO::cleanup_old_backups(m_current_vault_path, m_backup_count, m_backup_path);
             }
         }
 
@@ -717,14 +718,14 @@ bool VaultManager::save_vault() {
         file_data.insert(file_data.end(), ciphertext.begin(), ciphertext.end());
     }
 
-    // Create backup before saving (non-fatal if it fails)
-    if (m_backup_enabled) {
-        auto backup_result = KeepTower::VaultIO::create_backup(m_current_vault_path);
+    // Create backup before saving (only on explicit save, non-fatal if it fails)
+    if (explicit_save && m_backup_enabled) {
+        auto backup_result = KeepTower::VaultIO::create_backup(m_current_vault_path, m_backup_path);
         if (!backup_result) {
             KeepTower::Log::warning("Failed to create backup: {}", static_cast<int>(backup_result.error()));
         } else {
             // Cleanup old backups after successful creation
-            KeepTower::VaultIO::cleanup_old_backups(m_current_vault_path, m_backup_count);
+            KeepTower::VaultIO::cleanup_old_backups(m_current_vault_path, m_backup_count, m_backup_path);
         }
     }
 
@@ -1998,3 +1999,37 @@ bool VaultManager::set_fips_mode(bool enable) {
     return true;
 }
 #endif
+
+// Backup path management
+void VaultManager::set_backup_path(const std::string& path) {
+    m_backup_path = path;
+}
+
+// Restore from most recent backup
+KeepTower::VaultResult<> VaultManager::restore_from_most_recent_backup(const std::string& vault_path) {
+    namespace fs = std::filesystem;
+
+    if (m_vault_open) {
+        KeepTower::Log::error("VaultManager: Cannot restore while vault is open");
+        return std::unexpected(KeepTower::VaultError::VaultAlreadyOpen);
+    }
+
+    // Get list of backups (respects m_backup_path)
+    auto backups = KeepTower::VaultIO::list_backups(vault_path, m_backup_path);
+
+    if (backups.empty()) {
+        KeepTower::Log::error("VaultManager: No backups found for vault");
+        return std::unexpected(KeepTower::VaultError::FileNotFound);
+    }
+
+    try {
+        // Backups are sorted newest first
+        const std::string& most_recent_backup = backups[0];
+        fs::copy_file(most_recent_backup, vault_path, fs::copy_options::overwrite_existing);
+        KeepTower::Log::info("VaultManager: Restored vault from backup: {}", most_recent_backup);
+        return {};
+    } catch (const fs::filesystem_error& e) {
+        KeepTower::Log::error("VaultManager: Failed to restore from backup: {}", e.what());
+        return std::unexpected(KeepTower::VaultError::FileReadFailed);
+    }
+}

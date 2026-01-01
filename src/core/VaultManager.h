@@ -237,16 +237,18 @@ public:
 
     /**
      * @brief Save vault to disk
+     * @param explicit_save If true, backup is created; if false (auto-save), no backup
      * @return true if saved successfully, false on error
      *
      * Performs atomic save operation:
-     * 1. Creates backup of existing vault (.backup)
+     * 1. Creates backup if explicit_save=true and backups enabled
      * 2. Writes to temporary file
      * 3. Renames temporary to actual vault
      *
      * @note Requires vault to be open
+     * @note Backups only created on explicit saves (Ctrl+S, Close with save)
      */
-    [[nodiscard]] bool save_vault();
+    [[nodiscard]] bool save_vault(bool explicit_save = true);
 
     /**
      * @brief Close vault and clear sensitive data
@@ -1420,6 +1422,29 @@ public:
      */
     int get_backup_count() const { return m_backup_count; }
 
+    /**
+     * @brief Set custom backup directory path
+     * @param path Directory path for backup files (empty=same as vault)
+     */
+    void set_backup_path(const std::string& path);
+
+    /**
+     * @brief Get custom backup directory path
+     * @return Backup directory path (empty if same as vault)
+     */
+    [[nodiscard]] std::string get_backup_path() const { return m_backup_path; }
+
+    /**
+     * @brief Restore vault from most recent backup
+     * @return Expected void or VaultError
+     *
+     * Finds the most recent timestamped backup and restores it.
+     * Current vault must be closed before calling.
+     *
+     * @note This replaces the current vault file with the backup
+     */
+    [[nodiscard]] KeepTower::VaultResult<> restore_from_most_recent_backup(const std::string& vault_path);
+
 #ifdef HAVE_YUBIKEY_SUPPORT
     // YubiKey multi-key management
 
@@ -1525,6 +1550,7 @@ private:
     // Backup configuration
     bool m_backup_enabled;
     int m_backup_count;
+    std::string m_backup_path;  // Custom backup directory (empty=same as vault)
 
     bool m_memory_locked;  // Track if sensitive memory is locked
 

@@ -4,8 +4,10 @@
 #include "PreferencesDialog.h"
 #include "../../core/VaultManager.h"
 #include "../../utils/SettingsValidator.h"
+#include "../../utils/Log.h"
 #include <stdexcept>
 #include <cstdlib>  // for std::getenv
+#include <filesystem>
 
 PreferencesDialog::PreferencesDialog(Gtk::Window& parent, VaultManager* vault_manager)
     : Gtk::Dialog("Preferences", parent, false),  // false = non-modal for faster response
@@ -718,6 +720,34 @@ void PreferencesDialog::setup_storage_page() {
     m_backup_help.add_css_class("dim-label");
     backup_section->append(m_backup_help);
 
+    // Backup path controls
+    m_backup_path_label.set_text("Backup Directory:");
+    m_backup_path_label.set_halign(Gtk::Align::START);
+    m_backup_path_box.append(m_backup_path_label);
+
+    m_backup_path_entry.set_placeholder_text("(Leave empty to use vault directory)");
+    m_backup_path_entry.set_hexpand(true);
+    m_backup_path_box.append(m_backup_path_entry);
+
+    m_backup_path_browse_button.set_label("Browse...");
+    m_backup_path_box.append(m_backup_path_browse_button);
+
+    m_backup_path_box.set_spacing(8);
+    m_backup_path_box.set_halign(Gtk::Align::FILL);
+    backup_section->append(m_backup_path_box);
+
+    // Restore from backup button
+    m_restore_backup_button.set_label("Restore from Backup...");
+    m_restore_backup_button.set_halign(Gtk::Align::START);
+    m_restore_backup_button.set_margin_top(12);
+    backup_section->append(m_restore_backup_button);
+
+    // Connect signals
+    m_backup_path_browse_button.signal_clicked().connect(
+        sigc::mem_fun(*this, &PreferencesDialog::on_backup_path_browse));
+    m_restore_backup_button.signal_clicked().connect(
+        sigc::mem_fun(*this, &PreferencesDialog::on_restore_backup));
+
     m_storage_box.append(*backup_section);
 
     // Add page to stack
@@ -795,6 +825,10 @@ void PreferencesDialog::load_settings() {
     m_backup_count_spin.set_sensitive(backup_enabled);
     m_backup_count_suffix.set_sensitive(backup_enabled);
     m_backup_help.set_sensitive(backup_enabled);
+
+    // Load backup path
+    std::string backup_path = m_settings->get_string("backup-path");
+    m_backup_path_entry.set_text(backup_path);
 
     // Load security settings with validation
     // If vault is open, load vault-specific settings; otherwise use GSettings defaults
@@ -987,6 +1021,13 @@ void PreferencesDialog::save_settings() {
         m_settings->set_int("backup-count", backup_count);
     }
 
+    // Save backup path (always to GSettings, applies globally)
+    std::string backup_path = m_backup_path_entry.get_text();
+    m_settings->set_string("backup-path", backup_path);
+    if (m_vault_manager) {
+        m_vault_manager->set_backup_path(backup_path);
+    }
+
     // Save security settings
     // CRITICAL: If vault is open, save ONLY to vault (not to GSettings)
     // If vault is closed, save to GSettings as defaults for new vaults
@@ -1113,8 +1154,9 @@ void PreferencesDialog::save_settings() {
     // If vault is open, save it (settings were applied to vault)
     // This includes: backup, clipboard, password history, auto-lock, undo/redo settings
     // FEC is also saved if the "Apply to current vault" checkbox was ticked
+    // Note: This is an auto-save from preferences, not an explicit user save action
     if (m_vault_manager && m_vault_manager->is_vault_open()) {
-        [[maybe_unused]] bool saved = m_vault_manager->save_vault();
+        [[maybe_unused]] bool saved = m_vault_manager->save_vault(false);  // Auto-save, no backup
     }
 }
 
@@ -1401,4 +1443,145 @@ void PreferencesDialog::on_response([[maybe_unused]] const int response_id) noex
         // Cancel - just close without saving
         hide();
     }
+}
+
+void PreferencesDialog::on_backup_path_browse() {
+    auto dialog = Gtk::FileDialog::create();
+    dialog->set_title("Select Backup Directory");
+    dialog->set_modal(true);
+
+    // Set initial folder if backup path is set
+    std::string current_path = m_backup_path_entry.get_text();
+    if (!current_path.empty() && std::filesystem::exists(current_path)) {
+        auto folder = Gio::File::create_for_path(current_path);
+        dialog->set_initial_folder(folder);
+    }
+
+    // Create slot for callback
+    auto slot = [this, dialog](const Glib::RefPtr<Gio::AsyncResult>& result) {
+        try {
+            auto folder = dialog->select_folder_finish(result);
+            if (folder) {
+                m_backup_path_entry.set_text(folder->get_path());
+            }
+        } catch (const Gtk::DialogError& err) {
+            // User cancelled - ignore
+            if (err.code() != Gtk::DialogError::DISMISSED) {
+                KeepTower::Log::warning("File dialog error: {}", err.what());
+            }
+        } catch (const Glib::Error& err) {
+            KeepTower::Log::error("Error selecting backup folder: {}", err.what());
+        }
+    };
+
+    dialog->select_folder(*this, slot);
+}
+
+void PreferencesDialog::on_restore_backup() {
+    if (!m_vault_manager) {
+        return;
+    }
+
+    // Check if vault is open - must be closed to restore
+    if (m_vault_manager->is_vault_open()) {
+        auto* error_dialog = new Gtk::MessageDialog(
+            *this,
+            "Vault Must Be Closed",
+            false,
+            Gtk::MessageType::ERROR,
+            Gtk::ButtonsType::OK,
+            true
+        );
+        error_dialog->set_secondary_text(
+            "Please close the current vault before restoring from a backup."
+        );
+        error_dialog->signal_response().connect([error_dialog](int) {
+            delete error_dialog;
+        });
+        error_dialog->show();
+        return;
+    }
+
+    // Show file chooser to select vault file
+    auto dialog = Gtk::FileDialog::create();
+    dialog->set_title("Select Vault to Restore");
+    dialog->set_modal(true);
+
+    // Add vault file filter
+    auto filter = Gtk::FileFilter::create();
+    filter->set_name("Vault Files");
+    filter->add_pattern("*.vault");
+
+    auto filter_list = Gio::ListStore<Gtk::FileFilter>::create();
+    filter_list->append(filter);
+    dialog->set_filters(filter_list);
+    dialog->set_default_filter(filter);
+
+    auto slot = [this, dialog](const Glib::RefPtr<Gio::AsyncResult>& result) {
+        try {
+            auto file = dialog->open_finish(result);
+            if (!file) {
+                return;
+            }
+
+            std::string vault_path = file->get_path();
+
+            // Confirm restoration
+            auto* confirm_dialog = new Gtk::MessageDialog(
+                *this,
+                "Confirm Restore",
+                false,
+                Gtk::MessageType::WARNING,
+                Gtk::ButtonsType::OK_CANCEL,
+                true
+            );
+            confirm_dialog->set_secondary_text(
+                "This will replace the current vault file with the most recent backup. "
+                "The current vault will be lost unless you have another backup.\n\n"
+                "Are you sure you want to continue?"
+            );
+
+            confirm_dialog->signal_response().connect([this, confirm_dialog, vault_path](int response) {
+                if (response == Gtk::ResponseType::OK) {
+                    // Perform restoration
+                    auto result = m_vault_manager->restore_from_most_recent_backup(vault_path);
+
+                    auto* result_dialog = new Gtk::MessageDialog(
+                        *this,
+                        result ? "Restore Successful" : "Restore Failed",
+                        false,
+                        result ? Gtk::MessageType::INFO : Gtk::MessageType::ERROR,
+                        Gtk::ButtonsType::OK,
+                        true
+                    );
+
+                    if (result) {
+                        result_dialog->set_secondary_text(
+                            "The vault has been successfully restored from the most recent backup."
+                        );
+                    } else {
+                        std::string error_msg = "Failed to restore backup: ";
+                        error_msg += std::string(KeepTower::to_string(result.error()));
+                        result_dialog->set_secondary_text(error_msg);
+                    }
+
+                    result_dialog->signal_response().connect([result_dialog](int) {
+                        delete result_dialog;
+                    });
+                    result_dialog->show();
+                }
+                delete confirm_dialog;
+            });
+            confirm_dialog->show();
+
+        } catch (const Gtk::DialogError& err) {
+            if (err.code() != Gtk::DialogError::DISMISSED) {
+                KeepTower::Log::warning("File dialog error: {}", err.what());
+            }
+        } catch (const Glib::Error& err) {
+            KeepTower::Log::error("Error opening file dialog: {}", err.what());
+        }
+    };
+
+    dialog->open(*this, slot);
 }

@@ -229,9 +229,10 @@ bool VaultIO::write_file(
     }
 }
 
-VaultResult<> VaultIO::create_backup(std::string_view path) {
+VaultResult<> VaultIO::create_backup(std::string_view path, std::string_view backup_dir) {
     namespace fs = std::filesystem;
     std::string path_str(path);
+    std::string backup_dir_str(backup_dir);
 
     try {
         if (!fs::exists(path_str)) {
@@ -247,8 +248,26 @@ VaultResult<> VaultIO::create_backup(std::string_view path) {
         timestamp << std::put_time(std::localtime(&time), "%Y%m%d_%H%M%S")
                   << "_" << std::setfill('0') << std::setw(3) << ms.count();
 
-        // Create timestamped backup path
-        std::string backup_path = path_str + ".backup." + timestamp.str();
+        // Determine backup location
+        fs::path vault_path(path_str);
+        std::string backup_filename = vault_path.filename().string() + ".backup." + timestamp.str();
+        std::string backup_path;
+
+        if (backup_dir_str.empty()) {
+            // Store in same directory as vault
+            backup_path = path_str + ".backup." + timestamp.str();
+        } else {
+            // Store in custom backup directory
+            fs::path backup_directory(backup_dir_str);
+
+            // Create backup directory if it doesn't exist
+            if (!fs::exists(backup_directory)) {
+                fs::create_directories(backup_directory);
+                Log::info("Created backup directory: {}", backup_dir_str);
+            }
+
+            backup_path = (backup_directory / backup_filename).string();
+        }
 
         fs::copy_file(path_str, backup_path, fs::copy_options::overwrite_existing);
         Log::info("Created backup: {}", backup_path);
@@ -292,29 +311,40 @@ VaultResult<> VaultIO::restore_from_backup(std::string_view path) {
     }
 }
 
-std::vector<std::string> VaultIO::list_backups(std::string_view path) {
+std::vector<std::string> VaultIO::list_backups(std::string_view path, std::string_view backup_dir) {
     namespace fs = std::filesystem;
     std::vector<std::string> backups;
     std::string path_str(path);
-    std::string backup_prefix = path_str + ".backup.";
+    std::string backup_dir_str(backup_dir);
+
+    fs::path vault_path(path_str);
+    std::string vault_filename = vault_path.filename().string();
+    std::string backup_pattern = vault_filename + ".backup.";
 
     try {
-        fs::path vault_path(path_str);
-        fs::path parent_dir = vault_path.parent_path();
+        // Determine search directory
+        fs::path search_dir;
+        if (backup_dir_str.empty()) {
+            // Search in same directory as vault
+            search_dir = vault_path.parent_path();
+        } else {
+            // Search in custom backup directory
+            search_dir = fs::path(backup_dir_str);
+        }
 
-        if (!fs::exists(parent_dir)) {
+        if (!fs::exists(search_dir)) {
             return backups;
         }
 
         // Find all backup files matching pattern
-        for (const auto& entry : fs::directory_iterator(parent_dir)) {
+        for (const auto& entry : fs::directory_iterator(search_dir)) {
             if (!entry.is_regular_file()) {
                 continue;
             }
 
-            std::string filename = entry.path().string();
-            if (filename.starts_with(backup_prefix)) {
-                backups.push_back(filename);
+            std::string filename = entry.path().filename().string();
+            if (filename.starts_with(backup_pattern)) {
+                backups.push_back(entry.path().string());
             }
         }
 
@@ -328,14 +358,14 @@ std::vector<std::string> VaultIO::list_backups(std::string_view path) {
     return backups;
 }
 
-void VaultIO::cleanup_old_backups(std::string_view path, int max_backups) {
+void VaultIO::cleanup_old_backups(std::string_view path, int max_backups, std::string_view backup_dir) {
     namespace fs = std::filesystem;
 
     if (max_backups < 1) [[unlikely]] {
         return;
     }
 
-    auto backups = list_backups(path);
+    auto backups = list_backups(path, backup_dir);
 
     // Delete oldest backups (backups are sorted newest first)
     for (size_t i = static_cast<size_t>(max_backups); i < backups.size(); ++i) {

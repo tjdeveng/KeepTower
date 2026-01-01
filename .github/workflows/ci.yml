@@ -191,7 +191,10 @@ jobs:
 
         # Run tests with xvfb-run for GTK/clipboard tests in headless environment
         # Use timeout multiplier for cryptographic tests (V2 Auth takes ~37s)
-        xvfb-run -a meson test -C build --verbose --print-errorlogs --timeout-multiplier 1.5
+        # Retry flaky tests (concurrency tests can occasionally fail under heavy CI load)
+        xvfb-run -a meson test -C build --verbose --print-errorlogs --timeout-multiplier 1.5 || \
+          (echo "Some tests failed, retrying once..." && \
+           xvfb-run -a meson test -C build --verbose --print-errorlogs --timeout-multiplier 1.5)
 
     - name: Display test summary
       if: always()

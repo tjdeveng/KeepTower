@@ -155,22 +155,24 @@ public:
      * Timestamp format: YYYYmmdd_HHMMSS_milliseconds
      *
      * @param path Path to the vault file to backup
+     * @param backup_dir Optional custom backup directory (empty=same as vault)
      * @return VaultResult<> indicating success or error
      *
      * @throws No exceptions (catches filesystem errors)
      *
      * @note Non-fatal operation - returns success even if source file doesn't exist
      * @note Overwrites existing backup with same timestamp (unlikely but possible)
+     * @note If backup_dir specified, creates directory if it doesn't exist
      *
      * @par Example:
      * @code
-     * auto result = VaultIO::create_backup("/path/vault.dat");
+     * auto result = VaultIO::create_backup("/path/vault.dat", "/backups");
      * if (!result) {
      *     std::cerr << "Backup failed but continuing...\n";
      * }
      * @endcode
      */
-    [[nodiscard]] static VaultResult<> create_backup(std::string_view path);
+    [[nodiscard]] static VaultResult<> create_backup(std::string_view path, std::string_view backup_dir = "");
 
     /**
      * @brief Restore vault from most recent backup
@@ -203,6 +205,7 @@ public:
      * Returns paths sorted by timestamp (newest first).
      *
      * @param path Path to the vault file
+     * @param backup_dir Optional custom backup directory (empty=same as vault)
      * @return Vector of absolute backup file paths, sorted newest to oldest
      *
      * @throws No exceptions (catches filesystem errors)
@@ -212,14 +215,14 @@ public:
      *
      * @par Example:
      * @code
-     * auto backups = VaultIO::list_backups("/path/vault.dat");
+     * auto backups = VaultIO::list_backups("/path/vault.dat", "/backups");
      * std::cout << "Found " << backups.size() << " backup files\n";
      * if (!backups.empty()) {
      *     std::cout << "Most recent: " << backups[0] << "\n";
      * }
      * @endcode
      */
-    [[nodiscard]] static std::vector<std::string> list_backups(std::string_view path);
+    [[nodiscard]] static std::vector<std::string> list_backups(std::string_view path, std::string_view backup_dir = "");
 
     /**
      * @brief Delete old backup files, keeping only the N most recent
@@ -229,6 +232,7 @@ public:
      *
      * @param path Path to the vault file
      * @param max_backups Maximum number of backup files to keep (must be >= 1)
+     * @param backup_dir Optional custom backup directory (empty=same as vault)
      *
      * @throws No exceptions (logs warnings on deletion failure)
      *
@@ -238,10 +242,10 @@ public:
      * @par Example:
      * @code
      * // Keep only the 5 most recent backups
-     * VaultIO::cleanup_old_backups("/path/vault.dat", 5);
+     * VaultIO::cleanup_old_backups("/path/vault.dat", 5, "/backups");
      * @endcode
      */
-    static void cleanup_old_backups(std::string_view path, int max_backups);
+    static void cleanup_old_backups(std::string_view path, int max_backups, std::string_view backup_dir = "");
 
     // Deleted constructors (utility class)
     VaultIO() = delete;

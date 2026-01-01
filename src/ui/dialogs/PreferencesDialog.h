@@ -49,6 +49,8 @@ private:
     void on_apply_to_current_toggled() noexcept;         ///< Handle "Apply to current vault" checkbox toggle
     void on_color_scheme_changed() noexcept;             ///< Handle color scheme dropdown selection change
     void on_clear_password_history_clicked() noexcept;   ///< Handle clear password history button click
+    void on_backup_path_browse();                        ///< Handle backup path browse button click
+    void on_restore_backup();                            ///< Handle restore from backup button click
     void on_response(int response_id) noexcept override; ///< Handle dialog response (Apply/Cancel)
 
     // Constants
@@ -267,6 +269,11 @@ private:
     Gtk::SpinButton m_backup_count_spin;
     Gtk::Label m_backup_count_suffix;
     Gtk::Label m_backup_help;
+    Gtk::Box m_backup_path_box;
+    Gtk::Label m_backup_path_label;
+    Gtk::Entry m_backup_path_entry;
+    Gtk::Button m_backup_path_browse_button;
+    Gtk::Button m_restore_backup_button;
 };
 
 #endif // PREFERENCESDIALOG_H
