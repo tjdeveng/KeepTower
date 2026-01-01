@@ -298,6 +298,39 @@ src/
 - Update `meson.build`
 - Add header comments with license
 
+### Documentation Organization
+
+**All documentation must be placed in appropriate directories:**
+
+```
+docs/
+├── developer/        # Developer documentation (you are here)
+│   ├── *_IMPLEMENTATION.md    # Implementation details
+│   ├── *_MIGRATION.md         # Migration guides
+│   ├── CI_CD_*.md             # CI/CD documentation
+│   ├── PHASE*_*.md            # Phase documentation
+│   └── REFACTOR_*.md          # Refactoring docs
+├── testing/          # Test documentation
+│   ├── COVERAGE_*.md          # Coverage reports
+│   ├── TEST_*.md              # Test summaries
+│   └── MANUAL_TEST_*.md       # Manual test procedures
+├── audits/           # Code quality audits
+├── features/         # Feature specifications
+├── releases/         # Release notes
+└── user/             # User guides
+```
+
+**❌ DO NOT place documentation in project root** unless it's:
+- README.md, CONTRIBUTING.md, CHANGELOG.md
+- SECURITY.md, INSTALL.md, ROADMAP.md
+- CODE_OF_CONDUCT.md, LICENSE
+
+**When adding documentation:**
+1. Choose correct directory based on content type
+2. Use descriptive naming (e.g., `BACKUP_SYSTEM_IMPLEMENTATION.md`)
+3. Include document type in name (`*_GUIDE.md`, `*_SUMMARY.md`)
+4. Update relevant documentation links
+
 ### FIPS-140-3 Compliance
 
 KeepTower supports optional FIPS-140-3 validated cryptography. Contributors must follow these requirements when working with cryptographic code:

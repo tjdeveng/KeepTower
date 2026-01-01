@@ -266,6 +266,8 @@ meson test -C build test_security_features
 
 ### File Organization
 
+#### Source Code Structure
+
 - **Headers**: One class per header file
 - **Implementation**: Match header file name
 - **Includes**: Order matters
@@ -274,6 +276,108 @@ meson test -C build test_security_features
   3. C++ standard library
   4. External dependencies
   5. Project headers
+
+#### Directory Structure
+
+All files must be placed in their appropriate directories to maintain repository organization:
+
+**Root Directory (/)** - Only essential project files:
+- `README.md` - Project overview and quick start
+- `CHANGELOG.md` - Version history and release notes
+- `CONTRIBUTING.md` - Contribution guidelines (this file)
+- `CODE_OF_CONDUCT.md` - Community standards
+- `SECURITY.md` - Security policy and reporting
+- `INSTALL.md` - Installation instructions
+- `ROADMAP.md` - Project roadmap and future plans
+- `LICENSE` - GPL-3.0-or-later license
+- `meson.build`, `meson_options.txt` - Build configuration
+- `.gitignore`, `.editorconfig` - Project configuration
+
+**❌ DO NOT place in root:**
+- Implementation details, reviews, summaries, status reports
+- Phase documentation, refactoring plans, migration guides
+- Test reports, coverage reports, audit documents
+- CI/CD implementation details
+
+**Documentation Structure:**
+
+```
+docs/
+├── api/              # API documentation (Doxygen output)
+├── developer/        # Developer documentation
+│   ├── CONTRIBUTING.md        # Extended contribution guide
+│   ├── CI_CD_READINESS.md     # CI/CD setup documentation
+│   ├── FIPS_COMPLIANCE.md     # FIPS implementation details
+│   ├── *_IMPLEMENTATION.md    # Feature implementation docs
+│   ├── *_MIGRATION.md         # Migration guides
+│   └── REFACTOR_*.md          # Refactoring documentation
+├── testing/          # Test documentation
+│   ├── COVERAGE_*.md          # Coverage reports
+│   ├── TEST_*.md              # Test summaries and guides
+│   ├── MANUAL_TEST_*.md       # Manual testing procedures
+│   └── *_AUDIT.md             # Test audits
+├── audits/           # Code quality audits
+│   └── *.md                   # Audit reports
+├── features/         # Feature documentation
+│   └── *.md                   # Feature specifications
+├── refactoring/      # Refactoring documentation
+│   └── *.md                   # Refactoring plans and summaries
+├── releases/         # Release documentation
+│   └── v*.md                  # Version-specific release notes
+└── user/             # User-facing documentation
+    └── *.md                   # User guides and tutorials
+```
+
+**File Naming Conventions:**
+
+- **Implementation docs**: `FEATURE_IMPLEMENTATION.md`, `PHASE*_IMPLEMENTATION.md`
+- **Migration guides**: `FEATURE_MIGRATION.md`, `OPENSSL_*_MIGRATION.md`
+- **Test reports**: `TEST_*_SUMMARY.md`, `COVERAGE_*_REPORT.md`
+- **Audits**: `*_AUDIT.md`, `*_ANALYSIS.md`
+- **Status reports**: `PHASE*_COMPLETE.md`, `*_FIXES_APPLIED.md`
+
+**Examples:**
+
+✅ **Correct:**
+```
+docs/developer/FIPS_IMPLEMENTATION.md
+docs/testing/COVERAGE_IMPROVEMENT_SUMMARY.md
+docs/developer/PHASE2_COMPLETE.md
+docs/audits/MEMORY_LOCKING_AUDIT.md
+```
+
+❌ **Incorrect:**
+```
+/FIPS_IMPLEMENTATION.md           # Should be in docs/developer/
+/COVERAGE_SUMMARY.md              # Should be in docs/testing/
+/PHASE2_COMPLETE.md               # Should be in docs/developer/
+/MEMORY_LOCKING_AUDIT.md          # Should be in docs/audits/
+```
+
+**When Adding New Documentation:**
+
+1. **Determine document type:**
+   - Implementation/design? → `docs/developer/`
+   - Testing/coverage? → `docs/testing/`
+   - Audit/analysis? → `docs/audits/`
+   - Feature specification? → `docs/features/`
+   - User guide? → `docs/user/`
+
+2. **Use descriptive names:**
+   - Prefix with feature/phase: `BACKUP_SYSTEM_IMPLEMENTATION.md`
+   - Include document type: `*_GUIDE.md`, `*_SUMMARY.md`, `*_AUDIT.md`
+
+3. **Update relevant documentation:**
+   - Link from main docs when appropriate
+   - Add to CHANGELOG.md if user-facing
+   - Reference in related code comments
+
+**Why This Matters:**
+- Maintains clean, navigable repository structure
+- Makes documentation discoverable
+- Prevents root directory clutter
+- Helps contributors find relevant information quickly
+- Facilitates automated documentation tools
 
 ### Documentation
 
