@@ -34,6 +34,7 @@ protected:
         header.vault_header.security_policy.password_history_depth = 5;
         header.vault_header.security_policy.pbkdf2_iterations = 100000;
         header.vault_header.security_policy.require_yubikey = false;
+        header.vault_header.security_policy.yubikey_algorithm = 0x02;  // HMAC-SHA256 (FIPS default)
 
         // Initialize data salt and IV
         for (size_t i = 0; i < 32; ++i) {
