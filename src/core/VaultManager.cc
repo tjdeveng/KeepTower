@@ -1507,19 +1507,34 @@ bool VaultManager::verify_credentials(const Glib::ustring& password, const std::
 
             // Get device info to verify serial matches
             auto device_info = yk_manager.get_device_info();
-            if (!device_info || device_info->serial_number != serial) {
-                KeepTower::Log::error("VaultManager: Wrong YubiKey connected");
-                return false;  // Wrong YubiKey connected
+            if (!device_info) {
+                KeepTower::Log::error("VaultManager: Failed to get YubiKey device info");
+                return false;
             }
 
-            // Ensure challenge is correct size (64 bytes)
-            if (user_slot->yubikey_challenge.size() != YUBIKEY_CHALLENGE_SIZE) {
-                KeepTower::Log::error("Invalid YubiKey challenge size: {} (expected {})",
-                                     user_slot->yubikey_challenge.size(), YUBIKEY_CHALLENGE_SIZE);
+            KeepTower::Log::debug("VaultManager: verify_credentials - YubiKey serial from device: '{}', expected from slot: '{}'",
+                                 device_info->serial_number, user_slot->yubikey_serial);
+
+            if (device_info->serial_number != serial) {
+                KeepTower::Log::error("VaultManager: Serial mismatch - provided '{}' != device '{}}'",
+                                     serial, device_info->serial_number);
+                return false;  // Provided serial doesn't match connected device
+            }
+
+            if (device_info->serial_number != user_slot->yubikey_serial) {
+                KeepTower::Log::error("VaultManager: Wrong YubiKey - device '{}' != enrolled '{}'",
+                                     device_info->serial_number, user_slot->yubikey_serial);
+                return false;  // Wrong YubiKey connected (not the one enrolled)
+            }
+
+            // Validate challenge is not empty (size check removed - YubiKey library handles various sizes)
+            if (user_slot->yubikey_challenge.empty()) {
+                KeepTower::Log::error("VaultManager: YubiKey challenge is empty");
                 return false;
             }
 
             // Perform challenge-response
+            KeepTower::Log::debug("VaultManager: Starting YubiKey challenge-response (timeout: {}ms)", YUBIKEY_TIMEOUT_MS);
             auto cr_result = yk_manager.challenge_response(user_slot->yubikey_challenge, true, YUBIKEY_TIMEOUT_MS);
             if (!cr_result.success) {
                 KeepTower::Log::error("YubiKey challenge-response failed in verify_credentials: {}",
