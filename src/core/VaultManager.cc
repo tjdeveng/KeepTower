@@ -1481,20 +1481,97 @@ bool VaultManager::verify_credentials(const Glib::ustring& password, const std::
             return false;  // User not found
         }
 
-        // Derive KEK from password
-        auto kek_result = KeyWrapping::derive_kek_from_password(
-            password,
-            user_slot->salt,
-            m_v2_header->security_policy.pbkdf2_iterations);
+        // Check if user's slot requires YubiKey
+        bool slot_requires_yubikey = !user_slot->yubikey_serial.empty();
 
-        if (!kek_result) {
+        if (slot_requires_yubikey) {
+            // YubiKey authentication required for this slot
+            if (serial.empty()) {
+                KeepTower::Log::error("VaultManager: YubiKey serial required but not provided");
+                return false;  // YubiKey serial required
+            }
+
+            // Verify YubiKey serial matches slot
+            if (user_slot->yubikey_serial != serial) {
+                KeepTower::Log::error("VaultManager: YubiKey serial mismatch");
+                return false;
+            }
+
+#ifdef HAVE_YUBIKEY_SUPPORT
+            // Perform YubiKey challenge-response
+            YubiKeyManager yk_manager;
+            if (!yk_manager.initialize() || !yk_manager.is_yubikey_present()) {
+                KeepTower::Log::error("VaultManager: YubiKey not present");
+                return false;
+            }
+
+            // Get device info to verify serial matches
+            auto device_info = yk_manager.get_device_info();
+            if (!device_info || device_info->serial_number != serial) {
+                KeepTower::Log::error("VaultManager: Wrong YubiKey connected");
+                return false;  // Wrong YubiKey connected
+            }
+
+            // Ensure challenge is correct size (64 bytes)
+            if (user_slot->yubikey_challenge.size() != YUBIKEY_CHALLENGE_SIZE) {
+                KeepTower::Log::error("Invalid YubiKey challenge size: {} (expected {})",
+                                     user_slot->yubikey_challenge.size(), YUBIKEY_CHALLENGE_SIZE);
+                return false;
+            }
+
+            // Perform challenge-response
+            auto cr_result = yk_manager.challenge_response(user_slot->yubikey_challenge, true, YUBIKEY_TIMEOUT_MS);
+            if (!cr_result.success) {
+                KeepTower::Log::error("YubiKey challenge-response failed in verify_credentials: {}",
+                                     cr_result.error_message);
+                return false;
+            }
+
+            // Derive password-based KEK first
+            auto kek_result = KeyWrapping::derive_kek_from_password(
+                password,
+                user_slot->salt,
+                m_v2_header->security_policy.pbkdf2_iterations);
+
+            if (!kek_result) {
+                KeepTower::Log::error("VaultManager: Failed to derive KEK from password");
+                return false;
+            }
+
+            // XOR KEK with YubiKey response to get final KEK
+            std::array<uint8_t, 32> final_kek = kek_result.value();
+            for (size_t i = 0; i < final_kek.size() && i < cr_result.response.size(); i++) {
+                final_kek[i] ^= cr_result.response[i];
+            }
+
+            // Try to unwrap DEK - if successful, credentials are correct
+            auto unwrap_result = KeyWrapping::unwrap_key(final_kek, user_slot->wrapped_dek);
+
+            // Securely clear sensitive data
+            OPENSSL_cleanse(final_kek.data(), final_kek.size());
+
+            return unwrap_result.has_value();
+#else
+            KeepTower::Log::error("VaultManager: YubiKey support not compiled");
             return false;
+#endif
+        } else {
+            // No YubiKey required - just verify password
+            // Derive KEK from password
+            auto kek_result = KeyWrapping::derive_kek_from_password(
+                password,
+                user_slot->salt,
+                m_v2_header->security_policy.pbkdf2_iterations);
+
+            if (!kek_result) {
+                return false;
+            }
+
+            // Try to unwrap DEK - if successful, password is correct
+            auto unwrap_result = KeyWrapping::unwrap_key(kek_result.value(), user_slot->wrapped_dek);
+
+            return unwrap_result.has_value();
         }
-
-        // Try to unwrap DEK - if successful, password is correct
-        auto unwrap_result = KeyWrapping::unwrap_key(kek_result.value(), user_slot->wrapped_dek);
-
-        return unwrap_result.has_value();
     }
 
     // V1 vault authentication below
@@ -2032,4 +2109,11 @@ KeepTower::VaultResult<> VaultManager::restore_from_most_recent_backup(const std
         KeepTower::Log::error("VaultManager: Failed to restore from backup: {}", e.what());
         return std::unexpected(KeepTower::VaultError::FileReadFailed);
     }
+}
+
+std::string VaultManager::get_current_username() const {
+    if (m_is_v2_vault && m_current_session) {
+        return m_current_session->username;
+    }
+    return "";
 }

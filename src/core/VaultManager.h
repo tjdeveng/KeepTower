@@ -1503,6 +1503,12 @@ public:
      * @note Requires vault to be open
      */
     [[nodiscard]] bool verify_credentials(const Glib::ustring& password, const std::string& serial = "");
+
+    /**
+     * @brief Get current authenticated username (V2 vaults only)
+     * @return Username if V2 vault is open and authenticated, empty string otherwise
+     */
+    [[nodiscard]] std::string get_current_username() const;
 #endif
 
 private:

@@ -201,11 +201,30 @@ void VaultIOHandler::show_export_password_dialog(const std::string& current_vaul
     try {
         // Step 2: Show password dialog (warning dialog is now fully closed)
         auto* password_dialog = Gtk::make_managed<PasswordDialog>(m_window);
-        password_dialog->set_title("Authenticate to Export");
+
+        // Get current username for V2 vaults and update title
+        std::string current_username;
+        bool is_v2_vault = false;
+        if (m_vault_manager) {
+            is_v2_vault = m_vault_manager->is_v2_vault();
+            if (is_v2_vault) {
+                current_username = m_vault_manager->get_current_username();
+                if (!current_username.empty()) {
+                    password_dialog->set_title(std::format("Authenticate to Export (User: {})", current_username));
+                } else {
+                    password_dialog->set_title("Authenticate to Export");
+                }
+            } else {
+                password_dialog->set_title("Authenticate to Export");
+            }
+        } else {
+            password_dialog->set_title("Authenticate to Export");
+        }
+
         password_dialog->set_modal(true);
         password_dialog->set_hide_on_close(true);
 
-        password_dialog->signal_response().connect([this, password_dialog, current_vault_path](int response) {
+        password_dialog->signal_response().connect([this, password_dialog, current_vault_path, current_username, is_v2_vault](int response) {
             if (response != Gtk::ResponseType::OK) {
                 password_dialog->hide();
                 return;
@@ -215,9 +234,15 @@ void VaultIOHandler::show_export_password_dialog(const std::string& current_vaul
                 Glib::ustring password = password_dialog->get_password();
 
 #ifdef HAVE_YUBIKEY_SUPPORT
+                // Check if YubiKey is required for V2 vault user
+                bool yubikey_required = false;
+                if (m_vault_manager && is_v2_vault) {
+                    yubikey_required = m_vault_manager->is_using_yubikey();
+                }
+
                 // If vault requires YubiKey, show touch prompt and do authentication synchronously
                 YubiKeyPromptDialog* touch_dialog = nullptr;
-                if (m_vault_manager && m_vault_manager->is_using_yubikey()) {
+                if (yubikey_required) {
                     // Get YubiKey serial
                     YubiKeyManager yk_manager;
                     if (!yk_manager.initialize() || !yk_manager.is_yubikey_present()) {
