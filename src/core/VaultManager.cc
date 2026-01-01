@@ -2117,3 +2117,24 @@ std::string VaultManager::get_current_username() const {
     }
     return "";
 }
+
+bool VaultManager::current_user_requires_yubikey() const {
+    // V1 vaults: use global flag
+    if (!m_is_v2_vault) {
+        return m_yubikey_required;
+    }
+
+    // V2 vaults: check current user's key slot
+    if (!m_current_session || !m_v2_header.has_value()) {
+        return false;
+    }
+
+    // Find current user's key slot
+    for (const auto& slot : m_v2_header->key_slots) {
+        if (slot.active && slot.username == m_current_session->username) {
+            return slot.yubikey_enrolled;
+        }
+    }
+
+    return false;
+}

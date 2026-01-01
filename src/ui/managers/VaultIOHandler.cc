@@ -234,13 +234,13 @@ void VaultIOHandler::show_export_password_dialog(const std::string& current_vaul
                 Glib::ustring password = password_dialog->get_password();
 
 #ifdef HAVE_YUBIKEY_SUPPORT
-                // Check if YubiKey is required for V2 vault user
+                // Check if YubiKey is required for current user
                 bool yubikey_required = false;
-                if (m_vault_manager && is_v2_vault) {
-                    yubikey_required = m_vault_manager->is_using_yubikey();
+                if (m_vault_manager) {
+                    yubikey_required = m_vault_manager->current_user_requires_yubikey();
                 }
 
-                // If vault requires YubiKey, show touch prompt and do authentication synchronously
+                // If current user requires YubiKey, show touch prompt and do authentication synchronously
                 YubiKeyPromptDialog* touch_dialog = nullptr;
                 if (yubikey_required) {
                     // Get YubiKey serial

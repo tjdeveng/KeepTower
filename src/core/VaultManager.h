@@ -1509,6 +1509,13 @@ public:
      * @return Username if V2 vault is open and authenticated, empty string otherwise
      */
     [[nodiscard]] std::string get_current_username() const;
+
+    /**
+     * @brief Check if current user requires YubiKey authentication
+     * @return true if current user's key slot requires YubiKey, false otherwise
+     * @note For V2 vaults, checks current user's key slot. For V1 vaults, checks m_yubikey_required flag.
+     */
+    [[nodiscard]] bool current_user_requires_yubikey() const;
 #endif
 
 private:
