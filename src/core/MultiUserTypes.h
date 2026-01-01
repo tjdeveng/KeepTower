@@ -192,7 +192,7 @@ struct VaultSecurityPolicy {
      * @note Vaults created before FIPS migration use SHA-1 (field = 0x01)
      * @note New vaults default to SHA-256 (field = 0x02)
      */
-    uint8_t yubikey_algorithm = 0x02;  ///< YubiKeyAlgorithm enum value
+    uint8_t yubikey_algorithm = 0x02;  ///< YubiKeyAlgorithm enum value (0x02=SHA-256 FIPS-approved)
 
     /**
      * @brief YubiKey challenge data (size varies by algorithm)

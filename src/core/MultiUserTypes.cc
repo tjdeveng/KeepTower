@@ -112,42 +112,59 @@ std::vector<uint8_t> VaultSecurityPolicy::serialize() const {
 }
 
 std::optional<VaultSecurityPolicy> VaultSecurityPolicy::deserialize(const std::vector<uint8_t>& data) {
-    if (data.size() < SERIALIZED_SIZE) {
-        Log::error("VaultSecurityPolicy: Insufficient data for deserialization (need {}, got {})",
-                   SERIALIZED_SIZE, data.size());
+    // Support both old format (121 bytes) and new format (122 bytes)
+    constexpr size_t OLD_SERIALIZED_SIZE = 121;  // Before yubikey_algorithm field
+
+    if (data.size() < OLD_SERIALIZED_SIZE) {
+        Log::error("VaultSecurityPolicy: Insufficient data for deserialization (need at least {}, got {})",
+                   OLD_SERIALIZED_SIZE, data.size());
         return std::nullopt;
     }
 
     VaultSecurityPolicy policy;
 
+    // Detect format: old (121 bytes) vs new (122 bytes)
+    bool is_old_format = (data.size() == OLD_SERIALIZED_SIZE);
+
+    size_t offset = 0;
+
     // Byte 0: require_yubikey
-    policy.require_yubikey = (data[0] != 0);
+    policy.require_yubikey = (data[offset++] != 0);
 
-    // Byte 1: yubikey_algorithm (with backward compatibility)
-    // If byte 1 is 0x00 (old format), default to SHA-1 for legacy vaults
-    // Otherwise, use the specified algorithm
-    policy.yubikey_algorithm = (data[1] == 0x00) ? 0x01 : data[1];  // 0x01 = HMAC_SHA1, 0x02 = HMAC_SHA256
+    // Byte 1 (new format only): yubikey_algorithm
+    if (is_old_format) {
+        // Old format: default to SHA-1 for backward compatibility
+        policy.yubikey_algorithm = 0x01;  // HMAC_SHA1
+        Log::info("VaultSecurityPolicy: Old format detected, defaulting to SHA-1");
+    } else {
+        // New format: read algorithm, default to SHA-1 if 0x00
+        policy.yubikey_algorithm = (data[offset] == 0x00) ? 0x01 : data[offset];
+        offset++;
+    }
 
-    // Bytes 2-5: min_password_length
-    policy.min_password_length = (static_cast<uint32_t>(data[2]) << 24) |
-                                 (static_cast<uint32_t>(data[3]) << 16) |
-                                 (static_cast<uint32_t>(data[4]) << 8) |
-                                 static_cast<uint32_t>(data[5]);
+    // Next 4 bytes: min_password_length
+    policy.min_password_length = (static_cast<uint32_t>(data[offset]) << 24) |
+                                 (static_cast<uint32_t>(data[offset + 1]) << 16) |
+                                 (static_cast<uint32_t>(data[offset + 2]) << 8) |
+                                 static_cast<uint32_t>(data[offset + 3]);
+    offset += 4;
 
-    // Bytes 6-9: pbkdf2_iterations
-    policy.pbkdf2_iterations = (static_cast<uint32_t>(data[6]) << 24) |
-                               (static_cast<uint32_t>(data[7]) << 16) |
-                               (static_cast<uint32_t>(data[8]) << 8) |
-                               static_cast<uint32_t>(data[9]);
+    // Next 4 bytes: pbkdf2_iterations
+    policy.pbkdf2_iterations = (static_cast<uint32_t>(data[offset]) << 24) |
+                               (static_cast<uint32_t>(data[offset + 1]) << 16) |
+                               (static_cast<uint32_t>(data[offset + 2]) << 8) |
+                               static_cast<uint32_t>(data[offset + 3]);
+    offset += 4;
 
-    // Bytes 10-13: password_history_depth
-    policy.password_history_depth = (static_cast<uint32_t>(data[10]) << 24) |
-                                    (static_cast<uint32_t>(data[11]) << 16) |
-                                    (static_cast<uint32_t>(data[12]) << 8) |
-                                    static_cast<uint32_t>(data[13]);
+    // Next 4 bytes: password_history_depth
+    policy.password_history_depth = (static_cast<uint32_t>(data[offset]) << 24) |
+                                    (static_cast<uint32_t>(data[offset + 1]) << 16) |
+                                    (static_cast<uint32_t>(data[offset + 2]) << 8) |
+                                    static_cast<uint32_t>(data[offset + 3]);
+    offset += 4;
 
-    // Bytes 14-77: yubikey_challenge
-    std::copy(data.begin() + 14, data.begin() + 78, policy.yubikey_challenge.begin());
+    // Next 64 bytes: yubikey_challenge
+    std::copy(data.begin() + offset, data.begin() + offset + 64, policy.yubikey_challenge.begin());
 
     // Bytes 78-121: reserved (skip)
 

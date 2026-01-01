@@ -65,10 +65,15 @@ bool YubiKeyManager::initialize(bool enforce_fips) noexcept {
     m_initialized = true;
 
     if (m_fips_mode) {
-        KeepTower::Log::info("YubiKey subsystem initialized in FIPS-140-3 mode (SHA-256+ only)");
+        KeepTower::Log::info("YubiKey subsystem initialized in FIPS-140-3 mode (SHA-256+ required)");
+        KeepTower::Log::warning("TODO: ykpers library does not support SHA-256. Migration to yubikey-manager or PCSC required.");
     } else {
-        KeepTower::Log::info("YubiKey subsystem initialized (all algorithms allowed)");
+        KeepTower::Log::info("YubiKey subsystem initialized (all algorithms)");
     }
+
+    // NOTE: ykpers library only supports HMAC-SHA1 challenge-response
+    // SHA-256 and other algorithms require newer yubikey-manager (ykman) or direct PCSC
+    KeepTower::Log::warning("Current ykpers library only supports HMAC-SHA1. SHA-256+ requires different library.");
 
     return true;
 }
@@ -137,21 +142,19 @@ std::optional<YubiKeyManager::YubiKeyInfo> YubiKeyManager::get_device_info() con
     info.is_fips_mode = info.is_fips_capable && (info.version_build >= 3);
 
     // Determine supported algorithms based on firmware version
-    // YubiKey 5 Series (firmware 5.0+): HMAC-SHA1, HMAC-SHA256
-    // Future firmware: HMAC-SHA3 support
+    // YubiKey 5 Series (firmware 5.0+): Hardware supports HMAC-SHA256
+    // TODO: Software support pending - need to migrate from ykpers to yubikey-manager/PCSC
     info.supported_algorithms.clear();
 
     if (info.version_major >= 5) {
-        // YubiKey 5 Series supports SHA-256
+        // YubiKey 5 hardware supports SHA-256 (FIPS-approved)
+        // Software implementation pending library migration
         info.supported_algorithms.push_back(YubiKeyAlgorithm::HMAC_SHA256);
-
-        // Legacy SHA-1 support (not FIPS-approved)
-        if (!info.is_fips_mode) {
+        
+        // Legacy SHA-1 support (not FIPS-approved, but works with ykpers)
+        if (!m_fips_mode) {
             info.supported_algorithms.push_back(YubiKeyAlgorithm::HMAC_SHA1);
         }
-
-        // Future: SHA3 support (when YubiKey firmware adds it)
-        // info.supported_algorithms.push_back(YubiKeyAlgorithm::HMAC_SHA3_256);
     } else {
         // Older YubiKeys only support SHA-1
         info.supported_algorithms.push_back(YubiKeyAlgorithm::HMAC_SHA1);
@@ -283,12 +286,15 @@ YubiKeyManager::ChallengeResponse YubiKeyManager::challenge_response(
             slot_command = SLOT_CHAL_HMAC2;  // 0x38 - Slot 2 HMAC-SHA1
             break;
         case YubiKeyAlgorithm::HMAC_SHA256:
-            // YubiKey 5 Series supports SHA-256 via special command
-            // Note: ykpers library may not expose this directly yet
-            // We use the same slot but library handles algorithm internally
-            slot_command = SLOT_CHAL_HMAC2;  // Will be updated when ykpers adds SHA-256
-            KeepTower::Log::warning("SHA-256 support requires YubiKey firmware 5.0+ and updated ykpers library");
-            break;
+            // TODO: ykpers library does NOT support SHA-256 challenge-response
+            // Need to migrate to: yubikey-manager (ykman), libfido2, or direct PCSC
+            result.error_message = "SHA-256 YubiKey support not yet implemented. "
+                                  "ykpers library limitation - requires migration to yubikey-manager or PCSC. "
+                                  "Temporary workaround: Use non-YubiKey vault or wait for library update.";
+            set_error(result.error_message);
+            KeepTower::Log::error("SHA-256 YubiKey not yet implemented - library migration required");
+            yk_close_key(yk);
+            return result;
         case YubiKeyAlgorithm::HMAC_SHA3_256:
         case YubiKeyAlgorithm::HMAC_SHA3_512:
         case YubiKeyAlgorithm::HMAC_SHA512:
