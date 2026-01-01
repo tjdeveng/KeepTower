@@ -185,6 +185,7 @@ conf_data.set_quoted('VERSION', meson.project_version())
 conf_data.set_quoted('PACKAGE_VERSION', meson.project_version())
 conf_data.set_quoted('GETTEXT_PACKAGE', project_name)
 conf_data.set_quoted('LOCALEDIR', get_option('prefix') / get_option('localedir'))
+conf_data.set_quoted('DATADIR', get_option('prefix') / get_option('datadir'))
 conf_data.set_quoted('PROJECT_SOURCE_DIR', meson.project_source_root())
 conf_data.set('HAVE_YUBIKEY_SUPPORT', yubikey_available)
 
@@ -202,6 +203,37 @@ subdir('src')
 subdir('data')
 subdir('resources')
 subdir('po')
+
+# Install help documentation files (if generated)
+# These are installed to datadir for filesystem access
+# GResources provides embedded fallback
+help_files = [
+  'resources/help/00-home.html',
+  'resources/help/01-getting-started.html',
+  'resources/help/02-installation.html',
+  'resources/help/03-user-guide.html',
+  'resources/help/04-faq.html',
+  'resources/help/05-security.html',
+  'resources/help/SECURITY_BEST_PRACTICES.html',
+]
+
+# Only install if files exist (pandoc was available during build)
+foreach help_file : help_files
+  if fs.exists(help_file)
+    install_data(
+      help_file,
+      install_dir: get_option('datadir') / 'keeptower' / 'help',
+    )
+  endif
+endforeach
+
+# Install CSS for help files
+if fs.exists('resources/help/css/help-style.css')
+  install_data(
+    'resources/help/css/help-style.css',
+    install_dir: get_option('datadir') / 'keeptower' / 'help' / 'css',
+  )
+endif
 
 # Tests (optional, only if gtest is available)
 gtest_dep = dependency('gtest', main: true, required: false)

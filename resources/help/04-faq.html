@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="pandoc">
+    <title>FAQ - Frequently Asked Questions - KeepTower Help</title>
+    <style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+</style>
+    <style type="text/css">
+:root {
+--bg-color: #ffffff;
+--text-color: #2e3436;
+--link-color: #3584e4;
+--link-hover: #1c71d8;
+--code-bg: #f6f5f4;
+--border-color: #deddda;
+--header-bg: #f6f5f4;
+--sidebar-bg: #fafafa;
+}
+@media (prefers-color-scheme: dark) {
+:root {
+--bg-color: #1e1e1e;
+--text-color: #eeeeec;
+--link-color: #62a0ea;
+--link-hover: #99c1f1;
+--code-bg: #2e2e2e;
+--border-color: #3e3e3e;
+--header-bg: #2a2a2a;
+--sidebar-bg: #242424;
+}
+}
+* {
+margin: 0;
+padding: 0;
+box-sizing: border-box;
+}
+body {
+font-family: 'Cantarell', 'DejaVu Sans', sans-serif;
+line-height: 1.6;
+color: var(--text-color);
+background-color: var(--bg-color);
+
+
+}
+.container {
+max-width: 900px;
+margin: 0 auto;
+padding: 20px;
+}
+
+h1, h2, h3, h4, h5, h6 {
+margin-top: 24px;
+margin-bottom: 16px;
+font-weight: 600;
+line-height: 1.25;
+}
+h1 {
+font-size: 2em;
+border-bottom: 2px solid var(--border-color);
+padding-bottom: 8px;
+}
+h2 {
+font-size: 1.5em;
+border-bottom: 1px solid var(--border-color);
+padding-bottom: 6px;
+}
+h3 {
+font-size: 1.25em;
+}
+h4 {
+font-size: 1.1em;
+}
+p {
+margin-bottom: 16px;
+}
+
+a {
+color: var(--link-color);
+text-decoration: none;
+}
+a:hover {
+color: var(--link-hover);
+text-decoration: underline;
+}
+
+ul, ol {
+margin-bottom: 16px;
+padding-left: 32px;
+}
+li {
+margin-bottom: 8px;
+}
+
+code {
+background-color: var(--code-bg);
+padding: 2px 6px;
+border-radius: 3px;
+font-family: 'Source Code Pro', 'Courier New', monospace;
+font-size: 0.9em;
+}
+pre {
+background-color: var(--code-bg);
+border: 1px solid var(--border-color);
+border-radius: 6px;
+padding: 16px;
+overflow-x: auto;
+margin-bottom: 16px;
+}
+pre code {
+background-color: transparent;
+padding: 0;
+}
+
+table {
+width: 100%;
+border-collapse: collapse;
+margin-bottom: 16px;
+}
+th, td {
+padding: 12px;
+text-align: left;
+border: 1px solid var(--border-color);
+}
+th {
+background-color: var(--header-bg);
+font-weight: 600;
+}
+
+blockquote {
+border-left: 4px solid var(--link-color);
+padding-left: 16px;
+margin: 16px 0;
+font-style: italic;
+color: var(--text-color);
+opacity: 0.9;
+}
+
+.nav-header {
+background-color: var(--header-bg);
+padding: 16px 20px;
+border-bottom: 1px solid var(--border-color);
+margin-bottom: 20px;
+}
+.nav-header h1 {
+margin: 0;
+border: none;
+padding: 0;
+font-size: 1.5em;
+}
+.nav-links {
+margin-top: 12px;
+display: flex;
+gap: 16px;
+flex-wrap: wrap;
+}
+.nav-links a {
+padding: 6px 12px;
+background-color: var(--code-bg);
+border-radius: 4px;
+font-size: 0.9em;
+}
+
+.note, .warning, .tip {
+padding: 16px;
+border-left: 4px solid;
+margin: 16px 0;
+border-radius: 4px;
+}
+.note {
+background-color: rgba(53, 132, 228, 0.1);
+border-color: #3584e4;
+}
+.warning {
+background-color: rgba(230, 97, 0, 0.1);
+border-color: #e66100;
+}
+.tip {
+background-color: rgba(38, 162, 105, 0.1);
+border-color: #26a269;
+}
+
+img {
+max-width: 100%;
+height: auto;
+margin: 16px 0;
+border-radius: 6px;
+}
+
+hr {
+border: none;
+border-top: 1px solid var(--border-color);
+margin: 24px 0;
+}
+
+.footer {
+margin-top: 48px;
+padding-top: 24px;
+border-top: 1px solid var(--border-color);
+font-size: 0.9em;
+opacity: 0.8;
+text-align: center;
+}
+
+kbd {
+background-color: var(--code-bg);
+border: 1px solid var(--border-color);
+border-radius: 3px;
+padding: 2px 6px;
+font-family: 'Cantarell', sans-serif;
+font-size: 0.85em;
+box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+}
+
+.toc {
+background-color: var(--sidebar-bg);
+border: 1px solid var(--border-color);
+border-radius: 6px;
+padding: 16px;
+margin-bottom: 24px;
+}
+.toc h2 {
+margin-top: 0;
+font-size: 1.2em;
+border: none;
+padding: 0;
+}
+.toc ul {
+margin-bottom: 0;
+}
+.toc li {
+margin-bottom: 4px;
+}
+</style>
+</head>
+<body>
+<div class="nav-header">
+    <h1>FAQ - Frequently Asked Questions</h1>
+    <div class="nav-links">
+        <a href="00-home.html">🏠 Home</a>
+        <a href="01-getting-started.html">🚀 Getting Started</a>
+        <a href="02-installation.html">💾 Installation</a>
+        <a href="03-user-guide.html">📖 User Guide</a>
+        <a href="04-faq.html">❓ FAQ</a>
+        <a href="05-security.html">🔒 Security</a>
+    </div>
+</div>
+<div class="container">
+<nav id="TOC" role="doc-toc">
+<div class="toc">
+<h2>Table of Contents</h2>
+<ul>
+<li><a href="#faq---frequently-asked-questions" id="toc-faq---frequently-asked-questions">FAQ - Frequently Asked
+Questions</a>
+<ul>
+<li><a href="#general-questions" id="toc-general-questions">General
+Questions</a>
+<ul>
+<li><a href="#what-is-keeptower" id="toc-what-is-keeptower">What is
+KeepTower?</a></li>
+<li><a href="#why-another-password-manager" id="toc-why-another-password-manager">Why another password
+manager?</a></li>
+<li><a href="#is-keeptower-ready-for-production-use" id="toc-is-keeptower-ready-for-production-use">Is KeepTower ready for
+production use?</a></li>
+<li><a href="#is-it-free" id="toc-is-it-free">Is it free?</a></li>
+</ul></li>
+<li><a href="#security-questions" id="toc-security-questions">Security
+Questions</a>
+<ul>
+<li><a href="#how-secure-is-keeptower" id="toc-how-secure-is-keeptower">How secure is KeepTower?</a></li>
+<li><a href="#what-if-i-forget-my-master-password" id="toc-what-if-i-forget-my-master-password">What if I forget my master
+password?</a></li>
+<li><a href="#can-someone-crack-my-vault-with-a-supercomputer" id="toc-can-someone-crack-my-vault-with-a-supercomputer">Can someone
+crack my vault with a supercomputer?</a></li>
+<li><a href="#is-my-vault-safe-from-bit-rot" id="toc-is-my-vault-safe-from-bit-rot">Is my vault safe from bit
+rot?</a></li>
+<li><a href="#has-keeptower-been-security-reviewed" id="toc-has-keeptower-been-security-reviewed">Has KeepTower been
+security reviewed?</a></li>
+</ul></li>
+<li><a href="#usage-questions" id="toc-usage-questions">Usage
+Questions</a>
+<ul>
+<li><a href="#can-i-use-keeptower-on-multiple-computers" id="toc-can-i-use-keeptower-on-multiple-computers">Can I use KeepTower
+on multiple computers?</a></li>
+<li><a href="#can-i-import-passwords-from-another-password-manager" id="toc-can-i-import-passwords-from-another-password-manager">Can I
+import passwords from another password manager?</a></li>
+<li><a href="#can-i-export-my-passwords" id="toc-can-i-export-my-passwords">Can I export my passwords?</a></li>
+<li><a href="#does-keeptower-work-with-browser-extensions" id="toc-does-keeptower-work-with-browser-extensions">Does KeepTower work
+with browser extensions?</a></li>
+<li><a href="#can-i-use-keeptower-on-my-phone" id="toc-can-i-use-keeptower-on-my-phone">Can I use KeepTower on my
+phone?</a></li>
+</ul></li>
+<li><a href="#yubikey-questions" id="toc-yubikey-questions">YubiKey
+Questions</a>
+<ul>
+<li><a href="#what-is-yubikey-2fa-and-why-use-it" id="toc-what-is-yubikey-2fa-and-why-use-it">What is YubiKey 2FA and why
+use it?</a></li>
+<li><a href="#what-yubikey-models-are-supported" id="toc-what-yubikey-models-are-supported">What YubiKey models are
+supported?</a></li>
+<li><a href="#can-i-use-multiple-yubikeys" id="toc-can-i-use-multiple-yubikeys">Can I use multiple
+YubiKeys?</a></li>
+<li><a href="#what-if-i-lose-my-yubikey" id="toc-what-if-i-lose-my-yubikey">What if I lose my YubiKey?</a></li>
+</ul></li>
+<li><a href="#importexport-questions" id="toc-importexport-questions">Import/Export Questions</a>
+<ul>
+<li><a href="#what-formats-can-i-importexport" id="toc-what-formats-can-i-importexport">What formats can I
+import/export?</a></li>
+<li><a href="#will-export-create-duplicates-if-i-import-back" id="toc-will-export-create-duplicates-if-i-import-back">Will export
+create duplicates if I import back?</a></li>
+<li><a href="#can-i-export-to-an-encrypted-format" id="toc-can-i-export-to-an-encrypted-format">Can I export to an
+encrypted format?</a></li>
+<li><a href="#how-do-i-migrate-from-another-password-manager" id="toc-how-do-i-migrate-from-another-password-manager">How do I migrate
+from another password manager?</a></li>
+</ul></li>
+<li><a href="#technical-questions" id="toc-technical-questions">Technical Questions</a>
+<ul>
+<li><a href="#what-file-format-does-keeptower-use" id="toc-what-file-format-does-keeptower-use">What file format does
+KeepTower use?</a></li>
+<li><a href="#can-i-access-my-vault-from-the-command-line" id="toc-can-i-access-my-vault-from-the-command-line">Can I access my
+vault from the command line?</a></li>
+<li><a href="#what-are-the-system-requirements" id="toc-what-are-the-system-requirements">What are the system
+requirements?</a></li>
+<li><a href="#does-keeptower-collect-any-data" id="toc-does-keeptower-collect-any-data">Does KeepTower collect any
+data?</a></li>
+<li><a href="#why-is-the-file-size-larger-with-reed-solomon" id="toc-why-is-the-file-size-larger-with-reed-solomon">Why is the file
+size larger with Reed-Solomon?</a></li>
+<li><a href="#can-i-disable-reed-solomon-after-enabling-it" id="toc-can-i-disable-reed-solomon-after-enabling-it">Can I disable
+Reed-Solomon after enabling it?</a></li>
+</ul></li>
+<li><a href="#troubleshooting" id="toc-troubleshooting">Troubleshooting</a>
+<ul>
+<li><a href="#keeptower-wont-open-my-vault" id="toc-keeptower-wont-open-my-vault">KeepTower won’t open my
+vault</a></li>
+<li><a href="#cannot-load-vault-error" id="toc-cannot-load-vault-error">“Cannot load vault” error</a></li>
+<li><a href="#importexport-errors" id="toc-importexport-errors">Import/export errors</a></li>
+<li><a href="#application-crashes-on-startup" id="toc-application-crashes-on-startup">Application crashes on
+startup</a></li>
+<li><a href="#backup-files-are-taking-up-space" id="toc-backup-files-are-taking-up-space">Backup files are taking up
+space</a></li>
+</ul></li>
+<li><a href="#feature-requests" id="toc-feature-requests">Feature
+Requests</a>
+<ul>
+<li><a href="#can-keeptower-support-totp2fa-codes" id="toc-can-keeptower-support-totp2fa-codes">Can KeepTower support
+TOTP/2FA codes?</a></li>
+<li><a href="#will-there-be-a-windowsmac-version" id="toc-will-there-be-a-windowsmac-version">Will there be a Windows/Mac
+version?</a></li>
+<li><a href="#can-you-add-password-sharing" id="toc-can-you-add-password-sharing">Can you add password
+sharing?</a></li>
+<li><a href="#what-about-cloud-sync" id="toc-what-about-cloud-sync">What
+about cloud sync?</a></li>
+</ul></li>
+<li><a href="#contributing" id="toc-contributing">Contributing</a>
+<ul>
+<li><a href="#how-can-i-help" id="toc-how-can-i-help">How can I
+help?</a></li>
+<li><a href="#i-found-a-bug-where-do-i-report-it" id="toc-i-found-a-bug-where-do-i-report-it">I found a bug, where do I
+report it?</a></li>
+<li><a href="#i-have-a-feature-request" id="toc-i-have-a-feature-request">I have a feature request</a></li>
+</ul></li>
+<li><a href="#still-have-questions" id="toc-still-have-questions">Still
+Have Questions?</a></li>
+</ul></li>
+</ul>
+</div>
+</nav>
+<h1 id="faq---frequently-asked-questions">FAQ - Frequently Asked
+Questions</h1>
+<p>Common questions about KeepTower answered.</p>
+<h2 id="general-questions">General Questions</h2>
+<h3 id="what-is-keeptower">What is KeepTower?</h3>
+<p>KeepTower is a password manager for Linux that stores your passwords
+in an encrypted vault on your local machine. It uses military-grade
+encryption (AES-256-GCM) and includes optional Reed-Solomon error
+correction to protect against data corruption.</p>
+<h3 id="why-another-password-manager">Why another password manager?</h3>
+<p>KeepTower fills a specific niche: - <strong>Linux-native:</strong>
+Built with GTK4/libadwaita for deep Linux integration - <strong>Error
+correction:</strong> Reed-Solomon FEC protects against bit rot -
+<strong>Hardware 2FA:</strong> YubiKey challenge-response authentication
+- <strong>Multi-format import/export:</strong> CSV, KeePass XML,
+1Password 1PIF - <strong>Local-first:</strong> No cloud dependency, your
+data stays on your machine - <strong>Modern:</strong> Uses latest GTK4
+and C++23 - <strong>Open source:</strong> GPL-3.0 licensed, auditable
+code</p>
+<h3 id="is-keeptower-ready-for-production-use">Is KeepTower ready for
+production use?</h3>
+<p><strong>Current Status:</strong> v0.2.5-beta</p>
+<ul>
+<li>✅ <strong>Encryption:</strong> Production-ready (AES-256-GCM,
+PBKDF2)</li>
+<li>✅ <strong>Core features:</strong> Stable and tested (12/12 tests
+passing)</li>
+<li>✅ <strong>YubiKey 2FA:</strong> Hardware security implemented</li>
+<li>✅ <strong>Import/Export:</strong> Multi-format support (CSV,
+KeePass, 1Password)</li>
+<li>⚠️ <strong>UI/Features:</strong> Beta stage, polish ongoing</li>
+</ul>
+<p><strong>Recommendation:</strong> Suitable for personal use and
+testing. All critical security features are implemented and the code is
+open source for community review.</p>
+<h3 id="is-it-free">Is it free?</h3>
+<p>Yes! KeepTower is <strong>free and open source</strong> software
+licensed under GPL-3.0-or-later. No subscriptions, no ads, no premium
+tiers.</p>
+<hr />
+<h2 id="security-questions">Security Questions</h2>
+<h3 id="how-secure-is-keeptower">How secure is KeepTower?</h3>
+<p>KeepTower uses industry-standard encryption: -
+<strong>AES-256-GCM:</strong> Same encryption used by governments and
+militaries - <strong>PBKDF2:</strong> 100,000 iterations for key
+derivation - <strong>YubiKey 2FA:</strong> Optional hardware-based
+second factor - <strong>Memory protection:</strong> Sensitive data
+locked in RAM with secure clearing - <strong>Thread safety:</strong>
+Mutex protection for vault operations - <strong>Open source:</strong>
+Code available for security review</p>
+<p>See <strong>[[Security]]</strong> for detailed information.</p>
+<h3 id="what-if-i-forget-my-master-password">What if I forget my master
+password?</h3>
+<p><strong>There is no password recovery.</strong> This is by design - a
+recovery mechanism would be a security backdoor.</p>
+<p><strong>Recommendations:</strong> - Write down your master password
+and store in a safe - Use a strong but memorable passphrase - Consider
+using YubiKey 2FA for additional protection - Keep backup YubiKeys if
+using hardware 2FA</p>
+<h3 id="can-someone-crack-my-vault-with-a-supercomputer">Can someone
+crack my vault with a supercomputer?</h3>
+<p><strong>Short answer:</strong> Not with a strong master password.</p>
+<p><strong>Long answer:</strong> - AES-256 is computationally infeasible
+to crack by brute force - PBKDF2 with 100,000 iterations makes password
+guessing expensive - YubiKey 2FA adds hardware-based protection -
+<strong>Weak password = weak security</strong> regardless of encryption
+- Strong 16+ character password + YubiKey = effectively uncrackable with
+current technology</p>
+<h3 id="is-my-vault-safe-from-bit-rot">Is my vault safe from bit
+rot?</h3>
+<p><strong>With Reed-Solomon enabled: Yes!</strong></p>
+<p>Reed-Solomon error correction can automatically repair corruption: -
+10% redundancy: Can correct minor corruption - 25% redundancy: Can
+correct significant corruption - 50% redundancy: Can recover from
+extensive damage</p>
+<p><strong>Without FEC:</strong> Corruption may make vault
+unopenable.</p>
+<p><strong>Recommendation:</strong> Enable FEC with 10-25% redundancy +
+keep backups.</p>
+<h3 id="has-keeptower-been-security-reviewed">Has KeepTower been
+security reviewed?</h3>
+<p><strong>Yes</strong>, through multiple internal reviews: - Uses
+well-established cryptography (OpenSSL) - Open source code available for
+community review - Based on industry best practices (OWASP, NIST) -
+Multiple security-focused code reviews completed - All tests passing
+with clean valgrind runs - See CODE_REVIEW.md for detailed security
+analysis</p>
+<p><strong>External professional audit:</strong> Not planned at this
+time due to resource constraints. The code is open source and available
+for independent security review by qualified professionals.</p>
+<table style="width:6%;">
+<colgroup>
+<col style="width: 5%" />
+</colgroup>
+<tbody>
+<tr class="odd">
+<td>- All tests passing with clean valgrind runs</td>
+</tr>
+</tbody>
+</table>
+<h2 id="usage-questions">Usage Questions</h2>
+<h3 id="can-i-use-keeptower-on-multiple-computers">Can I use KeepTower
+on multiple computers?</h3>
+<p><strong>Yes</strong>, with manual sync:</p>
+<ol type="1">
+<li>Store vault on USB drive or cloud storage (Dropbox, etc.)</li>
+<li>Open vault on any computer with KeepTower installed</li>
+<li>Save changes</li>
+<li>Changes persist in the vault file</li>
+</ol>
+<p><strong>Caution with cloud storage:</strong> - Vault is encrypted,
+but cloud provider has the file - Consider encrypting the cloud folder
+too (cryptomator, etc.) - Beware of sync conflicts if editing on
+multiple devices simultaneously</p>
+<p><strong>Future:</strong> Native sync support is planned for
+v0.4.x+</p>
+<h3 id="can-i-import-passwords-from-another-password-manager">Can I
+import passwords from another password manager?</h3>
+<p><strong>Yes!</strong> (as of v0.2.5-beta)</p>
+<p><strong>Supported import formats:</strong> - <strong>CSV</strong> -
+Universal format supported by most password managers - <strong>KeePass
+2.x XML</strong> - Import from KeePass/KeePassXC - <strong>1Password
+1PIF</strong> - Import from 1Password</p>
+<p><strong>How to import:</strong> 1. Export from your current password
+manager 2. Click File → Import Accounts in KeepTower 3. Select the
+exported file 4. Format is auto-detected from file extension 5. Review
+imported accounts 6. Save vault 7. <strong>Securely delete the exported
+file!</strong></p>
+<p>See <strong>[[User Guide]]</strong> for detailed instructions.</p>
+<h3 id="can-i-export-my-passwords">Can I export my passwords?</h3>
+<p><strong>Yes!</strong> (as of v0.2.5-beta)</p>
+<p><strong>Supported export formats:</strong> - <strong>CSV</strong> -
+Universal format (tested and verified) - <strong>KeePass 2.x
+XML</strong> - For use with KeePass/KeePassXC (round-trip tested) -
+<strong>1Password 1PIF</strong> - For use with 1Password (round-trip
+tested)</p>
+<p><strong>Security measures:</strong> - Password re-authentication
+required - YubiKey touch required if 2FA enabled - Files created with
+0600 permissions (owner only) - Security warning dialog</p>
+<p><strong>⚠️ Warning:</strong> Exported files contain
+<strong>unencrypted plaintext</strong> passwords. Delete after use!</p>
+<p>See <strong>[[User Guide]]</strong> for detailed instructions.</p>
+<h3 id="does-keeptower-work-with-browser-extensions">Does KeepTower work
+with browser extensions?</h3>
+<p><strong>Not yet.</strong> Browser extension is planned for
+v0.3.x.</p>
+<p><strong>Current workaround:</strong> - Copy password with Ctrl+C -
+Paste into browser (Ctrl+V) - Auto-clear (30 seconds) prevents long-term
+clipboard exposure</p>
+<h3 id="can-i-use-keeptower-on-my-phone">Can I use KeepTower on my
+phone?</h3>
+<p><strong>No.</strong> Mobile apps are not currently planned.</p>
+<p>KeepTower is focused on providing a secure, feature-rich password
+manager for Linux desktop environments. Mobile support would require
+significant development resources and is not part of the current
+roadmap.</p>
+<p><strong>Current workaround:</strong> - Use a mobile password manager
+for on-the-go access - Sync vault file via cloud storage and access on
+Linux desktop - Many users maintain separate mobile password managers
+—</p>
+<h2 id="yubikey-questions">YubiKey Questions</h2>
+<h3 id="what-is-yubikey-2fa-and-why-use-it">What is YubiKey 2FA and why
+use it?</h3>
+<p>YubiKey 2FA adds hardware-based security to your vault: -
+<strong>Two-factor encryption:</strong> Password + YubiKey both required
+- <strong>Protection against password compromise:</strong> Vault stays
+secure even if password is stolen - <strong>Hardware-based:</strong>
+Cannot be copied or phished - <strong>Offline:</strong> No internet
+required, works anywhere</p>
+<h3 id="what-yubikey-models-are-supported">What YubiKey models are
+supported?</h3>
+<p>Any YubiKey with <strong>HMAC-SHA1 challenge-response</strong>
+support: - YubiKey 5 Series (all variants) - YubiKey 4 Series - Security
+Key Series - NEO</p>
+<p><strong>Configuration slot:</strong> Uses slot 2 (programmable)</p>
+<h3 id="can-i-use-multiple-yubikeys">Can I use multiple YubiKeys?</h3>
+<p><strong>Yes!</strong> (as of v0.2.4-beta)</p>
+<p>Configure backup YubiKeys for redundancy: 1. Open Preferences 2.
+YubiKey Settings 3. Add additional keys 4. Each key is authorized
+independently</p>
+<p><strong>Recommendation:</strong> Keep a backup YubiKey in a safe
+place!</p>
+<h3 id="what-if-i-lose-my-yubikey">What if I lose my YubiKey?</h3>
+<p><strong>With backup keys configured:</strong> - Use any authorized
+backup YubiKey - No data loss</p>
+<p><strong>Without backup keys:</strong> - <strong>Vault is
+inaccessible</strong> - No recovery mechanism (by design for security) -
+This is why backup keys are strongly recommended!</p>
+<hr />
+<h2 id="importexport-questions">Import/Export Questions</h2>
+<h3 id="what-formats-can-i-importexport">What formats can I
+import/export?</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Format</th>
+<th>Import</th>
+<th>Export</th>
+<th>Tested</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>CSV</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅ Verified</td>
+</tr>
+<tr class="even">
+<td>KeePass 2.x XML</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅ Round-trip</td>
+</tr>
+<tr class="odd">
+<td>1Password 1PIF</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅ Round-trip</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Round-trip tested:</strong> Export → Import → Data verified
+intact</p>
+<h3 id="will-export-create-duplicates-if-i-import-back">Will export
+create duplicates if I import back?</h3>
+<p><strong>Yes.</strong> Duplicate detection is not currently
+implemented.</p>
+<p><strong>Workaround:</strong> - Don’t import into the same vault you
+exported from - Use export for migration or backup purposes - Manually
+review and delete duplicates if needed</p>
+<p><strong>Future:</strong> Duplicate detection planned for v0.3.x</p>
+<h3 id="can-i-export-to-an-encrypted-format">Can I export to an
+encrypted format?</h3>
+<p><strong>Not yet.</strong> All exports are plaintext.</p>
+<p><strong>Security recommendations:</strong> - Delete exported file
+immediately after use - Store on encrypted storage if keeping - Never
+share exported files - Use secure file transfer if needed</p>
+<p><strong>Future:</strong> Encrypted export option planned for
+v0.3.x</p>
+<h3 id="how-do-i-migrate-from-another-password-manager">How do I migrate
+from another password manager?</h3>
+<p><strong>Example: From KeePass to KeepTower</strong></p>
+<ol type="1">
+<li>Open your vault in KeePass</li>
+<li>File → Export → KeePass XML</li>
+<li>Open KeepTower, create new vault</li>
+<li>File → Import Accounts</li>
+<li>Select the XML file</li>
+<li>Review imported accounts</li>
+<li>Save vault</li>
+<li><strong>Securely delete the XML file</strong></li>
+<li>Configure YubiKey 2FA in KeepTower</li>
+<li>Enable Reed-Solomon FEC</li>
+</ol>
+<p><strong>Example: From 1Password to KeepTower</strong></p>
+<ol type="1">
+<li>Export from 1Password as 1PIF format</li>
+<li>Follow same steps as above</li>
+<li>Delete exported 1PIF file</li>
+</ol>
+<hr />
+<h2 id="technical-questions">Technical Questions</h2>
+<h3 id="what-file-format-does-keeptower-use">What file format does
+KeepTower use?</h3>
+<p><strong>Custom encrypted format:</strong> - Binary format (not
+text/XML) - Structure: Salt + IV + Flags + Encrypted(Protobuf) + Auth
+Tag - Optionally Reed-Solomon encoded - Optional YubiKey response
+integration</p>
+<p><strong>Why custom format?</strong> - Allows Reed-Solomon error
+correction - Authenticated encryption (GCM) - YubiKey 2FA integration -
+Smaller file size (binary vs XML)</p>
+<p><strong>Import/export</strong> to standard formats supported via CSV,
+KeePass XML, 1Password 1PIF.</p>
+<h3 id="can-i-access-my-vault-from-the-command-line">Can I access my
+vault from the command line?</h3>
+<p><strong>Not yet.</strong> CLI interface is planned for a future
+release.</p>
+<p><strong>Use cases:</strong> - Scripting and automation - Headless
+servers - Quick password lookups</p>
+<h3 id="what-are-the-system-requirements">What are the system
+requirements?</h3>
+<p><strong>Minimum:</strong> - Linux kernel 5.x+ - GTK4 (4.10+) - 100 MB
+RAM - 10 MB disk space</p>
+<p><strong>Recommended:</strong> - Modern Linux distribution (Ubuntu
+24.04+, Fedora 39+) - GTK4 4.14+ - 256 MB RAM - SSD storage</p>
+<p><strong>Supported architectures:</strong> - x86_64 (primary) -
+aarch64 (ARM64) - Should work but less tested</p>
+<h3 id="does-keeptower-collect-any-data">Does KeepTower collect any
+data?</h3>
+<p><strong>No.</strong> KeepTower collects zero data: - No telemetry -
+No analytics - No crash reports - No network connections (except opening
+URLs you click)</p>
+<p>Your data stays on your machine. Period.</p>
+<h3 id="why-is-the-file-size-larger-with-reed-solomon">Why is the file
+size larger with Reed-Solomon?</h3>
+<p>Reed-Solomon adds redundant data for error correction: - 10%
+redundancy = ~10% larger file - 25% redundancy = ~25% larger file -
+Trade-off: Size vs. protection against corruption</p>
+<p><strong>Example:</strong> - Original vault: 100 KB - With 10% FEC:
+110 KB - With 25% FEC: 125 KB</p>
+<h3 id="can-i-disable-reed-solomon-after-enabling-it">Can I disable
+Reed-Solomon after enabling it?</h3>
+<p><strong>Yes</strong>, but with caution:</p>
+<ol type="1">
+<li>Open vault with FEC enabled</li>
+<li>Go to Preferences</li>
+<li>Check “Apply to current vault”</li>
+<li>Uncheck “Enable Reed-Solomon”</li>
+<li>Save preferences</li>
+<li>Save vault</li>
+</ol>
+<p><strong>Warning:</strong> Once disabled, vault is no longer protected
+against corruption. You can re-enable it later.</p>
+<hr />
+<h2 id="troubleshooting">Troubleshooting</h2>
+<h3 id="keeptower-wont-open-my-vault">KeepTower won’t open my vault</h3>
+<p><strong>Possible causes:</strong></p>
+<ol type="1">
+<li><strong>Wrong password</strong>
+<ul>
+<li>Double-check (case-sensitive)</li>
+<li>Caps Lock off?</li>
+<li>Try typing slowly</li>
+</ul></li>
+<li><strong>YubiKey not inserted</strong>
+<ul>
+<li>Insert YubiKey if 2FA enabled</li>
+<li>Touch key when LED flashes</li>
+<li>Try backup YubiKey if primary lost</li>
+</ul></li>
+<li><strong>Corrupted vault file</strong>
+<ul>
+<li>Try opening a backup</li>
+<li>Check file size (corrupted = unusual size)</li>
+<li>If FEC enabled, try again (may auto-repair)</li>
+</ul></li>
+<li><strong>Wrong file</strong>
+<ul>
+<li>Ensure it’s actually a <code>.vault</code> file</li>
+<li>Check creation date</li>
+</ul></li>
+</ol>
+<h3 id="cannot-load-vault-error">“Cannot load vault” error</h3>
+<p>Try these steps:</p>
+<ol type="1">
+<li>Check file permissions: <code>ls -l vault.vault</code></li>
+<li>Ensure you own the file: <code>chown $USER vault.vault</code></li>
+<li>Check available disk space: <code>df -h</code></li>
+<li>Try opening a backup</li>
+<li>Report issue on GitHub with error details</li>
+</ol>
+<h3 id="importexport-errors">Import/export errors</h3>
+<p><strong>Import fails:</strong> - Check file size (&lt;100MB limit) -
+Verify file format (correct extension) - Check for file corruption -
+Review error messages for specific issues</p>
+<p><strong>Export fails:</strong> - Check disk space - Verify write
+permissions - Try different location - Check vault is properly
+unlocked</p>
+<h3 id="application-crashes-on-startup">Application crashes on
+startup</h3>
+<p><strong>Possible fixes:</strong></p>
+<ol type="1">
+<li>Delete config: <code>rm -rf ~/.config/keeptower/</code></li>
+<li>Update GTK4: <code>sudo dnf update gtkmm4.0</code></li>
+<li>Check for library conflicts</li>
+<li>Run from terminal to see errors: <code>./keeptower</code></li>
+<li>Report issue with error output</li>
+</ol>
+<h3 id="backup-files-are-taking-up-space">Backup files are taking up
+space</h3>
+<p><strong>Normal behavior</strong> if backups enabled.</p>
+<p><strong>To manage:</strong> - Reduce “Number of backups to keep” in
+Preferences - Manually delete old backups
+(<code>.backup.TIMESTAMP</code> files) - Disable backups if you have
+external backup solution</p>
+<p><strong>Don’t delete all backups</strong> - keep at least a few
+recent ones!</p>
+<hr />
+<h2 id="feature-requests">Feature Requests</h2>
+<h3 id="can-keeptower-support-totp2fa-codes">Can KeepTower support
+TOTP/2FA codes?</h3>
+<p><strong>Planned for v0.3.x!</strong></p>
+<p>This is a high-priority feature. Will support: - TOTP (Time-based
+One-Time Passwords) - Compatible with Google Authenticator, Authy, etc.
+- QR code scanning - Manual secret entry</p>
+<h3 id="will-there-be-a-windowsmac-version">Will there be a Windows/Mac
+version?</h3>
+<p><strong>Maybe.</strong></p>
+<ul>
+<li>Linux is the primary focus</li>
+<li>Cross-platform considered for v0.3.x+</li>
+<li>Depends on interest and contributors</li>
+</ul>
+<p>GTK4 is cross-platform, so technically possible.</p>
+<h3 id="can-you-add-password-sharing">Can you add password sharing?</h3>
+<p><strong>Planned for v0.4.x+</strong></p>
+<p>Shared vaults for families/teams are on the roadmap: - Permission
+levels (read/edit/admin) - Secure sharing protocol - Audit logs</p>
+<h3 id="what-about-cloud-sync">What about cloud sync?</h3>
+<p><strong>Planned for v0.4.x+</strong></p>
+<p>Optional sync support: - Self-hosted sync server - End-to-end
+encryption - Conflict resolution - Still usable offline</p>
+<p><strong>Philosophy:</strong> Local-first with optional sync, never
+cloud-dependent.</p>
+<hr />
+<h2 id="contributing">Contributing</h2>
+<h3 id="how-can-i-help">How can I help?</h3>
+<p>Many ways to contribute:</p>
+<ul>
+<li><strong>Code:</strong> Check issues labeled “good first issue”</li>
+<li><strong>Testing:</strong> Report bugs, test new features, test with
+real KeePass/1Password</li>
+<li><strong>Documentation:</strong> Improve wiki, write guides</li>
+<li><strong>Translations:</strong> i18n support coming soon</li>
+<li><strong>Design:</strong> UI/UX improvements, icons, themes</li>
+<li><strong>Spread the word:</strong> Tell others, write blog posts</li>
+</ul>
+<p>See <strong>[<a href="#contributing">Contributing</a>]</strong> for
+details.</p>
+<h3 id="i-found-a-bug-where-do-i-report-it">I found a bug, where do I
+report it?</h3>
+<p><a href="https://github.com/tjdeveng/KeepTower/issues">GitHub
+Issues</a></p>
+<p><strong>Include:</strong> - KeepTower version (v0.2.5-beta, etc.) -
+Linux distribution and version - Steps to reproduce - Expected vs actual
+behavior - Error messages (from terminal if available)</p>
+<h3 id="i-have-a-feature-request">I have a feature request</h3>
+<p>Great! Open an issue on GitHub with: - Clear description of feature -
+Use case (why you need it) - Proposed UI/UX (if applicable) -
+Willingness to contribute (optional)</p>
+<p>Check roadmap first to see if it’s already planned.</p>
+<hr />
+<h2 id="still-have-questions">Still Have Questions?</h2>
+<ul>
+<li><strong>Wiki:</strong> Browse other pages for detailed info</li>
+<li><strong>GitHub Issues:</strong> Search existing issues</li>
+<li><strong>GitHub Discussions:</strong> Ask questions, discuss
+ideas</li>
+</ul>
+<hr />
+<p><strong>Didn’t find your answer?</strong> Open a discussion on GitHub
+and we’ll add it to this FAQ!</p>
+<div class="footer">
+    <p>KeepTower v0.3.0-beta | <a href="https://github.com/tjdeveng/KeepTower">GitHub</a> | GPL-3.0 License</p>
+</div>
+</div>
+</body>
+</html>

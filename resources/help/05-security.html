@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="pandoc">
+    <title>Security - KeepTower Help</title>
+    <style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+    <style type="text/css">
+:root {
+--bg-color: #ffffff;
+--text-color: #2e3436;
+--link-color: #3584e4;
+--link-hover: #1c71d8;
+--code-bg: #f6f5f4;
+--border-color: #deddda;
+--header-bg: #f6f5f4;
+--sidebar-bg: #fafafa;
+}
+@media (prefers-color-scheme: dark) {
+:root {
+--bg-color: #1e1e1e;
+--text-color: #eeeeec;
+--link-color: #62a0ea;
+--link-hover: #99c1f1;
+--code-bg: #2e2e2e;
+--border-color: #3e3e3e;
+--header-bg: #2a2a2a;
+--sidebar-bg: #242424;
+}
+}
+* {
+margin: 0;
+padding: 0;
+box-sizing: border-box;
+}
+body {
+font-family: 'Cantarell', 'DejaVu Sans', sans-serif;
+line-height: 1.6;
+color: var(--text-color);
+background-color: var(--bg-color);
+
+
+}
+.container {
+max-width: 900px;
+margin: 0 auto;
+padding: 20px;
+}
+
+h1, h2, h3, h4, h5, h6 {
+margin-top: 24px;
+margin-bottom: 16px;
+font-weight: 600;
+line-height: 1.25;
+}
+h1 {
+font-size: 2em;
+border-bottom: 2px solid var(--border-color);
+padding-bottom: 8px;
+}
+h2 {
+font-size: 1.5em;
+border-bottom: 1px solid var(--border-color);
+padding-bottom: 6px;
+}
+h3 {
+font-size: 1.25em;
+}
+h4 {
+font-size: 1.1em;
+}
+p {
+margin-bottom: 16px;
+}
+
+a {
+color: var(--link-color);
+text-decoration: none;
+}
+a:hover {
+color: var(--link-hover);
+text-decoration: underline;
+}
+
+ul, ol {
+margin-bottom: 16px;
+padding-left: 32px;
+}
+li {
+margin-bottom: 8px;
+}
+
+code {
+background-color: var(--code-bg);
+padding: 2px 6px;
+border-radius: 3px;
+font-family: 'Source Code Pro', 'Courier New', monospace;
+font-size: 0.9em;
+}
+pre {
+background-color: var(--code-bg);
+border: 1px solid var(--border-color);
+border-radius: 6px;
+padding: 16px;
+overflow-x: auto;
+margin-bottom: 16px;
+}
+pre code {
+background-color: transparent;
+padding: 0;
+}
+
+table {
+width: 100%;
+border-collapse: collapse;
+margin-bottom: 16px;
+}
+th, td {
+padding: 12px;
+text-align: left;
+border: 1px solid var(--border-color);
+}
+th {
+background-color: var(--header-bg);
+font-weight: 600;
+}
+
+blockquote {
+border-left: 4px solid var(--link-color);
+padding-left: 16px;
+margin: 16px 0;
+font-style: italic;
+color: var(--text-color);
+opacity: 0.9;
+}
+
+.nav-header {
+background-color: var(--header-bg);
+padding: 16px 20px;
+border-bottom: 1px solid var(--border-color);
+margin-bottom: 20px;
+}
+.nav-header h1 {
+margin: 0;
+border: none;
+padding: 0;
+font-size: 1.5em;
+}
+.nav-links {
+margin-top: 12px;
+display: flex;
+gap: 16px;
+flex-wrap: wrap;
+}
+.nav-links a {
+padding: 6px 12px;
+background-color: var(--code-bg);
+border-radius: 4px;
+font-size: 0.9em;
+}
+
+.note, .warning, .tip {
+padding: 16px;
+border-left: 4px solid;
+margin: 16px 0;
+border-radius: 4px;
+}
+.note {
+background-color: rgba(53, 132, 228, 0.1);
+border-color: #3584e4;
+}
+.warning {
+background-color: rgba(230, 97, 0, 0.1);
+border-color: #e66100;
+}
+.tip {
+background-color: rgba(38, 162, 105, 0.1);
+border-color: #26a269;
+}
+
+img {
+max-width: 100%;
+height: auto;
+margin: 16px 0;
+border-radius: 6px;
+}
+
+hr {
+border: none;
+border-top: 1px solid var(--border-color);
+margin: 24px 0;
+}
+
+.footer {
+margin-top: 48px;
+padding-top: 24px;
+border-top: 1px solid var(--border-color);
+font-size: 0.9em;
+opacity: 0.8;
+text-align: center;
+}
+
+kbd {
+background-color: var(--code-bg);
+border: 1px solid var(--border-color);
+border-radius: 3px;
+padding: 2px 6px;
+font-family: 'Cantarell', sans-serif;
+font-size: 0.85em;
+box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+}
+
+.toc {
+background-color: var(--sidebar-bg);
+border: 1px solid var(--border-color);
+border-radius: 6px;
+padding: 16px;
+margin-bottom: 24px;
+}
+.toc h2 {
+margin-top: 0;
+font-size: 1.2em;
+border: none;
+padding: 0;
+}
+.toc ul {
+margin-bottom: 0;
+}
+.toc li {
+margin-bottom: 4px;
+}
+</style>
+</head>
+<body>
+<div class="nav-header">
+    <h1>Security</h1>
+    <div class="nav-links">
+        <a href="00-home.html">🏠 Home</a>
+        <a href="01-getting-started.html">🚀 Getting Started</a>
+        <a href="02-installation.html">💾 Installation</a>
+        <a href="03-user-guide.html">📖 User Guide</a>
+        <a href="04-faq.html">❓ FAQ</a>
+        <a href="05-security.html">🔒 Security</a>
+    </div>
+</div>
+<div class="container">
+<nav id="TOC" role="doc-toc">
+<div class="toc">
+<h2>Table of Contents</h2>
+<ul>
+<li><a href="#security" id="toc-security">Security</a>
+<ul>
+<li><a href="#table-of-contents" id="toc-table-of-contents">Table of
+Contents</a></li>
+<li><a href="#security-overview" id="toc-security-overview">Security
+Overview</a></li>
+<li><a href="#fips-140-3-compliance" id="toc-fips-140-3-compliance">FIPS
+140-3 Compliance</a>
+<ul>
+<li><a href="#overview" id="toc-overview">Overview</a></li>
+<li><a href="#fips-approved-algorithms-used" id="toc-fips-approved-algorithms-used">FIPS-Approved Algorithms
+Used</a></li>
+<li><a href="#building-with-fips-mode" id="toc-building-with-fips-mode">Building with FIPS Mode</a></li>
+<li><a href="#fips-mode-verification" id="toc-fips-mode-verification">FIPS Mode Verification</a></li>
+<li><a href="#compliance-notes" id="toc-compliance-notes">Compliance
+Notes</a></li>
+<li><a href="#for-organizations" id="toc-for-organizations">For
+Organizations</a></li>
+<li><a href="#references" id="toc-references">References</a></li>
+</ul></li>
+<li><a href="#encryption" id="toc-encryption">Encryption</a>
+<ul>
+<li><a href="#algorithm-aes-256-gcm" id="toc-algorithm-aes-256-gcm">Algorithm: AES-256-GCM</a></li>
+<li><a href="#implementation" id="toc-implementation">Implementation</a></li>
+<li><a href="#libraries-used" id="toc-libraries-used">Libraries
+Used</a></li>
+</ul></li>
+<li><a href="#key-derivation" id="toc-key-derivation">Key Derivation</a>
+<ul>
+<li><a href="#master-password-encryption-key" id="toc-master-password-encryption-key">Master Password → Encryption
+Key</a></li>
+<li><a href="#pbkdf2-configuration" id="toc-pbkdf2-configuration">PBKDF2
+Configuration</a></li>
+<li><a href="#salt" id="toc-salt">Salt</a></li>
+</ul></li>
+<li><a href="#memory-protection" id="toc-memory-protection">Memory
+Protection</a>
+<ul>
+<li><a href="#sensitive-data-handling" id="toc-sensitive-data-handling">Sensitive Data Handling</a></li>
+<li><a href="#copy-protection" id="toc-copy-protection">Copy
+Protection</a></li>
+</ul></li>
+<li><a href="#error-correction" id="toc-error-correction">Error
+Correction</a>
+<ul>
+<li><a href="#reed-solomon-forward-error-correction-fec" id="toc-reed-solomon-forward-error-correction-fec">Reed-Solomon Forward
+Error Correction (FEC)</a></li>
+<li><a href="#how-it-works" id="toc-how-it-works">How It Works</a></li>
+<li><a href="#configuration" id="toc-configuration">Configuration</a></li>
+<li><a href="#when-to-enable-fec" id="toc-when-to-enable-fec">When to
+Enable FEC</a></li>
+</ul></li>
+<li><a href="#threat-model" id="toc-threat-model">Threat Model</a>
+<ul>
+<li><a href="#what-keeptower-protects-against" id="toc-what-keeptower-protects-against">What KeepTower Protects
+Against</a></li>
+<li><a href="#what-keeptower-does-not-protect-against" id="toc-what-keeptower-does-not-protect-against">What KeepTower Does NOT
+Protect Against</a></li>
+<li><a href="#trust-boundaries" id="toc-trust-boundaries">Trust
+Boundaries</a></li>
+</ul></li>
+<li><a href="#security-best-practices" id="toc-security-best-practices">Security Best Practices</a>
+<ul>
+<li><a href="#master-password" id="toc-master-password">Master
+Password</a></li>
+<li><a href="#vault-storage" id="toc-vault-storage">Vault
+Storage</a></li>
+<li><a href="#system-security" id="toc-system-security">System
+Security</a></li>
+<li><a href="#account-security" id="toc-account-security">Account
+Security</a></li>
+</ul></li>
+<li><a href="#reporting-security-issues" id="toc-reporting-security-issues">Reporting Security Issues</a></li>
+<li><a href="#security-roadmap" id="toc-security-roadmap">Security
+Roadmap</a></li>
+<li><a href="#security-resources" id="toc-security-resources">Security
+Resources</a></li>
+<li><a href="#conclusion" id="toc-conclusion">Conclusion</a></li>
+</ul></li>
+</ul>
+</div>
+</nav>
+<h1 id="security">Security</h1>
+<p>This document explains how KeepTower protects your passwords and the
+security measures implemented.</p>
+<h2 id="table-of-contents">Table of Contents</h2>
+<ul>
+<li><a href="#security-overview">Security Overview</a></li>
+<li><a href="#fips-140-3-compliance">FIPS 140-3 Compliance</a></li>
+<li><a href="#encryption">Encryption</a></li>
+<li><a href="#key-derivation">Key Derivation</a></li>
+<li><a href="#memory-protection">Memory Protection</a></li>
+<li><a href="#error-correction">Error Correction</a></li>
+<li><a href="#threat-model">Threat Model</a></li>
+<li><a href="#security-best-practices">Security Best Practices</a></li>
+<li><a href="#reporting-security-issues">Reporting Security
+Issues</a></li>
+</ul>
+<hr />
+<h2 id="security-overview">Security Overview</h2>
+<p>KeepTower employs multiple layers of security to protect your
+passwords:</p>
+<ol type="1">
+<li><strong>Strong Encryption:</strong> AES-256-GCM authenticated
+encryption</li>
+<li><strong>Key Derivation:</strong> PBKDF2 with 100,000 iterations</li>
+<li><strong>Memory Protection:</strong> Sensitive data locked in
+RAM</li>
+<li><strong>Data Integrity:</strong> Reed-Solomon forward error
+correction</li>
+<li><strong>Automatic Backups:</strong> Protection against data
+loss</li>
+<li><strong>No Cloud Dependency:</strong> Your data never leaves your
+machine</li>
+</ol>
+<p><strong>Security Status:</strong> ✅ Production-ready encryption
+<strong>Security Status:</strong> ✅ Multiple internal security reviews
+completed</p>
+<hr />
+<h2 id="fips-140-3-compliance">FIPS 140-3 Compliance</h2>
+<h3 id="overview">Overview</h3>
+<p>KeepTower is designed to use <strong>FIPS 140-3 approved
+cryptographic algorithms</strong> and can operate in FIPS mode when
+built with OpenSSL’s FIPS provider.</p>
+<p><strong>Current Status:</strong> - ✅ <strong>FIPS-Approved
+Algorithms:</strong> All cryptographic operations use FIPS 140-3
+approved algorithms - ✅ <strong>OpenSSL FIPS Provider:</strong>
+Compatible with OpenSSL 3.x FIPS module - ⏳ <strong>Independent
+Validation:</strong> Not yet independently validated or certified</p>
+<p><strong>Important Disclaimer:</strong> &gt; KeepTower uses FIPS 140-3
+approved cryptographic algorithms through OpenSSL 3.x, but
+<strong>KeepTower itself has not undergone independent FIPS 140-3
+validation or certification</strong>. Organizations requiring validated
+cryptographic modules should ensure their OpenSSL installation is FIPS
+140-3 validated and properly configured.</p>
+<h3 id="fips-approved-algorithms-used">FIPS-Approved Algorithms
+Used</h3>
+<p>KeepTower exclusively uses cryptographic primitives approved for FIPS
+140-3:</p>
+<p><strong>Symmetric Encryption:</strong> - <strong>AES-256-GCM</strong>
+(FIPS 197, SP 800-38D) - 256-bit key length - Galois/Counter Mode for
+authenticated encryption - Provides both confidentiality and
+integrity</p>
+<p><strong>Key Derivation:</strong> -
+<strong>PBKDF2-HMAC-SHA256</strong> (FIPS 198-1, SP 800-132) - For V1
+vaults: 100,000 iterations minimum - For V2 vaults: Configurable
+iterations (default 600,000) - 256-bit output for AES-256 keys</p>
+<p><strong>Password History:</strong> -
+<strong>PBKDF2-HMAC-SHA512</strong> (FIPS 198-1, SP 800-132) - 600,000
+iterations (OWASP 2023 recommendation) - Separate from vault encryption
+for defense in depth</p>
+<p><strong>Random Number Generation:</strong> - <strong>OpenSSL
+DRBG</strong> (SP 800-90A) - Used for all salt, IV, and key generation -
+Cryptographically secure random number generation</p>
+<p><strong>Message Authentication:</strong> -
+<strong>HMAC-SHA256</strong> (FIPS 198-1) - for key wrapping (V2 vaults)
+- <strong>GCM Authentication Tag</strong> - for data integrity</p>
+<h3 id="building-with-fips-mode">Building with FIPS Mode</h3>
+<p>To build KeepTower with FIPS mode support:</p>
+<ol type="1">
+<li><p><strong>Install OpenSSL 3.x with FIPS module:</strong></p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Build OpenSSL with FIPS (included in KeepTower build)</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/build-openssl-3.5.sh /tmp/openssl-build /tmp/openssl-install</span></code></pre></div></li>
+<li><p><strong>Build KeepTower:</strong></p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">meson</span> setup build</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ex">meson</span> compile <span class="at">-C</span> build</span></code></pre></div></li>
+<li><p><strong>Enable FIPS mode at runtime:</strong></p>
+<ul>
+<li>Set <code>OPENSSL_CONF</code> environment variable to FIPS
+configuration</li>
+<li>KeepTower will automatically use FIPS-approved operations</li>
+</ul></li>
+</ol>
+<h3 id="fips-mode-verification">FIPS Mode Verification</h3>
+<p>KeepTower includes built-in FIPS mode detection:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Check if FIPS mode is active</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="op">(</span>VaultManager<span class="op">::</span>is_fips_mode_enabled<span class="op">())</span> <span class="op">{</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="co">// FIPS mode active - only approved algorithms available</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p><strong>Test FIPS Mode:</strong></p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Run FIPS mode tests</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> build</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="va">OPENSSL_CONF</span><span class="op">=</span>/path/to/openssl.cnf <span class="ex">./tests/fips_mode_test</span></span></code></pre></div>
+<h3 id="compliance-notes">Compliance Notes</h3>
+<p><strong>What FIPS 140-3 Means:</strong> - Use of cryptographically
+approved algorithms - Proper key management and secure random generation
+- Validated cryptographic module (OpenSSL FIPS)</p>
+<p><strong>What KeepTower Provides:</strong> - ✅ Exclusive use of
+FIPS-approved algorithms - ✅ Proper implementation of approved modes -
+✅ Integration with OpenSSL FIPS provider - ✅ Memory protection for key
+material - ✅ Secure key derivation and storage</p>
+<p><strong>What KeepTower Does NOT Provide:</strong> - ❌ Independent
+FIPS 140-3 validation certificate - ❌ CMVP (Cryptographic Module
+Validation Program) listing - ❌ Formal security policy documentation
+(FIPS required) - ❌ Physical security controls (FIPS Level 2+)</p>
+<h3 id="for-organizations">For Organizations</h3>
+<p><strong>If you require FIPS 140-3 compliance:</strong></p>
+<ol type="1">
+<li><strong>Cryptographic Foundation:</strong> KeepTower uses only
+FIPS-approved algorithms, providing a solid cryptographic
+foundation</li>
+<li><strong>OpenSSL Validation:</strong> Ensure your OpenSSL
+installation has a valid FIPS 140-3 certificate</li>
+<li><strong>Configuration:</strong> Enable FIPS mode in OpenSSL and
+verify KeepTower detects it</li>
+<li><strong>Testing:</strong> Run KeepTower’s FIPS test suite to verify
+operation</li>
+<li><strong>Documentation:</strong> Note that KeepTower is “FIPS 140-3
+Ready” not “FIPS 140-3 Validated”</li>
+</ol>
+<p><strong>Risk Assessment:</strong> - <strong>Low Risk:</strong>
+Personal use, password management - <strong>Medium Risk:</strong> Small
+business, team password sharing - <strong>High Risk:</strong>
+Government, healthcare, financial - may require formal FIPS
+validation</p>
+<p><strong>Future Plans:</strong> - ⏳ Seeking CMVP validation (requires
+significant investment) - ⏳ Formal security policy documentation - ⏳
+Third-party security audit</p>
+<h3 id="references">References</h3>
+<ul>
+<li><strong>FIPS 140-3:</strong> <a href="https://csrc.nist.gov/publications/detail/fips/140/3/final">Security
+Requirements for Cryptographic Modules</a></li>
+<li><strong>NIST SP 800-132:</strong> <a href="https://csrc.nist.gov/publications/detail/sp/800-132/final">Recommendation
+for Password-Based Key Derivation</a></li>
+<li><strong>NIST SP 800-38D:</strong> <a href="https://csrc.nist.gov/publications/detail/sp/800-38d/final">Recommendation
+for Block Cipher Modes: GCM</a></li>
+<li><strong>OpenSSL FIPS:</strong> <a href="https://www.openssl.org/docs/fips.html">OpenSSL FIPS
+Module</a></li>
+</ul>
+<hr />
+<h2 id="encryption">Encryption</h2>
+<h3 id="algorithm-aes-256-gcm">Algorithm: AES-256-GCM</h3>
+<p><strong>What is it?</strong> - <strong>AES-256:</strong> Advanced
+Encryption Standard with 256-bit keys - <strong>GCM:</strong>
+Galois/Counter Mode - provides both encryption and authentication -
+<strong>Industry Standard:</strong> Used by governments, militaries, and
+security professionals worldwide</p>
+<p><strong>Why GCM?</strong> - ✅ <strong>Authenticated
+Encryption:</strong> Detects tampering or corruption - ✅ <strong>Proven
+Security:</strong> NIST-approved, widely analyzed - ✅
+<strong>Performance:</strong> Hardware-accelerated on modern CPUs - ✅
+<strong>Parallel:</strong> Fast encryption/decryption</p>
+<h3 id="implementation">Implementation</h3>
+<pre><code>V1 Vault File Structure (Single-User):
+┌──────────────────────────────────────┐
+│ Salt (32 bytes)                      │  ← Random per vault
+├──────────────────────────────────────┤
+│ IV (12 bytes)                        │  ← Random per save
+├──────────────────────────────────────┤
+│ Flags (1 byte)                       │  ← FEC enabled?
+├──────────────────────────────────────┤
+│ RS Redundancy (1 byte, optional)     │  ← If FEC enabled
+├──────────────────────────────────────┤
+│ Encrypted Data + Auth Tag            │  ← Your passwords
+│ (Reed-Solomon encoded if FEC enabled)│
+└──────────────────────────────────────┘
+
+V2 Vault File Structure (Multi-User):
+┌──────────────────────────────────────┐
+│ Magic Number (4 bytes)               │  ← &quot;KT2\0&quot;
+├──────────────────────────────────────┤
+│ Version (2 bytes)                    │  ← Format version
+├──────────────────────────────────────┤
+│ Flags (1 byte)                       │  ← FEC, YubiKey flags
+├──────────────────────────────────────┤
+│ Security Policy (117 bytes)          │  ← Min length, history depth, etc.
+├──────────────────────────────────────┤
+│ User Slots (variable)                │  ← Per-user encrypted DEKs
+│   ├─ Username, salt, wrapped DEK     │
+│   ├─ Role, password history          │
+│   └─ YubiKey enrollment info         │
+├──────────────────────────────────────┤
+│ Data Encryption Key (DEK) encrypted  │  ← Encrypts vault data
+├──────────────────────────────────────┤
+│ IV (12 bytes)                        │  ← Random per save
+├──────────────────────────────────────┤
+│ Encrypted Account Data + Auth Tag    │  ← Your passwords
+│ (Reed-Solomon encoded if FEC enabled)│
+└──────────────────────────────────────┘</code></pre>
+<p><strong>Security Properties:</strong> -
+<strong>Confidentiality:</strong> Password cannot be read without key -
+<strong>Integrity:</strong> Tampering is detected via auth tag -
+<strong>Authenticity:</strong> Verifies data came from KeepTower</p>
+<h3 id="libraries-used">Libraries Used</h3>
+<ul>
+<li><strong>OpenSSL 3.x:</strong> Industry-standard cryptography
+library</li>
+<li><strong>Audited:</strong> Extensively reviewed and
+battle-tested</li>
+<li><strong>FIPS:</strong> Can be built with FIPS 140-2 compliance</li>
+</ul>
+<hr />
+<h2 id="key-derivation">Key Derivation</h2>
+<h3 id="master-password-encryption-key">Master Password → Encryption
+Key</h3>
+<p>Your master password is never stored. Instead, it’s used to derive
+the encryption key using <strong>PBKDF2</strong> (Password-Based Key
+Derivation Function 2).</p>
+<h3 id="pbkdf2-configuration">PBKDF2 Configuration</h3>
+<pre><code>Key Derivation:
+  Algorithm:   PBKDF2-HMAC-SHA256
+  Iterations:  100,000
+  Salt:        32 bytes (random, unique per vault)
+  Output:      256-bit encryption key</code></pre>
+<p><strong>Why 100,000 iterations?</strong> - Makes brute-force attacks
+expensive (time-consuming) - OWASP recommends 600,000+ for password
+hashing, but 100,000 is reasonable for key derivation given the salt -
+Balance between security and user experience (unlock time)</p>
+<p><strong>Future:</strong> Consideration for Argon2id (memory-hard
+algorithm) for even better resistance to GPU/ASIC attacks.</p>
+<h3 id="salt">Salt</h3>
+<p>Each vault has a unique, random 32-byte salt: - <strong>Prevents
+rainbow tables:</strong> Pre-computed attack tables are useless -
+<strong>Unique per vault:</strong> Same password in different vaults =
+different keys - <strong>Stored in vault file:</strong> Not secret, but
+essential for key derivation</p>
+<hr />
+<h2 id="memory-protection">Memory Protection</h2>
+<h3 id="sensitive-data-handling">Sensitive Data Handling</h3>
+<p>KeepTower takes special care with sensitive data in memory:</p>
+<p><strong>Protected Data:</strong> - Master password (during derivation
+only) - Encryption key - Salt - Decrypted password data</p>
+<p><strong>Protection Methods:</strong></p>
+<ol type="1">
+<li><strong>Memory Locking (<code>mlock</code>)</strong>
+<ul>
+<li>Prevents swapping to disk</li>
+<li>Keeps sensitive data in RAM only</li>
+<li>Protected even if system hibernates</li>
+</ul></li>
+<li><strong>Secure Clearing</strong>
+<ul>
+<li>Overwrites memory with zeros before freeing</li>
+<li>Prevents data from lingering in memory</li>
+<li>Applied to passwords, keys, and salts</li>
+</ul></li>
+<li><strong>Minimal Exposure</strong>
+<ul>
+<li>Passwords decrypted only when needed</li>
+<li>Keys kept in memory only while vault is open</li>
+<li>Clipboard auto-cleared after 45 seconds</li>
+</ul></li>
+</ol>
+<h3 id="copy-protection">Copy Protection</h3>
+<p>When you copy a password: 1. Password copied to clipboard 2. Timer
+starts (45 seconds) 3. Clipboard automatically cleared 4. Prevents
+accidental paste hours later</p>
+<hr />
+<h2 id="error-correction">Error Correction</h2>
+<h3 id="reed-solomon-forward-error-correction-fec">Reed-Solomon Forward
+Error Correction (FEC)</h3>
+<p><strong>Problem:</strong> Storage devices can corrupt data over time:
+- <strong>Bit rot:</strong> Random bit flips in storage - <strong>Bad
+sectors:</strong> Failing storage hardware - <strong>Silent
+corruption:</strong> Errors that go undetected</p>
+<p><strong>Solution:</strong> Reed-Solomon adds redundant data that
+allows automatic correction.</p>
+<h3 id="how-it-works">How It Works</h3>
+<pre><code>Original Data:     [====== 100 KB ======]
+10% Redundancy:    [====== 100 KB ======][=== 10 KB ===]
+                    ↑ Original Data        ↑ Parity Data
+
+If corruption occurs in original data:
+[==X=== 100 KB ==X===][=== 10 KB ===]
+Reed-Solomon can automatically repair the X&#39;s</code></pre>
+<h3 id="configuration">Configuration</h3>
+<p><strong>Redundancy Levels:</strong> - <strong>5%:</strong> Minimal
+protection (small overhead) - <strong>10%:</strong> Good balance
+(recommended) - <strong>25%:</strong> High protection -
+<strong>50%:</strong> Maximum protection (can recover from extensive
+damage)</p>
+<p><strong>Trade-offs:</strong> - ✅ <strong>Higher redundancy</strong>
+= Better protection - ⚠️ <strong>Higher redundancy</strong> = Larger
+file size - ⚠️ <strong>Higher redundancy</strong> = Slightly slower
+save/load</p>
+<h3 id="when-to-enable-fec">When to Enable FEC</h3>
+<p><strong>Enable FEC if:</strong> - ✅ Vault stored on aging hard
+drives - ✅ Vault stored on USB flash drives - ✅ Vault stored on
+network storage - ✅ Long-term archival - ✅ Critical data you can’t
+afford to lose</p>
+<p><strong>FEC less critical if:</strong> - ⚠️ Vault on modern SSD with
+SMART monitoring - ⚠️ Regular backups to multiple locations - ⚠️ Vault
+frequently updated (recent backups)</p>
+<p><strong>Recommendation:</strong> Enable with 10-25% redundancy for
+peace of mind.</p>
+<hr />
+<h2 id="threat-model">Threat Model</h2>
+<h3 id="what-keeptower-protects-against">What KeepTower Protects
+Against</h3>
+<p>✅ <strong>File Access Attacks</strong> - Someone gains read access
+to your vault file - Protection: Strong encryption (AES-256-GCM)</p>
+<p>✅ <strong>Offline Brute-Force Attacks</strong> - Attacker tries
+millions of passwords offline - Protection: PBKDF2 (100,000 iterations)
+makes each attempt expensive</p>
+<p>✅ <strong>Data Corruption</strong> - Bit rot, bad sectors, storage
+failures - Protection: Reed-Solomon error correction</p>
+<p>✅ <strong>Memory Dumps</strong> - Attacker gains access to system
+memory - Protection: Memory locking prevents swap exposure</p>
+<p>✅ <strong>Shoulder Surfing</strong> - Someone watching while you
+enter passwords - Protection: Passwords hidden by default, temporary
+show</p>
+<p>✅ <strong>Clipboard Snooping</strong> - Malware reading clipboard -
+Protection: Auto-clear after 45 seconds (partial)</p>
+<h3 id="what-keeptower-does-not-protect-against">What KeepTower Does NOT
+Protect Against</h3>
+<p>❌ <strong>Weak Master Password</strong> - If your master password is
+“password123”, encryption doesn’t help - <strong>Mitigation:</strong>
+Use password strength indicator, enforce minimums</p>
+<p>❌ <strong>Keyloggers</strong> - Malware recording keystrokes -
+<strong>Mitigation:</strong> Keep system malware-free, use 2FA for
+critical accounts</p>
+<p>❌ <strong>Physical Access to Running System</strong> - Attacker with
+physical access while vault is open - <strong>Mitigation:</strong> Close
+vault when away, screen lock, full disk encryption</p>
+<p>❌ <strong>Compromised Operating System</strong> - Root-level malware
+can bypass all protections - <strong>Mitigation:</strong> Keep system
+updated, use trusted software sources</p>
+<p>❌ <strong>Coercion</strong> - Being forced to reveal master password
+- <strong>Mitigation:</strong> Not solvable by software (legal/physical
+security)</p>
+<p>❌ <strong>Quantum Computing (Future)</strong> - AES-256 is
+quantum-resistant, but PBKDF2 may need upgrades -
+<strong>Mitigation:</strong> Monitor quantum computing advances, plan
+migration</p>
+<h3 id="trust-boundaries">Trust Boundaries</h3>
+<p><strong>You must trust:</strong> - ✅ KeepTower source code (open for
+review) - ✅ Your operating system - ✅ OpenSSL cryptography library -
+✅ Your hardware (CPU, RAM, storage) - ✅ Your physical security</p>
+<p><strong>You do NOT need to trust:</strong> - ❌ Cloud providers (no
+cloud used) - ❌ Network security (vault never transmitted) - ❌
+Third-party services</p>
+<hr />
+<h2 id="security-best-practices">Security Best Practices</h2>
+<h3 id="master-password">Master Password</h3>
+<ol type="1">
+<li><strong>Use a strong, unique master password</strong>
+<ul>
+<li>At least 16 characters</li>
+<li>Mix of character types</li>
+<li>Not used anywhere else</li>
+</ul></li>
+<li><strong>Memorize it or store securely</strong>
+<ul>
+<li>Write it down and store in a safe</li>
+<li>Don’t store in another password manager</li>
+<li>Don’t email or text it</li>
+</ul></li>
+<li><strong>No recovery available</strong>
+<ul>
+<li>Forgetting the master password = permanent data loss</li>
+<li>This is by design (no backdoor)</li>
+</ul></li>
+</ol>
+<h3 id="vault-storage">Vault Storage</h3>
+<ol type="1">
+<li><strong>Store on encrypted drive</strong>
+<ul>
+<li>Use LUKS/dm-crypt for full disk encryption</li>
+<li>Protects against physical theft</li>
+</ul></li>
+<li><strong>Regular backups</strong>
+<ul>
+<li>Enable automatic backups in preferences</li>
+<li>Periodically copy vault to external storage</li>
+<li>Test backups by opening them</li>
+</ul></li>
+<li><strong>Secure location</strong>
+<ul>
+<li>Home directory with proper permissions (<code>chmod 600</code>)</li>
+<li>Not in cloud sync folder (unless encrypted separately)</li>
+<li>Not on network shares without encryption</li>
+</ul></li>
+</ol>
+<h3 id="system-security">System Security</h3>
+<ol type="1">
+<li><strong>Keep software updated</strong>
+<ul>
+<li>Update KeepTower when new versions available</li>
+<li>Keep OS and libraries patched</li>
+</ul></li>
+<li><strong>Use full disk encryption</strong>
+<ul>
+<li>Protects vault if device is stolen</li>
+<li>LUKS for Linux</li>
+</ul></li>
+<li><strong>Lock screen when away</strong>
+<ul>
+<li>Close vault before leaving computer</li>
+<li>Enable automatic screen lock</li>
+</ul></li>
+<li><strong>Antivirus/Malware protection</strong>
+<ul>
+<li>Use ClamAV or similar</li>
+<li>Be cautious with downloaded software</li>
+</ul></li>
+</ol>
+<h3 id="account-security">Account Security</h3>
+<ol type="1">
+<li><strong>Use generated passwords</strong>
+<ul>
+<li>Let KeepTower create strong random passwords</li>
+<li>16+ characters recommended</li>
+</ul></li>
+<li><strong>Never reuse passwords</strong>
+<ul>
+<li>Every account should have unique password</li>
+<li>If one site breached, others remain safe</li>
+</ul></li>
+<li><strong>Enable 2FA where available</strong>
+<ul>
+<li>Two-factor authentication adds extra layer</li>
+<li>TOTP support coming in future KeepTower release</li>
+</ul></li>
+</ol>
+<hr />
+<h2 id="reporting-security-issues">Reporting Security Issues</h2>
+<p><strong>Found a security vulnerability?</strong></p>
+<p>Please report it responsibly:</p>
+<ol type="1">
+<li><strong>Do NOT create a public GitHub issue</strong></li>
+<li><strong>Email:</strong> (Check repository for security contact)</li>
+<li><strong>Include:</strong>
+<ul>
+<li>Description of the vulnerability</li>
+<li>Steps to reproduce</li>
+<li>Potential impact</li>
+<li>Suggested fix (if you have one)</li>
+</ul></li>
+</ol>
+<p><strong>Response:</strong> - We aim to respond within 48 hours -
+We’ll work with you on a fix - Credit given in security advisories (if
+desired)</p>
+<p><strong>Hall of Fame:</strong> Future security researchers who report
+valid issues will be listed in the repository.</p>
+<hr />
+<h2 id="security-roadmap">Security Roadmap</h2>
+<p>Planned security enhancements:</p>
+<ul>
+<li><strong>Argon2id key derivation</strong> - Memory-hard
+algorithm</li>
+<li><strong>Hardware key support</strong> - YubiKey, FIDO2</li>
+<li><strong>Biometric unlock</strong> - Fingerprint via polkit</li>
+<li><strong>Security audit</strong> - Third-party professional
+review</li>
+<li><strong>TOTP/2FA</strong> - Two-factor auth code generation</li>
+<li><strong>Breach monitoring</strong> - HaveIBeenPwned integration</li>
+</ul>
+<p>See <strong>ROADMAP.md</strong> for timeline.</p>
+<hr />
+<h2 id="security-resources">Security Resources</h2>
+<p><strong>Learn more about cryptography:</strong> - <a href="https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html">OWASP
+Password Storage Cheat Sheet</a> - <a href="https://pages.nist.gov/800-63-3/sp800-63b.html">NIST Special
+Publication 800-63B</a> - <a href="https://latacora.micro.blog/2018/04/03/cryptographic-right-answers.html">Cryptographic
+Right Answers</a></p>
+<p><strong>Security best practices:</strong> - <a href="https://ssd.eff.org/">EFF Surveillance Self-Defense</a> - <a href="https://www.privacyguides.org/">PrivacyGuides.org</a></p>
+<hr />
+<h2 id="conclusion">Conclusion</h2>
+<p>KeepTower is designed with security as the top priority. While no
+system is 100% secure, we follow industry best practices and use proven
+cryptography to protect your passwords.</p>
+<p><strong>Remember:</strong> - Your master password is the weakest link
+- make it strong - Enable backups and FEC for data protection - Keep
+your system secure (updates, screen lock, encryption) - Report any
+security concerns responsibly</p>
+<p>Stay secure! 🔒</p>
+<div class="footer">
+    <p>KeepTower v0.3.0-beta | <a href="https://github.com/tjdeveng/KeepTower">GitHub</a> | GPL-3.0 License</p>
+</div>
+</div>
+</body>
+</html>

@@ -12,5 +12,5 @@ gresources = gnome.compile_resources(
   dependencies: [],
 )
 
-# Make resources available to src/
-# The generated C file will be compiled into the executable
+# Note: Help resources are compiled in src/meson.build
+# This is because they need to be linked into the main executable

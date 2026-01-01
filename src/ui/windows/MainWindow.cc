@@ -451,6 +451,9 @@ MainWindow::MainWindow()
     };
     m_menu_manager->setup_actions(action_callbacks);
 
+    // Setup help menu actions
+    m_menu_manager->setup_help_actions();
+
     // Setup V2-specific actions separately to capture return values
     m_export_action = add_action("export-csv", sigc::mem_fun(*this, &MainWindow::on_export_to_csv));
     m_change_password_action = add_action("change-password", sigc::mem_fun(*this, &MainWindow::on_change_my_password));

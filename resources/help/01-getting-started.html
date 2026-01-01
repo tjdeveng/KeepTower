@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="pandoc">
+    <title>Getting Started - KeepTower Help</title>
+    <style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+</style>
+    <style type="text/css">
+:root {
+--bg-color: #ffffff;
+--text-color: #2e3436;
+--link-color: #3584e4;
+--link-hover: #1c71d8;
+--code-bg: #f6f5f4;
+--border-color: #deddda;
+--header-bg: #f6f5f4;
+--sidebar-bg: #fafafa;
+}
+@media (prefers-color-scheme: dark) {
+:root {
+--bg-color: #1e1e1e;
+--text-color: #eeeeec;
+--link-color: #62a0ea;
+--link-hover: #99c1f1;
+--code-bg: #2e2e2e;
+--border-color: #3e3e3e;
+--header-bg: #2a2a2a;
+--sidebar-bg: #242424;
+}
+}
+* {
+margin: 0;
+padding: 0;
+box-sizing: border-box;
+}
+body {
+font-family: 'Cantarell', 'DejaVu Sans', sans-serif;
+line-height: 1.6;
+color: var(--text-color);
+background-color: var(--bg-color);
+
+
+}
+.container {
+max-width: 900px;
+margin: 0 auto;
+padding: 20px;
+}
+
+h1, h2, h3, h4, h5, h6 {
+margin-top: 24px;
+margin-bottom: 16px;
+font-weight: 600;
+line-height: 1.25;
+}
+h1 {
+font-size: 2em;
+border-bottom: 2px solid var(--border-color);
+padding-bottom: 8px;
+}
+h2 {
+font-size: 1.5em;
+border-bottom: 1px solid var(--border-color);
+padding-bottom: 6px;
+}
+h3 {
+font-size: 1.25em;
+}
+h4 {
+font-size: 1.1em;
+}
+p {
+margin-bottom: 16px;
+}
+
+a {
+color: var(--link-color);
+text-decoration: none;
+}
+a:hover {
+color: var(--link-hover);
+text-decoration: underline;
+}
+
+ul, ol {
+margin-bottom: 16px;
+padding-left: 32px;
+}
+li {
+margin-bottom: 8px;
+}
+
+code {
+background-color: var(--code-bg);
+padding: 2px 6px;
+border-radius: 3px;
+font-family: 'Source Code Pro', 'Courier New', monospace;
+font-size: 0.9em;
+}
+pre {
+background-color: var(--code-bg);
+border: 1px solid var(--border-color);
+border-radius: 6px;
+padding: 16px;
+overflow-x: auto;
+margin-bottom: 16px;
+}
+pre code {
+background-color: transparent;
+padding: 0;
+}
+
+table {
+width: 100%;
+border-collapse: collapse;
+margin-bottom: 16px;
+}
+th, td {
+padding: 12px;
+text-align: left;
+border: 1px solid var(--border-color);
+}
+th {
+background-color: var(--header-bg);
+font-weight: 600;
+}
+
+blockquote {
+border-left: 4px solid var(--link-color);
+padding-left: 16px;
+margin: 16px 0;
+font-style: italic;
+color: var(--text-color);
+opacity: 0.9;
+}
+
+.nav-header {
+background-color: var(--header-bg);
+padding: 16px 20px;
+border-bottom: 1px solid var(--border-color);
+margin-bottom: 20px;
+}
+.nav-header h1 {
+margin: 0;
+border: none;
+padding: 0;
+font-size: 1.5em;
+}
+.nav-links {
+margin-top: 12px;
+display: flex;
+gap: 16px;
+flex-wrap: wrap;
+}
+.nav-links a {
+padding: 6px 12px;
+background-color: var(--code-bg);
+border-radius: 4px;
+font-size: 0.9em;
+}
+
+.note, .warning, .tip {
+padding: 16px;
+border-left: 4px solid;
+margin: 16px 0;
+border-radius: 4px;
+}
+.note {
+background-color: rgba(53, 132, 228, 0.1);
+border-color: #3584e4;
+}
+.warning {
+background-color: rgba(230, 97, 0, 0.1);
+border-color: #e66100;
+}
+.tip {
+background-color: rgba(38, 162, 105, 0.1);
+border-color: #26a269;
+}
+
+img {
+max-width: 100%;
+height: auto;
+margin: 16px 0;
+border-radius: 6px;
+}
+
+hr {
+border: none;
+border-top: 1px solid var(--border-color);
+margin: 24px 0;
+}
+
+.footer {
+margin-top: 48px;
+padding-top: 24px;
+border-top: 1px solid var(--border-color);
+font-size: 0.9em;
+opacity: 0.8;
+text-align: center;
+}
+
+kbd {
+background-color: var(--code-bg);
+border: 1px solid var(--border-color);
+border-radius: 3px;
+padding: 2px 6px;
+font-family: 'Cantarell', sans-serif;
+font-size: 0.85em;
+box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+}
+
+.toc {
+background-color: var(--sidebar-bg);
+border: 1px solid var(--border-color);
+border-radius: 6px;
+padding: 16px;
+margin-bottom: 24px;
+}
+.toc h2 {
+margin-top: 0;
+font-size: 1.2em;
+border: none;
+padding: 0;
+}
+.toc ul {
+margin-bottom: 0;
+}
+.toc li {
+margin-bottom: 4px;
+}
+</style>
+</head>
+<body>
+<div class="nav-header">
+    <h1>Getting Started</h1>
+    <div class="nav-links">
+        <a href="00-home.html">🏠 Home</a>
+        <a href="01-getting-started.html">🚀 Getting Started</a>
+        <a href="02-installation.html">💾 Installation</a>
+        <a href="03-user-guide.html">📖 User Guide</a>
+        <a href="04-faq.html">❓ FAQ</a>
+        <a href="05-security.html">🔒 Security</a>
+    </div>
+</div>
+<div class="container">
+<nav id="TOC" role="doc-toc">
+<div class="toc">
+<h2>Table of Contents</h2>
+<ul>
+<li><a href="#getting-started" id="toc-getting-started">Getting
+Started</a>
+<ul>
+<li><a href="#first-launch" id="toc-first-launch">First Launch</a></li>
+<li><a href="#creating-your-first-vault" id="toc-creating-your-first-vault">Creating Your First Vault</a>
+<ul>
+<li><a href="#step-1-create-new-vault" id="toc-step-1-create-new-vault">Step 1: Create New Vault</a></li>
+<li><a href="#step-2-set-master-password" id="toc-step-2-set-master-password">Step 2: Set Master Password</a></li>
+<li><a href="#step-3-optional-configure-yubikey-2fa" id="toc-step-3-optional-configure-yubikey-2fa">Step 3: (Optional)
+Configure YubiKey 2FA</a></li>
+<li><a href="#step-4-confirm-password" id="toc-step-4-confirm-password">Step 4: Confirm Password</a></li>
+</ul></li>
+<li><a href="#understanding-the-interface" id="toc-understanding-the-interface">Understanding the Interface</a>
+<ul>
+<li><a href="#main-window-components" id="toc-main-window-components">Main Window Components</a></li>
+</ul></li>
+<li><a href="#adding-your-first-password" id="toc-adding-your-first-password">Adding Your First Password</a>
+<ul>
+<li><a href="#step-1-click-add-account" id="toc-step-1-click-add-account">Step 1: Click Add Account</a></li>
+<li><a href="#step-2-fill-in-account-details" id="toc-step-2-fill-in-account-details">Step 2: Fill in Account
+Details</a></li>
+<li><a href="#step-3-choose-a-strong-password" id="toc-step-3-choose-a-strong-password">Step 3: Choose a Strong
+Password</a></li>
+<li><a href="#step-4-save" id="toc-step-4-save">Step 4: Save</a></li>
+</ul></li>
+<li><a href="#using-stored-passwords" id="toc-using-stored-passwords">Using Stored Passwords</a>
+<ul>
+<li><a href="#viewing-a-password" id="toc-viewing-a-password">Viewing a
+Password</a></li>
+<li><a href="#copying-a-password" id="toc-copying-a-password">Copying a
+Password</a></li>
+<li><a href="#opening-account-urls" id="toc-opening-account-urls">Opening Account URLs</a></li>
+</ul></li>
+<li><a href="#organizing-accounts" id="toc-organizing-accounts">Organizing Accounts</a>
+<ul>
+<li><a href="#searching" id="toc-searching">Searching</a></li>
+<li><a href="#editing-accounts" id="toc-editing-accounts">Editing
+Accounts</a></li>
+<li><a href="#deleting-accounts" id="toc-deleting-accounts">Deleting
+Accounts</a></li>
+</ul></li>
+<li><a href="#importing-existing-passwords" id="toc-importing-existing-passwords">Importing Existing Passwords</a>
+<ul>
+<li><a href="#step-1-export-from-your-current-manager" id="toc-step-1-export-from-your-current-manager">Step 1: Export from
+Your Current Manager</a></li>
+<li><a href="#step-2-import-into-keeptower" id="toc-step-2-import-into-keeptower">Step 2: Import into
+KeepTower</a></li>
+<li><a href="#step-3-clean-up" id="toc-step-3-clean-up">Step 3: Clean
+Up</a></li>
+</ul></li>
+<li><a href="#saving-your-vault" id="toc-saving-your-vault">Saving Your
+Vault</a></li>
+<li><a href="#closing-and-opening-vaults" id="toc-closing-and-opening-vaults">Closing and Opening Vaults</a>
+<ul>
+<li><a href="#closing-a-vault" id="toc-closing-a-vault">Closing a
+Vault</a></li>
+<li><a href="#opening-an-existing-vault" id="toc-opening-an-existing-vault">Opening an Existing Vault</a></li>
+</ul></li>
+<li><a href="#configuring-preferences" id="toc-configuring-preferences">Configuring Preferences</a>
+<ul>
+<li><a href="#reed-solomon-error-correction" id="toc-reed-solomon-error-correction">Reed-Solomon Error
+Correction</a></li>
+<li><a href="#yubikey-settings" id="toc-yubikey-settings">YubiKey
+Settings</a></li>
+<li><a href="#backups" id="toc-backups">Backups</a></li>
+<li><a href="#theme" id="toc-theme">Theme</a></li>
+</ul></li>
+<li><a href="#security-best-practices" id="toc-security-best-practices">Security Best Practices</a></li>
+<li><a href="#whats-next" id="toc-whats-next">What’s Next?</a></li>
+</ul></li>
+</ul>
+</div>
+</nav>
+<h1 id="getting-started">Getting Started</h1>
+<p>This guide will walk you through creating your first vault and adding
+your first password.</p>
+<h2 id="first-launch">First Launch</h2>
+<p>When you launch KeepTower for the first time, you’ll see an empty
+main window with no vault open.</p>
+<h2 id="creating-your-first-vault">Creating Your First Vault</h2>
+<h3 id="step-1-create-new-vault">Step 1: Create New Vault</h3>
+<ol type="1">
+<li>Click <strong>File</strong> → <strong>New Vault</strong> (or press
+<code>Ctrl+N</code>)</li>
+<li>Choose a location and filename for your vault
+<ul>
+<li>Example: <code>~/Documents/passwords.vault</code></li>
+<li>The <code>.vault</code> extension is added automatically</li>
+</ul></li>
+</ol>
+<h3 id="step-2-set-master-password">Step 2: Set Master Password</h3>
+<p>A dialog will appear asking you to create a master password. This is
+the <strong>most important password</strong> you’ll ever create for
+KeepTower.</p>
+<p><strong>Master Password Guidelines:</strong> - ✅ At least 12
+characters long - ✅ Mix of uppercase, lowercase, numbers, and symbols -
+✅ Not a common word or pattern - ✅ Unique to KeepTower (don’t reuse
+elsewhere) - ✅ Memorable but strong</p>
+<p><strong>⚠️ IMPORTANT:</strong> There is <strong>no password
+recovery</strong>. If you forget your master password, your vault cannot
+be opened. Write it down and store it securely if needed.</p>
+<p>The password strength indicator will help you create a strong
+password: - 🔴 <strong>Weak</strong> - Too short or common - 🟡
+<strong>Fair</strong> - Acceptable but could be stronger - 🟢
+<strong>Strong</strong> - Good password - 🔵 <strong>Very
+Strong</strong> - Excellent password</p>
+<h3 id="step-3-optional-configure-yubikey-2fa">Step 3: (Optional)
+Configure YubiKey 2FA</h3>
+<p>If you have a YubiKey, you can enable hardware two-factor
+authentication:</p>
+<ol type="1">
+<li>Check “Enable YubiKey 2FA” option</li>
+<li>Insert your YubiKey</li>
+<li>Touch the key when prompted</li>
+<li>Your YubiKey is now authorized</li>
+</ol>
+<p><strong>Benefits:</strong> - Two-factor vault encryption - Protection
+even if master password is compromised - Hardware-based security</p>
+<p><strong>Note:</strong> Keep a backup YubiKey configured in case you
+lose your primary key!</p>
+<h3 id="step-4-confirm-password">Step 4: Confirm Password</h3>
+<p>Re-enter your master password to confirm. Both entries must match
+exactly.</p>
+<p>Click <strong>Create</strong> and your vault will be created and
+opened.</p>
+<hr />
+<h2 id="understanding-the-interface">Understanding the Interface</h2>
+<h3 id="main-window-components">Main Window Components</h3>
+<pre><code>┌─────────────────────────────────────────┐
+│ File  Edit  View  Help                  │  ← Menu Bar
+├─────────────────────────────────────────┤
+│ [🔍 Search...]                    [+]   │  ← Search &amp; Add
+├─────────────┬───────────────────────────┤
+│             │                           │
+│  Account    │    Account Details        │
+│  List       │    ────────────────       │
+│             │    Name: example.com      │
+│  □ Example  │    Username: user@mail    │
+│  □ Work     │    Password: ••••••••     │
+│  □ Email    │    URL: https://...       │
+│             │    Notes: ...             │
+│             │    [Show] [Copy]          │
+│             │                           │
+└─────────────┴───────────────────────────┘</code></pre>
+<ul>
+<li><strong>Left Panel:</strong> List of all accounts in your vault</li>
+<li><strong>Right Panel:</strong> Details of the selected account</li>
+<li><strong>Search Bar:</strong> Quickly find accounts by name or
+username</li>
+<li><strong>Add Button (+):</strong> Create new account entries</li>
+</ul>
+<hr />
+<h2 id="adding-your-first-password">Adding Your First Password</h2>
+<h3 id="step-1-click-add-account">Step 1: Click Add Account</h3>
+<p>Click the <strong>+</strong> button in the toolbar or press
+<code>Ctrl+A</code>.</p>
+<h3 id="step-2-fill-in-account-details">Step 2: Fill in Account
+Details</h3>
+<p><strong>Required Fields:</strong> - <strong>Account Name:</strong>
+Descriptive name (e.g., “Gmail”, “GitHub”, “Banking”) -
+<strong>Password:</strong> The password for this account</p>
+<p><strong>Optional Fields:</strong> - <strong>Username:</strong> Your
+username or email for this account - <strong>URL:</strong> Website URL
+(e.g., https://example.com) - <strong>Notes:</strong> Additional
+information about the account</p>
+<h3 id="step-3-choose-a-strong-password">Step 3: Choose a Strong
+Password</h3>
+<p>You can: - <strong>Enter an existing password</strong> - If you’re
+saving a password you already have - <strong>Use the password
+generator</strong> - Click “Generate” for a secure random password (16+
+characters recommended)</p>
+<h3 id="step-4-save">Step 4: Save</h3>
+<p>Click <strong>Add</strong> to save the account to your vault.</p>
+<hr />
+<h2 id="using-stored-passwords">Using Stored Passwords</h2>
+<h3 id="viewing-a-password">Viewing a Password</h3>
+<ol type="1">
+<li>Select an account from the list</li>
+<li>Click the <strong>Show</strong> button (eye icon) to reveal the
+password</li>
+<li>Click again to hide it</li>
+</ol>
+<h3 id="copying-a-password">Copying a Password</h3>
+<ol type="1">
+<li>Select an account from the list</li>
+<li>Click <strong>Copy Password</strong> button</li>
+<li>The password is copied to your clipboard</li>
+<li>Paste it where needed (<code>Ctrl+V</code>)</li>
+</ol>
+<p><strong>Security Note:</strong> The password is automatically cleared
+from your clipboard after 30 seconds.</p>
+<h3 id="opening-account-urls">Opening Account URLs</h3>
+<p>If you’ve saved a URL for an account: 1. Select the account 2. Click
+the <strong>🔗 Open</strong> button 3. The URL opens in your default
+browser</p>
+<hr />
+<h2 id="organizing-accounts">Organizing Accounts</h2>
+<h3 id="searching">Searching</h3>
+<p>Type in the search bar to filter accounts by: - Account name -
+Username - URL</p>
+<p>The list updates in real-time as you type.</p>
+<h3 id="editing-accounts">Editing Accounts</h3>
+<ol type="1">
+<li>Select an account</li>
+<li>Click <strong>Edit</strong> button</li>
+<li>Modify any fields</li>
+<li>Click <strong>Save</strong></li>
+</ol>
+<h3 id="deleting-accounts">Deleting Accounts</h3>
+<ol type="1">
+<li>Select an account</li>
+<li>Click <strong>Delete</strong> button</li>
+<li>Confirm the deletion</li>
+</ol>
+<p><strong>⚠️ Warning:</strong> Deleted accounts cannot be recovered
+(unless you have backups enabled).</p>
+<hr />
+<h2 id="importing-existing-passwords">Importing Existing Passwords</h2>
+<p>Already have passwords in another password manager? You can import
+them!</p>
+<h3 id="step-1-export-from-your-current-manager">Step 1: Export from
+Your Current Manager</h3>
+<p>Most password managers support exporting to CSV format. Check your
+current manager’s documentation.</p>
+<h3 id="step-2-import-into-keeptower">Step 2: Import into KeepTower</h3>
+<ol type="1">
+<li>Click <strong>File</strong> → <strong>Import Accounts</strong></li>
+<li>Select your exported file (CSV, KeePass XML, or 1Password 1PIF)</li>
+<li>KeepTower will automatically detect the format</li>
+<li>Review the imported accounts</li>
+<li>Save your vault</li>
+</ol>
+<p><strong>Supported Formats:</strong> - CSV (comma-separated values) -
+KeePass 2.x XML - 1Password 1PIF</p>
+<h3 id="step-3-clean-up">Step 3: Clean Up</h3>
+<ol type="1">
+<li>Review imported accounts for duplicates</li>
+<li>Update any weak passwords using the generator</li>
+<li><strong>Securely delete the exported file</strong> (contains
+plaintext passwords!)</li>
+</ol>
+<hr />
+<h2 id="saving-your-vault">Saving Your Vault</h2>
+<p>KeepTower automatically marks the vault as modified when you make
+changes. You can:</p>
+<ul>
+<li><strong>Manually Save:</strong> Click <strong>File</strong> →
+<strong>Save</strong> or press <code>Ctrl+S</code></li>
+<li><strong>Auto-save:</strong> Changes are saved when you close the
+vault or application</li>
+</ul>
+<hr />
+<h2 id="closing-and-opening-vaults">Closing and Opening Vaults</h2>
+<h3 id="closing-a-vault">Closing a Vault</h3>
+<ul>
+<li>Click <strong>File</strong> → <strong>Close Vault</strong> or press
+<code>Ctrl+W</code></li>
+<li>You’ll be prompted to save if there are unsaved changes</li>
+</ul>
+<h3 id="opening-an-existing-vault">Opening an Existing Vault</h3>
+<ol type="1">
+<li>Click <strong>File</strong> → <strong>Open Vault</strong> or press
+<code>Ctrl+O</code></li>
+<li>Select your <code>.vault</code> file</li>
+<li>Enter your master password</li>
+<li>Touch your YubiKey if 2FA is enabled</li>
+<li>Click <strong>Open</strong></li>
+</ol>
+<hr />
+<h2 id="configuring-preferences">Configuring Preferences</h2>
+<p>Access preferences via <strong>Edit</strong> →
+<strong>Preferences</strong> or press <code>Ctrl+,</code>.</p>
+<h3 id="reed-solomon-error-correction">Reed-Solomon Error
+Correction</h3>
+<p><strong>What is it?</strong> FEC adds redundancy to protect your
+vault from data corruption (bit rot, bad sectors, etc.).</p>
+<p><strong>Recommended Settings:</strong> - ✅ <strong>Enable
+Reed-Solomon:</strong> Check to enable error correction -
+<strong>Redundancy Percentage:</strong> 10-25% (good balance of
+protection vs. file size) - <strong>10%</strong> - Good balance
+(recommended for most users) - <strong>25%</strong> - High protection
+(recommended for critical data)</p>
+<p><strong>Apply to current vault:</strong> Check this to change
+settings for the currently open vault. Uncheck to only change defaults
+for new vaults.</p>
+<h3 id="yubikey-settings">YubiKey Settings</h3>
+<ul>
+<li><strong>Add Backup Keys:</strong> Configure additional YubiKeys for
+redundancy</li>
+<li><strong>View Authorized Keys:</strong> See serial numbers of
+authorized keys</li>
+<li><strong>Remove Keys:</strong> Deauthorize lost or replaced keys</li>
+</ul>
+<h3 id="backups">Backups</h3>
+<ul>
+<li>✅ <strong>Enable Automatic Backups:</strong> Creates backups before
+saving (highly recommended)</li>
+<li><strong>Number of Backups:</strong> 3-5 backups (good balance)</li>
+<li>Backups are stored next to your vault file with timestamps</li>
+</ul>
+<h3 id="theme">Theme</h3>
+<ul>
+<li><strong>System Default:</strong> Follow desktop theme
+(recommended)</li>
+<li><strong>Light:</strong> Always use light theme</li>
+<li><strong>Dark:</strong> Always use dark theme</li>
+</ul>
+<hr />
+<h2 id="security-best-practices">Security Best Practices</h2>
+<ol type="1">
+<li>✅ <strong>Use a strong master password</strong> - This protects
+everything</li>
+<li>✅ <strong>Consider YubiKey 2FA</strong> - Hardware security for
+maximum protection</li>
+<li>✅ <strong>Enable automatic backups</strong> - Protects against
+accidental deletion or corruption</li>
+<li>✅ <strong>Enable Reed-Solomon FEC</strong> - Protects against bit
+rot (10-25% redundancy)</li>
+<li>✅ <strong>Store vault on reliable storage</strong> - Use SSD or
+regularly backed-up drive</li>
+<li>✅ <strong>Don’t share your master password</strong> - Ever</li>
+<li>✅ <strong>Close vault when not in use</strong> - Keeps it
+encrypted</li>
+<li>✅ <strong>Keep KeepTower updated</strong> - Security patches and
+improvements</li>
+<li>✅ <strong>Use strong, unique passwords</strong> - Generated
+passwords for each account</li>
+<li>✅ <strong>Securely delete exports</strong> - If you export data,
+delete the file after use</li>
+</ol>
+<hr />
+<h2 id="whats-next">What’s Next?</h2>
+<ul>
+<li><strong>[[User Guide]]</strong> - Learn about all features in
+detail</li>
+<li><strong>[[Security]]</strong> - Understand how KeepTower protects
+your data</li>
+<li><strong>[[FAQ]]</strong> - Common questions and answers</li>
+</ul>
+<p><strong>Need help?</strong> Open an issue on <a href="https://github.com/tjdeveng/KeepTower/issues">GitHub</a>.</p>
+<div class="footer">
+    <p>KeepTower v0.3.0-beta | <a href="https://github.com/tjdeveng/KeepTower">GitHub</a> | GPL-3.0 License</p>
+</div>
+</div>
+</body>
+</html>

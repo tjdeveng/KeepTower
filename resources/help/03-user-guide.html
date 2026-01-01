@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="pandoc">
+    <title>User Guide - KeepTower Help</title>
+    <style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+    <style type="text/css">
+:root {
+--bg-color: #ffffff;
+--text-color: #2e3436;
+--link-color: #3584e4;
+--link-hover: #1c71d8;
+--code-bg: #f6f5f4;
+--border-color: #deddda;
+--header-bg: #f6f5f4;
+--sidebar-bg: #fafafa;
+}
+@media (prefers-color-scheme: dark) {
+:root {
+--bg-color: #1e1e1e;
+--text-color: #eeeeec;
+--link-color: #62a0ea;
+--link-hover: #99c1f1;
+--code-bg: #2e2e2e;
+--border-color: #3e3e3e;
+--header-bg: #2a2a2a;
+--sidebar-bg: #242424;
+}
+}
+* {
+margin: 0;
+padding: 0;
+box-sizing: border-box;
+}
+body {
+font-family: 'Cantarell', 'DejaVu Sans', sans-serif;
+line-height: 1.6;
+color: var(--text-color);
+background-color: var(--bg-color);
+
+
+}
+.container {
+max-width: 900px;
+margin: 0 auto;
+padding: 20px;
+}
+
+h1, h2, h3, h4, h5, h6 {
+margin-top: 24px;
+margin-bottom: 16px;
+font-weight: 600;
+line-height: 1.25;
+}
+h1 {
+font-size: 2em;
+border-bottom: 2px solid var(--border-color);
+padding-bottom: 8px;
+}
+h2 {
+font-size: 1.5em;
+border-bottom: 1px solid var(--border-color);
+padding-bottom: 6px;
+}
+h3 {
+font-size: 1.25em;
+}
+h4 {
+font-size: 1.1em;
+}
+p {
+margin-bottom: 16px;
+}
+
+a {
+color: var(--link-color);
+text-decoration: none;
+}
+a:hover {
+color: var(--link-hover);
+text-decoration: underline;
+}
+
+ul, ol {
+margin-bottom: 16px;
+padding-left: 32px;
+}
+li {
+margin-bottom: 8px;
+}
+
+code {
+background-color: var(--code-bg);
+padding: 2px 6px;
+border-radius: 3px;
+font-family: 'Source Code Pro', 'Courier New', monospace;
+font-size: 0.9em;
+}
+pre {
+background-color: var(--code-bg);
+border: 1px solid var(--border-color);
+border-radius: 6px;
+padding: 16px;
+overflow-x: auto;
+margin-bottom: 16px;
+}
+pre code {
+background-color: transparent;
+padding: 0;
+}
+
+table {
+width: 100%;
+border-collapse: collapse;
+margin-bottom: 16px;
+}
+th, td {
+padding: 12px;
+text-align: left;
+border: 1px solid var(--border-color);
+}
+th {
+background-color: var(--header-bg);
+font-weight: 600;
+}
+
+blockquote {
+border-left: 4px solid var(--link-color);
+padding-left: 16px;
+margin: 16px 0;
+font-style: italic;
+color: var(--text-color);
+opacity: 0.9;
+}
+
+.nav-header {
+background-color: var(--header-bg);
+padding: 16px 20px;
+border-bottom: 1px solid var(--border-color);
+margin-bottom: 20px;
+}
+.nav-header h1 {
+margin: 0;
+border: none;
+padding: 0;
+font-size: 1.5em;
+}
+.nav-links {
+margin-top: 12px;
+display: flex;
+gap: 16px;
+flex-wrap: wrap;
+}
+.nav-links a {
+padding: 6px 12px;
+background-color: var(--code-bg);
+border-radius: 4px;
+font-size: 0.9em;
+}
+
+.note, .warning, .tip {
+padding: 16px;
+border-left: 4px solid;
+margin: 16px 0;
+border-radius: 4px;
+}
+.note {
+background-color: rgba(53, 132, 228, 0.1);
+border-color: #3584e4;
+}
+.warning {
+background-color: rgba(230, 97, 0, 0.1);
+border-color: #e66100;
+}
+.tip {
+background-color: rgba(38, 162, 105, 0.1);
+border-color: #26a269;
+}
+
+img {
+max-width: 100%;
+height: auto;
+margin: 16px 0;
+border-radius: 6px;
+}
+
+hr {
+border: none;
+border-top: 1px solid var(--border-color);
+margin: 24px 0;
+}
+
+.footer {
+margin-top: 48px;
+padding-top: 24px;
+border-top: 1px solid var(--border-color);
+font-size: 0.9em;
+opacity: 0.8;
+text-align: center;
+}
+
+kbd {
+background-color: var(--code-bg);
+border: 1px solid var(--border-color);
+border-radius: 3px;
+padding: 2px 6px;
+font-family: 'Cantarell', sans-serif;
+font-size: 0.85em;
+box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+}
+
+.toc {
+background-color: var(--sidebar-bg);
+border: 1px solid var(--border-color);
+border-radius: 6px;
+padding: 16px;
+margin-bottom: 24px;
+}
+.toc h2 {
+margin-top: 0;
+font-size: 1.2em;
+border: none;
+padding: 0;
+}
+.toc ul {
+margin-bottom: 0;
+}
+.toc li {
+margin-bottom: 4px;
+}
+</style>
+</head>
+<body>
+<div class="nav-header">
+    <h1>User Guide</h1>
+    <div class="nav-links">
+        <a href="00-home.html">🏠 Home</a>
+        <a href="01-getting-started.html">🚀 Getting Started</a>
+        <a href="02-installation.html">💾 Installation</a>
+        <a href="03-user-guide.html">📖 User Guide</a>
+        <a href="04-faq.html">❓ FAQ</a>
+        <a href="05-security.html">🔒 Security</a>
+    </div>
+</div>
+<div class="container">
+<nav id="TOC" role="doc-toc">
+<div class="toc">
+<h2>Table of Contents</h2>
+<ul>
+<li><a href="#user-guide" id="toc-user-guide">User Guide</a>
+<ul>
+<li><a href="#table-of-contents" id="toc-table-of-contents">Table of
+Contents</a></li>
+<li><a href="#vault-management" id="toc-vault-management">Vault
+Management</a>
+<ul>
+<li><a href="#creating-a-new-vault" id="toc-creating-a-new-vault">Creating a New Vault</a></li>
+<li><a href="#opening-a-vault" id="toc-opening-a-vault">Opening a
+Vault</a></li>
+<li><a href="#saving-changes" id="toc-saving-changes">Saving
+Changes</a></li>
+<li><a href="#closing-a-vault" id="toc-closing-a-vault">Closing a
+Vault</a></li>
+<li><a href="#vault-properties" id="toc-vault-properties">Vault
+Properties</a></li>
+</ul></li>
+<li><a href="#multi-user-vaults-v2" id="toc-multi-user-vaults-v2">Multi-User Vaults (V2)</a>
+<ul>
+<li><a href="#overview" id="toc-overview">Overview</a></li>
+<li><a href="#creating-a-v2-vault" id="toc-creating-a-v2-vault">Creating
+a V2 Vault</a></li>
+<li><a href="#user-management" id="toc-user-management">User
+Management</a></li>
+<li><a href="#password-history" id="toc-password-history">Password
+History</a></li>
+<li><a href="#security-policy" id="toc-security-policy">Security
+Policy</a></li>
+<li><a href="#yubikey-authentication-optional" id="toc-yubikey-authentication-optional">YubiKey Authentication
+(Optional)</a></li>
+<li><a href="#migrating-v1-to-v2" id="toc-migrating-v1-to-v2">Migrating
+V1 to V2</a></li>
+</ul></li>
+<li><a href="#account-management" id="toc-account-management">Account
+Management</a>
+<ul>
+<li><a href="#adding-an-account" id="toc-adding-an-account">Adding an
+Account</a></li>
+<li><a href="#editing-an-account" id="toc-editing-an-account">Editing an
+Account</a></li>
+<li><a href="#deleting-an-account" id="toc-deleting-an-account">Deleting
+an Account</a></li>
+<li><a href="#viewing-account-details" id="toc-viewing-account-details">Viewing Account Details</a></li>
+</ul></li>
+<li><a href="#password-operations" id="toc-password-operations">Password
+Operations</a>
+<ul>
+<li><a href="#showinghiding-passwords" id="toc-showinghiding-passwords">Showing/Hiding Passwords</a></li>
+<li><a href="#copying-passwords" id="toc-copying-passwords">Copying
+Passwords</a></li>
+<li><a href="#copying-usernames" id="toc-copying-usernames">Copying
+Usernames</a></li>
+<li><a href="#opening-urls" id="toc-opening-urls">Opening URLs</a></li>
+<li><a href="#password-generator" id="toc-password-generator">Password
+Generator</a></li>
+</ul></li>
+<li><a href="#import-and-export" id="toc-import-and-export">Import and
+Export</a>
+<ul>
+<li><a href="#exporting-accounts" id="toc-exporting-accounts">Exporting
+Accounts</a></li>
+<li><a href="#importing-accounts" id="toc-importing-accounts">Importing
+Accounts</a></li>
+<li><a href="#format-compatibility" id="toc-format-compatibility">Format
+Compatibility</a></li>
+</ul></li>
+<li><a href="#search-and-organization" id="toc-search-and-organization">Search and Organization</a>
+<ul>
+<li><a href="#searching-accounts" id="toc-searching-accounts">Searching
+Accounts</a></li>
+<li><a href="#organizing-large-vaults" id="toc-organizing-large-vaults">Organizing Large Vaults</a></li>
+</ul></li>
+<li><a href="#preferences" id="toc-preferences">Preferences</a>
+<ul>
+<li><a href="#reed-solomon-error-correction" id="toc-reed-solomon-error-correction">Reed-Solomon Error
+Correction</a></li>
+<li><a href="#yubikey-settings" id="toc-yubikey-settings">YubiKey
+Settings</a></li>
+<li><a href="#backup-settings" id="toc-backup-settings">Backup
+Settings</a></li>
+<li><a href="#appearance" id="toc-appearance">Appearance</a></li>
+</ul></li>
+<li><a href="#backups-and-recovery" id="toc-backups-and-recovery">Backups and Recovery</a>
+<ul>
+<li><a href="#automatic-backups" id="toc-automatic-backups">Automatic
+Backups</a></li>
+<li><a href="#restoring-from-backup" id="toc-restoring-from-backup">Restoring from Backup</a></li>
+<li><a href="#manual-backups" id="toc-manual-backups">Manual
+Backups</a></li>
+</ul></li>
+<li><a href="#keyboard-shortcuts" id="toc-keyboard-shortcuts">Keyboard
+Shortcuts</a>
+<ul>
+<li><a href="#file-operations" id="toc-file-operations">File
+Operations</a></li>
+<li><a href="#account-operations" id="toc-account-operations">Account
+Operations</a></li>
+<li><a href="#application" id="toc-application">Application</a></li>
+<li><a href="#navigation" id="toc-navigation">Navigation</a></li>
+</ul></li>
+<li><a href="#tips-and-tricks" id="toc-tips-and-tricks">Tips and
+Tricks</a>
+<ul>
+<li><a href="#password-best-practices" id="toc-password-best-practices">Password Best Practices</a></li>
+<li><a href="#vault-organization" id="toc-vault-organization">Vault
+Organization</a></li>
+<li><a href="#migration-strategies" id="toc-migration-strategies">Migration Strategies</a></li>
+<li><a href="#performance" id="toc-performance">Performance</a></li>
+</ul></li>
+<li><a href="#troubleshooting" id="toc-troubleshooting">Troubleshooting</a>
+<ul>
+<li><a href="#cannot-open-vault---incorrect-password" id="toc-cannot-open-vault---incorrect-password">“Cannot open vault -
+incorrect password”</a></li>
+<li><a href="#vault-file-is-corrupted" id="toc-vault-file-is-corrupted">“Vault file is corrupted”</a></li>
+<li><a href="#permission-denied" id="toc-permission-denied">“Permission
+denied”</a></li>
+<li><a href="#importexport-issues" id="toc-importexport-issues">Import/Export Issues</a></li>
+<li><a href="#application-crashes" id="toc-application-crashes">Application crashes</a></li>
+</ul></li>
+<li><a href="#advanced-topics" id="toc-advanced-topics">Advanced
+Topics</a>
+<ul>
+<li><a href="#file-format-details" id="toc-file-format-details">File
+Format Details</a></li>
+<li><a href="#command-line-usage" id="toc-command-line-usage">Command
+Line Usage</a></li>
+</ul></li>
+<li><a href="#getting-help" id="toc-getting-help">Getting Help</a></li>
+</ul></li>
+</ul>
+</div>
+</nav>
+<h1 id="user-guide">User Guide</h1>
+<p>Complete reference for all KeepTower features.</p>
+<h2 id="table-of-contents">Table of Contents</h2>
+<ul>
+<li><a href="#vault-management">Vault Management</a></li>
+<li><a href="#multi-user-vaults-v2">Multi-User Vaults (V2)</a></li>
+<li><a href="#account-management">Account Management</a></li>
+<li><a href="#password-operations">Password Operations</a></li>
+<li><a href="#import-and-export">Import and Export</a></li>
+<li><a href="#search-and-organization">Search and Organization</a></li>
+<li><a href="#preferences">Preferences</a></li>
+<li><a href="#backups-and-recovery">Backups and Recovery</a></li>
+<li><a href="#keyboard-shortcuts">Keyboard Shortcuts</a></li>
+</ul>
+<hr />
+<h2 id="vault-management">Vault Management</h2>
+<h3 id="creating-a-new-vault">Creating a New Vault</h3>
+<p><strong>Menu:</strong> File → New Vault <strong>Shortcut:</strong>
+<code>Ctrl+N</code></p>
+<ol type="1">
+<li>Choose location and filename</li>
+<li>Select vault format:
+<ul>
+<li><strong>V1 (Legacy):</strong> Single-user, backwards compatible</li>
+<li><strong>V2 (Recommended):</strong> Multi-user with enhanced
+security</li>
+</ul></li>
+<li>For V2 vaults, configure:
+<ul>
+<li>Admin username and password</li>
+<li>Security policy (password requirements, history depth)</li>
+<li>Optional YubiKey authentication</li>
+</ul></li>
+<li>For V1 vaults:
+<ul>
+<li>Create master password</li>
+<li>Optionally configure YubiKey 2FA</li>
+<li>Confirm master password</li>
+</ul></li>
+<li>Vault is created and opened</li>
+</ol>
+<p><strong>File Formats:</strong> - <code>.vault</code> - Encrypted
+binary format with optional Reed-Solomon encoding - V1: Single-user,
+AES-256-GCM - V2: Multi-user, role-based access, password history</p>
+<h3 id="opening-a-vault">Opening a Vault</h3>
+<p><strong>Menu:</strong> File → Open Vault <strong>Shortcut:</strong>
+<code>Ctrl+O</code></p>
+<ol type="1">
+<li>Select <code>.vault</code> file</li>
+<li>Enter master password</li>
+<li>Touch YubiKey if 2FA is enabled</li>
+<li>Click Open</li>
+</ol>
+<p><strong>Note:</strong> Opening a vault closes any currently open
+vault (with save prompt if needed).</p>
+<h3 id="saving-changes">Saving Changes</h3>
+<p><strong>Menu:</strong> File → Save <strong>Shortcut:</strong>
+<code>Ctrl+S</code></p>
+<p>Changes are saved to the vault file. If backups are enabled, a backup
+is created first.</p>
+<p><strong>Auto-save:</strong> Changes are automatically saved when: -
+Closing the vault - Exiting the application - Opening a different
+vault</p>
+<h3 id="closing-a-vault">Closing a Vault</h3>
+<p><strong>Menu:</strong> File → Close Vault <strong>Shortcut:</strong>
+<code>Ctrl+W</code></p>
+<p>Closes the current vault. If there are unsaved changes, you’ll be
+prompted to save.</p>
+<h3 id="vault-properties">Vault Properties</h3>
+<p>View vault information: - File path - File size - Last modified date
+- Number of accounts - FEC status (enabled/disabled) - FEC redundancy
+percentage - YubiKey 2FA status</p>
+<hr />
+<hr />
+<h2 id="multi-user-vaults-v2">Multi-User Vaults (V2)</h2>
+<h3 id="overview">Overview</h3>
+<p>V2 vaults support multiple users with role-based access control:</p>
+<p><strong>User Roles:</strong> - <strong>Admin:</strong> Full access,
+can manage users, change security policy - <strong>Standard:</strong>
+Can view/edit accounts, cannot manage users or policy</p>
+<h3 id="creating-a-v2-vault">Creating a V2 Vault</h3>
+<ol type="1">
+<li><strong>File → New Vault</strong></li>
+<li>Choose <strong>V2 (Multi-User)</strong> format</li>
+<li>Configure admin account:
+<ul>
+<li>Username (cannot be changed later)</li>
+<li>Strong password</li>
+</ul></li>
+<li>Set security policy:
+<ul>
+<li>Minimum password length (8-128 characters)</li>
+<li>Password history depth (0-24 previous passwords)</li>
+<li>YubiKey requirement (optional)</li>
+</ul></li>
+<li>Click <strong>Create</strong></li>
+</ol>
+<h3 id="user-management">User Management</h3>
+<p><strong>Menu:</strong> Vault → User Management (Admin only)</p>
+<h4 id="adding-users">Adding Users</h4>
+<ol type="1">
+<li>Click <strong>Add User</strong></li>
+<li>Enter username</li>
+<li>Set initial password (user must change on first login)</li>
+<li>Select role: Admin or Standard</li>
+<li>Click <strong>Create</strong></li>
+</ol>
+<h4 id="changing-user-passwords">Changing User Passwords</h4>
+<p><strong>Self-service:</strong> 1. <strong>Vault → Change
+Password</strong> 2. Enter current password 3. Enter new password (must
+meet security policy) 4. Confirm new password</p>
+<p><strong>Admin reset:</strong> 1. <strong>Vault → User
+Management</strong> 2. Select user 3. Click <strong>Reset
+Password</strong> 4. User must change password on next login</p>
+<h4 id="removing-users">Removing Users</h4>
+<p><strong>Admin only:</strong> 1. <strong>Vault → User
+Management</strong> 2. Select user 3. Click <strong>Remove User</strong>
+4. Confirm removal</p>
+<p><strong>Note:</strong> Cannot remove yourself or the last admin</p>
+<h3 id="password-history">Password History</h3>
+<p>V2 vaults track password history to prevent reuse:</p>
+<ul>
+<li><strong>Configurable Depth:</strong> 0-24 previous passwords</li>
+<li><strong>Per-User:</strong> Each user has their own password
+history</li>
+<li><strong>Admin Control:</strong> History depth set in vault security
+policy</li>
+<li><strong>Validation:</strong> System rejects passwords matching
+history</li>
+</ul>
+<p><strong>Admin can clear history:</strong> 1. <strong>Vault → User
+Management</strong> 2. Select user 3. Click <strong>Clear Password
+History</strong></p>
+<h3 id="security-policy">Security Policy</h3>
+<p><strong>Admin only:</strong> Define vault-wide security
+requirements</p>
+<p><strong>Settings:</strong> - <strong>Min Password Length:</strong>
+8-128 characters - <strong>Password History Depth:</strong> 0-24 entries
+- <strong>Require YubiKey:</strong> Optional hardware authentication -
+<strong>PBKDF2 Iterations:</strong> Key derivation work factor</p>
+<p><strong>Changing Policy:</strong> 1. <strong>Vault → Security
+Policy</strong> (Admin only) 2. Adjust settings 3. Click
+<strong>Apply</strong> 4. All users affected on next password change</p>
+<h3 id="yubikey-authentication-optional">YubiKey Authentication
+(Optional)</h3>
+<p><strong>Requirements:</strong> - YubiKey with HMAC-SHA1
+challenge-response - Must be programmed during vault creation</p>
+<p><strong>Setup:</strong> 1. Insert YubiKey during vault creation 2.
+Enable “Require YubiKey” in security policy 3. Program
+challenge-response slot 4. All users must use same YubiKey
+model/programming</p>
+<p><strong>Login with YubiKey:</strong> 1. Enter username and password
+2. Insert YubiKey when prompted 3. Touch YubiKey button 4. Vault
+unlocks</p>
+<h3 id="migrating-v1-to-v2">Migrating V1 to V2</h3>
+<p><strong>Menu:</strong> Vault → Convert to V2</p>
+<ol type="1">
+<li>Open V1 vault</li>
+<li>Select <strong>Vault → Convert to V2</strong></li>
+<li>Create admin credentials</li>
+<li>Configure security policy</li>
+<li>Original vault backed up automatically</li>
+<li>New V2 vault created</li>
+</ol>
+<p><strong>Note:</strong> One-way conversion. Keep V1 backup until
+confident.</p>
+<hr />
+<h2 id="account-management">Account Management</h2>
+<h3 id="adding-an-account">Adding an Account</h3>
+<p><strong>Button:</strong> + (Add Account) <strong>Shortcut:</strong>
+<code>Ctrl+A</code></p>
+<p><strong>Required Fields:</strong> - Account Name - Password</p>
+<p><strong>Optional Fields:</strong> - Username/Email - URL/Website -
+Notes</p>
+<p><strong>Tips:</strong> - Use descriptive names: “Gmail Personal”,
+“Work Email”, “GitHub” - Include the URL for easy reference - Use the
+password generator for new accounts</p>
+<h3 id="editing-an-account">Editing an Account</h3>
+<ol type="1">
+<li>Select account from list</li>
+<li>Click <strong>Edit</strong> button</li>
+<li>Modify any fields</li>
+<li>Click <strong>Save</strong></li>
+</ol>
+<p>Changes take effect immediately.</p>
+<h3 id="deleting-an-account">Deleting an Account</h3>
+<ol type="1">
+<li>Select account from list</li>
+<li>Click <strong>Delete</strong> button</li>
+<li>Confirm deletion</li>
+</ol>
+<p><strong>⚠️ Warning:</strong> Deletion is permanent (unless restored
+from backup).</p>
+<h3 id="viewing-account-details">Viewing Account Details</h3>
+<p>Select an account from the list to view: - Account name - Username -
+Password (hidden by default) - URL - Notes - Created date - Last
+modified date</p>
+<hr />
+<h2 id="password-operations">Password Operations</h2>
+<h3 id="showinghiding-passwords">Showing/Hiding Passwords</h3>
+<p>Click the <strong>eye icon</strong> (Show/Hide) to toggle password
+visibility.</p>
+<p><strong>Security:</strong> Passwords are hidden by default. They
+remain hidden when switching between accounts.</p>
+<h3 id="copying-passwords">Copying Passwords</h3>
+<p><strong>Button:</strong> Copy Password <strong>Shortcut:</strong>
+<code>Ctrl+C</code> (when account selected)</p>
+<p>Copies the password to clipboard.</p>
+<p><strong>Auto-clear:</strong> Clipboard is automatically cleared after
+30 seconds for security.</p>
+<h3 id="copying-usernames">Copying Usernames</h3>
+<p>Click <strong>Copy Username</strong> to copy the username/email to
+clipboard.</p>
+<h3 id="opening-urls">Opening URLs</h3>
+<p>If an account has a URL, click the <strong>🔗 Open</strong> button to
+open it in your default browser.</p>
+<h3 id="password-generator">Password Generator</h3>
+<p>When creating or editing an account, you can generate a random
+password:</p>
+<p><strong>Settings:</strong> - Length: 12-32 characters - Includes:
+uppercase, lowercase, numbers, symbols - Excludes: ambiguous characters
+(0/O, 1/l)</p>
+<p><strong>Best Practice:</strong> Use 16+ character passwords for
+maximum security.</p>
+<hr />
+<h2 id="import-and-export">Import and Export</h2>
+<p><strong>⚠️ Security Warning:</strong> Exported files contain your
+passwords in <strong>unencrypted plaintext</strong>. Handle with
+care!</p>
+<h3 id="exporting-accounts">Exporting Accounts</h3>
+<p><strong>Menu:</strong> File → Export Accounts
+<strong>Shortcut:</strong> <code>Ctrl+E</code></p>
+<p>Export your vault to CSV, KeePass XML, or 1Password 1PIF format.</p>
+<p><strong>Steps:</strong> 1. Click File → Export Accounts 2. Read and
+accept the security warning 3. Re-authenticate with your master password
+(and YubiKey if enabled) 4. Choose export format and location 5. File is
+created with restricted permissions (0600)</p>
+<p><strong>Supported Formats:</strong></p>
+<ul>
+<li><strong>CSV</strong> - Comma-separated values (universal
+compatibility)
+<ul>
+<li>Fields: Account Name, Username, Password, URL, Notes</li>
+<li>RFC 4180 compliant</li>
+<li>Fully tested and verified</li>
+</ul></li>
+<li><strong>KeePass 2.x XML</strong> - Compatible with KeePass password
+manager
+<ul>
+<li>Standard KeePass 2.x XML format</li>
+<li>Round-trip tested within KeepTower</li>
+<li>Import into KeePass for cross-platform access</li>
+</ul></li>
+<li><strong>1Password 1PIF</strong> - Compatible with 1Password
+<ul>
+<li>1Password Interchange Format (JSON-based)</li>
+<li>Round-trip tested within KeepTower</li>
+<li>Useful for migration to/from 1Password</li>
+</ul></li>
+</ul>
+<p><strong>Security Measures:</strong> - Password re-authentication
+required - Files created with 0600 permissions (owner only) - fsync()
+called to ensure data integrity - Warning dialog about plaintext
+risks</p>
+<p><strong>Best Practices:</strong> - Delete exported file after use -
+Store on encrypted storage if keeping - Never share exported files - Use
+secure file transfer if needed</p>
+<h3 id="importing-accounts">Importing Accounts</h3>
+<p><strong>Menu:</strong> File → Import Accounts
+<strong>Shortcut:</strong> <code>Ctrl+I</code></p>
+<p>Import accounts from CSV, KeePass XML, or 1Password 1PIF files.</p>
+<p><strong>Steps:</strong> 1. Click File → Import Accounts 2. Select
+file to import 3. KeepTower detects format automatically 4. Accounts are
+imported into current vault 5. Save vault to persist changes</p>
+<p><strong>Supported Formats:</strong></p>
+<ul>
+<li><strong>CSV</strong> - Auto-detected by <code>.csv</code> extension
+<ul>
+<li>Expected columns: Account Name, Username, Password, URL, Notes</li>
+<li>Header row required</li>
+<li>Handles quoted fields and escaped commas</li>
+</ul></li>
+<li><strong>KeePass XML</strong> - Auto-detected by <code>.xml</code>
+extension
+<ul>
+<li>Standard KeePass 2.x XML format</li>
+<li>Imports Title, UserName, Password, URL, Notes</li>
+<li>Round-trip compatible</li>
+</ul></li>
+<li><strong>1Password 1PIF</strong> - Auto-detected by
+<code>.1pif</code> extension
+<ul>
+<li>JSON-based format</li>
+<li>Imports title, username, password, location, notes</li>
+<li>Round-trip compatible</li>
+</ul></li>
+</ul>
+<p><strong>Import Behavior:</strong> - New accounts are added to
+existing vault - Duplicate detection not implemented (will create
+duplicates) - Invalid entries are skipped with error reporting - Partial
+imports supported (continues on errors) - 100MB file size limit for
+security</p>
+<p><strong>After Import:</strong> - Review imported accounts - Delete
+duplicate entries if any - Save vault to persist changes - Securely
+delete import file</p>
+<h3 id="format-compatibility">Format Compatibility</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Format</th>
+<th>Export</th>
+<th>Import</th>
+<th>Round-trip Tested</th>
+<th>External App Tested</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>CSV</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr class="even">
+<td>KeePass XML</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>⚠️ Pending</td>
+</tr>
+<tr class="odd">
+<td>1Password 1PIF</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>⚠️ Pending</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Round-trip tested:</strong> Export from KeepTower → Import
+back into KeepTower → Data verified <strong>External app
+tested:</strong> Export from KeepTower → Import into KeePass/1Password →
+Verified</p>
+<hr />
+<h2 id="search-and-organization">Search and Organization</h2>
+<h3 id="searching-accounts">Searching Accounts</h3>
+<p>Type in the search bar to filter accounts in real-time.</p>
+<p><strong>Searches:</strong> - Account names - Usernames - URLs</p>
+<p><strong>Tips:</strong> - Search is case-insensitive - Partial matches
+work (e.g., “git” finds “GitHub”, “GitLab”) - Clear search to show all
+accounts</p>
+<h3 id="organizing-large-vaults">Organizing Large Vaults</h3>
+<p><strong>Use naming conventions:</strong> - Prefix by category:
+<code>[Work] Email</code>, <code>[Personal] Banking</code> - Include
+service name: <code>Gmail - Personal</code>, <code>Gmail - Work</code> -
+Add keywords for search: <code>Amazon (Shopping)</code>,
+<code>AWS (Cloud)</code></p>
+<hr />
+<h2 id="preferences">Preferences</h2>
+<p>Access via <strong>Edit</strong> → <strong>Preferences</strong> or
+<code>Ctrl+,</code></p>
+<h3 id="reed-solomon-error-correction">Reed-Solomon Error
+Correction</h3>
+<p><strong>Purpose:</strong> Protects vault data from corruption (bit
+rot, bad storage sectors)</p>
+<p><strong>Settings:</strong></p>
+<ul>
+<li><strong>Enable Reed-Solomon FEC</strong>
+<ul>
+<li>☑️ Checked: Error correction enabled</li>
+<li><label><input type="checkbox"></input>Unchecked: Disabled (smaller file
+size)</label></li>
+</ul></li>
+<li><strong>Redundancy Percentage:</strong> 5-50%
+<ul>
+<li><strong>5%:</strong> Minimal protection, smallest overhead</li>
+<li><strong>10%:</strong> Recommended balance</li>
+<li><strong>25%:</strong> High protection for critical data</li>
+<li><strong>50%:</strong> Maximum protection</li>
+</ul></li>
+</ul>
+<p><strong>File Size Impact:</strong> - 10% redundancy ≈ 10% larger file
+- 25% redundancy ≈ 25% larger file - Protection increases with
+redundancy</p>
+<p><strong>Apply Settings:</strong></p>
+<ul>
+<li><strong>☐ Apply to current vault</strong> (unchecked)
+<ul>
+<li>Changes only affect <strong>new vaults</strong> created in the
+future</li>
+<li>Current open vault keeps its original settings</li>
+</ul></li>
+<li><strong>☑️ Apply to current vault</strong> (checked)
+<ul>
+<li>Changes apply to the <strong>currently open vault</strong></li>
+<li>Does NOT change defaults for new vaults</li>
+<li>Vault must be saved to persist changes</li>
+</ul></li>
+</ul>
+<p><strong>Recommendation:</strong> Enable with 10-25% redundancy for
+important vaults.</p>
+<h3 id="yubikey-settings">YubiKey Settings</h3>
+<p><strong>Hardware 2FA:</strong> - Configure YubiKey challenge-response
+authentication - Add backup YubiKeys for redundancy - View serial
+numbers of authorized keys - Remove keys from authorized list</p>
+<p><strong>Benefits:</strong> - Two-factor vault encryption - Protection
+against password compromise - Hardware-based security</p>
+<h3 id="backup-settings">Backup Settings</h3>
+<p><strong>Enable Automatic Backups</strong> - ☑️ Checked: Creates
+backups before each save - ☐ Unchecked: No automatic backups</p>
+<p><strong>Number of Backups to Keep:</strong> 1-50 - Older backups are
+automatically deleted - Backups stored as:
+<code>vault.vault.backup.YYYYMMDD_HHMMSS_mmm</code></p>
+<p><strong>Location:</strong> Same directory as the vault file</p>
+<h3 id="appearance">Appearance</h3>
+<p><strong>Color Scheme:</strong> - <strong>System Default:</strong>
+Follow desktop theme (light/dark) - <strong>Light:</strong> Always use
+light theme - <strong>Dark:</strong> Always use dark theme</p>
+<p>Theme changes take effect immediately.</p>
+<hr />
+<h2 id="backups-and-recovery">Backups and Recovery</h2>
+<h3 id="automatic-backups">Automatic Backups</h3>
+<p>When enabled, KeepTower creates a timestamped backup before
+saving:</p>
+<pre><code>passwords.vault                             ← Current vault
+passwords.vault.backup.20251213_143052_123  ← Backup 1
+passwords.vault.backup.20251213_120033_456  ← Backup 2</code></pre>
+<h3 id="restoring-from-backup">Restoring from Backup</h3>
+<ol type="1">
+<li>Close KeepTower</li>
+<li>Locate backup files in the same directory as your vault</li>
+<li>Rename backup to remove <code>.backup.TIMESTAMP</code> suffix</li>
+<li>Open the restored file in KeepTower</li>
+</ol>
+<p><strong>Example:</strong></p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Backup your current vault first</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cp</span> passwords.vault passwords.vault.current</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Restore from backup</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="fu">cp</span> passwords.vault.backup.20251213_143052_123 passwords.vault</span></code></pre></div>
+<h3 id="manual-backups">Manual Backups</h3>
+<p>In addition to automatic backups, you should periodically:</p>
+<ol type="1">
+<li>Copy vault file to external storage</li>
+<li>Test that the backup opens successfully</li>
+<li>Store in secure location (encrypted drive recommended)</li>
+</ol>
+<hr />
+<h2 id="keyboard-shortcuts">Keyboard Shortcuts</h2>
+<h3 id="file-operations">File Operations</h3>
+<ul>
+<li><code>Ctrl+N</code> - New Vault</li>
+<li><code>Ctrl+O</code> - Open Vault</li>
+<li><code>Ctrl+S</code> - Save Vault</li>
+<li><code>Ctrl+W</code> - Close Vault</li>
+<li><code>Ctrl+Q</code> - Quit KeepTower</li>
+<li><code>Ctrl+I</code> - Import Accounts</li>
+<li><code>Ctrl+E</code> - Export Accounts</li>
+</ul>
+<h3 id="account-operations">Account Operations</h3>
+<ul>
+<li><code>Ctrl+A</code> - Add Account</li>
+<li><code>Ctrl+E</code> - Edit Selected Account</li>
+<li><code>Delete</code> - Delete Selected Account</li>
+<li><code>Ctrl+C</code> - Copy Password (when account selected)</li>
+<li><code>Ctrl+F</code> - Focus Search Bar</li>
+</ul>
+<h3 id="application">Application</h3>
+<ul>
+<li><code>Ctrl+,</code> - Open Preferences</li>
+<li><code>F1</code> - About</li>
+</ul>
+<h3 id="navigation">Navigation</h3>
+<ul>
+<li><code>Up/Down Arrows</code> - Navigate account list</li>
+<li><code>Tab</code> - Move between fields in dialogs</li>
+<li><code>Enter</code> - Confirm dialogs</li>
+<li><code>Escape</code> - Cancel/Close dialogs</li>
+</ul>
+<hr />
+<h2 id="tips-and-tricks">Tips and Tricks</h2>
+<h3 id="password-best-practices">Password Best Practices</h3>
+<ol type="1">
+<li><strong>Unique passwords</strong> - Never reuse passwords</li>
+<li><strong>Strong passwords</strong> - Use generator for 16+ character
+passwords</li>
+<li><strong>Regular updates</strong> - Change passwords periodically
+(especially after breaches)</li>
+<li><strong>Two-factor authentication</strong> - Enable 2FA where
+available</li>
+<li><strong>YubiKey 2FA</strong> - Use hardware 2FA for KeepTower
+vault</li>
+</ol>
+<h3 id="vault-organization">Vault Organization</h3>
+<p><strong>Multiple vaults for different purposes:</strong> - Personal
+accounts - Work accounts - Shared family accounts - Archived/old
+accounts</p>
+<p><strong>Security vs. Convenience:</strong> - More vaults = better
+isolation - Single vault = easier to manage</p>
+<h3 id="migration-strategies">Migration Strategies</h3>
+<p><strong>From other password managers:</strong> 1. Export from current
+manager (CSV usually supported) 2. Import into KeepTower 3. Review and
+clean up entries 4. Enable YubiKey 2FA for added security 5. Configure
+backups and FEC</p>
+<p><strong>To other password managers:</strong> 1. Export from KeepTower
+(choose appropriate format) 2. Import into target manager 3. Verify all
+accounts transferred 4. Securely delete export file</p>
+<h3 id="performance">Performance</h3>
+<ul>
+<li>Vaults with 1000+ accounts may see slower load times</li>
+<li>Search performance remains fast regardless of vault size</li>
+<li>Consider splitting very large vaults</li>
+</ul>
+<hr />
+<h2 id="troubleshooting">Troubleshooting</h2>
+<h3 id="cannot-open-vault---incorrect-password">“Cannot open vault -
+incorrect password”</h3>
+<ul>
+<li>Double-check master password (case-sensitive)</li>
+<li>Try typing slowly to avoid typos</li>
+<li>Check if Caps Lock is on</li>
+<li>Ensure YubiKey is inserted if 2FA is enabled</li>
+<li><strong>No recovery available</strong> if password is truly
+forgotten</li>
+</ul>
+<h3 id="vault-file-is-corrupted">“Vault file is corrupted”</h3>
+<ol type="1">
+<li>Try opening a backup file</li>
+<li>If FEC is enabled, try again (may auto-correct)</li>
+<li>Report issue on GitHub with error details</li>
+</ol>
+<h3 id="permission-denied">“Permission denied”</h3>
+<ul>
+<li>Check file permissions: <code>chmod 600 vault.vault</code></li>
+<li>Ensure you own the file: <code>chown $USER vault.vault</code></li>
+<li>Move vault to your home directory if on network drive</li>
+</ul>
+<h3 id="importexport-issues">Import/Export Issues</h3>
+<ul>
+<li><strong>Export fails:</strong> Ensure disk space available</li>
+<li><strong>Import fails:</strong> Check file format and size
+(&lt;100MB)</li>
+<li><strong>Format not detected:</strong> Rename file with correct
+extension (.csv, .xml, .1pif)</li>
+<li><strong>Partial import:</strong> Review error messages, fix invalid
+entries</li>
+</ul>
+<h3 id="application-crashes">Application crashes</h3>
+<ol type="1">
+<li>Check terminal output for errors</li>
+<li>Try deleting config: <code>rm -rf ~/.config/keeptower/</code></li>
+<li>Report issue with logs on GitHub</li>
+</ol>
+<hr />
+<h2 id="advanced-topics">Advanced Topics</h2>
+<h3 id="file-format-details">File Format Details</h3>
+<p>See <strong>[[Security]]</strong> for technical details about: -
+Encryption algorithm (AES-256-GCM) - Key derivation (PBKDF2) -
+Reed-Solomon encoding - File structure - YubiKey integration</p>
+<h3 id="command-line-usage">Command Line Usage</h3>
+<p>KeepTower currently requires the GUI. Command-line interface is
+planned for future versions.</p>
+<hr />
+<h2 id="getting-help">Getting Help</h2>
+<ul>
+<li><strong>Documentation:</strong> This wiki</li>
+<li><strong>Issues:</strong> <a href="https://github.com/tjdeveng/KeepTower/issues">GitHub
+Issues</a></li>
+<li><strong>Discussions:</strong> <a href="https://github.com/tjdeveng/KeepTower/discussions">GitHub
+Discussions</a></li>
+</ul>
+<hr />
+<p><strong>Next:</strong> Learn about security in
+<strong>[[Security]]</strong> →</p>
+<div class="footer">
+    <p>KeepTower v0.3.0-beta | <a href="https://github.com/tjdeveng/KeepTower">GitHub</a> | GPL-3.0 License</p>
+</div>
+</div>
+</body>
+</html>

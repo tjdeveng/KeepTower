@@ -1,0 +1,262 @@
+/* KeepTower Help Documentation Styles */
+
+:root {
+    --bg-color: #ffffff;
+    --text-color: #2e3436;
+    --link-color: #3584e4;
+    --link-hover: #1c71d8;
+    --code-bg: #f6f5f4;
+    --border-color: #deddda;
+    --header-bg: #f6f5f4;
+    --sidebar-bg: #fafafa;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg-color: #1e1e1e;
+        --text-color: #eeeeec;
+        --link-color: #62a0ea;
+        --link-hover: #99c1f1;
+        --code-bg: #2e2e2e;
+        --border-color: #3e3e3e;
+        --header-bg: #2a2a2a;
+        --sidebar-bg: #242424;
+    }
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Cantarell', 'DejaVu Sans', sans-serif;
+    line-height: 1.6;
+    color: var(--text-color);
+    background-color: var(--bg-color);
+    /* Use browser default font size - typically 16px but user-configurable */
+    /* This respects user's browser settings for better accessibility */
+}
+
+.container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+    margin-top: 24px;
+    margin-bottom: 16px;
+    font-weight: 600;
+    line-height: 1.25;
+}
+
+h1 {
+    font-size: 2em;
+    border-bottom: 2px solid var(--border-color);
+    padding-bottom: 8px;
+}
+
+h2 {
+    font-size: 1.5em;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 6px;
+}
+
+h3 {
+    font-size: 1.25em;
+}
+
+h4 {
+    font-size: 1.1em;
+}
+
+p {
+    margin-bottom: 16px;
+}
+
+/* Links */
+a {
+    color: var(--link-color);
+    text-decoration: none;
+}
+
+a:hover {
+    color: var(--link-hover);
+    text-decoration: underline;
+}
+
+/* Lists */
+ul, ol {
+    margin-bottom: 16px;
+    padding-left: 32px;
+}
+
+li {
+    margin-bottom: 8px;
+}
+
+/* Code */
+code {
+    background-color: var(--code-bg);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Source Code Pro', 'Courier New', monospace;
+    font-size: 0.9em;
+}
+
+pre {
+    background-color: var(--code-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 16px;
+    overflow-x: auto;
+    margin-bottom: 16px;
+}
+
+pre code {
+    background-color: transparent;
+    padding: 0;
+}
+
+/* Tables */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 16px;
+}
+
+th, td {
+    padding: 12px;
+    text-align: left;
+    border: 1px solid var(--border-color);
+}
+
+th {
+    background-color: var(--header-bg);
+    font-weight: 600;
+}
+
+/* Blockquotes */
+blockquote {
+    border-left: 4px solid var(--link-color);
+    padding-left: 16px;
+    margin: 16px 0;
+    font-style: italic;
+    color: var(--text-color);
+    opacity: 0.9;
+}
+
+/* Navigation */
+.nav-header {
+    background-color: var(--header-bg);
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 20px;
+}
+
+.nav-header h1 {
+    margin: 0;
+    border: none;
+    padding: 0;
+    font-size: 1.5em;
+}
+
+.nav-links {
+    margin-top: 12px;
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.nav-links a {
+    padding: 6px 12px;
+    background-color: var(--code-bg);
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+
+/* Special elements */
+.note, .warning, .tip {
+    padding: 16px;
+    border-left: 4px solid;
+    margin: 16px 0;
+    border-radius: 4px;
+}
+
+.note {
+    background-color: rgba(53, 132, 228, 0.1);
+    border-color: #3584e4;
+}
+
+.warning {
+    background-color: rgba(230, 97, 0, 0.1);
+    border-color: #e66100;
+}
+
+.tip {
+    background-color: rgba(38, 162, 105, 0.1);
+    border-color: #26a269;
+}
+
+/* Images */
+img {
+    max-width: 100%;
+    height: auto;
+    margin: 16px 0;
+    border-radius: 6px;
+}
+
+/* Horizontal rule */
+hr {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: 24px 0;
+}
+
+/* Footer */
+.footer {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border-color);
+    font-size: 0.9em;
+    opacity: 0.8;
+    text-align: center;
+}
+
+/* Keyboard shortcuts */
+kbd {
+    background-color: var(--code-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    padding: 2px 6px;
+    font-family: 'Cantarell', sans-serif;
+    font-size: 0.85em;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+}
+
+/* Table of contents */
+.toc {
+    background-color: var(--sidebar-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 16px;
+    margin-bottom: 24px;
+}
+
+.toc h2 {
+    margin-top: 0;
+    font-size: 1.2em;
+    border: none;
+    padding: 0;
+}
+
+.toc ul {
+    margin-bottom: 0;
+}
+
+.toc li {
+    margin-bottom: 4px;
+}

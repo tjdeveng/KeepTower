@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="pandoc">
+    <title>Welcome to KeepTower 🗝️ - KeepTower Help</title>
+    <style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+    <style type="text/css">
+:root {
+--bg-color: #ffffff;
+--text-color: #2e3436;
+--link-color: #3584e4;
+--link-hover: #1c71d8;
+--code-bg: #f6f5f4;
+--border-color: #deddda;
+--header-bg: #f6f5f4;
+--sidebar-bg: #fafafa;
+}
+@media (prefers-color-scheme: dark) {
+:root {
+--bg-color: #1e1e1e;
+--text-color: #eeeeec;
+--link-color: #62a0ea;
+--link-hover: #99c1f1;
+--code-bg: #2e2e2e;
+--border-color: #3e3e3e;
+--header-bg: #2a2a2a;
+--sidebar-bg: #242424;
+}
+}
+* {
+margin: 0;
+padding: 0;
+box-sizing: border-box;
+}
+body {
+font-family: 'Cantarell', 'DejaVu Sans', sans-serif;
+line-height: 1.6;
+color: var(--text-color);
+background-color: var(--bg-color);
+
+
+}
+.container {
+max-width: 900px;
+margin: 0 auto;
+padding: 20px;
+}
+
+h1, h2, h3, h4, h5, h6 {
+margin-top: 24px;
+margin-bottom: 16px;
+font-weight: 600;
+line-height: 1.25;
+}
+h1 {
+font-size: 2em;
+border-bottom: 2px solid var(--border-color);
+padding-bottom: 8px;
+}
+h2 {
+font-size: 1.5em;
+border-bottom: 1px solid var(--border-color);
+padding-bottom: 6px;
+}
+h3 {
+font-size: 1.25em;
+}
+h4 {
+font-size: 1.1em;
+}
+p {
+margin-bottom: 16px;
+}
+
+a {
+color: var(--link-color);
+text-decoration: none;
+}
+a:hover {
+color: var(--link-hover);
+text-decoration: underline;
+}
+
+ul, ol {
+margin-bottom: 16px;
+padding-left: 32px;
+}
+li {
+margin-bottom: 8px;
+}
+
+code {
+background-color: var(--code-bg);
+padding: 2px 6px;
+border-radius: 3px;
+font-family: 'Source Code Pro', 'Courier New', monospace;
+font-size: 0.9em;
+}
+pre {
+background-color: var(--code-bg);
+border: 1px solid var(--border-color);
+border-radius: 6px;
+padding: 16px;
+overflow-x: auto;
+margin-bottom: 16px;
+}
+pre code {
+background-color: transparent;
+padding: 0;
+}
+
+table {
+width: 100%;
+border-collapse: collapse;
+margin-bottom: 16px;
+}
+th, td {
+padding: 12px;
+text-align: left;
+border: 1px solid var(--border-color);
+}
+th {
+background-color: var(--header-bg);
+font-weight: 600;
+}
+
+blockquote {
+border-left: 4px solid var(--link-color);
+padding-left: 16px;
+margin: 16px 0;
+font-style: italic;
+color: var(--text-color);
+opacity: 0.9;
+}
+
+.nav-header {
+background-color: var(--header-bg);
+padding: 16px 20px;
+border-bottom: 1px solid var(--border-color);
+margin-bottom: 20px;
+}
+.nav-header h1 {
+margin: 0;
+border: none;
+padding: 0;
+font-size: 1.5em;
+}
+.nav-links {
+margin-top: 12px;
+display: flex;
+gap: 16px;
+flex-wrap: wrap;
+}
+.nav-links a {
+padding: 6px 12px;
+background-color: var(--code-bg);
+border-radius: 4px;
+font-size: 0.9em;
+}
+
+.note, .warning, .tip {
+padding: 16px;
+border-left: 4px solid;
+margin: 16px 0;
+border-radius: 4px;
+}
+.note {
+background-color: rgba(53, 132, 228, 0.1);
+border-color: #3584e4;
+}
+.warning {
+background-color: rgba(230, 97, 0, 0.1);
+border-color: #e66100;
+}
+.tip {
+background-color: rgba(38, 162, 105, 0.1);
+border-color: #26a269;
+}
+
+img {
+max-width: 100%;
+height: auto;
+margin: 16px 0;
+border-radius: 6px;
+}
+
+hr {
+border: none;
+border-top: 1px solid var(--border-color);
+margin: 24px 0;
+}
+
+.footer {
+margin-top: 48px;
+padding-top: 24px;
+border-top: 1px solid var(--border-color);
+font-size: 0.9em;
+opacity: 0.8;
+text-align: center;
+}
+
+kbd {
+background-color: var(--code-bg);
+border: 1px solid var(--border-color);
+border-radius: 3px;
+padding: 2px 6px;
+font-family: 'Cantarell', sans-serif;
+font-size: 0.85em;
+box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+}
+
+.toc {
+background-color: var(--sidebar-bg);
+border: 1px solid var(--border-color);
+border-radius: 6px;
+padding: 16px;
+margin-bottom: 24px;
+}
+.toc h2 {
+margin-top: 0;
+font-size: 1.2em;
+border: none;
+padding: 0;
+}
+.toc ul {
+margin-bottom: 0;
+}
+.toc li {
+margin-bottom: 4px;
+}
+</style>
+</head>
+<body>
+<div class="nav-header">
+    <h1>Welcome to KeepTower 🗝️</h1>
+    <div class="nav-links">
+        <a href="00-home.html">🏠 Home</a>
+        <a href="01-getting-started.html">🚀 Getting Started</a>
+        <a href="02-installation.html">💾 Installation</a>
+        <a href="03-user-guide.html">📖 User Guide</a>
+        <a href="04-faq.html">❓ FAQ</a>
+        <a href="05-security.html">🔒 Security</a>
+    </div>
+</div>
+<div class="container">
+<nav id="TOC" role="doc-toc">
+<div class="toc">
+<h2>Table of Contents</h2>
+<ul>
+<li><a href="#welcome-to-keeptower" id="toc-welcome-to-keeptower">Welcome to KeepTower 🗝️</a>
+<ul>
+<li><a href="#what-is-keeptower" id="toc-what-is-keeptower">What is
+KeepTower?</a></li>
+<li><a href="#key-features" id="toc-key-features">Key Features</a></li>
+<li><a href="#why-keeptower" id="toc-why-keeptower">Why
+KeepTower?</a></li>
+<li><a href="#quick-start" id="toc-quick-start">Quick Start</a></li>
+<li><a href="#documentation" id="toc-documentation">Documentation</a></li>
+<li><a href="#version" id="toc-version">Version</a>
+<ul>
+<li><a href="#recent-updates" id="toc-recent-updates">Recent
+Updates</a></li>
+</ul></li>
+<li><a href="#support" id="toc-support">Support</a></li>
+<li><a href="#license" id="toc-license">License</a></li>
+</ul></li>
+</ul>
+</div>
+</nav>
+<h1 id="welcome-to-keeptower">Welcome to KeepTower 🗝️</h1>
+<p><strong>A secure, modern password manager for Linux with
+military-grade encryption and built-in error correction.</strong></p>
+<h2 id="what-is-keeptower">What is KeepTower?</h2>
+<p>KeepTower is a native GTK4 password manager designed for Linux users
+who value security, privacy, and reliability. Your passwords are
+encrypted locally with AES-256-GCM and protected by optional
+Reed-Solomon error correction—ensuring your data survives bit rot and
+storage corruption.</p>
+<h2 id="key-features">Key Features</h2>
+<p>✨ <strong>Military-Grade Encryption</strong> - AES-256-GCM with
+PBKDF2 key derivation 🏛️ <strong>FIPS 140-3 Ready</strong> - Uses
+FIPS-approved algorithms, OpenSSL FIPS provider support 👥
+<strong>Multi-User Support</strong> - V2 vaults with role-based access
+(Admin/Standard) 🔐 <strong>YubiKey Hardware 2FA</strong> - Optional
+hardware-based second factor authentication 📤
+<strong>Import/Export</strong> - CSV, KeePass XML, and 1Password 1PIF
+formats 🛡️ <strong>Error Correction</strong> - Reed-Solomon FEC (5-50%
+redundancy) protects against data corruption 💾 <strong>Automatic
+Backups</strong> - Configurable rolling backups keep your data safe ��
+<strong>Modern UI</strong> - Clean GTK4/libadwaita interface with dark
+mode support 🔒 <strong>Memory Protection</strong> - Sensitive data
+locked in RAM, never swapped to disk 🔐 <strong>Strong Password
+Validation</strong> - Prevents weak passwords and common patterns 🔍
+<strong>Password History</strong> - Prevents password reuse with
+configurable depth 📦 <strong>Zero Dependencies on Cloud</strong> - Your
+data stays on your machine</p>
+<h2 id="why-keeptower">Why KeepTower?</h2>
+<table>
+<colgroup>
+<col style="width: 32%" />
+<col style="width: 39%" />
+<col style="width: 28%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Feature</th>
+<th>KeepTower</th>
+<th>Others</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Local-first</strong></td>
+<td>✅ Always</td>
+<td>⚠️ Often cloud-dependent</td>
+</tr>
+<tr class="even">
+<td><strong>FIPS 140-3 Ready</strong></td>
+<td>✅ FIPS-approved algorithms</td>
+<td>❌ Not typically</td>
+</tr>
+<tr class="odd">
+<td><strong>Multi-User Vaults</strong></td>
+<td>✅ Role-based access</td>
+<td>❌ Single-user only</td>
+</tr>
+<tr class="even">
+<td><strong>Forward Error Correction</strong></td>
+<td>✅ Built-in</td>
+<td>❌ Not available</td>
+</tr>
+<tr class="odd">
+<td><strong>Hardware 2FA</strong></td>
+<td>✅ YubiKey support</td>
+<td>⚠️ Limited or none</td>
+</tr>
+<tr class="even">
+<td><strong>Multi-format Import/Export</strong></td>
+<td>✅ CSV, KeePass, 1Password</td>
+<td>⚠️ Varies</td>
+</tr>
+<tr class="odd">
+<td><strong>Native Performance</strong></td>
+<td>✅ C++/GTK4</td>
+<td>⚠️ Electron/web-based</td>
+</tr>
+<tr class="even">
+<td><strong>Open Source</strong></td>
+<td>✅ GPL-3.0</td>
+<td>⚠️ Varies</td>
+</tr>
+<tr class="odd">
+<td><strong>Linux Integration</strong></td>
+<td>✅ Deep (libadwaita)</td>
+<td>⚠️ Generic</td>
+</tr>
+</tbody>
+</table>
+<h2 id="quick-start">Quick Start</h2>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Install dependencies (Fedora/RHEL)</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">sudo</span> dnf install gtkmm4.0-devel protobuf-devel openssl-devel libcorrect-devel</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Build</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="ex">meson</span> setup build</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="ex">meson</span> compile <span class="at">-C</span> build</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Run</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="ex">./build/src/keeptower</span></span></code></pre></div>
+<p>See <strong>[[Installation]]</strong> for detailed instructions for
+your distribution.</p>
+<h2 id="documentation">Documentation</h2>
+<ul>
+<li><strong>[[Installation]]</strong> - Installation instructions for
+different distributions</li>
+<li><strong>[[Getting Started]]</strong> - Create your first vault</li>
+<li><strong>[[User Guide]]</strong> - Complete feature walkthrough</li>
+<li><strong>[[Security]]</strong> - Encryption details and threat
+model</li>
+<li><strong>[[FAQ]]</strong> - Frequently asked questions</li>
+<li><strong>[[Contributing]]</strong> - How to contribute to
+KeepTower</li>
+</ul>
+<h2 id="version">Version</h2>
+<p><strong>Current Version:</strong> v0.3.0-beta <strong>Release
+Date:</strong> December 29, 2025</p>
+<h3 id="recent-updates">Recent Updates</h3>
+<ul>
+<li>✅ Multi-user V2 vault format with role-based access</li>
+<li>✅ Password history tracking and enforcement</li>
+<li>✅ Preferences dialog refactor with backup/restore</li>
+<li>✅ Enhanced security policy configuration</li>
+<li>✅ CI/CD improvements and stability fixes</li>
+</ul>
+<h2 id="support">Support</h2>
+<ul>
+<li><strong>Issues:</strong> <a href="https://github.com/tjdeveng/KeepTower/issues">GitHub
+Issues</a></li>
+<li><strong>Security:</strong> See [[Security]] for reporting security
+vulnerabilities</li>
+<li><strong>Contributing:</strong> See [[Contributing]] for development
+guidelines</li>
+</ul>
+<h2 id="license">License</h2>
+<p>KeepTower is free and open-source software licensed under the GNU
+General Public License v3.0 or later (GPL-3.0-or-later).</p>
+<div class="footer">
+    <p>KeepTower v0.3.0-beta | <a href="https://github.com/tjdeveng/KeepTower">GitHub</a> | GPL-3.0 License</p>
+</div>
+</div>
+</body>
+</html>

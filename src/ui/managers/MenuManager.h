@@ -61,6 +61,17 @@ public:
     void setup_actions(const std::map<std::string, std::function<void()>>& callbacks);
 
     /**
+     * @brief Setup help menu actions
+     *
+     * Automatically sets up actions for opening help documentation:
+     * - win.help-user-guide
+     * - win.help-getting-started
+     * - win.help-faq
+     * - win.help-security
+     */
+    void setup_help_actions();
+
+    /**
      * @brief Create primary menu (hamburger menu)
      * @return Shared pointer to the menu model
      */

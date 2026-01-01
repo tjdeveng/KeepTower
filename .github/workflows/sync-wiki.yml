@@ -1,0 +1,102 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 tjdeveng
+#
+# GitHub Actions workflow to sync documentation from main repo to Wiki
+#
+# This workflow maintains a single source of truth for documentation:
+# - Source: docs/user/ in main repository
+# - Target: GitHub Wiki repository
+# - Trigger: Changes to docs/user/ files
+#
+# Security: Uses GitHub token with wiki write permissions
+
+name: Sync Documentation to Wiki
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/user/**'
+      - 'docs/developer/CONTRIBUTING.md'
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  sync-wiki:
+    name: Sync Docs to Wiki
+    runs-on: ubuntu-24.04
+
+    permissions:
+      contents: write  # Required for wiki access
+
+    steps:
+      - name: Checkout main repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Checkout wiki repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}.wiki
+          path: wiki
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Sync documentation files
+        run: |
+          # User documentation (numbered files become wiki pages)
+          cp docs/user/00-home.md wiki/Home.md
+          cp docs/user/01-getting-started.md wiki/Getting-Started.md
+          cp docs/user/02-installation.md wiki/Installation.md
+          cp docs/user/03-user-guide.md wiki/User-Guide.md
+          cp docs/user/04-faq.md wiki/FAQ.md
+          cp docs/user/05-security.md wiki/Security.md
+
+          # Developer documentation
+          cp docs/developer/CONTRIBUTING.md wiki/Contributing.md
+
+          # Add sync timestamp footer to each file
+          TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          for file in wiki/*.md; do
+            if ! grep -q "Last synced:" "$file"; then
+              echo "" >> "$file"
+              echo "---" >> "$file"
+              echo "*Last synced: $TIMESTAMP*" >> "$file"
+            else
+              sed -i "s/Last synced:.*/Last synced: $TIMESTAMP*/" "$file"
+            fi
+          done
+
+      - name: Commit and push to wiki
+        working-directory: wiki
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Check if there are changes
+          if git diff --quiet && git diff --staged --quiet; then
+            echo "No changes to wiki documentation"
+            exit 0
+          fi
+
+          git add .
+          git commit -m "Sync documentation from main repository
+
+          Automated sync triggered by commit ${{ github.sha }}
+          Source: docs/user/ and docs/developer/
+          Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+
+          git push origin master
+
+      - name: Summary
+        if: success()
+        run: |
+          echo "✅ Wiki documentation successfully synced"
+          echo "📚 Files updated:"
+          echo "  - Home (00-home.md)"
+          echo "  - Getting Started (01-getting-started.md)"
+          echo "  - Installation (02-installation.md)"
+          echo "  - User Guide (03-user-guide.md)"
+          echo "  - FAQ (04-faq.md)"
+          echo "  - Security (05-security.md)"
+          echo "  - Contributing (CONTRIBUTING.md)"

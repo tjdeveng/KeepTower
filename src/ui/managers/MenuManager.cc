@@ -3,6 +3,7 @@
 
 #include "MenuManager.h"
 #include "../../core/VaultManager.h"
+#include "../../utils/helpers/HelpManager.h"
 #include <config.h>
 
 namespace UI {
@@ -37,6 +38,30 @@ void MenuManager::setup_actions(
     }
 }
 
+void MenuManager::setup_help_actions() {
+    auto& help = Utils::HelpManager::get_instance();
+
+    // User Guide
+    add_action("help-user-guide", [this, &help]() {
+        help.open_help(Utils::HelpTopic::UserGuide, m_parent);
+    });
+
+    // Getting Started
+    add_action("help-getting-started", [this, &help]() {
+        help.open_help(Utils::HelpTopic::GettingStarted, m_parent);
+    });
+
+    // FAQ
+    add_action("help-faq", [this, &help]() {
+        help.open_help(Utils::HelpTopic::FAQ, m_parent);
+    });
+
+    // Security
+    add_action("help-security", [this, &help]() {
+        help.open_help(Utils::HelpTopic::Security, m_parent);
+    });
+}
+
 Glib::RefPtr<Gio::Menu> MenuManager::create_primary_menu() {
     auto menu = Gio::Menu::create();
 
@@ -64,8 +89,17 @@ Glib::RefPtr<Gio::Menu> MenuManager::create_primary_menu() {
     user_section->append("_Logout", "win.logout");
     menu->append_section(user_section);
 
-    // Help section
+    // Help section with submenu
     auto help_section = Gio::Menu::create();
+
+    // Create Help submenu
+    auto help_submenu = Gio::Menu::create();
+    help_submenu->append("_User Guide", "win.help-user-guide");
+    help_submenu->append("_Getting Started", "win.help-getting-started");
+    help_submenu->append("_FAQ", "win.help-faq");
+    help_submenu->append("_Security", "win.help-security");
+
+    help_section->append_submenu("_Help", help_submenu);
     help_section->append("_Keyboard Shortcuts", "win.show-help-overlay");
     help_section->append("_About KeepTower", "app.about");
     menu->append_section(help_section);

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="pandoc">
+    <title>$if(pagetitle)$$pagetitle$ - $endif$KeepTower Help</title>
+    <style>
+$styles.html()$
+    </style>
+$for(css)$
+    <link rel="stylesheet" href="$css$">
+$endfor$
+$if(math)$
+    $math$
+$endif$
+</head>
+<body>
+$if(title)$
+<div class="nav-header">
+    <h1>$title$</h1>
+    <div class="nav-links">
+        <a href="00-home.html">🏠 Home</a>
+        <a href="01-getting-started.html">🚀 Getting Started</a>
+        <a href="02-installation.html">💾 Installation</a>
+        <a href="03-user-guide.html">📖 User Guide</a>
+        <a href="04-faq.html">❓ FAQ</a>
+        <a href="05-security.html">🔒 Security</a>
+    </div>
+</div>
+$endif$
+<div class="container">
+$if(toc)$
+<nav id="$idprefix$TOC" role="doc-toc">
+<div class="toc">
+<h2>Table of Contents</h2>
+$table-of-contents$
+</div>
+</nav>
+$endif$
+$body$
+<div class="footer">
+    <p>KeepTower v$version$ | <a href="https://github.com/tjdeveng/KeepTower">GitHub</a> | GPL-3.0 License</p>
+</div>
+</div>
+</body>
+</html>

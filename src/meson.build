@@ -15,6 +15,32 @@ gresources = gnome.compile_resources(
   c_name: 'keeptower',
 )
 
+# Compile help resources (if pandoc is available)
+# First check if pandoc exists
+pandoc = find_program('pandoc', required: false)
+if pandoc.found()
+  # Generate help HTML files during build
+  generate_help = custom_target(
+    'generate-help-src',
+    output: 'help-src-generated.stamp',
+    command: [files('../scripts/generate-help.sh')],
+    build_by_default: true,
+    build_always_stale: true,
+  )
+
+  # Compile help GResources with dependency on generation
+  help_gresources = gnome.compile_resources(
+    'keeptower-help-resources',
+    '../resources/help.gresource.xml',
+    source_dir: '../resources',
+    c_name: 'keeptower_help',
+    dependencies: [generate_help],
+  )
+else
+  warning('pandoc not found - help documentation will not be embedded')
+  help_gresources = []
+endif
+
 # Generate protocol buffer sources
 protoc = find_program('protoc', required: true)
 
@@ -92,6 +118,7 @@ sources = files(
   'core/managers/AccountManager.cc',
   'core/managers/GroupManager.cc',
   'utils/ImportExport.cc',
+  'utils/helpers/HelpManager.cc',
 )
 
 # Add YubiKey support if available
@@ -102,7 +129,7 @@ if yubikey_available
 endif
 
 # Combine regular sources with generated proto sources and resources
-all_sources = sources + proto_sources + gresources
+all_sources = sources + proto_sources + gresources + help_gresources
 
 # Include directories
 src_inc = include_directories(
