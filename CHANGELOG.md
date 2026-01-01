@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-01-01
+
 ### Added
 - **FIPS-140-3 Compliant YubiKey Multi-Algorithm Support:**
   - YubiKeyAlgorithm enum framework for extensible algorithm support
