@@ -65,7 +65,7 @@ vault_manager_deps = [
 # Add YubiKey support if available
 if yubikey_available
     vault_manager_sources += files('../src/core/managers/YubiKeyManager.cc')
-    vault_manager_deps += [ykpers_dep, libyubikey_dep]
+    vault_manager_deps += [fido2_dep]
 endif
 
 vault_manager_test = executable(
@@ -90,7 +90,7 @@ fips_mode_deps = [
 
 if yubikey_available
     fips_mode_sources += files('../src/core/managers/YubiKeyManager.cc')
-    fips_mode_deps += [ykpers_dep, libyubikey_dep]
+    fips_mode_deps += [fido2_dep]
 endif
 
 fips_mode_test = executable(
@@ -116,7 +116,7 @@ memory_locking_deps = [
 
 if yubikey_available
     memory_locking_sources += files('../src/core/managers/YubiKeyManager.cc')
-    memory_locking_deps += [ykpers_dep, libyubikey_dep]
+    memory_locking_deps += [fido2_dep]
 endif
 
 memory_locking_test = executable(
@@ -146,7 +146,7 @@ security_sources = [
 security_deps = [protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
 if yubikey_available
     security_sources += files('../src/core/managers/YubiKeyManager.cc')
-    security_deps += [ykpers_dep, libyubikey_dep]
+    security_deps += [fido2_dep]
 endif
 
 security_features_test = executable(
@@ -187,7 +187,7 @@ vault_rs_sources = [
 vault_rs_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
 if yubikey_available
     vault_rs_sources += files('../src/core/managers/YubiKeyManager.cc')
-    vault_rs_deps += [ykpers_dep, libyubikey_dep]
+    vault_rs_deps += [fido2_dep]
 endif
 
 vault_reed_solomon_test = executable(
@@ -206,7 +206,7 @@ fec_pref_sources = [
 fec_pref_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
 if yubikey_available
     fec_pref_sources += files('../src/core/managers/YubiKeyManager.cc')
-    fec_pref_deps += [ykpers_dep, libyubikey_dep]
+    fec_pref_deps += [fido2_dep]
 endif
 
 fec_preferences_test = executable(
@@ -257,7 +257,7 @@ vault_helpers_sources = [
 vault_helpers_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
 if yubikey_available
     vault_helpers_sources += files('../src/core/managers/YubiKeyManager.cc')
-    vault_helpers_deps += [ykpers_dep, libyubikey_dep]
+    vault_helpers_deps += [fido2_dep]
 endif
 
 vault_helpers_test = executable(
@@ -284,7 +284,7 @@ undo_redo_sources = [
 undo_redo_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
 if yubikey_available
     undo_redo_sources += files('../src/core/managers/YubiKeyManager.cc')
-    undo_redo_deps += [ykpers_dep, libyubikey_dep]
+    undo_redo_deps += [fido2_dep]
 endif
 
 undo_redo_test = executable(
@@ -304,7 +304,12 @@ yubikey_algorithms_test = executable(
 
 # Register all tests
 # VaultManager concurrency tests can be flaky under heavy CI load - allow retry
-test('VaultManager Tests', vault_manager_test, timeout: 60, should_fail: false, priority: -10)
+test('VaultManager Tests', vault_manager_test,
+     timeout: 60,
+     should_fail: false,
+     priority: -10,
+     env: {'DISABLE_YUBIKEY_DETECT': '1'}  # Disable YubiKey enumeration due to libfido2 thread-safety issues
+)
 test('Password Validation Tests', password_validation_test, timeout: 30)
 test('Input Validation Tests', input_validation_test)
 test('Reed-Solomon Tests', reed_solomon_test)
@@ -329,7 +334,7 @@ secure_memory_sources = [
 secure_memory_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
 if yubikey_available
     secure_memory_sources += files('../src/core/managers/YubiKeyManager.cc')
-    secure_memory_deps += [ykpers_dep, libyubikey_dep]
+    secure_memory_deps += [fido2_dep]
 endif
 
 secure_memory_test = executable(
@@ -350,7 +355,7 @@ undo_redo_prefs_sources = [
 undo_redo_prefs_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
 if yubikey_available
     undo_redo_prefs_sources += files('../src/core/managers/YubiKeyManager.cc')
-    undo_redo_prefs_deps += [ykpers_dep, libyubikey_dep]
+    undo_redo_prefs_deps += [fido2_dep]
 endif
 
 undo_redo_prefs_test = executable(
@@ -371,7 +376,7 @@ account_groups_sources = [
 account_groups_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
 if yubikey_available
     account_groups_sources += files('../src/core/managers/YubiKeyManager.cc')
-    account_groups_deps += [ykpers_dep, libyubikey_dep]
+    account_groups_deps += [fido2_dep]
 endif
 
 account_groups_test = executable(
@@ -461,7 +466,7 @@ v2_auth_sources = [
 v2_auth_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
 if yubikey_available
     v2_auth_sources += files('../src/core/managers/YubiKeyManager.cc')
-    v2_auth_deps += [ykpers_dep, libyubikey_dep]
+    v2_auth_deps += [fido2_dep]
 endif
 
 v2_auth_test = executable(
@@ -481,7 +486,7 @@ migration_test_sources = [
 migration_test_deps = [protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
 if yubikey_available
     migration_test_sources += files('../src/core/managers/YubiKeyManager.cc')
-    migration_test_deps += [ykpers_dep, libyubikey_dep]
+    migration_test_deps += [fido2_dep]
 endif
 
 migration_test = executable(
@@ -499,7 +504,7 @@ v2_creation_test_sources = [
 v2_creation_test_deps = [protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
 if yubikey_available
     v2_creation_test_sources += files('../src/core/managers/YubiKeyManager.cc')
-    v2_creation_test_deps += [ykpers_dep, libyubikey_dep]
+    v2_creation_test_deps += [fido2_dep]
 endif
 
 v2_creation_test = executable(
@@ -523,7 +528,7 @@ password_history_test_deps = [
 ]
 if yubikey_available
     password_history_test_sources += files('../src/core/managers/YubiKeyManager.cc')
-    password_history_test_deps += [ykpers_dep, libyubikey_dep]
+    password_history_test_deps += [fido2_dep]
 endif
 
 password_history_test = executable(
@@ -621,7 +626,7 @@ account_view_controller_test_deps = [
 
 if yubikey_available
     account_view_controller_test_sources += files('../src/core/managers/YubiKeyManager.cc')
-    account_view_controller_test_deps += [ykpers_dep, libyubikey_dep]
+    account_view_controller_test_deps += [fido2_dep]
 endif
 
 account_view_controller_test = executable(
@@ -712,7 +717,7 @@ account_repository_test_deps = [
 
 if yubikey_available
     account_repository_test_sources += files('../src/core/managers/YubiKeyManager.cc')
-    account_repository_test_deps += [ykpers_dep, libyubikey_dep]
+    account_repository_test_deps += [fido2_dep]
 endif
 
 account_repository_test = executable(
@@ -741,7 +746,7 @@ group_repository_test_deps = [
 
 if yubikey_available
     group_repository_test_sources += files('../src/core/managers/YubiKeyManager.cc')
-    group_repository_test_deps += [ykpers_dep, libyubikey_dep]
+    group_repository_test_deps += [fido2_dep]
 endif
 
 group_repository_test = executable(
@@ -771,7 +776,7 @@ account_service_test_deps = [
 
 if yubikey_available
     account_service_test_sources += files('../src/core/managers/YubiKeyManager.cc')
-    account_service_test_deps += [ykpers_dep, libyubikey_dep]
+    account_service_test_deps += [fido2_dep]
 endif
 
 account_service_test = executable(
@@ -801,7 +806,7 @@ group_service_test_deps = [
 
 if yubikey_available
     group_service_test_sources += files('../src/core/managers/YubiKeyManager.cc')
-    group_service_test_deps += [ykpers_dep, libyubikey_dep]
+    group_service_test_deps += [fido2_dep]
 endif
 
 group_service_test = executable(

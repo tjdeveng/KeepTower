@@ -72,8 +72,7 @@ jobs:
           gettext \
           desktop-file-utils \
           doxygen \
-          libykpers-1-dev \
-          libyubikey-dev
+          libfido2-dev
 
         # Build and install libcorrect from source
         if [ "${{ steps.cache-libcorrect.outputs.cache-hit }}" != "true" ]; then

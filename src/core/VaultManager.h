@@ -299,7 +299,8 @@ public:
         const std::string& path,
         const Glib::ustring& admin_username,
         const Glib::ustring& admin_password,
-        const KeepTower::VaultSecurityPolicy& policy);
+        const KeepTower::VaultSecurityPolicy& policy,
+        const std::optional<std::string>& yubikey_pin = std::nullopt);
 
     /**
      * @brief Open V2 vault with user authentication
@@ -377,7 +378,8 @@ public:
         const Glib::ustring& username,
         const Glib::ustring& temporary_password,
         KeepTower::UserRole role = KeepTower::UserRole::STANDARD_USER,
-        bool must_change_password = true);
+        bool must_change_password = true,
+        const std::optional<std::string>& yubikey_pin = std::nullopt);
 
     /**
      * @brief Remove user from open V2 vault
@@ -469,7 +471,8 @@ public:
     [[nodiscard]] KeepTower::VaultResult<> change_user_password(
         const Glib::ustring& username,
         const Glib::ustring& old_password,
-        const Glib::ustring& new_password);
+        const Glib::ustring& new_password,
+        const std::optional<std::string>& yubikey_pin = std::nullopt);
 
     /**
      * @brief Clear password history for a user
@@ -550,14 +553,15 @@ public:
      * 3. Perform YubiKey challenge-response (requires touch for security)
      * 4. Combine KEK with YubiKey response
      * 5. Re-wrap DEK with password+YubiKey combined KEK
-     * 6. Store challenge, serial, and timestamp in user's KeySlot
+     * 6. Encrypt and store YubiKey PIN with password-derived KEK
+     * 7. Store challenge, serial, credential ID, and timestamp in user's KeySlot
      *
      * @note After enrollment, user MUST have YubiKey present for all future logins
      * @note Call save_vault() after to persist changes
      *
      * @code
-     * // User enrolling their own YubiKey
-     * auto result = vm.enroll_yubikey_for_user("alice", "alicepass123");
+     * // User enrolling their own YubiKey with PIN
+     * auto result = vm.enroll_yubikey_for_user("alice", "alicepass123", "123456");
      * if (!result) {
      *     show_error("YubiKey enrollment failed");
      *     return;
@@ -568,7 +572,8 @@ public:
      */
     [[nodiscard]] KeepTower::VaultResult<> enroll_yubikey_for_user(
         const Glib::ustring& username,
-        const Glib::ustring& password);
+        const Glib::ustring& password,
+        const std::string& yubikey_pin);
 
     /**
      * @brief Remove YubiKey enrollment from a user account

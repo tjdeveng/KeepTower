@@ -28,6 +28,7 @@
 struct PasswordChangeRequest {
     Glib::ustring current_password;  ///< Current password for verification
     Glib::ustring new_password;      ///< New password to set
+    std::string yubikey_pin;         ///< YubiKey PIN (if YubiKey enrolled)
 
     /**
      * @brief Securely clear passwords from memory
@@ -118,12 +119,15 @@ public:
      */
     void set_current_password(std::string_view temp_password);
 
-protected:
     /**
-     * @brief Show/hide passwords based on checkbox state
+     * @brief Show YubiKey PIN entry field (when YubiKey is enrolled)
+     *
+     * Displays PIN entry field for users with YubiKey enrolled.
+     * Call this before running dialog if YubiKey is enrolled.
      */
-    void on_show_password_toggled();
+    void set_yubikey_required(bool required);
 
+protected:
     /**
      * @brief Validate passwords and enable OK button
      *
@@ -173,13 +177,24 @@ private:
     Gtk::Label m_validation_label;  // Real-time validation feedback
     Gtk::Label m_strength_label;    // Password strength indicator
 
-    // Input fields
+    // Input fields with eye button boxes
+    Gtk::Box m_current_password_entry_box{Gtk::Orientation::HORIZONTAL, 0};
     Gtk::Entry m_current_password_entry;
+    Gtk::ToggleButton m_current_password_show_button{"\U0001F441"};
+    Gtk::Box m_new_password_entry_box{Gtk::Orientation::HORIZONTAL, 0};
     Gtk::Entry m_new_password_entry;
+    Gtk::Box m_confirm_password_entry_box{Gtk::Orientation::HORIZONTAL, 0};
     Gtk::Entry m_confirm_password_entry;
 
-    // Controls
-    Gtk::CheckButton m_show_password_check{"Show passwords"};
+    // YubiKey widgets (conditional compilation)
+#ifdef HAVE_YUBIKEY_SUPPORT
+    Gtk::Separator m_yubikey_separator{Gtk::Orientation::HORIZONTAL};
+    Gtk::Box m_yubikey_pin_box{Gtk::Orientation::VERTICAL, 6};
+    Gtk::Label m_yubikey_pin_label{"YubiKey FIDO2 PIN:"};
+    Gtk::Box m_yubikey_pin_entry_box{Gtk::Orientation::HORIZONTAL, 0};
+    Gtk::Entry m_yubikey_pin_entry;
+    Gtk::ToggleButton m_yubikey_pin_show_button{"\U0001F441"};
+#endif
 
     // Dialog buttons (stored for sensitivity control)
     Gtk::Button* m_ok_button{nullptr};

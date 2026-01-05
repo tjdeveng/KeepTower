@@ -56,8 +56,27 @@ void UserAccountHandler::handle_change_password() {
     auto policy_opt = m_vault_manager->get_vault_security_policy();
     const uint32_t min_length = policy_opt ? policy_opt->min_password_length : 12;
 
+    // Check if user has YubiKey enrolled
+    bool yubikey_enrolled = false;
+#ifdef HAVE_YUBIKEY_SUPPORT
+    auto users = m_vault_manager->list_users();
+    for (const auto& user : users) {
+        if (user.username == session.username && user.yubikey_enrolled) {
+            yubikey_enrolled = true;
+            break;
+        }
+    }
+#endif
+
     // Show password change dialog (voluntary mode)
     auto* change_dialog = new ChangePasswordDialog(m_window, min_length, false);  // false = voluntary
+
+#ifdef HAVE_YUBIKEY_SUPPORT
+    // Show PIN field if YubiKey is enrolled
+    if (yubikey_enrolled) {
+        change_dialog->set_yubikey_required(true);
+    }
+#endif
 
     change_dialog->signal_response().connect([this, change_dialog, username = session.username, min_length](int response) {
         if (response != Gtk::ResponseType::OK) {
@@ -110,7 +129,11 @@ void UserAccountHandler::handle_change_password() {
 #endif
 
         // Attempt password change (password already validated, just needs YubiKey operations)
-        auto result = m_vault_manager->change_user_password(username, req.current_password, req.new_password);
+        std::optional<std::string> yubikey_pin_opt;
+        if (!req.yubikey_pin.empty()) {
+            yubikey_pin_opt = req.yubikey_pin;
+        }
+        auto result = m_vault_manager->change_user_password(username, req.current_password, req.new_password, yubikey_pin_opt);
 
 #ifdef HAVE_YUBIKEY_SUPPORT
         if (touch_dialog) {

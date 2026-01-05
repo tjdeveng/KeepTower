@@ -236,6 +236,31 @@ inline void secure_clear_ustring(Glib::ustring& str) {
 }
 
 /**
+ * @brief Securely clear a std::string containing sensitive data
+ *
+ * Uses OPENSSL_cleanse() to ensure the password/sensitive string data
+ * is overwritten in a way that cannot be optimized away by the compiler.
+ * This prevents passwords from remaining in memory after use.
+ *
+ * @param str String to clear (typically a password or PIN)
+ *
+ * @code
+ * std::string pin = entry.get_text().raw();
+ * // Use pin...
+ * secure_clear_std_string(pin);  // Securely erase
+ * @endcode
+ *
+ * @note Always use this instead of manual memset or loops, as those can
+ *       be optimized away by the compiler.
+ */
+inline void secure_clear_std_string(std::string& str) {
+    if (!str.empty()) {
+        OPENSSL_cleanse(const_cast<char*>(str.data()), str.size());
+        str.clear();
+    }
+}
+
+/**
  * @brief RAII wrapper for Glib::ustring with automatic secure destruction
  *
  * Automatically securely clears password/sensitive string data on scope exit

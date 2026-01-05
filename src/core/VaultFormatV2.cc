@@ -50,9 +50,11 @@ bool VaultFormatV2::is_valid_v2_vault(const std::vector<uint8_t>& file_data) {
 // ============================================================================
 
 KeepTower::VaultResult<std::vector<uint8_t>>
-VaultFormatV2::apply_header_fec(const std::vector<uint8_t>& header_data, uint8_t redundancy) {
-    // Create ReedSolomon encoder
-    ReedSolomon rs(redundancy);
+VaultFormatV2::apply_header_fec(const std::vector<uint8_t>& header_data,
+                                uint8_t encoding_redundancy,
+                                uint8_t stored_redundancy) {
+    // Create ReedSolomon encoder with the effective encoding redundancy
+    ReedSolomon rs(encoding_redundancy);
 
     // Encode header data
     auto encode_result = rs.encode(header_data);
@@ -69,8 +71,8 @@ VaultFormatV2::apply_header_fec(const std::vector<uint8_t>& header_data, uint8_t
     std::vector<uint8_t> result;
     result.reserve(1 + 4 + encoded.data.size());
 
-    // Redundancy byte
-    result.push_back(redundancy);
+    // Store user's preference redundancy (not the effective encoding redundancy)
+    result.push_back(stored_redundancy);
 
     // Original size (4 bytes, big-endian)
     // Check for integer overflow (size_t -> uint32_t)
@@ -88,8 +90,8 @@ VaultFormatV2::apply_header_fec(const std::vector<uint8_t>& header_data, uint8_t
     // Encoded data (data + parity)
     result.insert(result.end(), encoded.data.begin(), encoded.data.end());
 
-    Log::info("VaultFormatV2: Header FEC applied ({}% redundancy, {} -> {} bytes)",
-              redundancy, header_data.size(), encoded.data.size());
+    Log::info("VaultFormatV2: Header FEC applied (encoding: {}%, stored: {}%, {} -> {} bytes)",
+              encoding_redundancy, stored_redundancy, header_data.size(), encoded.data.size());
 
     return result;
 }
@@ -148,13 +150,12 @@ VaultFormatV2::write_header(const V2FileHeader& header,
     if (enable_header_fec) {
         header_flags |= HEADER_FLAG_FEC_ENABLED;
 
-        // Use max(MIN_HEADER_FEC_REDUNDANCY, user_fec_redundancy)
-        // This ensures critical data gets at least 20% protection,
-        // but respects higher user preferences
+        // Header encoding uses max(20%, user_preference) for critical data protection
+        // But we store the user's actual preference so it can be read back
         uint8_t effective_redundancy = std::max(MIN_HEADER_FEC_REDUNDANCY, user_fec_redundancy);
 
-        // Apply FEC to vault header
-        auto fec_result = apply_header_fec(vault_header_data, effective_redundancy);
+        // Apply FEC: encode with effective_redundancy, store user_fec_redundancy
+        auto fec_result = apply_header_fec(vault_header_data, effective_redundancy, user_fec_redundancy);
         if (!fec_result) {
             return std::unexpected(fec_result.error());
         }
@@ -298,6 +299,8 @@ VaultFormatV2::read_header(const std::vector<uint8_t>& file_data) {
         }
 
         uint8_t redundancy = header_data_section[0];
+        header.fec_redundancy_percent = redundancy;  // Store user preference for caller
+
         uint32_t original_size = (static_cast<uint32_t>(header_data_section[1]) << 24) |
                                  (static_cast<uint32_t>(header_data_section[2]) << 16) |
                                  (static_cast<uint32_t>(header_data_section[3]) << 8) |
@@ -308,13 +311,18 @@ VaultFormatV2::read_header(const std::vector<uint8_t>& file_data) {
             header_data_section.begin() + 5,
             header_data_section.end());
 
-        // Decode with FEC
-        auto decode_result = remove_header_fec(encoded_data, original_size, redundancy);
+        // Decode with effective redundancy (max of 20% and stored value)
+        // This matches the encoding redundancy used during write
+        uint8_t decoding_redundancy = std::max(MIN_HEADER_FEC_REDUNDANCY, redundancy);
+        auto decode_result = remove_header_fec(encoded_data, original_size, decoding_redundancy);
         if (!decode_result) {
             return std::unexpected(decode_result.error());
         }
 
         vault_header_data = std::move(decode_result.value());
+
+        Log::info("VaultFormatV2: Header FEC decoded successfully (recovered {} bytes, encoded: {}%, stored: {}%)",
+                  vault_header_data.size(), decoding_redundancy, redundancy);
     } else {
         // No FEC, use raw header data
         vault_header_data = header_data_section;
@@ -337,8 +345,15 @@ VaultFormatV2::read_header(const std::vector<uint8_t>& file_data) {
     std::copy(file_data.begin() + offset, file_data.begin() + offset + 12, header.data_iv.begin());
     offset += 12;
 
-    Log::info("VaultFormatV2: Header read successfully ({} key slots, FEC: {})",
-              header.vault_header.key_slots.size(), fec_enabled ? "enabled" : "disabled");
+    if (fec_enabled) {
+        // Calculate effective redundancy for display (same as encoding)
+        uint8_t effective_redundancy = std::max(MIN_HEADER_FEC_REDUNDANCY, header.fec_redundancy_percent);
+        Log::info("VaultFormatV2: Header read successfully ({} key slots, FEC: enabled, encoded: {}%, user setting: {}%)",
+                  header.vault_header.key_slots.size(), effective_redundancy, header.fec_redundancy_percent);
+    } else {
+        Log::info("VaultFormatV2: Header read successfully ({} key slots, FEC: disabled)",
+                  header.vault_header.key_slots.size());
+    }
 
     return std::make_pair(header, offset);
 }

@@ -9,36 +9,30 @@
 #include <string_view>
 
 /**
- * @brief YubiKey HMAC algorithm specifications for FIPS compliance
+ * @brief YubiKey HMAC algorithm specifications for FIPS-140-3 compliance
  *
  * Defines FIPS-140-3 approved hash algorithms for YubiKey challenge-response.
- * SHA-1 is explicitly prohibited per NIST SP 800-140B (deprecated since 2011).
+ * SHA-1 support has been completely removed for FIPS-140-3 compliance.
  *
  * FIPS-Approved Hash Functions (NIST SP 800-140B):
- * - ✅ SHA-256, SHA-384, SHA-512 (SHA-2 family)
- * - ✅ SHA3-256, SHA3-384, SHA3-512 (SHA-3 family)
- * - ❌ MD5, SHA-1 (deprecated, prohibited)
+ * - ✅ SHA-256 (minimum required, currently supported by YubiKey)
+ * - ✅ SHA-512 (reserved for future YubiKey firmware)
+ * - ✅ SHA3-256, SHA3-512 (reserved for future YubiKey firmware)
+ * - ❌ SHA-1, MD5 (deprecated, prohibited, removed)
  *
  * YubiKey Compatibility:
- * - YubiKey 5 Series (firmware 5.0+): HMAC-SHA1, HMAC-SHA256
- * - YubiKey 5 FIPS (firmware 5.4+): HMAC-SHA256 (FIPS mode)
- * - Future firmware: HMAC-SHA3 support planned
+ * - YubiKey 5 Series: Configure slot 2 for HMAC-SHA256
+ * - YubiKey 5 FIPS: Native SHA-256 support in FIPS mode
+ * - Minimum requirement: SHA-256 (no backward compatibility with SHA-1)
  *
+ * @note Breaking change: SHA-1 vaults are not supported. Reconfigure YubiKey for SHA-256.
  * @see https://csrc.nist.gov/publications/detail/sp/800-140b/final
  * @see https://developers.yubico.com/YubiHSM2/Concepts/Algorithms.html
  */
 enum class YubiKeyAlgorithm : uint8_t {
     /**
-     * @brief HMAC-SHA1 (20-byte response)
-     * @deprecated NOT FIPS-140-3 approved. Legacy support only.
-     * @warning SHA-1 is cryptographically broken (collision attacks)
-     * @note Only use for backward compatibility with existing vaults
-     */
-    HMAC_SHA1 = 0x01,
-
-    /**
      * @brief HMAC-SHA256 (32-byte response)
-     * @note FIPS-140-3 APPROVED. Default for new vaults.
+     * @note FIPS-140-3 APPROVED. Default and minimum algorithm.
      * @note Supported by YubiKey 5 Series (firmware 5.0+)
      */
     HMAC_SHA256 = 0x02,
@@ -75,7 +69,6 @@ enum class YubiKeyAlgorithm : uint8_t {
  */
 [[nodiscard]] constexpr size_t yubikey_algorithm_response_size(YubiKeyAlgorithm algorithm) noexcept {
     switch (algorithm) {
-        case YubiKeyAlgorithm::HMAC_SHA1:      return 20;
         case YubiKeyAlgorithm::HMAC_SHA256:    return 32;
         case YubiKeyAlgorithm::HMAC_SHA512:    return 64;
         case YubiKeyAlgorithm::HMAC_SHA3_256:  return 32;
@@ -91,7 +84,6 @@ enum class YubiKeyAlgorithm : uint8_t {
  */
 [[nodiscard]] constexpr std::string_view yubikey_algorithm_name(YubiKeyAlgorithm algorithm) noexcept {
     switch (algorithm) {
-        case YubiKeyAlgorithm::HMAC_SHA1:      return "HMAC-SHA1";
         case YubiKeyAlgorithm::HMAC_SHA256:    return "HMAC-SHA256";
         case YubiKeyAlgorithm::HMAC_SHA512:    return "HMAC-SHA512";
         case YubiKeyAlgorithm::HMAC_SHA3_256:  return "HMAC-SHA3-256";
@@ -112,7 +104,6 @@ enum class YubiKeyAlgorithm : uint8_t {
         case YubiKeyAlgorithm::HMAC_SHA3_256:
         case YubiKeyAlgorithm::HMAC_SHA3_512:
             return true;
-        case YubiKeyAlgorithm::HMAC_SHA1:
         default:
             return false;
     }
@@ -120,18 +111,10 @@ enum class YubiKeyAlgorithm : uint8_t {
 
 /**
  * @brief Get the default algorithm for FIPS mode
- * @return YubiKeyAlgorithm::HMAC_SHA256 (FIPS-approved default)
+ * @return YubiKeyAlgorithm::HMAC_SHA256 (FIPS-approved default and minimum)
  */
 [[nodiscard]] constexpr YubiKeyAlgorithm yubikey_algorithm_fips_default() noexcept {
     return YubiKeyAlgorithm::HMAC_SHA256;
-}
-
-/**
- * @brief Get the legacy algorithm for backward compatibility
- * @return YubiKeyAlgorithm::HMAC_SHA1 (deprecated, not FIPS-approved)
- */
-[[nodiscard]] constexpr YubiKeyAlgorithm yubikey_algorithm_legacy() noexcept {
-    return YubiKeyAlgorithm::HMAC_SHA1;
 }
 
 /**

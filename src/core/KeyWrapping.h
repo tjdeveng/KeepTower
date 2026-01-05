@@ -168,19 +168,20 @@ public:
                              uint32_t iterations);
 
     /**
-     * @brief Combine KEK with YubiKey response (legacy SHA-1, 20 bytes)
+     * @brief Combine KEK with YubiKey response (DEPRECATED - use v2)
      *
-     * XORs the KEK with the YubiKey HMAC-SHA1 response to create a
+     * XORs the KEK with the YubiKey response to create a
      * two-factor authentication key. This binds the password and YubiKey
      * together (both are required to unwrap the DEK).
      *
      * @param kek Key Encryption Key (from password, 32 bytes)
-     * @param yubikey_response YubiKey HMAC-SHA1 response (20 bytes)
+     * @param yubikey_response YubiKey response (20 bytes for legacy vaults)
      * @return Combined KEK (32 bytes)
      *
      * @note yubikey_response is zero-padded to 32 bytes before XOR
      * @note This matches LUKS2 YubiKey integration approach
-     * @deprecated Use combine_with_yubikey_v2() for FIPS compliance
+     * @deprecated REMOVED: SHA-1 support removed. Use combine_with_yubikey_v2() with SHA-256+
+     * @warning Only kept for V1 vault compatibility (non-YubiKey vaults)
      */
     [[nodiscard]] static std::array<uint8_t, KEK_SIZE>
     combine_with_yubikey(const std::array<uint8_t, KEK_SIZE>& kek,
@@ -190,9 +191,10 @@ public:
      * @brief Combine KEK with YubiKey response (variable-length, FIPS-compliant)
      *
      * XORs the KEK with YubiKey challenge-response output. Supports:
-     * - HMAC-SHA1: 20 bytes (legacy, NOT FIPS-approved)
-     * - HMAC-SHA256: 32 bytes (FIPS-approved, recommended)
+     * - HMAC-SHA256: 32 bytes (FIPS-approved, minimum required)
      * - HMAC-SHA512: 64 bytes (FIPS-approved, hashed to 32 bytes)
+     * - HMAC-SHA3-256: 32 bytes (FIPS-approved, future)
+     * - HMAC-SHA3-512: 64 bytes (FIPS-approved, future)
      *
      * @param kek Key Encryption Key (from password, 32 bytes)
      * @param yubikey_response YubiKey response (20-64 bytes)

@@ -45,8 +45,7 @@ jobs:
           git \
           gettext \
           desktop-file-utils \
-          libykpers-1-dev \
-          libyubikey-dev
+          libfido2-dev
 
     - name: Cache libcorrect
       id: cache-libcorrect

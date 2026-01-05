@@ -215,33 +215,46 @@ TEST_F(VaultFormatV2Test, WriteHeaderWithFEC) {
 }
 
 TEST_F(VaultFormatV2Test, WriteHeaderEnforcesMinimumFECRedundancy) {
-    // User requests only 10% redundancy, but minimum is 20%
+    // User requests only 10% redundancy, but header encoding minimum is 20%
     auto result = VaultFormatV2::write_header(header, true, 10);
 
     ASSERT_TRUE(result.has_value());
 
-    // Should use 20% (minimum) instead of 10%
-    // We can verify this by checking the FEC metadata
+    // Header should be encoded with 20% (minimum for critical data protection)
+    // But the stored redundancy byte should be 10% (user's preference for UI/data)
     auto& file_data = result.value();
     uint8_t flags = file_data[16];
     EXPECT_NE(flags & VaultFormatV2::HEADER_FLAG_FEC_ENABLED, 0);
 
-    // The redundancy byte should be 20 (located after header_size and flags)
+    // The redundancy byte stores user preference (10%), not encoding redundancy (20%)
     // Format: magic(4) + version(4) + pbkdf2(4) + header_size(4) + flags(1) + [redundancy(1)]
-    uint8_t redundancy = file_data[17];
-    EXPECT_EQ(redundancy, 20);
+    uint8_t stored_redundancy = file_data[17];
+    EXPECT_EQ(stored_redundancy, 10);  // User's preference is stored
+
+    // Verify it can be read back correctly (decoding also uses 20% minimum)
+    auto read_result = VaultFormatV2::read_header(file_data);
+    ASSERT_TRUE(read_result.has_value());
+    auto& [read_header, offset] = read_result.value();
+    EXPECT_EQ(read_header.fec_redundancy_percent, 10);  // User preference preserved
 }
 
 TEST_F(VaultFormatV2Test, WriteHeaderRespectsHigherUserRedundancy) {
     // User requests 30% redundancy (higher than minimum 20%)
+    // Both header and data FEC should use 30%
     auto result = VaultFormatV2::write_header(header, true, 30);
 
     ASSERT_TRUE(result.has_value());
     auto& file_data = result.value();
 
-    // Should use 30% (user preference)
+    // Stored redundancy byte should be 30% (user preference for data)
     uint8_t redundancy = file_data[17];
     EXPECT_EQ(redundancy, 30);
+
+    // Verify header was also encoded with 30% (matches data when data > 20%)
+    auto read_result = VaultFormatV2::read_header(file_data);
+    ASSERT_TRUE(read_result.has_value());
+    auto& [read_header, offset] = read_result.value();
+    EXPECT_EQ(read_header.fec_redundancy_percent, 30);  // User preference preserved
 }
 
 // ============================================================================

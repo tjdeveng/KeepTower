@@ -61,8 +61,7 @@ jobs:
           curl \
           perl \
           desktop-file-utils \
-          libykpers-1-dev \
-          libyubikey-dev
+          libfido2-dev
 
     - name: Verify C++23 support
       if: runner.os == 'Linux'

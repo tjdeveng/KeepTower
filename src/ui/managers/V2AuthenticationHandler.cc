@@ -14,6 +14,11 @@
 #include "../../core/managers/YubiKeyManager.h"
 #endif
 
+// Forward declare OPENSSL_cleanse to avoid including openssl headers that conflict with UI namespace
+extern "C" {
+    void OPENSSL_cleanse(void *ptr, size_t len);
+}
+
 namespace UI {
 
 V2AuthenticationHandler::V2AuthenticationHandler(MainWindow& window,
@@ -219,9 +224,6 @@ void V2AuthenticationHandler::handle_password_change_required(const std::string&
         }
 #endif
 
-        // Clear passwords immediately
-        req.clear();
-
         if (!result) {
             // Password change failed
             std::string error_msg = "Failed to change password";
@@ -240,15 +242,41 @@ void V2AuthenticationHandler::handle_password_change_required(const std::string&
                 handle_password_change_required(username);
             });
             error_dialog->show();
+
+            // Clear passwords immediately
+            req.clear();
             return;
+        }
+
+        // Save vault after password change to persist new wrapped_dek
+        if (!m_vault_manager->save_vault()) {
+            auto error_dialog = Gtk::make_managed<Gtk::MessageDialog>(
+                m_window,
+                "Password changed successfully but failed to save vault.\nPlease save manually.",
+                false,
+                Gtk::MessageType::WARNING,
+                Gtk::ButtonsType::OK,
+                true);
+            error_dialog->set_title("Save Failed");
+            error_dialog->signal_response().connect([error_dialog](int) {
+                error_dialog->hide();
+            });
+            error_dialog->show();
         }
 
         // Password changed successfully - check for YubiKey enrollment requirement
         auto session_opt = m_vault_manager->get_current_user_session();
         if (session_opt && session_opt->requires_yubikey_enrollment) {
-            handle_yubikey_enrollment_required(username);
+            // Save new password temporarily for enrollment (will be cleared after enrollment)
+            Glib::ustring new_password = req.new_password;
+            req.clear();  // Clear the request but keep new_password for enrollment
+
+            handle_yubikey_enrollment_required(username, new_password);
             return;
         }
+
+        // Clear passwords immediately
+        req.clear();
 
         // Complete authentication
         if (m_success_callback) {
@@ -259,7 +287,8 @@ void V2AuthenticationHandler::handle_password_change_required(const std::string&
     change_dialog->show();
 }
 
-void V2AuthenticationHandler::handle_yubikey_enrollment_required(const std::string& username) {
+void V2AuthenticationHandler::handle_yubikey_enrollment_required(const std::string& username,
+                                                                  const Glib::ustring& password) {
 #ifdef HAVE_YUBIKEY_SUPPORT
     // Show message dialog explaining requirement
     auto info_dialog = Gtk::make_managed<Gtk::MessageDialog>(
@@ -273,7 +302,7 @@ void V2AuthenticationHandler::handle_yubikey_enrollment_required(const std::stri
         true);
     info_dialog->set_title("YubiKey Enrollment Required");
 
-    info_dialog->signal_response().connect([this, info_dialog, username](int response) {
+    info_dialog->signal_response().connect([this, info_dialog, username, password](int response) {
         info_dialog->hide();
 
         if (response != Gtk::ResponseType::OK) {
@@ -282,31 +311,250 @@ void V2AuthenticationHandler::handle_yubikey_enrollment_required(const std::stri
             return;
         }
 
-        // Get user's current password
+        // If password was provided (from password change), only ask for PIN
+        // Otherwise, ask for both password and PIN
+        if (!password.empty()) {
+            // Password already known - just ask for PIN
+            auto pin_dialog = Gtk::make_managed<Gtk::MessageDialog>(
+                m_window,
+                "Set a YubiKey PIN for enrollment:",
+                false,
+                Gtk::MessageType::QUESTION,
+                Gtk::ButtonsType::OK_CANCEL,
+                true);
+            pin_dialog->set_title("YubiKey PIN");
+
+            auto* content_box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL);
+            content_box->set_spacing(12);
+
+            // PIN entry
+            auto* pin_label = Gtk::make_managed<Gtk::Label>("YubiKey PIN (4-63 characters):");
+            pin_label->set_halign(Gtk::Align::START);
+            content_box->append(*pin_label);
+
+            auto* pin_entry = Gtk::make_managed<Gtk::Entry>();
+            pin_entry->set_visibility(false);
+            pin_entry->set_activates_default(true);
+            pin_entry->set_max_length(63);
+            pin_entry->set_placeholder_text("Set a PIN for your YubiKey (4-63 chars)");
+            content_box->append(*pin_entry);
+
+            // Info label
+            auto* info_label = Gtk::make_managed<Gtk::Label>(
+                "This PIN will be stored securely and required for all future logins with this YubiKey.");
+            info_label->set_wrap(true);
+            info_label->set_halign(Gtk::Align::START);
+            info_label->set_margin_top(8);
+            info_label->add_css_class("dim-label");
+            content_box->append(*info_label);
+
+            pin_dialog->get_content_area()->append(*content_box);
+            pin_dialog->set_default_response(Gtk::ResponseType::OK);
+
+            pin_dialog->signal_response().connect([this, pin_dialog, pin_entry, username, password](int pin_response) {
+                if (pin_response != Gtk::ResponseType::OK) {
+                    pin_dialog->hide();
+                    m_dialog_manager->show_error_dialog("YubiKey enrollment cancelled.\nVault has been closed.");
+                    return;
+                }
+
+                auto pin = pin_entry->get_text().raw();
+                pin_dialog->hide();
+
+                // Validate PIN length
+                if (pin.empty() || pin.length() < 4 || pin.length() > 63) {
+                    auto error_dialog = Gtk::make_managed<Gtk::MessageDialog>(
+                        m_window,
+                        "YubiKey PIN must be between 4 and 63 characters.",
+                        false,
+                        Gtk::MessageType::ERROR,
+                        Gtk::ButtonsType::OK,
+                        true);
+                    error_dialog->set_title("Invalid PIN");
+                    error_dialog->signal_response().connect([this, error_dialog, username, password](int) {
+                        error_dialog->hide();
+                        handle_yubikey_enrollment_required(username, password);  // Retry
+                    });
+                    error_dialog->show();
+
+                    // Clear sensitive data
+                    pin_entry->set_text("");
+                    if (!pin.empty()) {
+                        OPENSSL_cleanse(const_cast<char*>(pin.data()), pin.size());
+                    }
+                    pin.clear();
+                    return;
+                }
+
+                // Show YubiKey touch prompt
+                auto touch_dialog = Gtk::make_managed<YubiKeyPromptDialog>(m_window,
+                    YubiKeyPromptDialog::PromptType::TOUCH);
+                touch_dialog->present();
+
+                // Force GTK to process events
+                auto context = Glib::MainContext::get_default();
+                while (context->pending()) {
+                    context->iteration(false);
+                }
+                g_usleep(150000);
+
+                // Attempt YubiKey enrollment with PIN
+                auto result = m_vault_manager->enroll_yubikey_for_user(username, password, pin);
+
+                // Clear PIN immediately
+                pin_entry->set_text("");
+                if (!pin.empty()) {
+                    OPENSSL_cleanse(const_cast<char*>(pin.data()), pin.size());
+                }
+                pin.clear();
+
+                touch_dialog->hide();
+
+                if (!result) {
+                    std::string error_msg = "Failed to enroll YubiKey";
+                    if (result.error() == KeepTower::VaultError::YubiKeyNotPresent) {
+                        error_msg = "YubiKey not detected. Please connect your YubiKey and try again.";
+                    } else if (result.error() == KeepTower::VaultError::AuthenticationFailed) {
+                        error_msg = "Authentication failed. The password or PIN may be incorrect.";
+                    } else if (result.error() == KeepTower::VaultError::CryptoError) {
+                        error_msg = "Cryptographic operation failed during enrollment.";
+                    } else if (result.error() == KeepTower::VaultError::YubiKeyError) {
+                        error_msg = "YubiKey error occurred. Please check your YubiKey.";
+                    } else {
+                        error_msg = "Failed to enroll YubiKey (error code: " +
+                                   std::to_string(static_cast<int>(result.error())) + ")";
+                    }
+
+                    KeepTower::Log::error("V2AuthenticationHandler: YubiKey enrollment failed - {}", error_msg);
+
+                    // Show error and retry
+                    auto error_dialog = Gtk::make_managed<Gtk::MessageDialog>(
+                        m_window, error_msg, false, Gtk::MessageType::ERROR, Gtk::ButtonsType::OK, true);
+                    error_dialog->set_title("Enrollment Failed");
+                    error_dialog->signal_response().connect([this, error_dialog, username, password](int) {
+                        error_dialog->hide();
+                        handle_yubikey_enrollment_required(username, password);  // Retry with same password
+                    });
+                    error_dialog->show();
+                    return;
+                }
+
+                // YubiKey enrolled successfully - save vault
+                if (!m_vault_manager->save_vault()) {
+                    m_dialog_manager->show_error_dialog("Failed to save vault after YubiKey enrollment.");
+                    return;
+                }
+
+                // Complete authentication
+                if (m_success_callback) {
+                    m_success_callback(m_current_vault_path, username);
+                }
+
+                // Show success message
+                auto success_dialog = Gtk::make_managed<Gtk::MessageDialog>(
+                    m_window,
+                    "YubiKey enrolled successfully!\n\nYour YubiKey will be required for all future logins.",
+                    false,
+                    Gtk::MessageType::INFO,
+                    Gtk::ButtonsType::OK,
+                    true);
+                success_dialog->set_title("Enrollment Complete");
+                success_dialog->signal_response().connect([success_dialog](int) {
+                    success_dialog->hide();
+                });
+                success_dialog->show();
+            });
+
+            pin_dialog->show();
+            return;
+        }
+
+        // Password not provided - ask for both password and PIN
         auto pwd_dialog = Gtk::make_managed<Gtk::MessageDialog>(
             m_window,
-            "Enter your password to enroll YubiKey:",
+            "Enter your password and set a YubiKey PIN for enrollment:",
             false,
             Gtk::MessageType::QUESTION,
             Gtk::ButtonsType::OK_CANCEL,
             true);
-        pwd_dialog->set_title("Password Required");
+        pwd_dialog->set_title("YubiKey Enrollment");
 
-        auto* entry = Gtk::make_managed<Gtk::Entry>();
-        entry->set_visibility(false);
-        entry->set_activates_default(true);
-        pwd_dialog->get_content_area()->append(*entry);
+        auto* content_box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL);
+        content_box->set_spacing(12);
+
+        // Password entry
+        auto* pwd_label = Gtk::make_managed<Gtk::Label>("Password:");
+        pwd_label->set_halign(Gtk::Align::START);
+        content_box->append(*pwd_label);
+
+        auto* password_entry = Gtk::make_managed<Gtk::Entry>();
+        password_entry->set_visibility(false);
+        password_entry->set_activates_default(false);
+        password_entry->set_placeholder_text("Enter your password");
+        content_box->append(*password_entry);
+
+        // PIN entry
+        auto* pin_label = Gtk::make_managed<Gtk::Label>("YubiKey PIN (4-63 characters):");
+        pin_label->set_halign(Gtk::Align::START);
+        pin_label->set_margin_top(8);
+        content_box->append(*pin_label);
+
+        auto* pin_entry = Gtk::make_managed<Gtk::Entry>();
+        pin_entry->set_visibility(false);
+        pin_entry->set_activates_default(true);
+        pin_entry->set_max_length(63);
+        pin_entry->set_placeholder_text("Set a PIN for your YubiKey (4-63 chars)");
+        content_box->append(*pin_entry);
+
+        // Info label
+        auto* info_label = Gtk::make_managed<Gtk::Label>(
+            "This PIN will be stored securely and required for all future logins with this YubiKey.");
+        info_label->set_wrap(true);
+        info_label->set_halign(Gtk::Align::START);
+        info_label->set_margin_top(8);
+        info_label->add_css_class("dim-label");
+        content_box->append(*info_label);
+
+        pwd_dialog->get_content_area()->append(*content_box);
         pwd_dialog->set_default_response(Gtk::ResponseType::OK);
 
-        pwd_dialog->signal_response().connect([this, pwd_dialog, entry, username](int pwd_response) {
+        pwd_dialog->signal_response().connect([this, pwd_dialog, password_entry, pin_entry, username](int pwd_response) {
             if (pwd_response != Gtk::ResponseType::OK) {
                 pwd_dialog->hide();
                 m_dialog_manager->show_error_dialog("YubiKey enrollment cancelled.\nVault has been closed.");
                 return;
             }
 
-            auto password = entry->get_text();
+            auto password = password_entry->get_text();
+            auto pin = pin_entry->get_text().raw();
             pwd_dialog->hide();
+
+            // Validate PIN length
+            if (pin.empty() || pin.length() < 4 || pin.length() > 63) {
+                auto error_dialog = Gtk::make_managed<Gtk::MessageDialog>(
+                    m_window,
+                    "YubiKey PIN must be between 4 and 63 characters.",
+                    false,
+                    Gtk::MessageType::ERROR,
+                    Gtk::ButtonsType::OK,
+                    true);
+                error_dialog->set_title("Invalid PIN");
+                error_dialog->signal_response().connect([this, error_dialog, username](int) {
+                    error_dialog->hide();
+                    handle_yubikey_enrollment_required(username);  // Retry
+                });
+                error_dialog->show();
+
+                // Clear sensitive data
+                password_entry->set_text("");
+                pin_entry->set_text("");
+                password = "";
+                if (!pin.empty()) {
+                    OPENSSL_cleanse(const_cast<char*>(pin.data()), pin.size());
+                }
+                pin.clear();
+                return;
+            }
 
             // Show YubiKey touch prompt
             auto touch_dialog = Gtk::make_managed<YubiKeyPromptDialog>(m_window,
@@ -320,12 +568,17 @@ void V2AuthenticationHandler::handle_yubikey_enrollment_required(const std::stri
             }
             g_usleep(150000);
 
-            // Attempt YubiKey enrollment
-            auto result = m_vault_manager->enroll_yubikey_for_user(username, password);
+            // Attempt YubiKey enrollment with PIN
+            auto result = m_vault_manager->enroll_yubikey_for_user(username, password, pin);
 
-            // Clear password
-            entry->set_text("");
+            // Clear password and PIN immediately
+            password_entry->set_text("");
+            pin_entry->set_text("");
             password = "";
+            if (!pin.empty()) {
+                OPENSSL_cleanse(const_cast<char*>(pin.data()), pin.size());
+            }
+            pin.clear();
 
             touch_dialog->hide();
 
@@ -334,8 +587,17 @@ void V2AuthenticationHandler::handle_yubikey_enrollment_required(const std::stri
                 if (result.error() == KeepTower::VaultError::YubiKeyNotPresent) {
                     error_msg = "YubiKey not detected. Please connect your YubiKey and try again.";
                 } else if (result.error() == KeepTower::VaultError::AuthenticationFailed) {
-                    error_msg = "Incorrect password.";
+                    error_msg = "Incorrect password. Please enter your current password.";
+                } else if (result.error() == KeepTower::VaultError::CryptoError) {
+                    error_msg = "Cryptographic operation failed during enrollment.";
+                } else if (result.error() == KeepTower::VaultError::YubiKeyError) {
+                    error_msg = "YubiKey error occurred. Please check your YubiKey.";
+                } else {
+                    error_msg = "Failed to enroll YubiKey (error code: " +
+                               std::to_string(static_cast<int>(result.error())) + ")";
                 }
+
+                KeepTower::Log::error("V2AuthenticationHandler: YubiKey enrollment failed - {}", error_msg);
 
                 // Show error and retry
                 auto error_dialog = Gtk::make_managed<Gtk::MessageDialog>(
@@ -349,7 +611,13 @@ void V2AuthenticationHandler::handle_yubikey_enrollment_required(const std::stri
                 return;
             }
 
-            // YubiKey enrolled successfully - complete authentication
+            // YubiKey enrolled successfully - save vault
+            if (!m_vault_manager->save_vault()) {
+                m_dialog_manager->show_error_dialog("Failed to save vault after YubiKey enrollment.");
+                return;
+            }
+
+            // Complete authentication
             if (m_success_callback) {
                 m_success_callback(m_current_vault_path, username);
             }

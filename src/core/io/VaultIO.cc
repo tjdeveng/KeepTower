@@ -109,8 +109,8 @@ bool VaultIO::read_file(
                     size -= HEADER_SIZE;
                 }
             } else {
-                // Not a new format, rewind to beginning
-                Log::info("Legacy vault format detected (no header)");
+                // V2 vault format (no separate header, header is part of file data)
+                Log::info("V2 vault format detected (integrated header)");
                 file.seekg(0, std::ios::beg);
                 pbkdf2_iterations = DEFAULT_PBKDF2_ITERATIONS;
             }

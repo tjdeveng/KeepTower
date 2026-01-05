@@ -88,6 +88,7 @@ public:
         uint32_t pbkdf2_iterations = 100000;       ///< PBKDF2 iteration count
         uint32_t header_size = 0;                  ///< Size of (FEC-protected header data)
         uint8_t header_flags = 0;                  ///< FEC enabled, etc.
+        uint8_t fec_redundancy_percent = 0;        ///< FEC redundancy percentage (if enabled)
 
         VaultHeaderV2 vault_header;                ///< Security policy + key slots
 
@@ -153,11 +154,14 @@ private:
      * @brief Apply FEC protection to header data
      *
      * @param header_data Serialized header (security policy + key slots)
-     * @param redundancy FEC redundancy percentage
+     * @param encoding_redundancy Redundancy percentage for encoding (actual protection level)
+     * @param stored_redundancy Redundancy percentage to store in header (user preference)
      * @return FEC-protected data (header + parity), or error
      */
     [[nodiscard]] static KeepTower::VaultResult<std::vector<uint8_t>>
-    apply_header_fec(const std::vector<uint8_t>& header_data, uint8_t redundancy);
+    apply_header_fec(const std::vector<uint8_t>& header_data,
+                     uint8_t encoding_redundancy,
+                     uint8_t stored_redundancy);
 
     /**
      * @brief Remove FEC protection from header data

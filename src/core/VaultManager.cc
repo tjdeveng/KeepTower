@@ -176,7 +176,7 @@ bool VaultManager::create_vault(const std::string& path,
 
         auto response = yk_manager.challenge_response(
             std::span<const unsigned char>(m_yubikey_challenge.data(), m_yubikey_challenge.size()),
-            YubiKeyAlgorithm::HMAC_SHA1,  // V1 vaults use SHA-1
+            YubiKeyAlgorithm::HMAC_SHA256,  // FIPS-140-3: SHA-256 minimum (V1 SHA-1 vaults not supported)
             false,  // don't require touch for vault operations
             YUBIKEY_TIMEOUT_MS
         );
@@ -395,7 +395,7 @@ VaultManager::authenticate_yubikey(
     // Perform challenge-response
     auto response = yk_manager.challenge_response(
         metadata.yubikey_challenge,
-        YubiKeyAlgorithm::HMAC_SHA1,  // V1 vaults use SHA-1
+        YubiKeyAlgorithm::HMAC_SHA256,  // FIPS-140-3: SHA-256 minimum (V1 SHA-1 vaults not supported)
         false,
         YUBIKEY_TIMEOUT_MS
     );
@@ -600,8 +600,9 @@ bool VaultManager::save_vault(bool explicit_save) {
                   file_header.data_iv.begin());
 
         // Write header with FEC (use configured redundancy if RS enabled, 0 if disabled)
+        bool enable_fec = m_use_reed_solomon;
         uint8_t fec_redundancy = m_use_reed_solomon ? m_rs_redundancy_percent : 0;
-        auto write_result = KeepTower::VaultFormatV2::write_header(file_header, fec_redundancy);
+        auto write_result = KeepTower::VaultFormatV2::write_header(file_header, enable_fec, fec_redundancy);
         if (!write_result) {
             KeepTower::Log::error("VaultManager: Failed to write V2 header");
             return false;
@@ -1372,7 +1373,7 @@ bool VaultManager::add_backup_yubikey(const std::string& name) {
     // Verify the key works with the current challenge
     auto response = yk_manager.challenge_response(
         std::span<const unsigned char>(m_yubikey_challenge.data(), m_yubikey_challenge.size()),
-        YubiKeyAlgorithm::HMAC_SHA1,  // V1 vaults use SHA-1
+        YubiKeyAlgorithm::HMAC_SHA256,  // FIPS-140-3: SHA-256 minimum (V1 SHA-1 vaults not supported)
         false,
         YUBIKEY_TIMEOUT_MS
     );
@@ -1544,7 +1545,7 @@ bool VaultManager::verify_credentials(const Glib::ustring& password, const std::
             KeepTower::Log::debug("VaultManager: Starting YubiKey challenge-response (timeout: {}ms)", YUBIKEY_TIMEOUT_MS);
             auto cr_result = yk_manager.challenge_response(
                 user_slot->yubikey_challenge,
-                YubiKeyAlgorithm::HMAC_SHA1,  // Legacy vaults use SHA-1
+                YubiKeyAlgorithm::HMAC_SHA256,  // FIPS-140-3: SHA-256 minimum
                 true,
                 YUBIKEY_TIMEOUT_MS
             );
@@ -1635,7 +1636,7 @@ bool VaultManager::verify_credentials(const Glib::ustring& password, const std::
         // Perform challenge-response
         auto cr_result = yk_manager.challenge_response(
             m_yubikey_challenge,
-            YubiKeyAlgorithm::HMAC_SHA1,  // V1 vaults use SHA-1
+            YubiKeyAlgorithm::HMAC_SHA256,  // FIPS-140-3: SHA-256 minimum (V1 SHA-1 vaults not supported)
             true,
             YUBIKEY_TIMEOUT_MS
         );

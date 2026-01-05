@@ -140,18 +140,15 @@ libcorrect_dep = declare_dependency(
 )
 
 # YubiKey dependencies (optional for hardware 2FA support)
-ykpers_dep = dependency('ykpers-1', required: false)
-libyubikey_lib = cc.find_library('yubikey', required: false)
-libyubikey_dep = declare_dependency(
-  dependencies: libyubikey_lib
-)
+# Using libfido2 for FIDO2/WebAuthn HMAC-secret extension (FIPS-140-3 SHA-256 support)
+fido2_dep = dependency('libfido2', version: '>= 1.13.0', required: false)
 
 # Check if YubiKey support is available
-yubikey_available = ykpers_dep.found() and libyubikey_lib.found()
+yubikey_available = fido2_dep.found()
 if yubikey_available
-  message('YubiKey support: ENABLED')
+  message('YubiKey support: ENABLED (via libfido2 FIDO2/WebAuthn)')
 else
-  warning('YubiKey support: DISABLED (install libyubikey-devel and ykpers-devel to enable)')
+  warning('YubiKey support: DISABLED (install libfido2-devel/libfido2-dev to enable)')
 endif
 
 # Common dependencies
@@ -165,7 +162,7 @@ common_deps = [
 
 # Add YubiKey dependencies if available
 if yubikey_available
-  common_deps += [libyubikey_dep, ykpers_dep]
+  common_deps += [fido2_dep]
 endif
 
 # Code coverage support

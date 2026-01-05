@@ -112,42 +112,42 @@ std::vector<uint8_t> VaultSecurityPolicy::serialize() const {
 }
 
 std::optional<VaultSecurityPolicy> VaultSecurityPolicy::deserialize(const std::vector<uint8_t>& data) {
-    // Support both old format (121 bytes) and new format (122 bytes)
-    constexpr size_t OLD_SERIALIZED_SIZE = 121;  // Before yubikey_algorithm field
-
-    if (data.size() < OLD_SERIALIZED_SIZE) {
-        Log::error("VaultSecurityPolicy: Insufficient data for deserialization (need at least {}, got {})",
-                   OLD_SERIALIZED_SIZE, data.size());
+    // Only support new format (122 bytes) - FIPS-140-3 compliant vaults only
+    if (data.size() < SERIALIZED_SIZE) {
+        Log::error("VaultSecurityPolicy: Insufficient data for deserialization (need {}, got {})",
+                   SERIALIZED_SIZE, data.size());
         return std::nullopt;
     }
 
     VaultSecurityPolicy policy;
-
-    // Detect format: old (121 bytes) vs new (122 bytes)
-    bool is_old_format = (data.size() == OLD_SERIALIZED_SIZE);
-
     size_t offset = 0;
 
     // Byte 0: require_yubikey
-    policy.require_yubikey = (data[offset++] != 0);
+    policy.require_yubikey = (data[0] != 0);
 
-    // Byte 1 (new format only): yubikey_algorithm
-    if (is_old_format) {
-        // Old format: default to SHA-1 for backward compatibility
-        policy.yubikey_algorithm = 0x01;  // HMAC_SHA1
-        Log::info("VaultSecurityPolicy: Old format detected, defaulting to SHA-1");
-    } else {
-        // New format: read algorithm, default to SHA-1 if 0x00
-        policy.yubikey_algorithm = (data[offset] == 0x00) ? 0x01 : data[offset];
-        offset++;
+    // Byte 1: yubikey_algorithm (must be FIPS-approved: 0x02=SHA256, 0x03=SHA512, etc.)
+    policy.yubikey_algorithm = data[1];
+
+    // Validate algorithm is FIPS-approved (SHA-256 minimum)
+    if (policy.yubikey_algorithm < 0x02) {
+        Log::error("VaultSecurityPolicy: Invalid or deprecated algorithm: 0x{:02X} (SHA-256 minimum required for FIPS-140-3)",
+                   policy.yubikey_algorithm);
+        return std::nullopt;
     }
 
-    // Next 4 bytes: min_password_length
-    policy.min_password_length = (static_cast<uint32_t>(data[offset]) << 24) |
-                                 (static_cast<uint32_t>(data[offset + 1]) << 16) |
-                                 (static_cast<uint32_t>(data[offset + 2]) << 8) |
-                                 static_cast<uint32_t>(data[offset + 3]);
-    offset += 4;
+    // Bytes 2-5: min_password_length (big-endian)
+    policy.min_password_length = (static_cast<uint32_t>(data[2]) << 24) |
+                                 (static_cast<uint32_t>(data[3]) << 16) |
+                                 (static_cast<uint32_t>(data[4]) << 8) |
+                                 static_cast<uint32_t>(data[5]);
+    offset = 6;
+
+    // Validate min_password_length
+    if (policy.min_password_length < 8 || policy.min_password_length > 128) {
+        Log::error("VaultSecurityPolicy: Invalid min_password_length: {}",
+                   policy.min_password_length);
+        return std::nullopt;
+    }
 
     // Next 4 bytes: pbkdf2_iterations
     policy.pbkdf2_iterations = (static_cast<uint32_t>(data[offset]) << 24) |
@@ -165,14 +165,11 @@ std::optional<VaultSecurityPolicy> VaultSecurityPolicy::deserialize(const std::v
 
     // Next 64 bytes: yubikey_challenge
     std::copy(data.begin() + offset, data.begin() + offset + 64, policy.yubikey_challenge.begin());
+    offset += 64;
 
-    // Bytes 78-121: reserved (skip)
+    // Remaining bytes: reserved (skip)
 
     // Validation
-    if (policy.min_password_length < 8 || policy.min_password_length > 128) {
-        Log::error("VaultSecurityPolicy: Invalid min_password_length: {}", policy.min_password_length);
-        return std::nullopt;
-    }
 
     if (policy.pbkdf2_iterations < 100000 || policy.pbkdf2_iterations > 1000000) {
         Log::error("VaultSecurityPolicy: Invalid pbkdf2_iterations: {}", policy.pbkdf2_iterations);
@@ -206,9 +203,13 @@ size_t KeySlot::calculate_serialized_size() const {
     // 1 byte: yubikey_serial length
     // N bytes: yubikey_serial
     // 8 bytes: yubikey_enrolled_at
+    // 2 bytes: yubikey_encrypted_pin length (uint16_t)
+    // N bytes: yubikey_encrypted_pin
+    // 2 bytes: yubikey_credential_id length (uint16_t)
+    // N bytes: yubikey_credential_id
     // 1 byte: password_history count
     // N * 88 bytes: password_history entries
-    size_t base_size = 1 + 1 + username.size() + 32 + 40 + 1 + 1 + 8 + 8 + 1 + 20 + 1 + yubikey_serial.size() + 8 + 1;
+    size_t base_size = 1 + 1 + username.size() + 32 + 40 + 1 + 1 + 8 + 8 + 1 + 20 + 1 + yubikey_serial.size() + 8 + 2 + yubikey_encrypted_pin.size() + 2 + yubikey_credential_id.size() + 1;
     size_t history_size = password_history.size() * PasswordHistoryEntry::SERIALIZED_SIZE;
     return base_size + history_size;
 }
@@ -272,6 +273,22 @@ std::vector<uint8_t> KeySlot::serialize() const {
     for (unsigned int i = 0; i < 8; ++i) {
         result.push_back(static_cast<uint8_t>((yubikey_enrolled_at >> ((7 - i) * 8)) & 0xFF));
     }
+
+    // Next 2 bytes: yubikey_encrypted_pin length (big-endian uint16_t)
+    uint16_t encrypted_pin_len = static_cast<uint16_t>(yubikey_encrypted_pin.size());
+    result.push_back(static_cast<uint8_t>((encrypted_pin_len >> 8) & 0xFF));
+    result.push_back(static_cast<uint8_t>(encrypted_pin_len & 0xFF));
+
+    // Next N bytes: yubikey_encrypted_pin
+    result.insert(result.end(), yubikey_encrypted_pin.begin(), yubikey_encrypted_pin.end());
+
+    // Next 2 bytes: yubikey_credential_id length (big-endian uint16_t)
+    uint16_t credential_id_len = static_cast<uint16_t>(yubikey_credential_id.size());
+    result.push_back(static_cast<uint8_t>((credential_id_len >> 8) & 0xFF));
+    result.push_back(static_cast<uint8_t>(credential_id_len & 0xFF));
+
+    // Next N bytes: yubikey_credential_id
+    result.insert(result.end(), yubikey_credential_id.begin(), yubikey_credential_id.end());
 
     // Next byte: password_history count
     if (password_history.size() > 255) {
@@ -385,6 +402,54 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
     for (int i = 0; i < 8; ++i) {
         slot.yubikey_enrolled_at = (slot.yubikey_enrolled_at << 8) | data[pos++];
     }
+
+    // Check if we have yubikey_encrypted_pin field (backward compatibility)
+    // If not enough data, treat as old format (no encrypted PIN)
+    if (pos + 2 > data.size()) {
+        // Old format without encrypted PIN - use empty vectors
+        slot.yubikey_encrypted_pin.clear();
+        slot.yubikey_credential_id.clear();
+        slot.password_history.clear();
+        size_t bytes_consumed = pos - offset;
+        return std::make_pair(slot, bytes_consumed);
+    }
+
+    // yubikey_encrypted_pin length (2 bytes, big-endian uint16_t)
+    uint16_t encrypted_pin_len = (static_cast<uint16_t>(data[pos]) << 8) | data[pos + 1];
+    pos += 2;
+
+    // Check if we have enough data for encrypted PIN
+    if (pos + encrypted_pin_len > data.size()) {
+        Log::error("KeySlot: Insufficient data for YubiKey encrypted PIN");
+        return std::nullopt;
+    }
+
+    // yubikey_encrypted_pin (N bytes)
+    slot.yubikey_encrypted_pin.assign(data.begin() + pos, data.begin() + pos + encrypted_pin_len);
+    pos += encrypted_pin_len;
+
+    // Check if we have yubikey_credential_id field (backward compatibility)
+    if (pos + 2 > data.size()) {
+        // Old format without credential ID - use empty vector
+        slot.yubikey_credential_id.clear();
+        slot.password_history.clear();
+        size_t bytes_consumed = pos - offset;
+        return std::make_pair(slot, bytes_consumed);
+    }
+
+    // yubikey_credential_id length (2 bytes, big-endian uint16_t)
+    uint16_t credential_id_len = (static_cast<uint16_t>(data[pos]) << 8) | data[pos + 1];
+    pos += 2;
+
+    // Check if we have enough data for credential ID
+    if (pos + credential_id_len > data.size()) {
+        Log::error("KeySlot: Insufficient data for YubiKey credential ID");
+        return std::nullopt;
+    }
+
+    // yubikey_credential_id (N bytes)
+    slot.yubikey_credential_id.assign(data.begin() + pos, data.begin() + pos + credential_id_len);
+    pos += credential_id_len;
 
     // Check if we have password_history field (backward compatibility)
     // If not enough data, treat as old format (no password history)

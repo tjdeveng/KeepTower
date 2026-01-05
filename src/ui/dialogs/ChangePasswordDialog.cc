@@ -10,6 +10,10 @@ void PasswordChangeRequest::clear() noexcept {
     // Clear passwords using OPENSSL_cleanse to prevent compiler optimization
     KeepTower::secure_clear_ustring(current_password);
     KeepTower::secure_clear_ustring(new_password);
+    if (!yubikey_pin.empty()) {
+        OPENSSL_cleanse(yubikey_pin.data(), yubikey_pin.size());
+        yubikey_pin.clear();
+    }
 }
 
 ChangePasswordDialog::ChangePasswordDialog(
@@ -73,26 +77,38 @@ ChangePasswordDialog::ChangePasswordDialog(
         m_content_box.append(m_warning_box);
     }
 
-    // Current password field (always shown - in forced mode it's for the temporary password)
+    // Current password field with eye button
     m_current_password_label.set_text(m_is_forced_change ? "Temporary Password:" : "Current Password:");
     m_current_password_label.set_halign(Gtk::Align::START);
     m_current_password_label.add_css_class("caption");
     m_current_password_box.append(m_current_password_label);
 
+    // Current password entry with show/hide toggle button
+    m_current_password_entry_box.set_spacing(6);
     m_current_password_entry.set_visibility(false);
     m_current_password_entry.set_input_purpose(Gtk::InputPurpose::PASSWORD);
     m_current_password_entry.set_placeholder_text(m_is_forced_change ? "Enter your temporary password" : "Enter current password");
     m_current_password_entry.set_max_length(512);
     m_current_password_entry.set_activates_default(false);
-    m_current_password_box.append(m_current_password_entry);
+    m_current_password_entry.set_hexpand(true);
+    m_current_password_entry_box.append(m_current_password_entry);
+
+    // Eye icon toggle button
+    m_current_password_show_button.set_tooltip_text("Show/hide passwords");
+    m_current_password_show_button.add_css_class("flat");
+    m_current_password_entry_box.append(m_current_password_show_button);
+
+    m_current_password_box.append(m_current_password_entry_box);
     m_current_password_box.set_margin_bottom(12);
     m_content_box.append(m_current_password_box);
 
-    // New password field
+    // New password field with spacer to match current password field width
     m_new_password_label.set_halign(Gtk::Align::START);
     m_new_password_label.add_css_class("caption");
     m_new_password_box.append(m_new_password_label);
 
+    // New password entry with spacer to match eye button width
+    m_new_password_entry_box.set_spacing(6);
     m_new_password_entry.set_visibility(false);
     m_new_password_entry.set_input_purpose(Gtk::InputPurpose::PASSWORD);
     m_new_password_entry.set_placeholder_text(
@@ -100,7 +116,15 @@ ChangePasswordDialog::ChangePasswordDialog(
     );
     m_new_password_entry.set_max_length(512);
     m_new_password_entry.set_activates_default(false);
-    m_new_password_box.append(m_new_password_entry);
+    m_new_password_entry.set_hexpand(true);
+    m_new_password_entry_box.append(m_new_password_entry);
+
+    // Add spacer widget to match the width of the eye button
+    auto* new_spacer = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 0);
+    new_spacer->set_size_request(34, -1);  // Match eye button width
+    m_new_password_entry_box.append(*new_spacer);
+
+    m_new_password_box.append(m_new_password_entry_box);
     m_new_password_box.set_margin_bottom(4);
     m_content_box.append(m_new_password_box);
 
@@ -109,17 +133,26 @@ ChangePasswordDialog::ChangePasswordDialog(
     m_strength_label.set_margin_bottom(8);
     m_content_box.append(m_strength_label);
 
-    // Confirm password field
+    // Confirm password field with spacer to match new password field width
     m_confirm_password_label.set_halign(Gtk::Align::START);
     m_confirm_password_label.add_css_class("caption");
     m_confirm_password_box.append(m_confirm_password_label);
 
+    m_confirm_password_entry_box.set_spacing(6);
     m_confirm_password_entry.set_visibility(false);
     m_confirm_password_entry.set_input_purpose(Gtk::InputPurpose::PASSWORD);
     m_confirm_password_entry.set_placeholder_text("Re-enter new password");
     m_confirm_password_entry.set_max_length(512);
     m_confirm_password_entry.set_activates_default(true);  // Submit on Enter
-    m_confirm_password_box.append(m_confirm_password_entry);
+    m_confirm_password_entry.set_hexpand(true);
+    m_confirm_password_entry_box.append(m_confirm_password_entry);
+
+    // Add spacer widget to match the width of the eye button
+    auto* confirm_spacer = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 0);
+    confirm_spacer->set_size_request(34, -1);  // Match eye button width
+    m_confirm_password_entry_box.append(*confirm_spacer);
+
+    m_confirm_password_box.append(m_confirm_password_entry_box);
     m_confirm_password_box.set_margin_bottom(12);
     m_content_box.append(m_confirm_password_box);
 
@@ -130,15 +163,60 @@ ChangePasswordDialog::ChangePasswordDialog(
     m_validation_box.set_margin_bottom(12);
     m_content_box.append(m_validation_box);
 
-    // Show password checkbox
-    m_show_password_check.set_margin_bottom(8);
-    m_content_box.append(m_show_password_check);
+#ifdef HAVE_YUBIKEY_SUPPORT
+    // YubiKey PIN section (hidden by default, shown via set_yubikey_required())
+    m_yubikey_separator.set_margin_top(8);
+    m_yubikey_separator.set_margin_bottom(12);
+    m_yubikey_separator.set_visible(false);
+    m_content_box.append(m_yubikey_separator);
+
+    m_yubikey_pin_box.set_spacing(6);
+    m_yubikey_pin_box.set_margin_start(0);
+    m_yubikey_pin_box.set_margin_bottom(12);
+    m_yubikey_pin_box.set_visible(false);
+
+    m_yubikey_pin_label.set_xalign(0.0);
+    m_yubikey_pin_label.add_css_class("caption");
+    m_yubikey_pin_box.append(m_yubikey_pin_label);
+
+    // PIN entry with show/hide toggle button
+    m_yubikey_pin_entry_box.set_spacing(6);
+    m_yubikey_pin_entry.set_visibility(false);
+    m_yubikey_pin_entry.set_input_purpose(Gtk::InputPurpose::PIN);
+    m_yubikey_pin_entry.set_max_length(48);
+    m_yubikey_pin_entry.set_placeholder_text("Enter your YubiKey PIN");
+    m_yubikey_pin_entry.set_hexpand(true);
+    m_yubikey_pin_entry_box.append(m_yubikey_pin_entry);
+
+    // Eye icon toggle button
+    m_yubikey_pin_show_button.set_tooltip_text("Show/hide PIN");
+    m_yubikey_pin_show_button.add_css_class("flat");
+    m_yubikey_pin_entry_box.append(m_yubikey_pin_show_button);
+
+    m_yubikey_pin_box.append(m_yubikey_pin_entry_box);
+    m_content_box.append(m_yubikey_pin_box);
+
+    // Connect PIN show/hide toggle
+    m_yubikey_pin_show_button.signal_toggled().connect([this]() {
+        bool show = m_yubikey_pin_show_button.get_active();
+        m_yubikey_pin_entry.set_visibility(show);
+    });
+
+    // Connect PIN change signal to validation
+    m_yubikey_pin_entry.signal_changed().connect(
+        sigc::mem_fun(*this, &ChangePasswordDialog::on_input_changed)
+    );
+#endif
+
+    // Connect eye button toggle signal to show/hide all password fields
+    m_current_password_show_button.signal_toggled().connect([this]() {
+        bool show = m_current_password_show_button.get_active();
+        m_current_password_entry.set_visibility(show);
+        m_new_password_entry.set_visibility(show);
+        m_confirm_password_entry.set_visibility(show);
+    });
 
     // Connect signals
-    m_show_password_check.signal_toggled().connect(
-        sigc::mem_fun(*this, &ChangePasswordDialog::on_show_password_toggled)
-    );
-
     if (!m_is_forced_change) {
         m_current_password_entry.signal_changed().connect(
             sigc::mem_fun(*this, &ChangePasswordDialog::on_input_changed)
@@ -164,6 +242,9 @@ ChangePasswordDialog::~ChangePasswordDialog() {
     secure_clear_entry(m_current_password_entry);
     secure_clear_entry(m_new_password_entry);
     secure_clear_entry(m_confirm_password_entry);
+#ifdef HAVE_YUBIKEY_SUPPORT
+    secure_clear_entry(m_yubikey_pin_entry);
+#endif
 }
 
 PasswordChangeRequest ChangePasswordDialog::get_request() const {
@@ -172,6 +253,13 @@ PasswordChangeRequest ChangePasswordDialog::get_request() const {
     // Get passwords as Glib::ustring to preserve UTF-8 encoding
     req.current_password = m_current_password_entry.get_text();
     req.new_password = m_new_password_entry.get_text();
+
+#ifdef HAVE_YUBIKEY_SUPPORT
+    // Get YubiKey PIN if field is visible
+    if (m_yubikey_pin_box.get_visible()) {
+        req.yubikey_pin = m_yubikey_pin_entry.get_text().raw();
+    }
+#endif
 
     std::printf("[DEBUG] ChangePasswordDialog: Retrieved passwords - current: %zu chars, %zu bytes; new: %zu chars, %zu bytes\n",
                 req.current_password.length(), req.current_password.bytes(),
@@ -186,11 +274,14 @@ void ChangePasswordDialog::set_current_password(std::string_view temp_password) 
     on_input_changed();  // Update validation state
 }
 
-void ChangePasswordDialog::on_show_password_toggled() {
-    bool show = m_show_password_check.get_active();
-    m_current_password_entry.set_visibility(show);
-    m_new_password_entry.set_visibility(show);
-    m_confirm_password_entry.set_visibility(show);
+void ChangePasswordDialog::set_yubikey_required(bool required) {
+#ifdef HAVE_YUBIKEY_SUPPORT
+    m_yubikey_separator.set_visible(required);
+    m_yubikey_pin_box.set_visible(required);
+    if (required) {
+        set_default_size(500, m_is_forced_change ? 550 : 500);
+    }
+#endif
 }
 
 void ChangePasswordDialog::on_input_changed() {
@@ -219,6 +310,19 @@ void ChangePasswordDialog::on_input_changed() {
         validation_message = "⚠ Passwords do not match";
     } else if (new_pwd == current_pwd) {
         validation_message = "⚠ New password must differ from current password";
+#ifdef HAVE_YUBIKEY_SUPPORT
+    } else if (m_yubikey_pin_box.get_visible()) {
+        // Validate PIN if YubiKey is required
+        std::string pin = m_yubikey_pin_entry.get_text().raw();
+        if (pin.empty()) {
+            validation_message = "⚠ Enter your YubiKey PIN";
+        } else if (pin.length() < 4 || pin.length() > 63) {
+            validation_message = "⚠ PIN must be 4-63 characters";
+        } else {
+            is_valid = true;
+            validation_message = "✓ Password and PIN requirements met";
+        }
+#endif
     } else {
         is_valid = true;
         validation_message = "✓ Password requirements met";

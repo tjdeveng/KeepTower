@@ -179,20 +179,21 @@ struct VaultSecurityPolicy {
     uint32_t password_history_depth = 5;
 
     /**
-     * @brief YubiKey HMAC algorithm (default: SHA-256 for FIPS)
+     * @brief YubiKey HMAC algorithm identifier (FIPS-140-3 compliant only)
      *
-     * Specifies which HMAC algorithm the vault's YubiKey challenge uses.
+     * Specifies which hash algorithm to use for YubiKey challenge-response.
      * All enrolled YubiKeys must use the same algorithm.
      *
      * FIPS-140-3 Compliance:
-     * - ✅ HMAC-SHA256 (32-byte response) - FIPS-approved default
-     * - ❌ HMAC-SHA1 (20-byte response) - Legacy only, not FIPS-approved
-     * - ✅ HMAC-SHA3-256 (32-byte) - Future support, quantum-resistant
+     * - ✅ HMAC-SHA256 (0x02) - 32-byte response, FIPS-approved, minimum required
+     * - ✅ HMAC-SHA512 (0x03) - 64-byte response, FIPS-approved
+     * - ✅ HMAC-SHA3-256 (0x10) - 32-byte, Future YubiKey firmware
+     * - ✅ HMAC-SHA3-512 (0x11) - 64-byte, Future YubiKey firmware
      *
-     * @note Vaults created before FIPS migration use SHA-1 (field = 0x01)
-     * @note New vaults default to SHA-256 (field = 0x02)
+     * @note SHA-1 (0x01) support completely removed for FIPS-140-3 compliance
+     * @note New vaults default to SHA-256 (0x02)
      */
-    uint8_t yubikey_algorithm = 0x02;  ///< YubiKeyAlgorithm enum value (0x02=SHA-256 FIPS-approved)
+    uint8_t yubikey_algorithm = 0x02;  ///< YubiKeyAlgorithm enum value (0x02=SHA-256 minimum)
 
     /**
      * @brief YubiKey challenge data (size varies by algorithm)
@@ -396,6 +397,52 @@ struct KeySlot {
      * Used for audit logging and compliance reporting.
      */
     int64_t yubikey_enrolled_at = 0;
+
+    /**
+     * @brief Encrypted YubiKey FIDO2 PIN (variable length, max 64 bytes encrypted)
+     *
+     * User's YubiKey FIDO2 PIN encrypted with their KEK using AES-256-GCM.
+     * Encrypted during vault creation or YubiKey enrollment.
+     * Decrypted automatically when vault is opened with user's password.
+     *
+     * @section encryption_scheme PIN Encryption
+     * - **Algorithm**: AES-256-GCM (authenticated encryption)
+     * - **Key**: User's KEK (derived from password + salt)
+     * - **IV**: 12 random bytes (prepended to ciphertext)
+     * - **Tag**: 16 bytes (appended to ciphertext)
+     * - **Format**: [IV(12) || ciphertext(PIN_LEN) || tag(16)]
+     *
+     * @section why_encrypt_pin Why Encrypt PIN?
+     * - Each user has their own YubiKey with unique PIN
+     * - PIN stored per-user (not shared via environment variable)
+     * - User enters PIN only once during enrollment
+     * - PIN automatically available when vault opens
+     * - More secure than environment variable
+     *
+     * @note Empty (all zeros) if yubikey_enrolled is false
+     * @note PIN length: 6-48 characters (FIDO2 spec)
+     * @note Total encrypted size: 12 (IV) + PIN_LEN + 16 (tag)
+     */
+    std::vector<uint8_t> yubikey_encrypted_pin;
+
+    /**
+     * @brief FIDO2 credential ID for this user (48 bytes for YubiKey 5)
+     *
+     * Unique credential identifier created during makeCredential operation.
+     * Must be provided during getAssertion (challenge-response) to identify
+     * which credential to use for authentication.
+     *
+     * @section credential_lifecycle Credential Lifecycle
+     * 1. Created during YubiKey enrollment with create_credential()
+     * 2. Stored in user's KeySlot (persistent across vault open/close)
+     * 3. Loaded and set with set_credential() when opening vault
+     * 4. Used for all challenge-response operations for this user
+     *
+     * @note Empty (all zeros) if yubikey_enrolled is false
+     * @note Size is typically 48 bytes for YubiKey 5 series
+     * @note Required for FIDO2 hmac-secret extension
+     */
+    std::vector<uint8_t> yubikey_credential_id;
 
     /**
      * @brief Password history for reuse prevention

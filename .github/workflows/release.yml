@@ -108,7 +108,7 @@ jobs:
           desktop-file-utils
 
         # Try to install YubiKey dependencies (may not be available in all Ubuntu versions)
-        sudo apt-get install -y libykpers-1-dev libyubikey-dev || echo "Warning: YubiKey dependencies not available, building without YubiKey support"
+        sudo apt-get install -y libfido2-dev || echo "Warning: YubiKey dependencies not available, building without YubiKey support"
 
     - name: Build and install libcorrect
       run: |

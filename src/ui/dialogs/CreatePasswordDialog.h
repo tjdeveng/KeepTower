@@ -87,6 +87,13 @@ public:
      */
     bool get_yubikey_enabled() const;
 
+    /**
+     * @brief Get the YubiKey PIN for FIDO2 authentication
+     * @return User-entered PIN for YubiKey
+     * @note Only call if get_yubikey_enabled() returns true
+     */
+    std::string get_yubikey_pin() const;
+
 protected:
     /**
      * @name Signal Handlers
@@ -95,6 +102,9 @@ protected:
 
     /** @brief Handle show/hide password toggle */
     void on_show_password_toggled();
+
+    /** @brief Handle show/hide PIN toggle */
+    void on_show_pin_toggled();
 
     /** @brief Handle password entry changes - triggers validation */
     void on_password_changed();
@@ -162,13 +172,15 @@ protected:
 
     Gtk::Box m_password_box;             ///< Password input container
     Gtk::Label m_password_label;         ///< Password field label
+    Gtk::Box m_password_entry_box;       ///< Container for password entry and toggle button
     Gtk::Entry m_password_entry;         ///< Password text entry (masked)
+    Gtk::ToggleButton m_password_show_button;  ///< Show/hide password toggle button
 
     Gtk::Box m_confirm_box;              ///< Confirmation input container
     Gtk::Label m_confirm_label;          ///< Confirmation field label
+    Gtk::Box m_confirm_entry_box;        ///< Container for confirm entry (matches password box width)
     Gtk::Entry m_confirm_entry;          ///< Confirmation text entry (masked)
 
-    Gtk::CheckButton m_show_password_check;  ///< Show/hide password toggle
     Gtk::Label m_strength_label;             ///< Strength text (Weak/Moderate/Strong)
     Gtk::ProgressBar m_strength_bar;         ///< Visual strength indicator
     Gtk::Label m_validation_message;         ///< Error/warning messages
@@ -177,6 +189,11 @@ protected:
     Gtk::Separator m_yubikey_separator;      ///< Visual separator before YubiKey option
     Gtk::CheckButton m_yubikey_check;        ///< Enable YubiKey protection checkbox
     Gtk::Label m_yubikey_info_label;         ///< YubiKey usage information
+    Gtk::Box m_yubikey_pin_box;              ///< YubiKey PIN input container
+    Gtk::Label m_yubikey_pin_label;          ///< YubiKey PIN field label
+    Gtk::Box m_yubikey_pin_entry_box;        ///< Container for PIN entry and toggle button
+    Gtk::Entry m_yubikey_pin_entry;          ///< YubiKey PIN entry (masked)
+    Gtk::ToggleButton m_yubikey_pin_show_button;  ///< Show/hide PIN toggle button
 
     Gtk::Button* m_ok_button;             ///< OK button (enabled only when valid)
     Gtk::Button* m_cancel_button;         ///< Cancel button

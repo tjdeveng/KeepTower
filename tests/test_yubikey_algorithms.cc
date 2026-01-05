@@ -21,9 +21,7 @@ protected:
 // Test Suite 1: Algorithm Response Sizes
 // ============================================================================
 
-TEST_F(YubiKeyAlgorithmTest, ResponseSize_SHA1_Is20Bytes) {
-    EXPECT_EQ(yubikey_algorithm_response_size(YubiKeyAlgorithm::HMAC_SHA1), 20);
-}
+// SHA-1 removed for FIPS-140-3 compliance
 
 TEST_F(YubiKeyAlgorithmTest, ResponseSize_SHA256_Is32Bytes) {
     EXPECT_EQ(yubikey_algorithm_response_size(YubiKeyAlgorithm::HMAC_SHA256), 32);
@@ -50,9 +48,7 @@ TEST_F(YubiKeyAlgorithmTest, ResponseSize_InvalidAlgorithm_ReturnsZero) {
 // Test Suite 2: Algorithm Names
 // ============================================================================
 
-TEST_F(YubiKeyAlgorithmTest, AlgorithmName_SHA1_IsCorrect) {
-    EXPECT_EQ(yubikey_algorithm_name(YubiKeyAlgorithm::HMAC_SHA1), "HMAC-SHA1");
-}
+// SHA-1 removed for FIPS-140-3 compliance
 
 TEST_F(YubiKeyAlgorithmTest, AlgorithmName_SHA256_IsCorrect) {
     EXPECT_EQ(yubikey_algorithm_name(YubiKeyAlgorithm::HMAC_SHA256), "HMAC-SHA256");
@@ -79,10 +75,7 @@ TEST_F(YubiKeyAlgorithmTest, AlgorithmName_InvalidAlgorithm_ReturnsUnknown) {
 // Test Suite 3: FIPS-140-3 Compliance
 // ============================================================================
 
-TEST_F(YubiKeyAlgorithmTest, FIPS_SHA1_IsNotApproved) {
-    // SHA-1 is cryptographically broken and not FIPS-approved
-    EXPECT_FALSE(yubikey_algorithm_is_fips_approved(YubiKeyAlgorithm::HMAC_SHA1));
-}
+// SHA-1 removed for FIPS-140-3 compliance
 
 TEST_F(YubiKeyAlgorithmTest, FIPS_SHA256_IsApproved) {
     // SHA-256 is FIPS-140-3 approved per NIST SP 800-140B
@@ -123,15 +116,7 @@ TEST_F(YubiKeyAlgorithmTest, FIPSDefault_IsApproved) {
     EXPECT_TRUE(yubikey_algorithm_is_fips_approved(yubikey_algorithm_fips_default()));
 }
 
-TEST_F(YubiKeyAlgorithmTest, LegacyDefault_IsSHA1) {
-    // Legacy algorithm for backward compatibility
-    EXPECT_EQ(yubikey_algorithm_legacy(), YubiKeyAlgorithm::HMAC_SHA1);
-}
-
-TEST_F(YubiKeyAlgorithmTest, LegacyDefault_IsNotApproved) {
-    // Legacy algorithm should NOT be FIPS-approved
-    EXPECT_FALSE(yubikey_algorithm_is_fips_approved(yubikey_algorithm_legacy()));
-}
+// Legacy algorithm support removed for FIPS-140-3 compliance
 
 // ============================================================================
 // Test Suite 5: Constants
@@ -148,8 +133,7 @@ TEST_F(YubiKeyAlgorithmTest, ChallengeSize_Is64Bytes) {
 }
 
 TEST_F(YubiKeyAlgorithmTest, MaxResponseSize_CoversAllAlgorithms) {
-    // Verify max size is sufficient for all algorithms
-    EXPECT_LE(yubikey_algorithm_response_size(YubiKeyAlgorithm::HMAC_SHA1), YUBIKEY_MAX_RESPONSE_SIZE);
+    // Verify max size is sufficient for all FIPS-approved algorithms
     EXPECT_LE(yubikey_algorithm_response_size(YubiKeyAlgorithm::HMAC_SHA256), YUBIKEY_MAX_RESPONSE_SIZE);
     EXPECT_LE(yubikey_algorithm_response_size(YubiKeyAlgorithm::HMAC_SHA512), YUBIKEY_MAX_RESPONSE_SIZE);
     EXPECT_LE(yubikey_algorithm_response_size(YubiKeyAlgorithm::HMAC_SHA3_256), YUBIKEY_MAX_RESPONSE_SIZE);
@@ -160,9 +144,7 @@ TEST_F(YubiKeyAlgorithmTest, MaxResponseSize_CoversAllAlgorithms) {
 // Test Suite 6: Enum Value Mapping
 // ============================================================================
 
-TEST_F(YubiKeyAlgorithmTest, EnumValue_SHA1_Is0x01) {
-    EXPECT_EQ(static_cast<uint8_t>(YubiKeyAlgorithm::HMAC_SHA1), 0x01);
-}
+// SHA-1 (0x01) removed for FIPS-140-3 compliance - SHA-256 is minimum
 
 TEST_F(YubiKeyAlgorithmTest, EnumValue_SHA256_Is0x02) {
     EXPECT_EQ(static_cast<uint8_t>(YubiKeyAlgorithm::HMAC_SHA256), 0x02);
@@ -184,12 +166,7 @@ TEST_F(YubiKeyAlgorithmTest, EnumValue_SHA3_512_Is0x11) {
 // Test Suite 7: Round-Trip Casting
 // ============================================================================
 
-TEST_F(YubiKeyAlgorithmTest, RoundTrip_SHA1_Preserves_Value) {
-    auto value = static_cast<uint8_t>(YubiKeyAlgorithm::HMAC_SHA1);
-    auto algorithm = static_cast<YubiKeyAlgorithm>(value);
-    EXPECT_EQ(algorithm, YubiKeyAlgorithm::HMAC_SHA1);
-    EXPECT_EQ(yubikey_algorithm_response_size(algorithm), 20);
-}
+// SHA-1 round-trip test removed for FIPS-140-3 compliance
 
 TEST_F(YubiKeyAlgorithmTest, RoundTrip_SHA256_Preserves_Value) {
     auto value = static_cast<uint8_t>(YubiKeyAlgorithm::HMAC_SHA256);

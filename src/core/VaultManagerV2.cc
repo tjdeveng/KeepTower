@@ -41,7 +41,8 @@ KeepTower::VaultResult<> VaultManager::create_vault_v2(
     const std::string& path,
     const Glib::ustring& admin_username,
     const Glib::ustring& admin_password,
-    const KeepTower::VaultSecurityPolicy& policy) {
+    const KeepTower::VaultSecurityPolicy& policy,
+    const std::optional<std::string>& yubikey_pin) {
 
     Log::info("VaultManager: Creating V2 vault at: {}", path);
 
@@ -105,6 +106,8 @@ KeepTower::VaultResult<> VaultManager::create_vault_v2(
     bool admin_yubikey_enrolled = false;
     std::array<uint8_t, 20> admin_yubikey_challenge = {};
     std::string admin_yubikey_serial;
+    std::vector<uint8_t> admin_encrypted_pin;
+    std::vector<uint8_t> admin_credential_id;
 
 #ifdef HAVE_YUBIKEY_SUPPORT
     if (policy.require_yubikey) {
@@ -139,13 +142,32 @@ KeepTower::VaultResult<> VaultManager::create_vault_v2(
                   yubikey_algorithm_name(algorithm),
                   yubikey_algorithm_is_fips_approved(algorithm) ? "YES" : "NO");
 
+        // Get PIN from parameter
+        if (!yubikey_pin.has_value()) {
+            Log::error("VaultManager: YubiKey PIN required when policy.require_yubikey is true");
+            return std::unexpected(VaultError::YubiKeyError);
+        }
+        const char* pin = yubikey_pin.value().c_str();
+
+        // Create new credential for this vault
+        // Use admin username as user_id instead of full path (path may be too long)
+        Log::info("VaultManager: Creating FIDO2 credential for vault");
+        auto credential_id = yk_manager.create_credential(admin_username.raw(), pin);
+        if (!credential_id) {
+            Log::error("VaultManager: Failed to create FIDO2 credential: {}", yk_manager.get_last_error());
+            return std::unexpected(VaultError::YubiKeyError);
+        }
+
+        Log::info("VaultManager: FIDO2 credential created ({} bytes)", credential_id->size());
+
         // Perform challenge-response with configured algorithm
         auto response = yk_manager.challenge_response(
             std::span<const unsigned char>(admin_yubikey_challenge.data(),
                                           admin_yubikey_challenge.size()),
             algorithm,  // Use algorithm from policy
             false,      // don't require touch for vault creation (usability)
-            5000        // 5 second timeout
+            5000,       // 5 second timeout
+            pin         // Pass PIN for authentication
         );
 
         if (!response.success) {
@@ -163,8 +185,40 @@ KeepTower::VaultResult<> VaultManager::create_vault_v2(
                       device_info->is_fips_mode ? "YES" : (device_info->is_fips_capable ? "capable" : "NO"));
         }
 
-        // Combine KEK with YubiKey response (use actual response size)
-        // Response size varies: SHA-1=20, SHA-256=32, SHA-512=64 bytes
+        admin_yubikey_enrolled = true;
+
+        // Encrypt PIN with admin's password-derived KEK BEFORE combining with YubiKey
+        // This avoids circular dependency during vault opening (need PIN to get YubiKey response)
+        std::vector<uint8_t> encrypted_pin;
+        std::vector<uint8_t> pin_iv = KeepTower::VaultCrypto::generate_random_bytes(
+            KeepTower::VaultCrypto::IV_LENGTH);
+
+        const std::string& pin_str = yubikey_pin.value();
+        std::vector<uint8_t> pin_bytes(pin_str.begin(), pin_str.end());
+        // Use password-derived KEK (not yet combined with YubiKey) to encrypt PIN
+        if (!KeepTower::VaultCrypto::encrypt_data(pin_bytes, kek_result.value(), encrypted_pin, pin_iv)) {
+            Log::error("VaultManager: Failed to encrypt YubiKey PIN");
+            return std::unexpected(VaultError::CryptoError);
+        }
+
+        // Store IV + ciphertext in KeySlot (format: [IV(12) || ciphertext+tag])
+        std::vector<uint8_t> pin_storage;
+        pin_storage.reserve(pin_iv.size() + encrypted_pin.size());
+        pin_storage.insert(pin_storage.end(), pin_iv.begin(), pin_iv.end());
+        pin_storage.insert(pin_storage.end(), encrypted_pin.begin(), encrypted_pin.end());
+
+        admin_encrypted_pin = std::move(pin_storage);
+
+        // Store credential ID
+        if (credential_id) {
+            admin_credential_id = std::move(credential_id.value());
+        }
+
+        Log::info("VaultManager: YubiKey PIN encrypted with password-derived KEK ({} bytes)",
+                  admin_encrypted_pin.size());
+
+        // Now combine KEK with YubiKey response to get final_kek for DEK wrapping
+        // This happens AFTER PIN encryption to break circular dependency
         const size_t response_size = yubikey_algorithm_response_size(algorithm);
         Log::debug("VaultManager: YubiKey response size: {} bytes", response_size);
 
@@ -172,7 +226,6 @@ KeepTower::VaultResult<> VaultManager::create_vault_v2(
                                               response.get_response().end());
         final_kek = KeyWrapping::combine_with_yubikey_v2(final_kek, yk_response_vec);
 
-        admin_yubikey_enrolled = true;
         Log::info("VaultManager: Admin KEK combined with YubiKey response");
     }
 #else
@@ -205,6 +258,8 @@ KeepTower::VaultResult<> VaultManager::create_vault_v2(
     admin_slot.yubikey_serial = admin_yubikey_serial;
     admin_slot.yubikey_enrolled_at = admin_yubikey_enrolled ?
         std::chrono::system_clock::now().time_since_epoch().count() : 0;
+    admin_slot.yubikey_encrypted_pin = std::move(admin_encrypted_pin);
+    admin_slot.yubikey_credential_id = std::move(admin_credential_id);
 
     // Add admin password to history if enabled
     if (policy.password_history_depth > 0) {
@@ -255,8 +310,10 @@ KeepTower::VaultResult<> VaultManager::create_vault_v2(
     std::copy(data_iv.begin(), std::min(data_iv.begin() + 32, data_iv.end()), file_header.data_salt.begin());
     std::copy(data_iv.begin(), std::min(data_iv.begin() + 12, data_iv.end()), file_header.data_iv.begin());
 
-    // Write header with FEC (use default user FEC preference, or 0% for new vault)
-    auto write_result = VaultFormatV2::write_header(file_header, 0);  // 0% = use 20% minimum
+    // Write header with FEC settings from current preferences
+    bool enable_fec = m_use_reed_solomon;
+    uint8_t fec_redundancy = m_use_reed_solomon ? m_rs_redundancy_percent : 0;
+    auto write_result = VaultFormatV2::write_header(file_header, enable_fec, fec_redundancy);
     if (!write_result) {
         Log::error("VaultManager: Failed to write V2 header");
         return std::unexpected(write_result.error());
@@ -405,16 +462,63 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
             }
         }
 
+        // Decrypt stored PIN first (encrypted with password-derived KEK only)
+        // This must happen BEFORE getting YubiKey response to avoid circular dependency
+        std::string decrypted_pin;
+        if (!user_slot->yubikey_encrypted_pin.empty()) {
+            // Extract IV and ciphertext from storage (format: [IV(12) || ciphertext+tag])
+            if (user_slot->yubikey_encrypted_pin.size() < KeepTower::VaultCrypto::IV_LENGTH) {
+                Log::error("VaultManager: Invalid encrypted PIN format");
+                return std::unexpected(VaultError::CryptoError);
+            }
+
+            std::vector<uint8_t> pin_iv(
+                user_slot->yubikey_encrypted_pin.begin(),
+                user_slot->yubikey_encrypted_pin.begin() + KeepTower::VaultCrypto::IV_LENGTH);
+
+            std::vector<uint8_t> pin_ciphertext(
+                user_slot->yubikey_encrypted_pin.begin() + KeepTower::VaultCrypto::IV_LENGTH,
+                user_slot->yubikey_encrypted_pin.end());
+
+            // Decrypt PIN using password-derived KEK (not yet combined with YubiKey)
+            std::vector<uint8_t> pin_bytes;
+            if (!KeepTower::VaultCrypto::decrypt_data(pin_ciphertext, final_kek, pin_iv, pin_bytes)) {
+                Log::error("VaultManager: Failed to decrypt YubiKey PIN");
+                return std::unexpected(VaultError::CryptoError);
+            }
+
+            decrypted_pin = std::string(reinterpret_cast<const char*>(pin_bytes.data()),
+                                       pin_bytes.size());
+            Log::info("VaultManager: Successfully decrypted YubiKey PIN from vault");
+        } else {
+            Log::error("VaultManager: No encrypted PIN stored in vault for user {}", username.raw());
+            return std::unexpected(VaultError::YubiKeyError);
+        }
+
+        // Load credential ID if stored (required for FIDO2 assertions)
+        if (!user_slot->yubikey_credential_id.empty()) {
+            if (!yk_manager.set_credential(user_slot->yubikey_credential_id)) {
+                Log::error("VaultManager: Failed to set FIDO2 credential ID");
+                return std::unexpected(VaultError::YubiKeyError);
+            }
+            Log::info("VaultManager: Loaded FIDO2 credential ID ({} bytes)",
+                     user_slot->yubikey_credential_id.size());
+        } else {
+            Log::error("VaultManager: No FIDO2 credential ID stored for user {}", username.raw());
+            return std::unexpected(VaultError::YubiKeyError);
+        }
+
         // Use user's unique challenge
         const auto& challenge = user_slot->yubikey_challenge;
 
-        // Perform challenge-response
+        // Perform challenge-response with decrypted PIN
         const YubiKeyAlgorithm algorithm = static_cast<YubiKeyAlgorithm>(file_header.vault_header.security_policy.yubikey_algorithm);
         auto response = yk_manager.challenge_response(
             std::span<const unsigned char>(challenge.data(), challenge.size()),
             algorithm,
             false,  // don't require touch for vault access (usability)
-            5000    // 5 second timeout
+            5000,   // 5 second timeout
+            decrypted_pin  // Use decrypted PIN for authentication
         );
 
         if (!response.success) {
@@ -423,10 +527,10 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
             return std::unexpected(VaultError::YubiKeyError);
         }
 
-        // Combine KEK with YubiKey response
-        std::array<uint8_t, 20> yk_response_array;
-        std::copy_n(response.response.begin(), 20, yk_response_array.begin());
-        final_kek = KeyWrapping::combine_with_yubikey(final_kek, yk_response_array);
+        // Combine KEK with YubiKey response (use v2 for variable-length responses)
+        std::vector<uint8_t> yk_response_vec(response.get_response().begin(),
+                                              response.get_response().end());
+        final_kek = KeyWrapping::combine_with_yubikey_v2(final_kek, yk_response_vec);
 
         Log::info("VaultManager: YubiKey authentication successful for user {}",
                   username.raw());
@@ -508,6 +612,19 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
     m_vault_data = vault_data;
     m_modified = true;  // Mark modified to save updated last_login_at
 
+    // Extract FEC settings from V2 header
+    m_use_reed_solomon = (file_header.header_flags & VaultFormatV2::HEADER_FLAG_FEC_ENABLED) != 0;
+    if (m_use_reed_solomon && file_header.fec_redundancy_percent > 0) {
+        m_rs_redundancy_percent = file_header.fec_redundancy_percent;
+        Log::info("VaultManager: V2 vault has FEC enabled (redundancy: {}%)", m_rs_redundancy_percent);
+    } else if (m_use_reed_solomon) {
+        // FEC enabled but redundancy not stored (shouldn't happen but handle gracefully)
+        Log::warning("VaultManager: V2 vault has FEC enabled but redundancy not specified, using current setting ({}%)",
+                     m_rs_redundancy_percent);
+    } else {
+        Log::info("VaultManager: V2 vault has FEC disabled");
+    }
+
     // Initialize managers after vault data is loaded
     m_account_manager = std::make_unique<KeepTower::AccountManager>(m_vault_data, m_modified);
     m_group_manager = std::make_unique<KeepTower::GroupManager>(m_vault_data, m_modified);
@@ -542,7 +659,8 @@ KeepTower::VaultResult<> VaultManager::add_user(
     const Glib::ustring& username,
     const Glib::ustring& temporary_password,
     KeepTower::UserRole role,
-    bool must_change_password) {
+    bool must_change_password,
+    const std::optional<std::string>& yubikey_pin) {
 
     Log::info("VaultManager: Adding user: {}", username.raw());
 
@@ -628,13 +746,110 @@ KeepTower::VaultResult<> VaultManager::add_user(
     new_slot.password_changed_at = 0;  // Not yet changed
     new_slot.last_login_at = 0;
 
-    // YubiKey fields: Explicitly NOT enrolled
-    // Admin cannot enroll YubiKey for user (doesn't have physical device)
-    // User must enroll own YubiKey during first login if policy requires
-    new_slot.yubikey_enrolled = false;
-    new_slot.yubikey_challenge = {};
-    new_slot.yubikey_serial.clear();
-    new_slot.yubikey_enrolled_at = 0;
+    // YubiKey enrollment if PIN provided and policy requires it
+    bool yubikey_enrolled = false;
+    std::array<uint8_t, 20> yubikey_challenge = {};
+    std::string yubikey_serial;
+    std::vector<uint8_t> encrypted_pin;
+    std::vector<uint8_t> credential_id;
+
+#ifdef HAVE_YUBIKEY_SUPPORT
+    if (yubikey_pin.has_value() && m_v2_header->security_policy.require_yubikey) {
+        Log::info("VaultManager: Enrolling YubiKey for new user {}", username.raw());
+
+        // Generate unique challenge for this user
+        auto challenge_salt = KeyWrapping::generate_random_salt();
+        if (!challenge_salt) {
+            Log::error("VaultManager: Failed to generate YubiKey challenge");
+            return std::unexpected(VaultError::CryptoError);
+        }
+        std::copy_n(challenge_salt.value().begin(), 20, yubikey_challenge.begin());
+
+        // Initialize YubiKey manager
+        YubiKeyManager yk_manager;
+        const bool enforce_fips = (m_v2_header->security_policy.yubikey_algorithm != 0x01);
+        if (!yk_manager.initialize(enforce_fips)) {
+            Log::error("VaultManager: Failed to initialize YubiKey");
+            return std::unexpected(VaultError::YubiKeyError);
+        }
+
+        if (!yk_manager.is_yubikey_present()) {
+            Log::error("VaultManager: YubiKey not present");
+            return std::unexpected(VaultError::YubiKeyNotPresent);
+        }
+
+        // Create credential for this user (use username as identifier)
+        const std::string& pin_str = yubikey_pin.value();
+        auto cred_result = yk_manager.create_credential(username.raw(), pin_str.c_str());
+        if (!cred_result) {
+            Log::error("VaultManager: Failed to create FIDO2 credential: {}",
+                      yk_manager.get_last_error());
+            return std::unexpected(VaultError::YubiKeyError);
+        }
+        credential_id = std::move(cred_result.value());
+
+        // Test challenge-response
+        const YubiKeyAlgorithm algorithm = static_cast<YubiKeyAlgorithm>(
+            m_v2_header->security_policy.yubikey_algorithm);
+        auto response = yk_manager.challenge_response(
+            std::span<const unsigned char>(yubikey_challenge.data(), yubikey_challenge.size()),
+            algorithm, false, 5000);
+
+        if (!response.success) {
+            Log::error("VaultManager: YubiKey challenge-response failed: {}",
+                      response.error_message);
+            return std::unexpected(VaultError::YubiKeyError);
+        }
+
+        // Get device serial
+        auto device_info = yk_manager.get_device_info();
+        if (device_info) {
+            yubikey_serial = device_info->serial_number;
+        }
+
+        // Encrypt PIN with user's KEK
+        std::vector<uint8_t> pin_iv = KeepTower::VaultCrypto::generate_random_bytes(
+            KeepTower::VaultCrypto::IV_LENGTH);
+        std::vector<uint8_t> pin_bytes(pin_str.begin(), pin_str.end());
+        std::vector<uint8_t> pin_ciphertext;
+
+        if (!KeepTower::VaultCrypto::encrypt_data(pin_bytes, kek_result.value(),
+                                                   pin_ciphertext, pin_iv)) {
+            Log::error("VaultManager: Failed to encrypt YubiKey PIN");
+            return std::unexpected(VaultError::CryptoError);
+        }
+
+        // Store IV + ciphertext
+        encrypted_pin.reserve(pin_iv.size() + pin_ciphertext.size());
+        encrypted_pin.insert(encrypted_pin.end(), pin_iv.begin(), pin_iv.end());
+        encrypted_pin.insert(encrypted_pin.end(), pin_ciphertext.begin(), pin_ciphertext.end());
+
+        // Re-wrap DEK with YubiKey-enhanced KEK
+        std::vector<uint8_t> yk_response_vec(response.get_response().begin(),
+                                             response.get_response().end());
+        auto final_kek = KeyWrapping::combine_with_yubikey_v2(kek_result.value(), yk_response_vec);
+
+        auto wrapped_result_yk = KeyWrapping::wrap_key(final_kek, m_v2_dek);
+        if (!wrapped_result_yk) {
+            Log::error("VaultManager: Failed to wrap DEK with YubiKey-enhanced KEK");
+            return std::unexpected(VaultError::CryptoError);
+        }
+        wrapped_result = wrapped_result_yk;
+
+        yubikey_enrolled = true;
+        Log::info("VaultManager: YubiKey enrolled for user {} (FIPS: {})",
+                 username.raw(), device_info && device_info->is_fips_mode ? "YES" : "NO");
+    }
+#endif
+
+    // YubiKey fields: Use enrollment data if available
+    new_slot.yubikey_enrolled = yubikey_enrolled;
+    new_slot.yubikey_challenge = yubikey_challenge;
+    new_slot.yubikey_serial = yubikey_serial;
+    new_slot.yubikey_enrolled_at = yubikey_enrolled ?
+        std::chrono::system_clock::now().time_since_epoch().count() : 0;
+    new_slot.yubikey_encrypted_pin = std::move(encrypted_pin);
+    new_slot.yubikey_credential_id = std::move(credential_id);
 
     // Add initial password to history if enabled
     if (m_v2_header->security_policy.password_history_depth > 0) {
@@ -775,7 +990,8 @@ KeepTower::VaultResult<> VaultManager::validate_new_password(
 KeepTower::VaultResult<> VaultManager::change_user_password(
     const Glib::ustring& username,
     const Glib::ustring& old_password,
-    const Glib::ustring& new_password) {
+    const Glib::ustring& new_password,
+    const std::optional<std::string>& yubikey_pin) {
 
     Log::info("VaultManager: Changing password for user: {}", username.raw());
 
@@ -857,22 +1073,67 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
             return std::unexpected(VaultError::YubiKeyNotPresent);
         }
 
-        // Use user's enrolled challenge
-        std::array<uint8_t, 20> user_challenge;
-        std::copy_n(user_slot->yubikey_challenge.begin(), 20, user_challenge.begin());
+        // Decrypt stored PIN using old password-derived KEK
+        std::string decrypted_pin;
+        if (!user_slot->yubikey_encrypted_pin.empty()) {
+            if (user_slot->yubikey_encrypted_pin.size() < KeepTower::VaultCrypto::IV_LENGTH) {
+                Log::error("VaultManager: Invalid encrypted PIN format");
+                return std::unexpected(VaultError::CryptoError);
+            }
 
+            std::vector<uint8_t> pin_iv(
+                user_slot->yubikey_encrypted_pin.begin(),
+                user_slot->yubikey_encrypted_pin.begin() + KeepTower::VaultCrypto::IV_LENGTH);
+
+            std::vector<uint8_t> pin_ciphertext(
+                user_slot->yubikey_encrypted_pin.begin() + KeepTower::VaultCrypto::IV_LENGTH,
+                user_slot->yubikey_encrypted_pin.end());
+
+            std::vector<uint8_t> pin_bytes;
+            if (!KeepTower::VaultCrypto::decrypt_data(pin_ciphertext, old_final_kek, pin_iv, pin_bytes)) {
+                Log::error("VaultManager: Failed to decrypt stored PIN with old password");
+                return std::unexpected(VaultError::CryptoError);
+            }
+
+            decrypted_pin = std::string(reinterpret_cast<const char*>(pin_bytes.data()), pin_bytes.size());
+            Log::info("VaultManager: Successfully decrypted stored PIN");
+        } else if (yubikey_pin.has_value()) {
+            // User provided PIN (first password change after vault creation)
+            decrypted_pin = yubikey_pin.value();
+            Log::info("VaultManager: Using provided PIN");
+        } else {
+            Log::error("VaultManager: YubiKey enrolled but no PIN available");
+            return std::unexpected(VaultError::YubiKeyError);
+        }
+
+        // Load credential ID
+        if (!user_slot->yubikey_credential_id.empty()) {
+            if (!yk_manager.set_credential(user_slot->yubikey_credential_id)) {
+                Log::error("VaultManager: Failed to set FIDO2 credential ID");
+                return std::unexpected(VaultError::YubiKeyError);
+            }
+        }
+
+        // Use user's enrolled challenge
+        const auto& challenge = user_slot->yubikey_challenge;
         const YubiKeyAlgorithm algorithm = static_cast<YubiKeyAlgorithm>(m_v2_header->security_policy.yubikey_algorithm);
-        auto response = yk_manager.challenge_response(user_challenge, algorithm, false, 5000);
+        auto response = yk_manager.challenge_response(
+            std::span<const unsigned char>(challenge.data(), challenge.size()),
+            algorithm,
+            false,
+            5000,
+            decrypted_pin);  // Pass decrypted PIN
+
         if (!response.success) {
             Log::error("VaultManager: YubiKey challenge-response failed: {}",
                        response.error_message);
             return std::unexpected(VaultError::YubiKeyError);
         }
 
-        // Combine KEK with YubiKey response
-        std::array<uint8_t, 20> yk_response_array;
-        std::copy_n(response.response.begin(), 20, yk_response_array.begin());
-        old_final_kek = KeyWrapping::combine_with_yubikey(old_final_kek, yk_response_array);
+        // Combine KEK with YubiKey response (use v2 for variable-length responses)
+        std::vector<uint8_t> yk_response_vec(response.get_response().begin(),
+                                              response.get_response().end());
+        old_final_kek = KeyWrapping::combine_with_yubikey_v2(old_final_kek, yk_response_vec);
 
         Log::info("VaultManager: Old password verified with YubiKey");
     }
@@ -906,7 +1167,7 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
     std::array<uint8_t, 32> new_final_kek = new_kek_result.value();
 
 #ifdef HAVE_YUBIKEY_SUPPORT
-    // If user has YubiKey enrolled, combine new KEK with SAME YubiKey challenge
+    // If user has YubiKey enrolled, combine new KEK with SAME YubiKey challenge and re-encrypt PIN
     if (user_slot->yubikey_enrolled) {
         Log::info("VaultManager: Preserving YubiKey enrollment with new password");
 
@@ -921,24 +1182,80 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
             return std::unexpected(VaultError::YubiKeyNotPresent);
         }
 
-        // Use SAME challenge as before (don't regenerate!)
-        std::array<uint8_t, 20> user_challenge;
-        std::copy_n(user_slot->yubikey_challenge.begin(), 20, user_challenge.begin());
+        // Get PIN (either decrypted from old or provided by user)
+        std::string pin_to_use;
+        if (!user_slot->yubikey_encrypted_pin.empty()) {
+            // Decrypt with OLD KEK (before combining with YubiKey)
+            std::vector<uint8_t> pin_iv(
+                user_slot->yubikey_encrypted_pin.begin(),
+                user_slot->yubikey_encrypted_pin.begin() + KeepTower::VaultCrypto::IV_LENGTH);
 
+            std::vector<uint8_t> pin_ciphertext(
+                user_slot->yubikey_encrypted_pin.begin() + KeepTower::VaultCrypto::IV_LENGTH,
+                user_slot->yubikey_encrypted_pin.end());
+
+            std::vector<uint8_t> pin_bytes;
+            if (!KeepTower::VaultCrypto::decrypt_data(pin_ciphertext, old_kek_result.value(), pin_iv, pin_bytes)) {
+                Log::error("VaultManager: Failed to decrypt PIN");
+                return std::unexpected(VaultError::CryptoError);
+            }
+
+            pin_to_use = std::string(reinterpret_cast<const char*>(pin_bytes.data()), pin_bytes.size());
+        } else if (yubikey_pin.has_value()) {
+            pin_to_use = yubikey_pin.value();
+        } else {
+            Log::error("VaultManager: YubiKey enrolled but no PIN available");
+            return std::unexpected(VaultError::YubiKeyError);
+        }
+
+        // Load credential ID
+        if (!user_slot->yubikey_credential_id.empty()) {
+            if (!yk_manager.set_credential(user_slot->yubikey_credential_id)) {
+                Log::error("VaultManager: Failed to set FIDO2 credential ID");
+                return std::unexpected(VaultError::YubiKeyError);
+            }
+        }
+
+        // Use SAME challenge as before (don't regenerate!)
+        const auto& challenge = user_slot->yubikey_challenge;
         const YubiKeyAlgorithm algorithm = static_cast<YubiKeyAlgorithm>(m_v2_header->security_policy.yubikey_algorithm);
-        auto response = yk_manager.challenge_response(user_challenge, algorithm, false, 5000);
+        auto response = yk_manager.challenge_response(
+            std::span<const unsigned char>(challenge.data(), challenge.size()),
+            algorithm,
+            false,
+            5000,
+            pin_to_use);  // Pass PIN
+
         if (!response.success) {
             Log::error("VaultManager: YubiKey challenge-response failed: {}",
                        response.error_message);
             return std::unexpected(VaultError::YubiKeyError);
         }
 
-        // Combine new KEK with YubiKey response
-        std::array<uint8_t, 20> yk_response_array;
-        std::copy_n(response.response.begin(), 20, yk_response_array.begin());
-        new_final_kek = KeyWrapping::combine_with_yubikey(new_final_kek, yk_response_array);
+        // Combine new KEK with YubiKey response (use v2 for variable-length)
+        std::vector<uint8_t> yk_response_vec(response.get_response().begin(),
+                                              response.get_response().end());
+        new_final_kek = KeyWrapping::combine_with_yubikey_v2(new_final_kek, yk_response_vec);
 
-        Log::info("VaultManager: YubiKey enrollment preserved with new password");
+        // Re-encrypt PIN with NEW password-derived KEK (before YubiKey combination)
+        std::vector<uint8_t> new_encrypted_pin;
+        std::vector<uint8_t> new_pin_iv = KeepTower::VaultCrypto::generate_random_bytes(
+            KeepTower::VaultCrypto::IV_LENGTH);
+
+        std::vector<uint8_t> pin_bytes(pin_to_use.begin(), pin_to_use.end());
+        if (!KeepTower::VaultCrypto::encrypt_data(pin_bytes, new_kek_result.value(), new_encrypted_pin, new_pin_iv)) {
+            Log::error("VaultManager: Failed to re-encrypt PIN with new password");
+            return std::unexpected(VaultError::CryptoError);
+        }
+
+        // Store re-encrypted PIN
+        std::vector<uint8_t> new_pin_storage;
+        new_pin_storage.reserve(new_pin_iv.size() + new_encrypted_pin.size());
+        new_pin_storage.insert(new_pin_storage.end(), new_pin_iv.begin(), new_pin_iv.end());
+        new_pin_storage.insert(new_pin_storage.end(), new_encrypted_pin.begin(), new_encrypted_pin.end());
+        user_slot->yubikey_encrypted_pin = std::move(new_pin_storage);
+
+        Log::info("VaultManager: YubiKey enrollment preserved and PIN re-encrypted with new password");
     }
 #endif
 
@@ -1136,7 +1453,8 @@ KeepTower::VaultResult<> VaultManager::admin_reset_user_password(
 
 KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
     const Glib::ustring& username,
-    const Glib::ustring& password) {
+    const Glib::ustring& password,
+    const std::string& yubikey_pin) {
 
     Log::info("VaultManager: Enrolling YubiKey for user: {}", username.raw());
 
@@ -1144,6 +1462,12 @@ KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
     if (!m_vault_open || !m_is_v2_vault) {
         Log::error("VaultManager: No V2 vault open");
         return std::unexpected(VaultError::VaultNotOpen);
+    }
+
+    // Validate YubiKey PIN (4-63 characters as per YubiKey spec)
+    if (yubikey_pin.empty() || yubikey_pin.length() < 4 || yubikey_pin.length() > 63) {
+        Log::error("VaultManager: Invalid YubiKey PIN length (must be 4-63 characters)");
+        return std::unexpected(VaultError::YubiKeyError);
     }
 
     // Check permissions: user enrolling own YubiKey OR admin enrolling for any user
@@ -1219,11 +1543,23 @@ KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
     // Perform YubiKey challenge-response (require touch = true for enrollment security)
     Log::info("VaultManager: Performing YubiKey challenge-response (touch required)");
     const YubiKeyAlgorithm algorithm = static_cast<YubiKeyAlgorithm>(m_v2_header->security_policy.yubikey_algorithm);
+
+    // Create FIDO2 credential for enrollment (required for FIDO2 hmac-secret extension)
+    Log::info("VaultManager: Creating FIDO2 credential for enrollment");
+    auto credential_id = yk_manager.create_credential(username.raw(), yubikey_pin);
+    if (!credential_id.has_value() || credential_id->empty()) {
+        Log::error("VaultManager: Failed to create FIDO2 credential");
+        return std::unexpected(VaultError::YubiKeyError);
+    }
+    Log::info("VaultManager: FIDO2 credential created (ID length: {})", credential_id->size());
+
+    // Perform challenge-response with the newly created credential
     auto response = yk_manager.challenge_response(
         user_challenge,
         algorithm,
         true,
-        15000
+        15000,
+        yubikey_pin  // Pass PIN for challenge-response
     );
     if (!response.success) {
         Log::error("VaultManager: YubiKey challenge-response failed: {}",
@@ -1239,10 +1575,10 @@ KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
         Log::info("VaultManager: YubiKey serial: {}", device_serial);
     }
 
-    // Combine KEK with YubiKey response
-    std::array<uint8_t, 20> yk_response_array;
-    std::copy_n(response.response.begin(), 20, yk_response_array.begin());
-    auto final_kek = KeyWrapping::combine_with_yubikey(kek_result.value(), yk_response_array);
+    // Combine KEK with YubiKey response (use v2 for variable-length responses)
+    std::vector<uint8_t> yk_response_vec(response.get_response().begin(),
+                                          response.get_response().end());
+    auto final_kek = KeyWrapping::combine_with_yubikey_v2(kek_result.value(), yk_response_vec);
 
     // Re-wrap DEK with password+YubiKey combined KEK
     auto new_wrapped_result = KeyWrapping::wrap_key(final_kek, m_v2_dek);
@@ -1251,12 +1587,39 @@ KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
         return std::unexpected(VaultError::CryptoError);
     }
 
+    // Encrypt YubiKey PIN with password-derived KEK (NOT combined KEK)
+    // This allows us to decrypt the PIN with password alone during vault opening
+    Log::info("VaultManager: Encrypting YubiKey PIN");
+    std::vector<uint8_t> pin_bytes(yubikey_pin.begin(), yubikey_pin.end());
+    std::vector<uint8_t> encrypted_pin;
+    std::array<uint8_t, 12> pin_iv;
+
+    if (!KeepTower::VaultCrypto::encrypt_data(pin_bytes, kek_result.value(), encrypted_pin, pin_iv)) {
+        Log::error("VaultManager: Failed to encrypt YubiKey PIN");
+        return std::unexpected(VaultError::CryptoError);
+    }
+
+    // Store IV + ciphertext in KeySlot (format: [IV(12) || ciphertext+tag])
+    std::vector<uint8_t> pin_storage;
+    pin_storage.reserve(pin_iv.size() + encrypted_pin.size());
+    pin_storage.insert(pin_storage.end(), pin_iv.begin(), pin_iv.end());
+    pin_storage.insert(pin_storage.end(), encrypted_pin.begin(), encrypted_pin.end());
+
+    Log::info("VaultManager: YubiKey PIN encrypted ({} bytes)", pin_storage.size());
+
     // Update slot with YubiKey enrollment data
     user_slot->wrapped_dek = new_wrapped_result.value().wrapped_key;
     user_slot->yubikey_enrolled = true;
     std::copy_n(user_challenge.begin(), 20, user_slot->yubikey_challenge.begin());
     user_slot->yubikey_serial = device_serial;
     user_slot->yubikey_enrolled_at = std::chrono::system_clock::now().time_since_epoch().count();
+    user_slot->yubikey_encrypted_pin = pin_storage;
+
+    // Store credential ID from FIDO2 enrollment
+    user_slot->yubikey_credential_id = *credential_id;
+    Log::info("VaultManager: Stored FIDO2 credential ID ({} bytes)", credential_id->size());
+
+    // Mark vault as modified so the new wrapped_dek gets saved
     m_modified = true;
 
     // Update current session if user enrolled their own YubiKey

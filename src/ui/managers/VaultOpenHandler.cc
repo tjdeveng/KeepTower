@@ -72,6 +72,11 @@ void VaultOpenHandler::handle_new_vault() {
         "Create New Vault",
         "Untitled.vault",
         [this](const std::string& vault_path) {
+            // User cancelled file dialog - abort vault creation
+            if (vault_path.empty()) {
+                return;
+            }
+
             // Show combined username + password creation dialog
             auto pwd_dialog = Gtk::make_managed<CreatePasswordDialog>(m_window);
             Glib::ustring vault_path_glib = Glib::ustring(vault_path);
@@ -117,11 +122,17 @@ void VaultOpenHandler::handle_new_vault() {
 #endif
 
                     // Create V2 vault with admin account
+                    std::optional<std::string> yubikey_pin;
+                    if (require_yubikey) {
+                        yubikey_pin = pwd_dialog->get_yubikey_pin();
+                    }
+
                     auto result = m_vault_manager->create_vault_v2(
                         KeepTower::safe_ustring_to_string(Glib::ustring(vault_path), "vault_path"),
                         admin_username,
                         password,
-                        policy
+                        policy,
+                        yubikey_pin
                     );
 
 #ifdef HAVE_YUBIKEY_SUPPORT
@@ -177,7 +188,10 @@ void VaultOpenHandler::handle_new_vault() {
                         // Phase 5: Use UIStateManager for vault opened state
                         m_ui_state_manager->set_vault_opened(vault_path, admin_username);
 
-                    // Maintain local state cache for quick access without VaultManager queries
+                        // Update MainWindow state references to mark vault as open
+                        m_vault_open = true;
+                        m_is_locked = false;
+                        m_current_vault_path = vault_path;
 
                         // Phase 2: Initialize repositories for data access
                         m_initialize_repositories_callback();

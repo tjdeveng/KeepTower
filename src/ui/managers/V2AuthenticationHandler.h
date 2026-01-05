@@ -91,8 +91,10 @@ private:
     /**
      * @brief Handle required YubiKey enrollment per policy
      * @param username Username requiring YubiKey enrollment
+     * @param password Optional password (if just changed, avoids asking again)
      */
-    void handle_yubikey_enrollment_required(const std::string& username);
+    void handle_yubikey_enrollment_required(const std::string& username,
+                                           const Glib::ustring& password = Glib::ustring());
 
     /**
      * @brief Check and prompt for YubiKey if required

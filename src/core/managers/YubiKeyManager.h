@@ -164,7 +164,8 @@ public:
         std::span<const unsigned char> challenge,
         YubiKeyAlgorithm algorithm = YubiKeyAlgorithm::HMAC_SHA256,
         bool require_touch = true,
-        int timeout_ms = DEFAULT_TIMEOUT_MS
+        int timeout_ms = DEFAULT_TIMEOUT_MS,
+        std::optional<std::string_view> pin = std::nullopt
     ) noexcept;
 
     /**
@@ -173,6 +174,28 @@ public:
      * @return true if device with that serial is connected
      */
     [[nodiscard]] bool is_device_connected(std::string_view serial_number) const noexcept;
+
+    /**
+     * @brief Create a new FIDO2 credential for vault authentication
+     * @param user_id User identifier (vault path or username)
+     * @param pin YubiKey PIN (required for credential creation)
+     * @return Credential ID on success, empty optional on failure
+     *
+     * @note Requires physical touch on YubiKey
+     * @note Stores credential ID internally for subsequent challenge-response
+     * @note Uses FIDO2 makeCredential with hmac-secret extension
+     */
+    [[nodiscard]] std::optional<std::vector<unsigned char>> create_credential(
+        std::string_view user_id,
+        std::string_view pin
+    ) noexcept;
+
+    /**
+     * @brief Set the credential ID for subsequent operations
+     * @param credential_id Previously created credential ID
+     * @return true if credential ID is valid and set
+     */
+    [[nodiscard]] bool set_credential(std::span<const unsigned char> credential_id) noexcept;
 
     /**
      * @brief Get the last error message

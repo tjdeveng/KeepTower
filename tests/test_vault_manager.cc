@@ -1204,19 +1204,30 @@ TEST_F(VaultManagerTest, YubiKey_NonYubiKeyVaultReturnsEmptyList) {
 // V2 Export Authentication Tests (YubiKey Detection)
 // ============================================================================
 
-TEST_F(VaultManagerTest, CurrentUserRequiresYubiKey_V1VaultWithYubiKey_ReturnsTrue) {
+TEST_F(VaultManagerTest, CurrentUserRequiresYubiKey_V2VaultWithYubiKey_ReturnsTrue) {
 #ifdef HAVE_YUBIKEY_SUPPORT
-    // Create V1 vault with YubiKey requirement
+    // Create V2 vault with YubiKey requirement (FIPS-140-3 compliant)
     // Note: Will skip if no YubiKey hardware present
-    std::string serial = "12345678";
-
     YubiKeyManager yk_manager;
     if (!yk_manager.initialize() || !yk_manager.is_yubikey_present()) {
         GTEST_SKIP() << "YubiKey not available for testing";
     }
 
-    bool created = vault_manager->create_vault(test_vault_path, test_password, true, serial);
-    if (created) {
+    KeepTower::VaultSecurityPolicy policy;
+    policy.require_yubikey = true;  // V2 YubiKey with FIDO2/HMAC-SHA256
+    policy.min_password_length = 8;
+    policy.pbkdf2_iterations = 100000;
+    policy.password_history_depth = 3;
+
+    // Get PIN from environment for testing (tests only, production uses parameter)
+    const char* pin_env = std::getenv("YUBIKEY_PIN");
+    std::optional<std::string> pin;
+    if (pin_env) {
+        pin = std::string(pin_env);
+    }
+
+    auto result = vault_manager->create_vault_v2(test_vault_path, "admin", test_password, policy, pin);
+    if (result) {
         EXPECT_TRUE(vault_manager->current_user_requires_yubikey());
     }
 #else
@@ -1225,8 +1236,8 @@ TEST_F(VaultManagerTest, CurrentUserRequiresYubiKey_V1VaultWithYubiKey_ReturnsTr
 }
 
 TEST_F(VaultManagerTest, CurrentUserRequiresYubiKey_V1VaultWithoutYubiKey_ReturnsFalse) {
-    // Create V1 vault without YubiKey
-    ASSERT_TRUE(vault_manager->create_vault(test_vault_path, test_password, false));
+    // Create V1 vault (legacy format, no YubiKey support)
+    ASSERT_TRUE(vault_manager->create_vault(test_vault_path, test_password));
     EXPECT_FALSE(vault_manager->current_user_requires_yubikey());
 }
 
