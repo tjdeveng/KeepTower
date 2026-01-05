@@ -134,6 +134,8 @@ jobs:
         sudo apt-get install -y xvfb
 
         # Run tests with xvfb and timeout multiplier for crypto tests
+        # Disable YubiKey detection to prevent libfido2 device enumeration issues
+        export DISABLE_YUBIKEY_DETECT=1
         xvfb-run -a meson test -C build --print-errorlogs --timeout-multiplier 1.5
 
         mkdir -p dist/keeptower-${{ needs.create-release.outputs.version }}-${{ matrix.artifact }}-x86_64
