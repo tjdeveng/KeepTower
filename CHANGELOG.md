@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-01-06
+
+### Fixed
+- **CRITICAL: FIDO2 YubiKey Migration:**
+  - Fixed missing libfido2-devel dependency in Fedora 41 CI builds
+  - Fixed missing libfido2-devel dependency in AppImage builds
+  - Moved `verify_credentials()` and `get_current_username()` outside `HAVE_YUBIKEY_SUPPORT` ifdef block
+  - Resolved compilation errors preventing vault loading on systems without HAVE_YUBIKEY_SUPPORT defined
+  - Replaced old ykpers-devel and libyubikey-devel with libfido2-devel in CI workflows
+
+### Security
+- Replaced `memset()` with `OPENSSL_cleanse()` in VaultIOHandler for FIPS-140-3 compliance
+- Added comprehensive FIPS-140-3 compliance audit report (docs/developer/FIDO2_FIPS_AUDIT.md)
+- Forward declared OPENSSL_cleanse to avoid UI namespace conflict with OpenSSL types
+
+### Documentation
+- Added FIDO2 YubiKey HMAC-SHA256 example to CONTRIBUTING.md
+- Documented all cryptographic operations and security measures
+- Added FIPS compliance guidelines for YubiKey integration
+
 ## [0.3.1] - 2026-01-01
 
 ### Added
