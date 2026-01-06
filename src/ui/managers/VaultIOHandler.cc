@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2025 tjdeveng
 
+#include "../../core/VaultManager.h"
 #include "VaultIOHandler.h"
 #include "DialogManager.h"
-#include "../../core/VaultManager.h"
 #include "../../utils/Log.h"
 #include "../../utils/ImportExport.h"
 #include "../windows/MainWindow.h"
