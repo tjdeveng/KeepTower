@@ -10,6 +10,11 @@
 #include "../dialogs/PasswordDialog.h"
 #include "../dialogs/VaultMigrationDialog.h"
 
+// Forward declare OPENSSL_cleanse to avoid OpenSSL UI type conflict with our UI namespace
+extern "C" {
+    void OPENSSL_cleanse(void *ptr, size_t len);
+}
+
 #ifdef HAVE_YUBIKEY_SUPPORT
 #include "../dialogs/YubiKeyPromptDialog.h"
 #include "../../core/managers/YubiKeyManager.h"
@@ -286,10 +291,9 @@ void VaultIOHandler::show_export_password_dialog(const std::string& current_vaul
                     }
 
                     if (!auth_success) {
-                        // Securely clear password before returning (Glib::ustring)
+                        // Securely clear password before returning (FIPS-compliant)
                         if (!password.empty()) {
-                            volatile char* p = const_cast<char*>(password.data());
-                            std::memset(const_cast<char*>(p), 0, password.bytes());
+                            OPENSSL_cleanse(const_cast<char*>(password.data()), password.bytes());
                             password.clear();
                         }
                         m_dialog_manager->show_error_dialog("YubiKey authentication failed. Export cancelled.");
@@ -304,10 +308,9 @@ void VaultIOHandler::show_export_password_dialog(const std::string& current_vaul
                     bool auth_success = m_vault_manager->verify_credentials(password);
 
                     if (!auth_success) {
-                        // Securely clear password before returning (Glib::ustring)
+                        // Securely clear password before returning (FIPS-compliant)
                         if (!password.empty()) {
-                            volatile char* p = const_cast<char*>(password.data());
-                            std::memset(const_cast<char*>(p), 0, password.bytes());
+                            OPENSSL_cleanse(const_cast<char*>(password.data()), password.bytes());
                             password.clear();
                         }
                         m_dialog_manager->show_error_dialog("Authentication failed. Export cancelled.");
@@ -315,10 +318,9 @@ void VaultIOHandler::show_export_password_dialog(const std::string& current_vaul
                     }
                 }
 
-                // Securely clear password after successful authentication (Glib::ustring)
+                // Securely clear password after successful authentication (FIPS-compliant)
                 if (!password.empty()) {
-                    volatile char* p = const_cast<char*>(password.data());
-                    std::memset(const_cast<char*>(p), 0, password.bytes());
+                    OPENSSL_cleanse(const_cast<char*>(password.data()), password.bytes());
                     password.clear();
                 }
 

@@ -233,11 +233,21 @@ PKCS5_PBKDF2_HMAC(password, password_len, salt, salt_len,
 PKCS5_PBKDF2_HMAC(password, password_len, salt, salt_len,
                   1000, EVP_md5(), key_len, key);
 
-// Good: Secure key cleanup
+// Good: Secure key cleanup (FIPS-approved)
 OPENSSL_cleanse(key, key_len);
 
 // Bad: May be optimized away by compiler
 memset(key, 0, key_len);
+
+// Good: FIDO2 YubiKey with HMAC-SHA256 (FIPS-approved)
+YubiKeyManager ykm;
+auto response = ykm.challenge_response(challenge, YubiKeyAlgorithm::HMAC_SHA256, pin);
+if (response.success && response.algorithm == YubiKeyAlgorithm::HMAC_SHA256) {
+    // Use 32-byte HMAC-SHA256 response
+}
+
+// Bad: Legacy HMAC-SHA1 (deprecated, NOT FIPS-approved)
+// DO NOT USE: YubiKeyAlgorithm::HMAC_SHA1
 ```
 
 **Testing FIPS Compliance:**
