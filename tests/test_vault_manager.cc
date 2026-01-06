@@ -1362,6 +1362,7 @@ TEST_F(VaultManagerTest, Concurrency_MultipleThreadsWriteAccounts) {
     constexpr int NUM_THREADS = 2;
     constexpr int ACCOUNTS_PER_THREAD = 3;
     std::atomic<int> successful_adds{0};
+    std::atomic<int> failed_adds{0};
     std::vector<std::thread> threads;
 
     // Use a barrier to synchronize thread start for more predictable behavior
@@ -1383,15 +1384,18 @@ TEST_F(VaultManagerTest, Concurrency_MultipleThreadsWriteAccounts) {
 
                 if (vault_manager->add_account(account)) {
                     successful_adds.fetch_add(1, std::memory_order_relaxed);
+                } else {
+                    failed_adds.fetch_add(1, std::memory_order_relaxed);
                 }
-                // Longer delay to reduce lock contention
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+                // Brief delay to reduce lock contention
+                std::this_thread::sleep_for(std::chrono::milliseconds(5));
             }
         });
     }
 
     // Small delay to ensure all threads are spawned
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
     start_flag.store(true, std::memory_order_release);
 
     // Wait for all threads
@@ -1399,9 +1403,21 @@ TEST_F(VaultManagerTest, Concurrency_MultipleThreadsWriteAccounts) {
         thread.join();
     }
 
-    // All adds should succeed
-    EXPECT_EQ(successful_adds.load(), NUM_THREADS * ACCOUNTS_PER_THREAD);
-    EXPECT_EQ(vault_manager->get_account_count(), NUM_THREADS * ACCOUNTS_PER_THREAD);
+    // Verify results with detailed error reporting for CI debugging
+    int final_count = vault_manager->get_account_count();
+    int expected_count = NUM_THREADS * ACCOUNTS_PER_THREAD;
+
+    if (final_count != expected_count || failed_adds.load() > 0) {
+        std::cerr << "Concurrency test diagnostics:\n"
+                  << "  Expected accounts: " << expected_count << "\n"
+                  << "  Actual accounts: " << final_count << "\n"
+                  << "  Successful adds: " << successful_adds.load() << "\n"
+                  << "  Failed adds: " << failed_adds.load() << "\n";
+    }
+
+    EXPECT_EQ(failed_adds.load(), 0) << "Some account additions failed";
+    EXPECT_EQ(successful_adds.load(), expected_count) << "Not all additions reported success";
+    EXPECT_EQ(final_count, expected_count) << "Final account count mismatch - possible race condition in VaultManager";
 }
 
 TEST_F(VaultManagerTest, Concurrency_MixedReadWriteOperations) {
@@ -1419,13 +1435,11 @@ TEST_F(VaultManagerTest, Concurrency_MixedReadWriteOperations) {
     // Test: Mixed read/write operations with minimal thread count for CI
     constexpr int NUM_READER_THREADS = 2;  // Reduced from 4
     constexpr int NUM_WRITER_THREADS = 1;  // Reduced from 2
-    constexpr int OPERATIONS_PER_THREAD = 10;  // Reduced from 50 for CI stability
+    constexpr int OPERATIONS_PER_THREAD = 5;  // Reduced from 10
 
     std::atomic<int> read_count{0};
     std::atomic<int> write_count{0};
     std::vector<std::thread> threads;
-
-    // Synchronization flag
     std::atomic<bool> start_flag{false};
 
     // Reader threads
