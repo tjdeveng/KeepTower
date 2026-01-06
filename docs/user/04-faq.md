@@ -159,15 +159,6 @@ See **[[User Guide]]** for detailed instructions.
 
 See **[[User Guide]]** for detailed instructions.
 
-### Does KeepTower work with browser extensions?
-
-**Not yet.** Browser extension is planned for v0.3.x.
-
-**Current workaround:**
-- Copy password with Ctrl+C
-- Paste into browser (Ctrl+V)
-- Auto-clear (30 seconds) prevents long-term clipboard exposure
-
 ### Can I use KeepTower on my phone?
 
 **No.** Mobile apps are not currently planned.

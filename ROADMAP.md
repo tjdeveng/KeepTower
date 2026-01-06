@@ -159,12 +159,6 @@ This document outlines the planned features and improvements for KeepTower, orga
 - [ ] Emergency access system
 - [ ] Vault integrity monitoring
 
-### Browser Integration (Post-v1.0.0)
-- [ ] Browser extension for auto-fill (Firefox, Chrome)
-- [ ] Native messaging host implementation
-- [ ] Cross-browser compatibility layer
-- [ ] Browser store distribution
-
 ### Enterprise Features
 - [ ] LDAP/Active Directory integration
 - [ ] SSO support

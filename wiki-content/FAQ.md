@@ -128,15 +128,6 @@ Reed-Solomon error correction can automatically repair corruption:
 - No vendor lock-in
 - File format documentation available for custom tools
 
-### Does KeepTower work with browser extensions?
-
-**Not yet.** Browser extension is planned for v0.2.x.
-
-**Current workaround:**
-- Copy password with Ctrl+C
-- Paste into browser (Ctrl+V)
-- Auto-clear prevents long-term clipboard exposure
-
 ### Can I use KeepTower on my phone?
 
 **Not yet.** Mobile apps are planned for v0.4.x+.
