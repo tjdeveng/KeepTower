@@ -50,13 +50,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **YubiKey Challenge-Response API:**
   - `YubiKeyManager::challenge_response()` now requires `YubiKeyAlgorithm` parameter
   - Default algorithm: HMAC-SHA256 (FIPS-approved)
-  - V1 vaults continue using HMAC-SHA1 for backward compatibility
+  - V1 vaults with HMAC-SHA1 can be opened for backward compatibility
   - V2 vaults store algorithm in `VaultSecurityPolicy` (1 byte, field 0x42)
   - `KeyWrapping::combine_with_yubikey_v2()` added for variable-length responses
 
 ### Deprecated
 - **HMAC-SHA1 for New Vaults:**
-  - SHA-1 explicitly marked as NOT FIPS-140-3 approved
+  - SHA-1 marked as NOT FIPS-140-3 approved (legacy V1 vault support only)
   - Only used for legacy V1 vault compatibility
   - Rejected in FIPS enforcement mode
 
@@ -249,7 +249,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **YubiKey Hardware 2FA:**
   - Optional YubiKey challenge-response authentication for vault encryption
-  - Two-factor encryption combining password key with YubiKey HMAC-SHA1 response
+  - Two-factor encryption combining password key with YubiKey HMAC response (now uses FIDO2 HMAC-SHA256)
   - Automatic YubiKey detection with real-time UI updates
   - User-friendly prompts for key insertion and touch requirements
   - Serial number tracking for key identification

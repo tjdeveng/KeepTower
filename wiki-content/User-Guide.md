@@ -172,12 +172,14 @@ V2 vaults track password history to prevent reuse:
 ### YubiKey Authentication (Optional)
 
 **Requirements:**
-- YubiKey with HMAC-SHA1 challenge-response
-- Must be programmed during vault creation
+- YubiKey 5 series with FIDO2 hmac-secret support
+- HMAC-SHA256 (FIPS-140-3 compliant)
+- YubiKey PIN configured
 
 **Setup:**
 1. Insert YubiKey during vault creation
 2. Enable "Require YubiKey" in security policy
+3. Enter YubiKey PIN when prompted
 3. Program challenge-response slot
 4. All users must use same YubiKey model/programming
 

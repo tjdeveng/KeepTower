@@ -24,10 +24,11 @@ A secure, modern password manager built with C++23 and GTK4.
   - Password re-authentication required for security
   - Exported files protected with 0600 permissions
 - **YubiKey Hardware 2FA**: Optional hardware-based second factor authentication
-  - Challenge-response HMAC-SHA1 using YubiKey slot 2
-  - Two-factor encryption: password key ⊕ YubiKey response
+  - FIDO2 HMAC-SHA256 (FIPS-140-3 compliant) via libfido2
+  - Two-factor encryption: password key ⊕ YubiKey HMAC response
   - Automatic key detection with user-friendly prompts
   - Serial number tracking for key identification
+  - PIN requirement for all YubiKey operations
 - **Error Correction**: Reed-Solomon forward error correction (FEC) for vault files
   - Configurable redundancy levels (5-50%)
   - Automatic corruption detection and recovery
@@ -76,10 +77,10 @@ A secure, modern password manager built with C++23 and GTK4.
 - Protocol Buffers (>= 3.0)
 - libcorrect (for Reed-Solomon error correction)
   - Fedora: `dnf install libcorrect-devel`
-  yubikey-personalization (optional, for YubiKey 2FA support)
-  - Fedora: `dnf install ykpers-devel`
-  - Ubuntu: `apt install libykpers-1-dev`
-- - Ubuntu: Build from source (see CI workflows for instructions)
+  - Ubuntu: Build from source (see CI workflows for instructions)
+- libfido2 (>= 1.13.0, for YubiKey FIDO2 support)
+  - Fedora: `dnf install libfido2-devel`
+  - Ubuntu: `apt install libfido2-dev`
 - Meson build system
 - GTest (for tests)
 
@@ -132,15 +133,19 @@ meson install -C build
 
 To create a vault with YubiKey hardware 2FA:
 
-1. Ensure your YubiKey is connected and configured with HMAC-SHA1 challenge-response in slot 2
+1. Ensure your YubiKey is connected and configured for FIDO2 hmac-secret
    ```bash
-   # Configure slot 2 for HMAC-SHA1 (one-time setup)
-   ykpersonalize -2 -ochal-resp -ochal-hmac -ohmac-lt64 -oserial-api-visible
+   # Check YubiKey FIDO2 support
+   ykman fido info
+   
+   # YubiKey 5 series supports FIDO2 hmac-secret natively
+   # No additional configuration needed
    ```
 2. Click **New Vault** and create a strong password
 3. Check **"Require YubiKey for vault access"** (appears when YubiKey is detected)
-4. Touch your YubiKey when prompted during vault creation
-5. The vault will now require both your password AND the YubiKey to open
+4. Enter your YubiKey PIN when prompted
+5. Touch your YubiKey when prompted during vault creation
+6. The vault will now require both your password, YubiKey PIN, AND the YubiKey to open
 
 **Important**: Keep your YubiKey safe! If lost, you will need both a backup YubiKey (programmed with the same secret) or the vault cannot be opened.
 
@@ -152,19 +157,20 @@ To add a backup YubiKey:
 
 1. Open a YubiKey-protected vault with your primary key
 2. Select **Menu → Manage YubiKeys**
-3. Insert your backup YubiKey (must be programmed with the **same HMAC secret** as the primary)
+3. Insert your backup YubiKey
 4. Click **Add Current YubiKey** and give it a name (e.g., "Backup", "Office Key")
-5. Touch the YubiKey when prompted to verify it works
+5. Enter your PIN and touch the YubiKey when prompted to verify it works
 6. Your backup key can now open the vault
 
-**Programming Multiple Keys with Same Secret:**
-```bash
-# Save the secret from your primary key (64 hex characters)
-# Then program the backup key with the SAME secret:
-ykpersonalize -2 -ochal-resp -ochal-hmac -ohmac-lt64 -oserial-api-visible -a<YOUR_SECRET_HERE>
-```
+**Important for FIDO2 YubiKeys:**
 
-**Note**: All backup keys **must** be programmed with the same HMAC-SHA1 secret. If a key has a different secret, it will be rejected when you try to add it.
+Each YubiKey 5 will have its own unique FIDO2 credential. Unlike the old HMAC-SHA1 slot method, you cannot "copy" the secret to another key. Instead, KeepTower supports multiple independent YubiKeys per vault:
+
+- Each YubiKey gets its own credential enrolled in the vault
+- All enrolled keys can unlock the vault independently
+- Add backup keys through **Menu → Manage YubiKeys** while vault is open
+
+**Note**: For FIDO2, each YubiKey is unique and enrolled separately. If you lose a key, use one of your backup keys to access the vault.
 
 ### Importing and Exporting Accounts
 
