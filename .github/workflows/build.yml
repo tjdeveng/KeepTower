@@ -142,8 +142,7 @@ jobs:
               openssl-devel \
               gtest-devel \
               libcorrect-devel \
-              ykpers-devel \
-              libyubikey-devel \
+              libfido2-devel \
               desktop-file-utils \
               gettext \
               perl \
@@ -196,8 +195,7 @@ jobs:
               protobuf-devel \
               openssl-devel \
               libcorrect-devel \
-              ykpers-devel \
-              libyubikey-devel \
+              libfido2-devel \
               gettext \
               desktop-file-utils \
               wget \
