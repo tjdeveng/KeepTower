@@ -3,7 +3,7 @@
 
 #include "YubiKeyPromptDialog.h"
 
-YubiKeyPromptDialog::YubiKeyPromptDialog(Gtk::Window& parent, PromptType type, const std::string& serial)
+YubiKeyPromptDialog::YubiKeyPromptDialog(Gtk::Window& parent, PromptType type, const std::string& serial, const std::string& custom_message)
     : Gtk::Dialog("YubiKey Required", parent, true)
     , m_content_box(Gtk::Orientation::VERTICAL, 12)
     , m_icon()
@@ -12,7 +12,10 @@ YubiKeyPromptDialog::YubiKeyPromptDialog(Gtk::Window& parent, PromptType type, c
 {
     set_default_size(400, 200);
     set_resizable(false);
-    set_modal(true);
+
+    // Only set modal for INSERT prompts (which have buttons)
+    // Touch prompts should be non-modal so GTK main loop can process events
+    set_modal(type == PromptType::INSERT);
 
     // Add buttons FIRST (before content)
     if (type == PromptType::INSERT) {
@@ -40,6 +43,16 @@ YubiKeyPromptDialog::YubiKeyPromptDialog(Gtk::Window& parent, PromptType type, c
     // Setup based on prompt type
     if (type == PromptType::INSERT) {
         setup_insert_prompt(serial);
+    } else if (!custom_message.empty()) {
+        // Use custom message if provided
+        m_message_label.set_markup(custom_message);
+        // Add progress bar with pulse animation (more reliable than spinner)
+        m_progress.set_margin_top(12);
+        m_progress.set_show_text(false);
+        m_content_box.append(m_progress);
+        // Start pulse timer (100ms intervals)
+        m_pulse_timer = Glib::signal_timeout().connect(
+            sigc::mem_fun(*this, &YubiKeyPromptDialog::on_pulse_timer), 100);
     } else {
         setup_touch_prompt();
     }
@@ -66,8 +79,31 @@ void YubiKeyPromptDialog::setup_touch_prompt() {
         "The LED should be flashing..."
     );
 
-    // Add and start spinner
-    m_spinner.set_margin_top(12);
-    m_spinner.start();
-    m_content_box.append(m_spinner);
+    // Add progress bar with pulse animation (more reliable than spinner)
+    m_progress.set_margin_top(12);
+    m_progress.set_show_text(false);
+    m_content_box.append(m_progress);
+    // Start pulse timer (100ms intervals)
+    m_pulse_timer = Glib::signal_timeout().connect(
+        sigc::mem_fun(*this, &YubiKeyPromptDialog::on_pulse_timer), 100);
+}
+
+void YubiKeyPromptDialog::update_message(const std::string& message) {
+    m_message_label.set_markup(message);
+
+    // Restart spinner if it's already added to the UI
+    if (m_spinner.get_parent()) {
+        m_spinner.start();
+    }
+
+    // Restart pulse timer if using progress bar
+    if (m_progress.get_parent() && !m_pulse_timer.connected()) {
+        m_pulse_timer = Glib::signal_timeout().connect(
+            sigc::mem_fun(*this, &YubiKeyPromptDialog::on_pulse_timer), 100);
+    }
+}
+
+bool YubiKeyPromptDialog::on_pulse_timer() {
+    m_progress.pulse();
+    return true;  // Keep timer running
 }

@@ -47,12 +47,21 @@ public:
      * @param type Type of prompt (INSERT or TOUCH)
      * @param serial Optional YubiKey serial number to display
      */
-    YubiKeyPromptDialog(Gtk::Window& parent, PromptType type, const std::string& serial = "");
+    YubiKeyPromptDialog(Gtk::Window& parent, PromptType type, const std::string& serial = "", const std::string& custom_message = "");
 
     /**
      * @brief Destructor
      */
     virtual ~YubiKeyPromptDialog() = default;
+
+    /**
+     * @brief Update the dialog message for multi-step operations
+     * @param message New message to display (supports Pango markup)
+     *
+     * Useful for operations requiring multiple YubiKey touches (e.g., credential creation
+     * followed by verification). Restarts the spinner animation.
+     */
+    void update_message(const std::string& message);
 
 private:
     /** @brief Setup UI for "insert YubiKey" prompt */
@@ -61,10 +70,15 @@ private:
     /** @brief Setup UI for "touch YubiKey" prompt */
     void setup_touch_prompt();
 
-    Gtk::Box m_content_box;      ///< Main content container
-    Gtk::Image m_icon;           ///< YubiKey icon
-    Gtk::Label m_message_label;  ///< Instruction text
-    Gtk::Spinner m_spinner;      ///< Animated waiting indicator
+    Gtk::Box m_content_box;         ///< Main content container
+    Gtk::Image m_icon;              ///< YubiKey icon
+    Gtk::Label m_message_label;     ///< Instruction text
+    Gtk::Spinner m_spinner;         ///< Animated waiting indicator
+    Gtk::ProgressBar m_progress;    ///< Progress bar for pulse animation (more reliable than spinner)
+    sigc::connection m_pulse_timer; ///< Timer for pulsing progress bar
+
+    /** @brief Pulse the progress bar (called by timer) */
+    bool on_pulse_timer();
 };
 
 #endif // YUBIKEYPROMPTDIALOG_H

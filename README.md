@@ -137,7 +137,7 @@ To create a vault with YubiKey hardware 2FA:
    ```bash
    # Check YubiKey FIDO2 support
    ykman fido info
-   
+
    # YubiKey 5 series supports FIDO2 hmac-secret natively
    # No additional configuration needed
    ```

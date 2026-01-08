@@ -16,6 +16,9 @@
 #include "../../core/managers/YubiKeyManager.h"
 #endif
 
+#include <thread>
+#include <atomic>
+
 namespace UI {
 
 VaultOpenHandler::VaultOpenHandler(Gtk::Window& window,
@@ -103,30 +106,144 @@ void VaultOpenHandler::handle_new_vault() {
                     policy.password_history_depth = vault_password_history_depth;
                     policy.require_yubikey = require_yubikey;
 
-#ifdef HAVE_YUBIKEY_SUPPORT
-                    // Show touch prompt if YubiKey is required
-                    YubiKeyPromptDialog* touch_dialog = nullptr;
-                    if (require_yubikey) {
-                        pwd_dialog->hide();
-                        touch_dialog = Gtk::make_managed<YubiKeyPromptDialog>(m_window,
-                            YubiKeyPromptDialog::PromptType::TOUCH);
-                        touch_dialog->present();
-
-                        // Force GTK to process events and render the dialog
-                        auto context = Glib::MainContext::get_default();
-                        while (context->pending()) {
-                            context->iteration(false);
-                        }
-                        g_usleep(150000);  // 150ms
-                    }
-#endif
-
                     // Create V2 vault with admin account
                     std::optional<std::string> yubikey_pin;
                     if (require_yubikey) {
                         yubikey_pin = pwd_dialog->get_yubikey_pin();
                     }
 
+                    // Define result handler lambda (used for both sync and async paths)
+                    auto handle_result = [this, vault_path, admin_username, pwd_dialog](auto result) {
+                        if (result) {
+                            // Apply default preferences from GSettings to new vault
+                            auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
+
+                            // Apply auto-lock settings
+                            bool auto_lock_enabled = SettingsValidator::is_auto_lock_enabled(settings);
+                            int auto_lock_timeout = SettingsValidator::get_auto_lock_timeout(settings);
+                            m_vault_manager->set_auto_lock_enabled(auto_lock_enabled);
+                            m_vault_manager->set_auto_lock_timeout(auto_lock_timeout);
+
+                            // Apply clipboard timeout
+                            int clipboard_timeout = SettingsValidator::get_clipboard_timeout(settings);
+                            m_vault_manager->set_clipboard_timeout(clipboard_timeout);
+
+                            // Apply undo/redo settings
+                            bool undo_redo_enabled = settings->get_boolean("undo-redo-enabled");
+                            int undo_history_limit = settings->get_int("undo-history-limit");
+                            m_vault_manager->set_undo_redo_enabled(undo_redo_enabled);
+                            m_vault_manager->set_undo_history_limit(undo_history_limit);
+
+                            // Apply account password history settings
+                            bool account_pwd_history_enabled = settings->get_boolean("password-history-enabled");
+                            int account_pwd_history_limit = settings->get_int("password-history-limit");
+                            m_vault_manager->set_account_password_history_enabled(account_pwd_history_enabled);
+                            m_vault_manager->set_account_password_history_limit(account_pwd_history_limit);
+
+                            // Apply FEC (Reed-Solomon) settings to vault metadata
+                            bool fec_enabled = settings->get_boolean("use-reed-solomon");
+                            int fec_redundancy = settings->get_int("rs-redundancy-percent");
+                            m_vault_manager->set_reed_solomon_enabled(fec_enabled);
+                            m_vault_manager->set_rs_redundancy_percent(fec_redundancy);
+
+                            // Apply backup settings to vault manager
+                            bool backup_enabled = settings->get_boolean("backup-enabled");
+                            int backup_count = settings->get_int("backup-count");
+                            m_vault_manager->set_backup_enabled(backup_enabled);
+                            m_vault_manager->set_backup_count(backup_count);
+
+                            // Save vault to persist all default preferences
+                            if (!m_vault_manager->save_vault()) {
+                                KeepTower::Log::error("Failed to save vault with default preferences");
+                            }
+
+                            // Phase 5: Use UIStateManager for vault opened state
+                            m_ui_state_manager->set_vault_opened(vault_path, admin_username);
+
+                            // Update MainWindow state references to mark vault as open
+                            m_vault_open = true;
+                            m_is_locked = false;
+                            m_current_vault_path = vault_path;
+
+                            // Phase 2: Initialize repositories for data access
+                            m_initialize_repositories_callback();
+
+                            m_update_account_list_callback();
+                            m_update_tag_filter_callback();
+                            m_clear_account_details_callback();
+
+                            // Initialize undo/redo state
+                            m_update_undo_redo_sensitivity_callback(false, false);
+
+                            // Update menu for V2 vault (enable user management, etc.)
+                            m_update_menu_for_role_callback();
+                            m_update_session_display_callback();
+
+                            // Start activity monitoring for auto-lock
+                            m_on_user_activity_callback();
+
+                            // Show success dialog with username reminder
+                            m_info_dialog_callback(
+                                "Your vault has been created successfully.\n\n"
+                                "Username: " + std::string{admin_username} + "\n\n"
+                                "Remember this username - you will need it to reopen the vault. "
+                                "You can add additional users through the User Management dialog (Tools → Manage Users).",
+                                "Vault Created Successfully"
+                            );
+                        } else {
+                            m_error_dialog_callback("Failed to create vault");
+                        }
+                        pwd_dialog->hide();
+                    };
+
+#ifdef HAVE_YUBIKEY_SUPPORT
+                    // Show touch prompt if YubiKey is required
+                    if (require_yubikey) {
+                        pwd_dialog->hide();
+                        auto touch_dialog = Gtk::make_managed<YubiKeyPromptDialog>(m_window,
+                            YubiKeyPromptDialog::PromptType::TOUCH,
+                            "",  // No serial number
+                            "<big><b>Creating Vault with YubiKey</b></big>\n\n"
+                            "Please touch the button on your YubiKey when prompted.\n\n"
+                            "<i>Note: Two touches will be required.</i>"
+                        );
+
+                        // Wait for dialog to be fully mapped (shown on screen) before starting work
+                        // This ensures the spinner is visible and animating before YubiKey ops block
+                        touch_dialog->signal_map().connect([this, touch_dialog, vault_path, admin_username,
+                                                           password, policy, yubikey_pin, handle_result]() {
+                            KeepTower::Log::info("VaultOpenHandler: Dialog mapped, starting background thread");
+
+                            // Run vault creation in background thread (YubiKey ops are blocking)
+                            std::thread([this, touch_dialog, vault_path, admin_username, password, policy,
+                                       yubikey_pin, handle_result]() {
+                                KeepTower::Log::info("VaultOpenHandler: Background thread started, calling create_vault_v2");
+
+                                auto result = m_vault_manager->create_vault_v2(
+                                    KeepTower::safe_ustring_to_string(Glib::ustring(vault_path), "vault_path"),
+                                    admin_username,
+                                    password,
+                                    policy,
+                                    yubikey_pin
+                                );
+
+                                KeepTower::Log::info("VaultOpenHandler: Background thread finished, scheduling UI update");
+
+                                // Use Glib::signal_idle() to safely update UI from main thread
+                                Glib::signal_idle().connect_once([touch_dialog, handle_result, result]() {
+                                    KeepTower::Log::info("VaultOpenHandler: UI update callback - hiding dialog");
+                                    touch_dialog->hide();
+                                    handle_result(result);
+                                });
+                            }).detach();
+                        });
+
+                        touch_dialog->present();  // 100ms to let GTK render and start spinner animation
+                        return;  // Exit early, result handled in callback
+                    }
+#endif
+
+                    // Non-YubiKey path: create synchronously
                     auto result = m_vault_manager->create_vault_v2(
                         KeepTower::safe_ustring_to_string(Glib::ustring(vault_path), "vault_path"),
                         admin_username,
@@ -135,92 +252,7 @@ void VaultOpenHandler::handle_new_vault() {
                         yubikey_pin
                     );
 
-#ifdef HAVE_YUBIKEY_SUPPORT
-                    if (touch_dialog) {
-                        touch_dialog->hide();
-                    }
-#endif
-                    if (result) {
-                        // Apply default preferences from GSettings to new vault
-                        auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
-
-                        // Apply auto-lock settings
-                        bool auto_lock_enabled = SettingsValidator::is_auto_lock_enabled(settings);
-                        int auto_lock_timeout = SettingsValidator::get_auto_lock_timeout(settings);
-                        m_vault_manager->set_auto_lock_enabled(auto_lock_enabled);
-                        m_vault_manager->set_auto_lock_timeout(auto_lock_timeout);
-
-                        // Apply clipboard timeout
-                        int clipboard_timeout = SettingsValidator::get_clipboard_timeout(settings);
-                        m_vault_manager->set_clipboard_timeout(clipboard_timeout);
-
-                        // Apply undo/redo settings
-                        bool undo_redo_enabled = settings->get_boolean("undo-redo-enabled");
-                        int undo_history_limit = settings->get_int("undo-history-limit");
-                        m_vault_manager->set_undo_redo_enabled(undo_redo_enabled);
-                        m_vault_manager->set_undo_history_limit(undo_history_limit);
-
-                        // Apply account password history settings
-                        bool account_pwd_history_enabled = settings->get_boolean("password-history-enabled");
-                        int account_pwd_history_limit = settings->get_int("password-history-limit");
-                        m_vault_manager->set_account_password_history_enabled(account_pwd_history_enabled);
-                        m_vault_manager->set_account_password_history_limit(account_pwd_history_limit);
-
-                        // Apply FEC (Reed-Solomon) settings to vault metadata
-                        // Note: apply_default_fec_preferences() was called before vault creation
-                        // but we need to persist these settings to the vault
-                        bool fec_enabled = settings->get_boolean("use-reed-solomon");
-                        int fec_redundancy = settings->get_int("rs-redundancy-percent");
-                        m_vault_manager->set_reed_solomon_enabled(fec_enabled);
-                        m_vault_manager->set_rs_redundancy_percent(fec_redundancy);
-
-                        // Apply backup settings to vault manager
-                        bool backup_enabled = settings->get_boolean("backup-enabled");
-                        int backup_count = settings->get_int("backup-count");
-                        m_vault_manager->set_backup_enabled(backup_enabled);
-                        m_vault_manager->set_backup_count(backup_count);
-
-                        // Save vault to persist all default preferences
-                        if (!m_vault_manager->save_vault()) {
-                            KeepTower::Log::error("Failed to save vault with default preferences");
-                        }
-
-                        // Phase 5: Use UIStateManager for vault opened state
-                        m_ui_state_manager->set_vault_opened(vault_path, admin_username);
-
-                        // Update MainWindow state references to mark vault as open
-                        m_vault_open = true;
-                        m_is_locked = false;
-                        m_current_vault_path = vault_path;
-
-                        // Phase 2: Initialize repositories for data access
-                        m_initialize_repositories_callback();
-
-                        m_update_account_list_callback();
-                        m_update_tag_filter_callback();
-                        m_clear_account_details_callback();
-
-                        // Initialize undo/redo state
-                        m_update_undo_redo_sensitivity_callback(false, false);
-
-                        // Update menu for V2 vault (enable user management, etc.)
-                        m_update_menu_for_role_callback();
-                        m_update_session_display_callback();
-
-                        // Start activity monitoring for auto-lock
-                        m_on_user_activity_callback();
-
-                        // Show success dialog with username reminder
-                        m_info_dialog_callback(
-                            "Your vault has been created successfully.\n\n"
-                            "Username: " + std::string{admin_username} + "\n\n"
-                            "Remember this username - you will need it to reopen the vault. "
-                            "You can add additional users through the User Management dialog (Tools → Manage Users).",
-                            "Vault Created Successfully"
-                        );
-                    } else {
-                        m_error_dialog_callback("Failed to create vault");
-                    }
+                    handle_result(result);
                 }
                 pwd_dialog->hide();
             });
