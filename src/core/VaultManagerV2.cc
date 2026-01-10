@@ -310,10 +310,11 @@ KeepTower::VaultResult<> VaultManager::create_vault_v2(
     std::copy(data_iv.begin(), std::min(data_iv.begin() + 32, data_iv.end()), file_header.data_salt.begin());
     std::copy(data_iv.begin(), std::min(data_iv.begin() + 12, data_iv.end()), file_header.data_iv.begin());
 
-    // Write header with FEC settings from current preferences
-    bool enable_fec = m_use_reed_solomon;
-    uint8_t fec_redundancy = m_use_reed_solomon ? m_rs_redundancy_percent : 0;
-    auto write_result = VaultFormatV2::write_header(file_header, enable_fec, fec_redundancy);
+    // Write header with FEC - header ALWAYS uses FEC (minimum 20% per spec)
+    // Pass user's data FEC redundancy; write_header will enforce 20% minimum for header
+    const bool enable_header_fec = true;  // Header FEC is always enabled
+    const uint8_t data_fec_redundancy = m_use_reed_solomon ? m_rs_redundancy_percent : 0;
+    auto write_result = VaultFormatV2::write_header(file_header, enable_header_fec, data_fec_redundancy);
     if (!write_result) {
         Log::error("VaultManager: Failed to write V2 header");
         return std::unexpected(write_result.error());
@@ -613,16 +614,13 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
     m_modified = true;  // Mark modified to save updated last_login_at
 
     // Extract FEC settings from V2 header
-    m_use_reed_solomon = (file_header.header_flags & VaultFormatV2::HEADER_FLAG_FEC_ENABLED) != 0;
-    if (m_use_reed_solomon && file_header.fec_redundancy_percent > 0) {
+    // Note: Header always has FEC enabled (per spec), so check data FEC setting instead
+    m_use_reed_solomon = file_header.fec_redundancy_percent > 0;
+    if (m_use_reed_solomon) {
         m_rs_redundancy_percent = file_header.fec_redundancy_percent;
-        Log::info("VaultManager: V2 vault has FEC enabled (redundancy: {}%)", m_rs_redundancy_percent);
-    } else if (m_use_reed_solomon) {
-        // FEC enabled but redundancy not stored (shouldn't happen but handle gracefully)
-        Log::warning("VaultManager: V2 vault has FEC enabled but redundancy not specified, using current setting ({}%)",
-                     m_rs_redundancy_percent);
+        Log::info("VaultManager: V2 vault has data FEC enabled (redundancy: {}%)", m_rs_redundancy_percent);
     } else {
-        Log::info("VaultManager: V2 vault has FEC disabled");
+        Log::info("VaultManager: V2 vault has data FEC disabled (header FEC still enabled at 20% per spec)");
     }
 
     // Initialize managers after vault data is loaded

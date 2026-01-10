@@ -212,8 +212,14 @@ VaultFormatV2::write_header(const V2FileHeader& header,
     // Data IV (12 bytes)
     result.insert(result.end(), header.data_iv.begin(), header.data_iv.end());
 
-    Log::info("VaultFormatV2: Header written ({} bytes, FEC: {})",
-              result.size(), enable_header_fec ? "enabled" : "disabled");
+    if (enable_header_fec) {
+        uint8_t effective_redundancy = std::max(MIN_HEADER_FEC_REDUNDANCY, user_fec_redundancy);
+        Log::info("VaultFormatV2: Header written ({} bytes, FEC: {}% redundancy)",
+                  result.size(), effective_redundancy);
+    } else {
+        Log::info("VaultFormatV2: Header written ({} bytes, FEC: disabled)",
+                  result.size());
+    }
 
     return result;
 }

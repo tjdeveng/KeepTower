@@ -599,10 +599,11 @@ bool VaultManager::save_vault(bool explicit_save) {
                   std::min(data_iv.begin() + static_cast<std::ptrdiff_t>(12), data_iv.end()),
                   file_header.data_iv.begin());
 
-        // Write header with FEC (use configured redundancy if RS enabled, 0 if disabled)
-        bool enable_fec = m_use_reed_solomon;
-        uint8_t fec_redundancy = m_use_reed_solomon ? m_rs_redundancy_percent : 0;
-        auto write_result = KeepTower::VaultFormatV2::write_header(file_header, enable_fec, fec_redundancy);
+        // Write header with FEC - header ALWAYS uses FEC (minimum 20% per spec)
+        // Pass user's data FEC redundancy; write_header will enforce 20% minimum for header
+        const bool enable_header_fec = true;  // Header FEC is always enabled
+        const uint8_t data_fec_redundancy = m_use_reed_solomon ? m_rs_redundancy_percent : 0;
+        auto write_result = KeepTower::VaultFormatV2::write_header(file_header, enable_header_fec, data_fec_redundancy);
         if (!write_result) {
             KeepTower::Log::error("VaultManager: Failed to write V2 header");
             return false;
