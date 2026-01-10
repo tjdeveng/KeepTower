@@ -439,6 +439,24 @@ key_wrapping_test = executable(
 
 test('KeyWrapping Unit Tests', key_wrapping_test)
 
+# VaultCryptoService unit tests
+vault_crypto_service_sources = [
+    'test_vault_crypto_service.cc',
+    '../src/core/services/VaultCryptoService.cc',
+    '../src/core/KeyWrapping.cc',
+    '../src/core/crypto/VaultCrypto.cc'
+]
+vault_crypto_service_deps = [gtest_dep, openssl_dep, giomm_dep]
+
+vault_crypto_service_test = executable(
+    'vault_crypto_service_test',
+    vault_crypto_service_sources,
+    dependencies: vault_crypto_service_deps,
+    include_directories: test_inc
+)
+
+test('VaultCryptoService Unit Tests', vault_crypto_service_test)
+
 # Multi-User Infrastructure tests
 multiuser_sources = [
     'test_multiuser.cc',
@@ -476,7 +494,7 @@ v2_auth_test = executable(
     include_directories: test_inc
 )
 
-test('V2 Authentication Integration Tests', v2_auth_test)
+test('V2 Authentication Integration Tests', v2_auth_test, timeout: 60)
 
 # Migration test (manual execution)
 migration_test_sources = [

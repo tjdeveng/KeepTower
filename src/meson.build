@@ -106,6 +106,7 @@ sources = files(
   'core/repositories/GroupRepository.cc',
   'core/services/AccountService.cc',
   'core/services/GroupService.cc',
+  'core/services/VaultCryptoService.cc',
   'core/ReedSolomon.cc',
   'core/MultiUserTypes.cc',
   'core/KeyWrapping.cc',

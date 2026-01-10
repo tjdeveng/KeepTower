@@ -298,9 +298,28 @@ public:
 
 YubiKeyManager::YubiKeyManager() noexcept
     : m_impl(std::make_unique<Impl>()) {
+    // Connect dispatcher to callback executor
+    m_dispatcher.connect([this]() {
+        std::function<void()> callback;
+        {
+            std::lock_guard<std::mutex> lock(m_callback_mutex);
+            callback = std::move(m_pending_callback);
+        }
+        if (callback) {
+            callback();
+        }
+    });
 }
 
-YubiKeyManager::~YubiKeyManager() noexcept = default;
+YubiKeyManager::~YubiKeyManager() noexcept {
+    // Cancel any pending operations
+    cancel_async();
+
+    // Wait for worker thread to finish
+    if (m_worker_thread && m_worker_thread->joinable()) {
+        m_worker_thread->join();
+    }
+}
 
 bool YubiKeyManager::initialize(bool enforce_fips) noexcept {
 #ifndef HAVE_YUBIKEY_SUPPORT
@@ -821,4 +840,194 @@ bool YubiKeyManager::set_credential(std::span<const unsigned char> credential_id
     KeepTower::Log::info("FIDO2: Credential ID set ({} bytes)", credential_id.size());
     return true;
 #endif
+}
+
+// ============================================================================
+// Async Operations (Thread-Safe)
+// ============================================================================
+
+void YubiKeyManager::create_credential_async(
+    std::string_view rp_id,
+    std::string_view user_name,
+    std::span<const unsigned char> user_id,
+    std::optional<std::string_view> pin,
+    bool require_touch,
+    CreateCredentialCallback callback
+) noexcept {
+    if (is_busy()) {
+        KeepTower::Log::warning("YubiKeyManager: Async operation already in progress");
+        callback(std::nullopt, "Operation already in progress");
+        return;
+    }
+
+    // Wait for previous thread to finish
+    if (m_worker_thread && m_worker_thread->joinable()) {
+        m_worker_thread->join();
+    }
+
+    m_is_busy.store(true, std::memory_order_release);
+    m_cancel_requested.store(false, std::memory_order_release);
+
+    KeepTower::Log::info("YubiKeyManager: Starting async credential creation for user '{}'", user_name);
+
+    // Copy parameters for thread (span/string_view not safe across threads)
+    std::string user_name_copy{user_name};
+    std::optional<std::string> pin_copy = pin ? std::optional<std::string>(*pin) : std::nullopt;
+
+    // Launch background thread
+    m_worker_thread = std::make_unique<std::thread>(
+        &YubiKeyManager::thread_create_credential,
+        this,
+        std::move(user_name_copy),
+        std::move(pin_copy),
+        require_touch,
+        std::move(callback));
+}
+
+void YubiKeyManager::challenge_response_async(
+    std::span<const unsigned char> challenge,
+    YubiKeyAlgorithm algorithm,
+    bool require_touch,
+    int timeout_ms,
+    std::optional<std::string_view> pin,
+    ChallengeResponseCallback callback
+) noexcept {
+    if (is_busy()) {
+        KeepTower::Log::warning("YubiKeyManager: Async operation already in progress");
+        ChallengeResponse error_response;
+        error_response.success = false;
+        error_response.error_message = "Operation already in progress";
+        callback(error_response);
+        return;
+    }
+
+    // Wait for previous thread to finish
+    if (m_worker_thread && m_worker_thread->joinable()) {
+        m_worker_thread->join();
+    }
+
+    m_is_busy.store(true, std::memory_order_release);
+    m_cancel_requested.store(false, std::memory_order_release);
+
+    KeepTower::Log::info("YubiKeyManager: Starting async challenge-response");
+
+    // Copy parameters for thread
+    std::vector<unsigned char> challenge_copy(challenge.begin(), challenge.end());
+    std::optional<std::string> pin_copy = pin ? std::optional<std::string>(*pin) : std::nullopt;
+
+    // Launch background thread
+    m_worker_thread = std::make_unique<std::thread>(
+        &YubiKeyManager::thread_challenge_response,
+        this,
+        std::move(challenge_copy),
+        algorithm,
+        require_touch,
+        timeout_ms,
+        std::move(pin_copy),
+        std::move(callback));
+}
+
+bool YubiKeyManager::is_busy() const noexcept {
+    return m_is_busy.load(std::memory_order_acquire);
+}
+
+void YubiKeyManager::cancel_async() noexcept {
+    if (is_busy()) {
+        KeepTower::Log::warning("YubiKeyManager: Cancellation requested");
+        m_cancel_requested.store(true, std::memory_order_release);
+    }
+}
+
+void YubiKeyManager::thread_create_credential(
+    std::string user_name,
+    std::optional<std::string> pin,
+    bool require_touch,
+    CreateCredentialCallback callback
+) noexcept {
+    KeepTower::Log::info("YubiKeyManager: Worker thread started for credential creation");
+
+    // Check for cancellation before starting
+    if (m_cancel_requested.load(std::memory_order_acquire)) {
+        KeepTower::Log::info("YubiKeyManager: Operation cancelled before starting");
+        m_is_busy.store(false, std::memory_order_release);
+        return;
+    }
+
+    // Execute blocking operation
+    std::string_view pin_view = pin ? std::string_view(*pin) : std::string_view("");
+    auto credential_id = create_credential(user_name, pin_view);
+
+    // Check for cancellation after operation
+    if (m_cancel_requested.load(std::memory_order_acquire)) {
+        KeepTower::Log::info("YubiKeyManager: Operation cancelled after completion");
+        m_is_busy.store(false, std::memory_order_release);
+        return;
+    }
+
+    KeepTower::Log::info("YubiKeyManager: Credential creation completed with {}",
+                         credential_id ? "success" : "error");
+
+    // Capture credential_id by value for the callback
+    std::optional<std::vector<unsigned char>> cred_copy = credential_id;
+    std::string error_msg = std::string(m_last_error);
+
+    // Schedule callback on UI thread
+    {
+        std::lock_guard<std::mutex> lock(m_callback_mutex);
+        m_pending_callback = [callback = std::move(callback),
+                              cred_copy = std::move(cred_copy),
+                              error_msg = std::move(error_msg)]() mutable {
+            callback(cred_copy, error_msg);
+        };
+    }
+
+    m_is_busy.store(false, std::memory_order_release);
+    m_dispatcher.emit();  // Trigger UI thread callback
+}
+
+void YubiKeyManager::thread_challenge_response(
+    std::vector<unsigned char> challenge,
+    YubiKeyAlgorithm algorithm,
+    bool require_touch,
+    int timeout_ms,
+    std::optional<std::string> pin,
+    ChallengeResponseCallback callback
+) noexcept {
+    KeepTower::Log::info("YubiKeyManager: Worker thread started for challenge-response");
+
+    // Check for cancellation before starting
+    if (m_cancel_requested.load(std::memory_order_acquire)) {
+        KeepTower::Log::info("YubiKeyManager: Operation cancelled before starting");
+        m_is_busy.store(false, std::memory_order_release);
+        return;
+    }
+
+    // Execute blocking operation
+    auto response = challenge_response(
+        challenge,
+        algorithm,
+        require_touch,
+        timeout_ms,
+        pin);
+
+    // Check for cancellation after operation
+    if (m_cancel_requested.load(std::memory_order_acquire)) {
+        KeepTower::Log::info("YubiKeyManager: Operation cancelled after completion");
+        m_is_busy.store(false, std::memory_order_release);
+        return;
+    }
+
+    KeepTower::Log::info("YubiKeyManager: Challenge-response completed with {}",
+                         response.success ? "success" : "error");
+
+    // Schedule callback on UI thread
+    {
+        std::lock_guard<std::mutex> lock(m_callback_mutex);
+        m_pending_callback = [callback = std::move(callback), response = std::move(response)]() mutable {
+            callback(response);
+        };
+    }
+
+    m_is_busy.store(false, std::memory_order_release);
+    m_dispatcher.emit();  // Trigger UI thread callback
 }

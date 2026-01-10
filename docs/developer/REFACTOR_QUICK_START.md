@@ -110,7 +110,7 @@ void create_vault_v2_async(...) {
     std::thread([this, params, callback]() {
         // Run sync version in background
         auto result = create_vault_v2_sync(params);
-        
+
         // Return to GTK thread for callback
         Glib::signal_idle().connect_once([result, callback]() {
             callback(result);

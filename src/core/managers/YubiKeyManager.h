@@ -14,6 +14,11 @@
 #include <string_view>
 #include <span>
 #include <format>
+#include <functional>
+#include <thread>
+#include <atomic>
+#include <mutex>
+#include <glibmm/dispatcher.h>
 
 /**
  * @brief Manages YubiKey operations for vault encryption key derivation
@@ -213,12 +218,100 @@ public:
         return m_fips_mode;
     }
 
+    // ========================================================================
+    // Async Operations (Thread-Safe)
+    // ========================================================================
+
+    /**
+     * @brief Callback for async credential creation
+     * @param credential_id Created credential ID (empty if failed)
+     * @param error_message Error description if failed
+     */
+    using CreateCredentialCallback = std::function<void(
+        const std::optional<std::vector<unsigned char>>& credential_id,
+        const std::string& error_message)>;
+
+    /**
+     * @brief Callback for async challenge-response
+     * @param response Challenge-response result
+     */
+    using ChallengeResponseCallback = std::function<void(const ChallengeResponse& response)>;
+
+    /**
+     * @brief Create FIDO2 credential asynchronously (requires user touch)
+     *
+     * Runs the blocking credential creation in a background thread and invokes
+     * the callback on the GTK main thread via Glib::Dispatcher.
+     *
+     * @param rp_id Relying party ID (e.g., "keeptower.local")
+     * @param user_name Username for credential
+     * @param user_id User ID (binary data, 32 bytes recommended)
+     * @param pin YubiKey FIDO2 PIN
+     * @param require_touch Whether to require user touch
+     * @param callback Callback invoked on UI thread with result
+     *
+     * @note Callback is guaranteed to run on GTK main thread
+     * @note Only one async operation can run at a time per instance
+     */
+    void create_credential_async(
+        std::string_view rp_id,
+        std::string_view user_name,
+        std::span<const unsigned char> user_id,
+        std::optional<std::string_view> pin,
+        bool require_touch,
+        CreateCredentialCallback callback
+    ) noexcept;
+
+    /**
+     * @brief Perform challenge-response asynchronously (may require user touch)
+     *
+     * Runs the blocking challenge-response in a background thread and invokes
+     * the callback on the GTK main thread via Glib::Dispatcher.
+     *
+     * @param challenge Challenge data (20 or 32 bytes depending on algorithm)
+     * @param algorithm HMAC algorithm to use
+     * @param require_touch Whether to require user touch
+     * @param timeout_ms Operation timeout in milliseconds
+     * @param pin Optional YubiKey PIN for FIDO2 operations
+     * @param callback Callback invoked on UI thread with result
+     *
+     * @note Callback is guaranteed to run on GTK main thread
+     * @note Only one async operation can run at a time per instance
+     */
+    void challenge_response_async(
+        std::span<const unsigned char> challenge,
+        YubiKeyAlgorithm algorithm,
+        bool require_touch,
+        int timeout_ms,
+        std::optional<std::string_view> pin,
+        ChallengeResponseCallback callback
+    ) noexcept;
+
+    /**
+     * @brief Check if an async operation is in progress
+     * @return true if operation running
+     */
+    [[nodiscard]] bool is_busy() const noexcept;
+
+    /**
+     * @brief Cancel any pending async operation
+     */
+    void cancel_async() noexcept;
+
 private:
     class Impl;                              ///< PIMPL for library implementation details
     std::unique_ptr<Impl> m_impl;            ///< Private implementation
     mutable std::string m_last_error{};      ///< Last error message
     bool m_initialized{false};               ///< Whether subsystem initialized
     bool m_fips_mode{false};                 ///< Whether FIPS mode enforced
+
+    // Async operation state
+    std::atomic<bool> m_is_busy{false};      ///< Whether async operation in progress
+    std::atomic<bool> m_cancel_requested{false}; ///< Whether cancellation requested
+    std::unique_ptr<std::thread> m_worker_thread; ///< Background worker thread
+    std::mutex m_callback_mutex;             ///< Protects callback storage
+    std::function<void()> m_pending_callback; ///< Pending UI thread callback
+    Glib::Dispatcher m_dispatcher;           ///< UI thread callback dispatcher
 
     /**
      * @brief Set last error message
@@ -227,6 +320,28 @@ private:
     void set_error(std::string_view error) const noexcept {
         m_last_error = error;
     }
+
+    /**
+     * @brief Worker thread entry for credential creation
+     */
+    void thread_create_credential(
+        std::string user_name,
+        std::optional<std::string> pin,
+        bool require_touch,
+        CreateCredentialCallback callback
+    ) noexcept;
+
+    /**
+     * @brief Worker thread entry for challenge-response
+     */
+    void thread_challenge_response(
+        std::vector<unsigned char> challenge,
+        YubiKeyAlgorithm algorithm,
+        bool require_touch,
+        int timeout_ms,
+        std::optional<std::string> pin,
+        ChallengeResponseCallback callback
+    ) noexcept;
 };
 
 #endif // YUBIKEY_MANAGER_H

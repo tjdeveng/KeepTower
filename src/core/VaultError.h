@@ -106,6 +106,9 @@ enum class VaultError {
     FileReadError,             ///< Generic file read error
     FileWriteError,            ///< Generic file write error
 
+    // Threading
+    Busy,                      ///< Operation already in progress
+
     // Generic
     UnknownError               ///< Unspecified error occurred
 };
@@ -210,6 +213,8 @@ inline constexpr std::string_view to_string(VaultError error) noexcept {
             return "File read error";
         case VaultError::FileWriteError:
             return "File write error";
+        case VaultError::Busy:
+            return "Operation already in progress";
         case VaultError::UnknownError:
             return "Unknown error occurred";
     }
