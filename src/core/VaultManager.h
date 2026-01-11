@@ -309,6 +309,63 @@ public:
         const std::optional<std::string>& yubikey_pin = std::nullopt);
 
     /**
+     * @brief Create V2 vault asynchronously (non-blocking)
+     * @param path Filesystem path for new vault
+     * @param admin_username Username for initial administrator account
+     * @param admin_password Initial administrator password
+     * @param policy Security policy for vault
+     * @param progress_callback Optional callback for progress updates (on GTK thread)
+     * @param completion_callback Callback invoked when creation completes (on GTK thread)
+     * @param yubikey_pin Optional YubiKey PIN if YubiKey enrollment required
+     *
+     * Creates V2 vault in background thread without blocking UI.
+     * Progress and completion callbacks are invoked on GTK main thread.
+     *
+     * Suitable for:
+     * - GTK UI applications
+     * - Long-running vault creation (10-15 seconds with YubiKey)
+     * - Operations requiring user interaction (YubiKey touch)
+     *
+     * @note Thread-safe: can be called from any thread
+     * @note Progress callbacks report 8 steps (validation, key generation, etc.)
+     * @note YubiKey touches happen on background thread but are properly synchronized
+     * @note If VaultManager is destroyed before completion, behavior is undefined
+     *
+     * @code
+     * VaultSecurityPolicy policy;
+     * policy.require_yubikey = true;
+     * policy.min_password_length = 12;
+     * policy.pbkdf2_iterations = 100000;
+     *
+     * auto progress_fn = [](int step, int total, const std::string& msg) {
+     *     std::cout << "Step " << step << "/" << total << ": " << msg << std::endl;
+     * };
+     *
+     * auto completion_fn = [](VaultResult<> result) {
+     *     if (result) {
+     *         std::cout << "Vault created successfully!" << std::endl;
+     *     } else {
+     *         std::cerr << "Failed: " << static_cast<int>(result.error()) << std::endl;
+     *     }
+     * };
+     *
+     * vm.create_vault_v2_async(
+     *     "/path/vault.v2", "admin", "password123",
+     *     policy, progress_fn, completion_fn, "123456");
+     * @endcode
+     *
+     * @since Version 0.3.2 (Phase 3)
+     */
+    void create_vault_v2_async(
+        const std::string& path,
+        const Glib::ustring& admin_username,
+        const Glib::ustring& admin_password,
+        const KeepTower::VaultSecurityPolicy& policy,
+        KeepTower::VaultCreationOrchestrator::ProgressCallback progress_callback,
+        std::function<void(KeepTower::VaultResult<>)> completion_callback,
+        const std::optional<std::string>& yubikey_pin = std::nullopt);
+
+    /**
      * @brief Open V2 vault with user authentication
      * @param path Filesystem path to V2 vault
      * @param username Username for authentication
@@ -478,6 +535,62 @@ public:
         const Glib::ustring& username,
         const Glib::ustring& old_password,
         const Glib::ustring& new_password,
+        const std::optional<std::string>& yubikey_pin = std::nullopt,
+        std::function<void(const std::string&)> progress_callback = nullptr);
+
+    /**
+     * @brief Change user password asynchronously (non-blocking with YubiKey touch prompts)
+     * @param username Username whose password to change
+     * @param old_password Current password (for verification)
+     * @param new_password New password to set
+     * @param progress_callback Optional callback for YubiKey touch progress (on GTK thread)
+     * @param completion_callback Callback invoked when operation completes (on GTK thread)
+     * @param yubikey_pin Optional YubiKey PIN if not yet encrypted in vault
+     *
+     * Changes password in background thread without blocking UI.
+     * If YubiKey is enrolled, shows non-blocking progress for 2 required touches.
+     * Progress and completion callbacks are invoked on GTK main thread.
+     *
+     * Scenarios:
+     * 1. **YubiKey Enrolled**: 2 touches required (verify old, combine with new)
+     * 2. **No YubiKey**: Fast operation, minimal progress reporting
+     *
+     * Progress callback receives:
+     * - Step 1: "Verifying old password with YubiKey (touch 1 of 2)"
+     * - Step 2: "Combining new password with YubiKey (touch 2 of 2)"
+     *
+     * @note Thread-safe: can be called from any thread
+     * @note If VaultManager is destroyed before completion, behavior is undefined
+     * @note YubiKey touches happen on background thread but UI can update on progress
+     *
+     * @code
+     * auto progress_fn = [](int step, int total, const std::string& msg) {
+     *     // Update UI: show touch prompt dialog, spinner, etc.
+     *     std::cout << "Step " << step << "/" << total << ": " << msg << std::endl;
+     * };
+     *
+     * auto completion_fn = [](VaultResult<> result) {
+     *     if (result) {
+     *         show_success("Password changed successfully!");
+     *         save_vault();
+     *     } else {
+     *         show_error("Failed to change password");
+     *     }
+     * };
+     *
+     * vm.change_user_password_async(
+     *     "alice", "oldpass", "newpass123",
+     *     progress_fn, completion_fn);
+     * @endcode
+     *
+     * @since Version 0.3.2 (Phase 3)
+     */
+    void change_user_password_async(
+        const Glib::ustring& username,
+        const Glib::ustring& old_password,
+        const Glib::ustring& new_password,
+        std::function<void(int step, int total, const std::string& description)> progress_callback,
+        std::function<void(KeepTower::VaultResult<>)> completion_callback,
         const std::optional<std::string>& yubikey_pin = std::nullopt);
 
     /**
@@ -579,7 +692,26 @@ public:
     [[nodiscard]] KeepTower::VaultResult<> enroll_yubikey_for_user(
         const Glib::ustring& username,
         const Glib::ustring& password,
-        const std::string& yubikey_pin);
+        const std::string& yubikey_pin,
+        std::function<void(const std::string&)> progress_callback = nullptr);
+
+    /**
+     * @brief Async version of enroll_yubikey_for_user with progress reporting
+     * @param username Username to enroll YubiKey for
+     * @param password User's current password (for verification)
+     * @param yubikey_pin YubiKey PIN (4-63 characters)
+     * @param progress_callback Callback for touch progress ("Touch 1 of 2...", "Touch 2 of 2...")
+     * @param completion_callback Called with result when enrollment completes
+     *
+     * Runs enrollment in background thread, reports progress for each YubiKey touch.
+     * Callbacks are invoked on GTK main thread via Glib::signal_idle().
+     */
+    void enroll_yubikey_for_user_async(
+        const Glib::ustring& username,
+        const Glib::ustring& password,
+        const std::string& yubikey_pin,
+        std::function<void(const std::string&)> progress_callback,
+        std::function<void(const KeepTower::VaultResult<>&)> completion_callback);
 
     /**
      * @brief Remove YubiKey enrollment from a user account

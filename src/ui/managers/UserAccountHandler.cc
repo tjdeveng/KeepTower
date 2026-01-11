@@ -108,72 +108,119 @@ void UserAccountHandler::handle_change_password() {
         }
 
 #ifdef HAVE_YUBIKEY_SUPPORT
-        // Validation passed - now show YubiKey prompt if enrolled
+        // Check if user has YubiKey enrolled (for progress callback)
         YubiKeyPromptDialog* touch_dialog = nullptr;
+        bool yubikey_enrolled_for_user = false;
         auto users = m_vault_manager->list_users();
         for (const auto& user : users) {
             if (user.username == username && user.yubikey_enrolled) {
+                yubikey_enrolled_for_user = true;
+                // Create dialog (will be shown in progress callback)
                 touch_dialog = Gtk::make_managed<YubiKeyPromptDialog>(m_window,
                     YubiKeyPromptDialog::PromptType::TOUCH);
-                touch_dialog->present();
-
-                // Force GTK to process events and render the dialog
-                auto context = Glib::MainContext::get_default();
-                while (context->pending()) {
-                    context->iteration(false);
-                }
-                g_usleep(150000);  // 150ms to ensure dialog is visible
                 break;
             }
         }
 #endif
 
-        // Attempt password change (password already validated, just needs YubiKey operations)
+        // Capture passwords before clearing req
+        Glib::ustring current_password_copy = req.current_password;
+        Glib::ustring new_password_copy = req.new_password;
         std::optional<std::string> yubikey_pin_opt;
         if (!req.yubikey_pin.empty()) {
             yubikey_pin_opt = req.yubikey_pin;
         }
-        auto result = m_vault_manager->change_user_password(username, req.current_password, req.new_password, yubikey_pin_opt);
 
-#ifdef HAVE_YUBIKEY_SUPPORT
-        if (touch_dialog) {
-            touch_dialog->hide();
-        }
-#endif
-
-        // Clear passwords immediately
+        // Clear original request
         req.clear();
 
-        if (!result) {
-            // Password change failed
-            std::string error_msg = "Failed to change password";
-            if (result.error() == KeepTower::VaultError::AuthenticationFailed) {
-                error_msg = "Current password is incorrect";
-            } else if (result.error() == KeepTower::VaultError::WeakPassword) {
-                error_msg = "New password must be at least " + std::to_string(min_length) + " characters";
-            } else if (result.error() == KeepTower::VaultError::PasswordReused) {
-                error_msg = "This password was used previously. Please choose a different password.";
+#ifdef HAVE_YUBIKEY_SUPPORT
+        // Use shared_ptr to safely share dialog between callbacks
+        auto touch_dialog_ptr = std::make_shared<YubiKeyPromptDialog*>(touch_dialog);
+
+        // Progress callback: update YubiKey touch dialog with specific message for each touch
+        auto progress_callback = [this, touch_dialog_ptr, yubikey_enrolled_for_user]
+            (int step, int total, const std::string& message) {
+            if (yubikey_enrolled_for_user && *touch_dialog_ptr) {
+                // Update dialog message with specific touch prompt
+                std::string formatted_message = "<big><b>Changing Password with YubiKey</b></big>\n\n" + message;
+                (*touch_dialog_ptr)->update_message(formatted_message);
+
+                // Show dialog on first progress update
+                if (!(*touch_dialog_ptr)->get_visible()) {
+                    (*touch_dialog_ptr)->present();
+                }
+            }
+        };
+#else
+        auto progress_callback = [](int, int, const std::string&) {};
+#endif
+
+        // Completion callback: handle result and clean up
+        auto completion_callback = [this, username, min_length,
+                                     current_password_copy, new_password_copy
+#ifdef HAVE_YUBIKEY_SUPPORT
+            , touch_dialog_ptr
+#endif
+        ](KeepTower::VaultResult<> result) mutable {
+
+#ifdef HAVE_YUBIKEY_SUPPORT
+            // Hide touch dialog if shown
+            if (*touch_dialog_ptr) {
+                (*touch_dialog_ptr)->hide();
+                *touch_dialog_ptr = nullptr;
+            }
+#endif
+
+            // Clear password copies
+            const_cast<Glib::ustring&>(current_password_copy).clear();
+            const_cast<Glib::ustring&>(new_password_copy).clear();
+
+            if (!result) {
+                // Password change failed
+                std::string error_msg = "Failed to change password";
+                if (result.error() == KeepTower::VaultError::AuthenticationFailed) {
+                    error_msg = "Current password is incorrect";
+                } else if (result.error() == KeepTower::VaultError::WeakPassword) {
+                    error_msg = "New password must be at least " + std::to_string(min_length) + " characters";
+                } else if (result.error() == KeepTower::VaultError::PasswordReused) {
+                    error_msg = "This password was used previously. Please choose a different password.";
+                } else if (result.error() == KeepTower::VaultError::YubiKeyNotPresent) {
+                    error_msg = "YubiKey is required but not detected";
+                } else if (result.error() == KeepTower::VaultError::YubiKeyError) {
+                    error_msg = "YubiKey operation failed. Please try again.";
+                }
+
+                m_error_dialog_callback(error_msg);
+                return;
             }
 
-            m_error_dialog_callback(error_msg);
-            return;
-        }
+            // Password changed successfully
+            m_status_callback("Password changed successfully");
 
-        // Password changed successfully
-        m_status_callback("Password changed successfully");
+            auto* success_dlg = new Gtk::MessageDialog(
+                m_window,
+                "Password changed successfully",
+                false,
+                Gtk::MessageType::INFO
+            );
+            success_dlg->set_modal(true);
+            success_dlg->signal_response().connect([success_dlg](int) {
+                success_dlg->hide();
+                delete success_dlg;
+            });
+            success_dlg->show();
+        };
 
-        auto* success_dlg = new Gtk::MessageDialog(
-            m_window,
-            "Password changed successfully",
-            false,
-            Gtk::MessageType::INFO
+        // Execute async password change (non-blocking)
+        m_vault_manager->change_user_password_async(
+            username,
+            current_password_copy,
+            new_password_copy,
+            progress_callback,
+            completion_callback,
+            yubikey_pin_opt
         );
-        success_dlg->set_modal(true);
-        success_dlg->signal_response().connect([success_dlg](int) {
-            success_dlg->hide();
-            delete success_dlg;
-        });
-        success_dlg->show();
     });
 
     change_dialog->show();

@@ -14,10 +14,12 @@
 
 #include "VaultManager.h"
 #include "crypto/VaultCrypto.h"
+#include "io/VaultIO.h"
 #include "KeyWrapping.h"
 #include "PasswordHistory.h"
 #include "../utils/Log.h"
 #include "../utils/SecureMemory.h"
+#include <glibmm/main.h>
 #include <chrono>
 #include <filesystem>
 #include <sys/stat.h>  // for chmod
@@ -30,6 +32,7 @@ using KeepTower::UserRole;
 using KeepTower::UserSession;
 using KeepTower::VaultSecurityPolicy;
 using KeepTower::VaultFormatV2;
+using KeepTower::VaultIO;
 using KeepTower::KeyWrapping;
 namespace Log = KeepTower::Log;
 
@@ -136,6 +139,97 @@ KeepTower::VaultResult<> VaultManager::create_vault_v2(
 }
 
 // ============================================================================
+// V2 Vault Creation - Asynchronous (Phase 3)
+// ============================================================================
+
+void VaultManager::create_vault_v2_async(
+    const std::string& path,
+    const Glib::ustring& admin_username,
+    const Glib::ustring& admin_password,
+    const KeepTower::VaultSecurityPolicy& policy,
+    KeepTower::VaultCreationOrchestrator::ProgressCallback progress_callback,
+    std::function<void(KeepTower::VaultResult<>)> completion_callback,
+    const std::optional<std::string>& yubikey_pin) {
+
+    Log::info("VaultManager: Creating V2 vault asynchronously at: {}", path);
+
+    // Close any open vault first (synchronously, before spawning thread)
+    if (m_vault_open) {
+        if (!close_vault()) {
+            Log::error("VaultManager: Failed to close existing vault");
+            // Invoke completion callback with error on GTK thread
+            Glib::signal_idle().connect_once([completion_callback]() {
+                completion_callback(std::unexpected(VaultError::VaultAlreadyOpen));
+            });
+            return;
+        }
+    }
+
+    // Create orchestrator
+    auto orchestrator = create_orchestrator();
+
+    // Setup parameters
+    KeepTower::VaultCreationOrchestrator::CreationParams params;
+    params.path = path;
+    params.admin_username = admin_username;
+    params.admin_password = admin_password;
+    params.policy = policy;
+    params.yubikey_pin = yubikey_pin;
+    params.enforce_fips = is_fips_enabled();
+    params.progress_callback = progress_callback;
+
+    // Wrap the orchestrator's completion callback to initialize VaultManager state
+    auto wrapped_completion = [this, path, admin_username, completion_callback](
+        KeepTower::VaultResult<KeepTower::VaultCreationOrchestrator::CreationResult> result)
+    {
+        if (!result.has_value()) {
+            // Vault creation failed
+            Log::error("VaultManager: Async vault creation failed");
+            completion_callback(std::unexpected(result.error()));
+            return;
+        }
+
+        // Success: Initialize VaultManager state
+        const auto& creation_result = result.value();
+
+        m_v2_dek = creation_result.dek;
+        m_v2_header = creation_result.header;
+        m_vault_open = true;
+        m_is_v2_vault = true;
+        m_current_vault_path = path;
+        m_modified = false;
+
+        // FIPS-140-3: Lock DEK in memory
+        if (lock_memory(m_v2_dek.data(), m_v2_dek.size())) {
+            Log::debug("VaultManager: Locked V2 DEK in memory");
+        } else {
+            Log::warning("VaultManager: Failed to lock V2 DEK - continuing without memory lock");
+        }
+
+        // Set current user session (admin)
+        m_current_session = UserSession{
+            .username = admin_username.raw(),
+            .role = UserRole::ADMINISTRATOR,
+            .password_change_required = false
+        };
+
+        // Initialize empty vault data and managers
+        m_vault_data.Clear();
+        m_account_manager = std::make_unique<KeepTower::AccountManager>(m_vault_data, m_modified);
+        m_group_manager = std::make_unique<KeepTower::GroupManager>(m_vault_data, m_modified);
+
+        Log::info("VaultManager: Async V2 vault created successfully with admin user: {}",
+                  admin_username.raw());
+
+        // Notify caller of success (empty VaultResult means success)
+        completion_callback({});
+    };
+
+    // Delegate to orchestrator's async method
+    orchestrator->create_vault_v2_async(params, wrapped_completion);
+}
+
+// ============================================================================
 // V2 Vault Authentication
 // ============================================================================
 
@@ -155,29 +249,18 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
         }
     }
 
-    // Read vault file
+    // Read vault file from disk
     std::vector<uint8_t> file_data;
-    if (!KeepTower::VaultIO::read_file(path, file_data, true, m_pbkdf2_iterations)) {
-        Log::error("VaultManager: Failed to read vault file");
-        return std::unexpected(VaultError::FileReadError);
+    int iterations_from_file = 0;
+    if (!VaultIO::read_file(path, file_data, true, iterations_from_file)) {
+        Log::error("VaultManager: Failed to read V2 vault file: {}", path);
+        return std::unexpected(VaultError::FileNotFound);
     }
 
-    // Detect format version
-    auto version_result = VaultFormatV2::detect_version(file_data);
-    if (!version_result) {
-        Log::error("VaultManager: Failed to detect vault version");
-        return std::unexpected(version_result.error());
-    }
-
-    if (version_result.value() != 2) {
-        Log::error("VaultManager: Not a V2 vault (version: {})", version_result.value());
-        return std::unexpected(VaultError::UnsupportedVersion);
-    }
-
-    // Read V2 header with FEC recovery
+    // Parse V2 header
     auto header_result = VaultFormatV2::read_header(file_data);
     if (!header_result) {
-        Log::error("VaultManager: Failed to read V2 header");
+        Log::error("VaultManager: Failed to parse V2 vault header");
         return std::unexpected(header_result.error());
     }
 
@@ -768,7 +851,8 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
     const Glib::ustring& username,
     const Glib::ustring& old_password,
     const Glib::ustring& new_password,
-    const std::optional<std::string>& yubikey_pin) {
+    const std::optional<std::string>& yubikey_pin,
+    std::function<void(const std::string&)> progress_callback) {
 
     Log::info("VaultManager: Changing password for user: {}", username.raw());
 
@@ -891,6 +975,11 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
             }
         }
 
+        // Report progress before first touch
+        if (progress_callback) {
+            progress_callback("Touch 1 of 2: Verifying old password with YubiKey...");
+        }
+
         // Use user's enrolled challenge
         const auto& challenge = user_slot->yubikey_challenge;
         const YubiKeyAlgorithm algorithm = static_cast<YubiKeyAlgorithm>(m_v2_header->security_policy.yubikey_algorithm);
@@ -993,6 +1082,11 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
             }
         }
 
+        // Report progress before second touch
+        if (progress_callback) {
+            progress_callback("Touch 2 of 2: Combining new password with YubiKey...");
+        }
+
         // Use SAME challenge as before (don't regenerate!)
         const auto& challenge = user_slot->yubikey_challenge;
         const YubiKeyAlgorithm algorithm = static_cast<YubiKeyAlgorithm>(m_v2_header->security_policy.yubikey_algorithm);
@@ -1073,6 +1167,127 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
 
     Log::info("VaultManager: Password changed successfully for user: {}", username.raw());
     return {};
+}
+
+// ============================================================================
+// Phase 3: Async Password Change (Non-blocking YubiKey Touches)
+// ============================================================================
+
+void VaultManager::change_user_password_async(
+    const Glib::ustring& username,
+    const Glib::ustring& old_password,
+    const Glib::ustring& new_password,
+    std::function<void(int step, int total, const std::string& description)> progress_callback,
+    std::function<void(KeepTower::VaultResult<>)> completion_callback,
+    const std::optional<std::string>& yubikey_pin) {
+
+    Log::info("VaultManager: Starting async password change for user: {}", username.raw());
+
+    // Determine if YubiKey is enrolled for this user (affects step count)
+    bool yubikey_enrolled = false;
+    int total_steps = 1;  // Minimum: password change without YubiKey
+
+    if (m_vault_open && m_is_v2_vault) {
+        for (const auto& slot : m_v2_header->key_slots) {
+            if (slot.active && slot.username == username.raw() && slot.yubikey_enrolled) {
+                yubikey_enrolled = true;
+                total_steps = 2;  // With YubiKey: verify old + combine new
+                break;
+            }
+        }
+    }
+
+    // Wrap progress callback for GTK thread
+    auto wrapped_progress = [progress_callback](int step, int total, const std::string& desc) {
+        if (progress_callback) {
+            Glib::signal_idle().connect_once([progress_callback, step, total, desc]() {
+                progress_callback(step, total, desc);
+            });
+        }
+    };
+
+    // Wrap completion callback for GTK thread
+    auto wrapped_completion = [this, completion_callback, username](KeepTower::VaultResult<> result) {
+        Glib::signal_idle().connect_once([this, completion_callback, username, result]() {
+            // Update session if password changed successfully and user changed own password
+            if (result && m_current_session && m_current_session->username == username.raw()) {
+                m_current_session->password_change_required = false;
+            }
+            completion_callback(result);
+        });
+    };
+
+    // Create progress callback for sync method
+    auto sync_progress_callback = [progress_callback](const std::string& message) {
+        if (progress_callback) {
+            // Call the original callback via GTK idle (thread-safe)
+            Glib::signal_idle().connect_once([progress_callback, message]() {
+                progress_callback(0, 2, message);  // Always 2 steps for YubiKey touches
+            });
+        }
+    };
+
+    // Launch background thread for password change
+    std::thread([this, username, old_password, new_password, yubikey_pin, yubikey_enrolled, total_steps,
+                 wrapped_completion, sync_progress_callback]() {
+
+        // Execute synchronous password change on background thread
+        // Progress callback will report:
+        // Touch 1: Verify old password with YubiKey challenge-response
+        // Touch 2: Combine new KEK with YubiKey challenge-response
+        auto result = change_user_password(username, old_password, new_password, yubikey_pin, sync_progress_callback);
+
+        // Report completion on GTK thread
+        wrapped_completion(result);
+    }).detach();
+
+    Log::debug("VaultManager: Async password change thread launched");
+}
+
+// ============================================================================
+// YubiKey Enrollment - Async Wrapper
+// ============================================================================
+
+void VaultManager::enroll_yubikey_for_user_async(
+    const Glib::ustring& username,
+    const Glib::ustring& password,
+    const std::string& yubikey_pin,
+    std::function<void(const std::string&)> progress_callback,
+    std::function<void(const KeepTower::VaultResult<>&)> completion_callback) {
+
+    Log::info("VaultManager: Starting async YubiKey enrollment for user: {}", username.raw());
+
+    // Wrap progress callback for GTK thread
+    auto wrapped_progress = [progress_callback](const std::string& message) {
+        if (progress_callback) {
+            Glib::signal_idle().connect_once([progress_callback, message]() {
+                progress_callback(message);
+            });
+        }
+    };
+
+    // Wrap completion callback for GTK thread
+    auto wrapped_completion = [completion_callback](KeepTower::VaultResult<> result) {
+        if (completion_callback) {
+            Glib::signal_idle().connect_once([completion_callback, result]() {
+                completion_callback(result);
+            });
+        }
+    };
+
+    // Launch background thread for YubiKey enrollment
+    std::thread([this, username, password, yubikey_pin, wrapped_progress, wrapped_completion]() {
+        // Execute synchronous enrollment on background thread
+        // Progress callback will report before each YubiKey touch:
+        // Touch 1: Create FIDO2 credential
+        // Touch 2: Challenge-response for authentication
+        auto result = enroll_yubikey_for_user(username, password, yubikey_pin, wrapped_progress);
+
+        // Report completion on GTK thread
+        wrapped_completion(result);
+    }).detach();
+
+    Log::debug("VaultManager: Async YubiKey enrollment thread launched");
 }
 
 KeepTower::VaultResult<> VaultManager::clear_user_password_history(
@@ -1231,7 +1446,8 @@ KeepTower::VaultResult<> VaultManager::admin_reset_user_password(
 KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
     const Glib::ustring& username,
     const Glib::ustring& password,
-    const std::string& yubikey_pin) {
+    const std::string& yubikey_pin,
+    std::function<void(const std::string&)> progress_callback) {
 
     Log::info("VaultManager: Enrolling YubiKey for user: {}", username.raw());
 
@@ -1323,6 +1539,9 @@ KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
 
     // Create FIDO2 credential for enrollment (required for FIDO2 hmac-secret extension)
     Log::info("VaultManager: Creating FIDO2 credential for enrollment");
+    if (progress_callback) {
+        progress_callback("Touch 1 of 2: Creating YubiKey credential to verify user presence");
+    }
     auto credential_id = yk_manager.create_credential(username.raw(), yubikey_pin);
     if (!credential_id.has_value() || credential_id->empty()) {
         Log::error("VaultManager: Failed to create FIDO2 credential");
@@ -1331,6 +1550,10 @@ KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
     Log::info("VaultManager: FIDO2 credential created (ID length: {})", credential_id->size());
 
     // Perform challenge-response with the newly created credential
+    Log::info("VaultManager: Performing challenge-response for user authentication");
+    if (progress_callback) {
+        progress_callback("Touch 2 of 2: Generating cryptographic response for authentication");
+    }
     auto response = yk_manager.challenge_response(
         user_challenge,
         algorithm,
