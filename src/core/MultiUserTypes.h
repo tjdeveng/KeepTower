@@ -369,16 +369,22 @@ struct KeySlot {
     bool yubikey_enrolled = false;
 
     /**
-     * @brief User's unique YubiKey challenge (20 bytes)
+     * @brief User's unique YubiKey challenge (32 bytes for HMAC-SHA256)
      *
-     * Random challenge used for HMAC-SHA1 challenge-response authentication.
+     * Random challenge used for HMAC challenge-response authentication.
      * Generated during YubiKey enrollment and remains constant for this user.
-     * Used to derive KEK: KEK_final = KEK_password XOR HMAC-SHA1(challenge)
+     * Used to derive KEK: KEK_final = KEK_password ⊕ HMAC(challenge)
+     *
+     * @section challenge_size Challenge Size
+     * - **Size**: 32 bytes (matches HMAC-SHA256 output)
+     * - **Format**: Raw binary challenge bytes
+     * - **Generation**: Cryptographically secure random (RAND_bytes)
      *
      * @note Empty (all zeros) if yubikey_enrolled is false
      * @note Challenge is unique per user, not shared across users
+     * @note Must be same size as algorithm response for proper XOR combining
      */
-    std::array<uint8_t, 20> yubikey_challenge = {};
+    std::array<uint8_t, 32> yubikey_challenge = {};
 
     /**
      * @brief YubiKey device serial number (optional)

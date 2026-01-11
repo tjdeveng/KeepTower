@@ -34,7 +34,34 @@ using KeepTower::KeyWrapping;
 namespace Log = KeepTower::Log;
 
 // ============================================================================
-// V2 Vault Creation
+// Phase 2 Day 5: Orchestrator Factory
+// ============================================================================
+
+std::unique_ptr<KeepTower::VaultCreationOrchestrator> VaultManager::create_orchestrator() {
+    // Lazy-initialize services on first use
+    if (!m_crypto_service) {
+        m_crypto_service = std::make_shared<KeepTower::VaultCryptoService>();
+        Log::debug("VaultManager: Initialized VaultCryptoService");
+    }
+    if (!m_yubikey_service) {
+        m_yubikey_service = std::make_shared<KeepTower::VaultYubiKeyService>();
+        Log::debug("VaultManager: Initialized VaultYubiKeyService");
+    }
+    if (!m_file_service) {
+        m_file_service = std::make_shared<KeepTower::VaultFileService>();
+        Log::debug("VaultManager: Initialized VaultFileService");
+    }
+
+    // Create orchestrator with injected services
+    return std::make_unique<KeepTower::VaultCreationOrchestrator>(
+        m_crypto_service,
+        m_yubikey_service,
+        m_file_service
+    );
+}
+
+// ============================================================================
+// V2 Vault Creation (Refactored to use Orchestrator)
 // ============================================================================
 
 KeepTower::VaultResult<> VaultManager::create_vault_v2(
@@ -44,7 +71,7 @@ KeepTower::VaultResult<> VaultManager::create_vault_v2(
     const KeepTower::VaultSecurityPolicy& policy,
     const std::optional<std::string>& yubikey_pin) {
 
-    Log::info("VaultManager: Creating V2 vault at: {}", path);
+    Log::info("VaultManager: Creating V2 vault at: {} (using orchestrator)", path);
 
     // Close any open vault
     if (m_vault_open) {
@@ -54,25 +81,35 @@ KeepTower::VaultResult<> VaultManager::create_vault_v2(
         }
     }
 
-    // Validate inputs
-    if (admin_username.empty()) {
-        Log::error("VaultManager: Admin username cannot be empty");
-        return std::unexpected(VaultError::InvalidUsername);
+    // Create orchestrator and delegate vault creation
+    auto orchestrator = create_orchestrator();
+
+    KeepTower::VaultCreationOrchestrator::CreationParams params;
+    params.path = path;
+    params.admin_username = admin_username;
+    params.admin_password = admin_password;
+    params.policy = policy;
+    params.yubikey_pin = yubikey_pin;
+    params.enforce_fips = is_fips_enabled();  // Pass FIPS mode setting
+    params.progress_callback = nullptr;  // No progress for sync operation
+
+    auto result = orchestrator->create_vault_v2_sync(params);
+
+    if (!result.has_value()) {
+        Log::error("VaultManager: Orchestrator failed to create vault");
+        return std::unexpected(result.error());
     }
 
-    if (admin_password.length() < policy.min_password_length) {
-        Log::error("VaultManager: Admin password too short (min: {} chars)",
-                   policy.min_password_length);
-        return std::unexpected(VaultError::WeakPassword);
-    }
+    // Extract results from orchestrator
+    const auto& creation_result = result.value();
 
-    // Generate Data Encryption Key (DEK) for vault
-    auto dek_result = KeyWrapping::generate_random_dek();
-    if (!dek_result) {
-        Log::error("VaultManager: Failed to generate DEK");
-        return std::unexpected(VaultError::CryptoError);
-    }
-    m_v2_dek = dek_result.value();
+    // Initialize VaultManager state with orchestrator results
+    m_v2_dek = creation_result.dek;
+    m_v2_header = creation_result.header;
+    m_vault_open = true;
+    m_is_v2_vault = true;
+    m_current_vault_path = path;
+    m_modified = false;
 
     // FIPS-140-3: Lock DEK in memory to prevent swap exposure
     if (lock_memory(m_v2_dek.data(), m_v2_dek.size())) {
@@ -81,273 +118,15 @@ KeepTower::VaultResult<> VaultManager::create_vault_v2(
         Log::warning("VaultManager: Failed to lock V2 DEK - continuing without memory lock");
     }
 
-    // Generate unique salt for admin user
-    auto salt_result = KeyWrapping::generate_random_salt();
-    if (!salt_result) {
-        Log::error("VaultManager: Failed to generate salt");
-        return std::unexpected(VaultError::CryptoError);
-    }
-
-    // Derive KEK from admin password
-    Log::info("VaultManager: Deriving KEK for admin user (password length: {} bytes, {} chars)",
-              admin_password.bytes(), admin_password.length());
-    auto kek_result = KeyWrapping::derive_kek_from_password(
-        admin_password,
-        salt_result.value(),
-        policy.pbkdf2_iterations);
-    if (!kek_result) {
-        Log::error("VaultManager: Failed to derive KEK from admin password");
-        return std::unexpected(VaultError::CryptoError);
-    }
-
-    std::array<uint8_t, 32> final_kek = kek_result.value();
-
-    // YubiKey enrollment for admin (if required by policy)
-    bool admin_yubikey_enrolled = false;
-    std::array<uint8_t, 20> admin_yubikey_challenge = {};
-    std::string admin_yubikey_serial;
-    std::vector<uint8_t> admin_encrypted_pin;
-    std::vector<uint8_t> admin_credential_id;
-
-#ifdef HAVE_YUBIKEY_SUPPORT
-    if (policy.require_yubikey) {
-        Log::info("VaultManager: YubiKey required by policy, enrolling admin's YubiKey");
-
-        // Generate unique challenge for admin
-        auto challenge_salt = KeyWrapping::generate_random_salt();
-        if (!challenge_salt) {
-            Log::error("VaultManager: Failed to generate YubiKey challenge");
-            return std::unexpected(VaultError::CryptoError);
-        }
-
-        // Use first 20 bytes as challenge (HMAC-SHA1 challenge-response size)
-        std::copy_n(challenge_salt.value().begin(), 20, admin_yubikey_challenge.begin());
-
-        // Initialize YubiKey manager with FIPS enforcement based on policy algorithm
-        YubiKeyManager yk_manager;
-        const bool enforce_fips = (policy.yubikey_algorithm != 0x01);  // Not SHA-1
-        if (!yk_manager.initialize(enforce_fips)) {
-            Log::error("VaultManager: Failed to initialize YubiKey");
-            return std::unexpected(VaultError::YubiKeyError);
-        }
-
-        if (!yk_manager.is_yubikey_present()) {
-            Log::error("VaultManager: YubiKey not present but required by policy");
-            return std::unexpected(VaultError::YubiKeyNotPresent);
-        }
-
-        // Get algorithm from policy (default SHA-256 for new vaults)
-        const YubiKeyAlgorithm algorithm = static_cast<YubiKeyAlgorithm>(policy.yubikey_algorithm);
-        Log::info("VaultManager: Using YubiKey algorithm: {} (FIPS: {})",
-                  yubikey_algorithm_name(algorithm),
-                  yubikey_algorithm_is_fips_approved(algorithm) ? "YES" : "NO");
-
-        // Get PIN from parameter
-        if (!yubikey_pin.has_value()) {
-            Log::error("VaultManager: YubiKey PIN required when policy.require_yubikey is true");
-            return std::unexpected(VaultError::YubiKeyError);
-        }
-        const char* pin = yubikey_pin.value().c_str();
-
-        // Create new credential for this vault
-        // Use admin username as user_id instead of full path (path may be too long)
-        Log::info("VaultManager: Creating FIDO2 credential for vault");
-        auto credential_id = yk_manager.create_credential(admin_username.raw(), pin);
-        if (!credential_id) {
-            Log::error("VaultManager: Failed to create FIDO2 credential: {}", yk_manager.get_last_error());
-            return std::unexpected(VaultError::YubiKeyError);
-        }
-
-        Log::info("VaultManager: FIDO2 credential created ({} bytes)", credential_id->size());
-
-        // Perform challenge-response with configured algorithm
-        auto response = yk_manager.challenge_response(
-            std::span<const unsigned char>(admin_yubikey_challenge.data(),
-                                          admin_yubikey_challenge.size()),
-            algorithm,  // Use algorithm from policy
-            false,      // don't require touch for vault creation (usability)
-            5000,       // 5 second timeout
-            pin         // Pass PIN for authentication
-        );
-
-        if (!response.success) {
-            Log::error("VaultManager: YubiKey challenge-response failed: {}",
-                       response.error_message);
-            return std::unexpected(VaultError::YubiKeyError);
-        }
-
-        // Get device serial for audit trail
-        auto device_info = yk_manager.get_device_info();
-        if (device_info) {
-            admin_yubikey_serial = device_info->serial_number;
-            Log::info("VaultManager: Admin YubiKey enrolled with serial: {} (FIPS: {})",
-                      admin_yubikey_serial,
-                      device_info->is_fips_mode ? "YES" : (device_info->is_fips_capable ? "capable" : "NO"));
-        }
-
-        admin_yubikey_enrolled = true;
-
-        // Encrypt PIN with admin's password-derived KEK BEFORE combining with YubiKey
-        // This avoids circular dependency during vault opening (need PIN to get YubiKey response)
-        std::vector<uint8_t> encrypted_pin;
-        std::vector<uint8_t> pin_iv = KeepTower::VaultCrypto::generate_random_bytes(
-            KeepTower::VaultCrypto::IV_LENGTH);
-
-        const std::string& pin_str = yubikey_pin.value();
-        std::vector<uint8_t> pin_bytes(pin_str.begin(), pin_str.end());
-        // Use password-derived KEK (not yet combined with YubiKey) to encrypt PIN
-        if (!KeepTower::VaultCrypto::encrypt_data(pin_bytes, kek_result.value(), encrypted_pin, pin_iv)) {
-            Log::error("VaultManager: Failed to encrypt YubiKey PIN");
-            return std::unexpected(VaultError::CryptoError);
-        }
-
-        // Store IV + ciphertext in KeySlot (format: [IV(12) || ciphertext+tag])
-        std::vector<uint8_t> pin_storage;
-        pin_storage.reserve(pin_iv.size() + encrypted_pin.size());
-        pin_storage.insert(pin_storage.end(), pin_iv.begin(), pin_iv.end());
-        pin_storage.insert(pin_storage.end(), encrypted_pin.begin(), encrypted_pin.end());
-
-        admin_encrypted_pin = std::move(pin_storage);
-
-        // Store credential ID
-        if (credential_id) {
-            admin_credential_id = std::move(credential_id.value());
-        }
-
-        Log::info("VaultManager: YubiKey PIN encrypted with password-derived KEK ({} bytes)",
-                  admin_encrypted_pin.size());
-
-        // Now combine KEK with YubiKey response to get final_kek for DEK wrapping
-        // This happens AFTER PIN encryption to break circular dependency
-        const size_t response_size = yubikey_algorithm_response_size(algorithm);
-        Log::debug("VaultManager: YubiKey response size: {} bytes", response_size);
-
-        std::vector<uint8_t> yk_response_vec(response.get_response().begin(),
-                                              response.get_response().end());
-        final_kek = KeyWrapping::combine_with_yubikey_v2(final_kek, yk_response_vec);
-
-        Log::info("VaultManager: Admin KEK combined with YubiKey response");
-    }
-#else
-    if (policy.require_yubikey) {
-        Log::error("VaultManager: YubiKey support not compiled in");
-        return std::unexpected(VaultError::YubiKeyError);
-    }
-#endif
-
-    // Wrap DEK with admin's final KEK (password or password+YubiKey)
-    auto wrapped_result = KeyWrapping::wrap_key(final_kek, m_v2_dek);
-    if (!wrapped_result) {
-        Log::error("VaultManager: Failed to wrap DEK with admin KEK");
-        return std::unexpected(VaultError::CryptoError);
-    }
-
-    // Create admin key slot
-    KeySlot admin_slot;
-    admin_slot.active = true;
-    admin_slot.username = admin_username.raw();
-    admin_slot.salt = salt_result.value();
-    admin_slot.wrapped_dek = wrapped_result.value().wrapped_key;
-    admin_slot.role = UserRole::ADMINISTRATOR;
-    admin_slot.must_change_password = false;  // Admin sets own password
-    admin_slot.password_changed_at = std::chrono::system_clock::now().time_since_epoch().count();
-    admin_slot.last_login_at = 0;
-    // YubiKey enrollment data
-    admin_slot.yubikey_enrolled = admin_yubikey_enrolled;
-    admin_slot.yubikey_challenge = admin_yubikey_challenge;
-    admin_slot.yubikey_serial = admin_yubikey_serial;
-    admin_slot.yubikey_enrolled_at = admin_yubikey_enrolled ?
-        std::chrono::system_clock::now().time_since_epoch().count() : 0;
-    admin_slot.yubikey_encrypted_pin = std::move(admin_encrypted_pin);
-    admin_slot.yubikey_credential_id = std::move(admin_credential_id);
-
-    // Add admin password to history if enabled
-    if (policy.password_history_depth > 0) {
-        auto history_entry = KeepTower::PasswordHistory::hash_password(admin_password);
-        if (history_entry) {
-            KeepTower::PasswordHistory::add_to_history(
-                admin_slot.password_history,
-                history_entry.value(),
-                policy.password_history_depth);
-            Log::debug("VaultManager: Added admin password to initial history");
-        } else {
-            Log::warning("VaultManager: Failed to hash admin password for history");
-        }
-    }
-
-    // Create vault header
-    VaultHeaderV2 header;
-    header.security_policy = policy;
-    header.key_slots.push_back(admin_slot);
-
-    // Create empty vault data
-    keeptower::VaultData vault_data;
-    // No accounts yet, just empty structure
-
-    // Serialize vault data
-    std::string serialized_data;
-    if (!vault_data.SerializeToString(&serialized_data)) {
-        Log::error("VaultManager: Failed to serialize vault data");
-        return std::unexpected(VaultError::SerializationFailed);
-    }
-
-    // Encrypt vault data with DEK
-    std::vector<uint8_t> plaintext(serialized_data.begin(), serialized_data.end());
-    std::vector<uint8_t> ciphertext;
-    std::vector<uint8_t> data_iv = KeepTower::VaultCrypto::generate_random_bytes(KeepTower::VaultCrypto::IV_LENGTH);
-
-    if (!KeepTower::VaultCrypto::encrypt_data(plaintext, m_v2_dek, ciphertext, data_iv)) {
-        Log::error("VaultManager: Failed to encrypt vault data");
-        secure_clear(plaintext);
-        return std::unexpected(VaultError::CryptoError);
-    }
-    secure_clear(plaintext);
-
-    // Write V2 file format
-    VaultFormatV2::V2FileHeader file_header;
-    file_header.pbkdf2_iterations = policy.pbkdf2_iterations;
-    file_header.vault_header = header;
-    std::copy(data_iv.begin(), std::min(data_iv.begin() + 32, data_iv.end()), file_header.data_salt.begin());
-    std::copy(data_iv.begin(), std::min(data_iv.begin() + 12, data_iv.end()), file_header.data_iv.begin());
-
-    // Write header with FEC - header ALWAYS uses FEC (minimum 20% per spec)
-    // Pass user's data FEC redundancy; write_header will enforce 20% minimum for header
-    const bool enable_header_fec = true;  // Header FEC is always enabled
-    const uint8_t data_fec_redundancy = m_use_reed_solomon ? m_rs_redundancy_percent : 0;
-    auto write_result = VaultFormatV2::write_header(file_header, enable_header_fec, data_fec_redundancy);
-    if (!write_result) {
-        Log::error("VaultManager: Failed to write V2 header");
-        return std::unexpected(write_result.error());
-    }
-
-    // Combine header + encrypted data
-    std::vector<uint8_t> file_data = write_result.value();
-    file_data.insert(file_data.end(), ciphertext.begin(), ciphertext.end());
-
-    // Write to file
-    if (!KeepTower::VaultIO::write_file(path, file_data, true, 0)) {
-        Log::error("VaultManager: Failed to write vault file");
-        return std::unexpected(VaultError::FileWriteError);
-    }
-
-    // Set secure file permissions (owner read/write only)
-#ifdef __linux__
-    chmod(path.c_str(), 0600);
-#endif
-
-    // Initialize vault state
-    m_vault_open = true;
-    m_is_v2_vault = true;
-    m_current_vault_path = path;
-    m_v2_header = header;
+    // Set current user session (admin)
     m_current_session = UserSession{
         .username = admin_username.raw(),
         .role = UserRole::ADMINISTRATOR,
         .password_change_required = false
     };
-    m_modified = false;
 
-    // Initialize managers after vault data is loaded
+    // Initialize empty vault data and managers
+    m_vault_data.Clear();  // Empty protobuf structure
     m_account_manager = std::make_unique<KeepTower::AccountManager>(m_vault_data, m_modified);
     m_group_manager = std::make_unique<KeepTower::GroupManager>(m_vault_data, m_modified);
 
@@ -746,7 +525,7 @@ KeepTower::VaultResult<> VaultManager::add_user(
 
     // YubiKey enrollment if PIN provided and policy requires it
     bool yubikey_enrolled = false;
-    std::array<uint8_t, 20> yubikey_challenge = {};
+    std::array<uint8_t, 32> yubikey_challenge = {};  // HMAC-SHA256 (32 bytes)
     std::string yubikey_serial;
     std::vector<uint8_t> encrypted_pin;
     std::vector<uint8_t> credential_id;
@@ -761,7 +540,7 @@ KeepTower::VaultResult<> VaultManager::add_user(
             Log::error("VaultManager: Failed to generate YubiKey challenge");
             return std::unexpected(VaultError::CryptoError);
         }
-        std::copy_n(challenge_salt.value().begin(), 20, yubikey_challenge.begin());
+        std::copy_n(challenge_salt.value().begin(), 32, yubikey_challenge.begin());  // Use all 32 bytes
 
         // Initialize YubiKey manager
         YubiKeyManager yk_manager;

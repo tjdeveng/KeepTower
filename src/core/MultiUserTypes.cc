@@ -199,7 +199,7 @@ size_t KeySlot::calculate_serialized_size() const {
     // 8 bytes: password_changed_at
     // 8 bytes: last_login_at
     // 1 byte: yubikey_enrolled
-    // 20 bytes: yubikey_challenge
+    // 32 bytes: yubikey_challenge
     // 1 byte: yubikey_serial length
     // N bytes: yubikey_serial
     // 8 bytes: yubikey_enrolled_at
@@ -209,7 +209,7 @@ size_t KeySlot::calculate_serialized_size() const {
     // N bytes: yubikey_credential_id
     // 1 byte: password_history count
     // N * 88 bytes: password_history entries
-    size_t base_size = 1 + 1 + username.size() + 32 + 40 + 1 + 1 + 8 + 8 + 1 + 20 + 1 + yubikey_serial.size() + 8 + 2 + yubikey_encrypted_pin.size() + 2 + yubikey_credential_id.size() + 1;
+    size_t base_size = 1 + 1 + username.size() + 32 + 40 + 1 + 1 + 8 + 8 + 1 + 32 + 1 + yubikey_serial.size() + 8 + 2 + yubikey_encrypted_pin.size() + 2 + yubikey_credential_id.size() + 1;
     size_t history_size = password_history.size() * PasswordHistoryEntry::SERIALIZED_SIZE;
     return base_size + history_size;
 }
@@ -256,7 +256,7 @@ std::vector<uint8_t> KeySlot::serialize() const {
     // Next byte: yubikey_enrolled
     result.push_back(yubikey_enrolled ? 1 : 0);
 
-    // Next 20 bytes: yubikey_challenge
+    // Next 32 bytes: yubikey_challenge
     result.insert(result.end(), yubikey_challenge.begin(), yubikey_challenge.end());
 
     // Next byte: yubikey_serial length
@@ -367,7 +367,7 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
 
     // Check if we have YubiKey fields (backward compatibility)
     // If not enough data, treat as old format (no YubiKey fields)
-    if (pos + 1 + 20 + 1 > data.size()) {
+    if (pos + 1 + 32 + 1 > data.size()) {
         // Old format without YubiKey fields - use defaults
         slot.yubikey_enrolled = false;
         slot.yubikey_challenge = {};
@@ -380,9 +380,9 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
     // yubikey_enrolled (1 byte)
     slot.yubikey_enrolled = (data[pos++] != 0);
 
-    // yubikey_challenge (20 bytes)
-    std::copy(data.begin() + pos, data.begin() + pos + 20, slot.yubikey_challenge.begin());
-    pos += 20;
+    // yubikey_challenge (32 bytes)
+    std::copy(data.begin() + pos, data.begin() + pos + 32, slot.yubikey_challenge.begin());
+    pos += 32;
 
     // yubikey_serial length (1 byte)
     uint8_t yubikey_serial_len = data[pos++];

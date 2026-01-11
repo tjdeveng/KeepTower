@@ -34,6 +34,12 @@
 #include "managers/AccountManager.h"
 #include "managers/GroupManager.h"
 
+// Phase 2 Day 5: VaultCreationOrchestrator integration
+#include "controllers/VaultCreationOrchestrator.h"
+#include "services/VaultCryptoService.h"
+#include "services/VaultYubiKeyService.h"
+#include "services/VaultFileService.h"
+
 // Forward declare for conditional compilation
 #if __has_include("config.h")
 #include "config.h"
@@ -1586,6 +1592,21 @@ private:
     // Managers for specific responsibilities
     std::unique_ptr<KeepTower::AccountManager> m_account_manager;
     std::unique_ptr<KeepTower::GroupManager> m_group_manager;
+
+    // Phase 2 Day 5: Service instances for orchestrator (lazy initialization)
+    std::shared_ptr<KeepTower::VaultCryptoService> m_crypto_service;
+    std::shared_ptr<KeepTower::VaultYubiKeyService> m_yubikey_service;
+    std::shared_ptr<KeepTower::VaultFileService> m_file_service;
+
+    /**
+     * @brief Create and configure VaultCreationOrchestrator with services
+     * @return Configured orchestrator instance
+     *
+     * Lazy-initializes service instances on first use and injects them
+     * into a new orchestrator. Services are shared across orchestrator
+     * instances to maintain consistent state.
+     */
+    std::unique_ptr<KeepTower::VaultCreationOrchestrator> create_orchestrator();
 
     // Vault file format constants
     static constexpr uint32_t VAULT_MAGIC = 0x4B505457;  // "KPTW" (KeepTower)
