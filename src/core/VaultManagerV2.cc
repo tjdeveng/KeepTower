@@ -218,7 +218,7 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
                   username.raw());
 
         YubiKeyManager yk_manager;
-        if (!yk_manager.initialize()) {
+        if (!yk_manager.initialize(is_fips_enabled())) {
             Log::error("VaultManager: Failed to initialize YubiKey");
             return std::unexpected(VaultError::YubiKeyError);
         }
@@ -840,7 +840,7 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
         Log::info("VaultManager: User has YubiKey enrolled, verifying with YubiKey");
 
         YubiKeyManager yk_manager;
-        if (!yk_manager.initialize()) {
+        if (!yk_manager.initialize(is_fips_enabled())) {
             Log::error("VaultManager: Failed to initialize YubiKey subsystem");
             return std::unexpected(VaultError::YubiKeyError);
         }
@@ -949,7 +949,7 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
         Log::info("VaultManager: Preserving YubiKey enrollment with new password");
 
         YubiKeyManager yk_manager;
-        if (!yk_manager.initialize()) {
+        if (!yk_manager.initialize(is_fips_enabled())) {
             Log::error("VaultManager: Failed to initialize YubiKey subsystem");
             return std::unexpected(VaultError::YubiKeyError);
         }
@@ -1278,7 +1278,7 @@ KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
 #ifdef HAVE_YUBIKEY_SUPPORT
     // Initialize YubiKey subsystem
     YubiKeyManager yk_manager;
-    if (!yk_manager.initialize()) {
+    if (!yk_manager.initialize(is_fips_enabled())) {
         Log::error("VaultManager: Failed to initialize YubiKey subsystem");
         return std::unexpected(VaultError::YubiKeyError);
     }
@@ -1456,7 +1456,7 @@ KeepTower::VaultResult<> VaultManager::unenroll_yubikey_for_user(
 #ifdef HAVE_YUBIKEY_SUPPORT
     // Initialize YubiKey subsystem
     YubiKeyManager yk_manager;
-    if (!yk_manager.initialize()) {
+    if (!yk_manager.initialize(is_fips_enabled())) {
         Log::error("VaultManager: Failed to initialize YubiKey subsystem");
         return std::unexpected(VaultError::YubiKeyError);
     }
