@@ -26,6 +26,7 @@
 #include "../VaultError.h"
 #include <array>
 #include <vector>
+#include <cstdint>
 #include <glibmm/ustring.h>
 #include <expected>
 

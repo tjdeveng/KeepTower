@@ -11,6 +11,9 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <array>
+#include <vector>
+#include <cstdint>
 #include <ctime>
 #include <glibmm/ustring.h>
 
