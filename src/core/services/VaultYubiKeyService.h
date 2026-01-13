@@ -28,6 +28,7 @@
 #include <array>
 #include <vector>
 #include <string>
+#include <cstdint>
 #include <functional>
 #include <glibmm/ustring.h>
 #include <expected>
