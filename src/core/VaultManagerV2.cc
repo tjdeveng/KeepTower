@@ -1638,7 +1638,8 @@ KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
 
 KeepTower::VaultResult<> VaultManager::unenroll_yubikey_for_user(
     const Glib::ustring& username,
-    const Glib::ustring& password) {
+    const Glib::ustring& password,
+    std::function<void(const std::string&)> progress_callback) {
 
     Log::info("VaultManager: Unenrolling YubiKey for user: {}", username.raw());
 
@@ -1688,6 +1689,11 @@ KeepTower::VaultResult<> VaultManager::unenroll_yubikey_for_user(
     if (!yk_manager.is_yubikey_present()) {
         Log::error("VaultManager: YubiKey required but not detected");
         return std::unexpected(VaultError::YubiKeyNotPresent);
+    }
+
+    // Report progress before YubiKey verification touch
+    if (progress_callback) {
+        progress_callback("Verifying current password with YubiKey (touch required)...");
     }
 
     // Verify password+YubiKey by unwrapping DEK
@@ -1771,6 +1777,49 @@ KeepTower::VaultResult<> VaultManager::unenroll_yubikey_for_user(
     Log::error("VaultManager: YubiKey support not compiled in");
     return std::unexpected(VaultError::YubiKeyError);
 #endif
+}
+
+// ============================================================================
+// YubiKey Unenrollment - Async Wrapper
+// ============================================================================
+
+void VaultManager::unenroll_yubikey_for_user_async(
+    const Glib::ustring& username,
+    const Glib::ustring& password,
+    std::function<void(const std::string&)> progress_callback,
+    std::function<void(const KeepTower::VaultResult<>&)> completion_callback) {
+
+    Log::info("VaultManager: Starting async YubiKey unenrollment for user: {}", username.raw());
+
+    // Wrap progress callback for GTK thread safety
+    auto wrapped_progress = [progress_callback](const std::string& message) {
+        if (progress_callback) {
+            Glib::signal_idle().connect_once([progress_callback, message]() {
+                progress_callback(message);
+            });
+        }
+    };
+
+    // Wrap completion callback for GTK thread safety
+    auto wrapped_completion = [completion_callback](KeepTower::VaultResult<> result) {
+        if (completion_callback) {
+            Glib::signal_idle().connect_once([completion_callback, result]() {
+                completion_callback(result);
+            });
+        }
+    };
+
+    // Launch background thread for YubiKey unenrollment
+    std::thread([this, username, password, wrapped_progress, wrapped_completion]() {
+        // Execute synchronous unenrollment on background thread
+        // Progress callback will report before YubiKey verification touch
+        auto result = unenroll_yubikey_for_user(username, password, wrapped_progress);
+
+        // Report completion on GTK thread
+        wrapped_completion(result);
+    }).detach();
+
+    Log::debug("VaultManager: Async YubiKey unenrollment thread launched");
 }
 
 // ============================================================================

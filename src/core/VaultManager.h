@@ -747,7 +747,47 @@ public:
      */
     [[nodiscard]] KeepTower::VaultResult<> unenroll_yubikey_for_user(
         const Glib::ustring& username,
-        const Glib::ustring& password);
+        const Glib::ustring& password,
+        std::function<void(const std::string&)> progress_callback = nullptr);
+
+    /**
+     * @brief Async version of unenroll_yubikey_for_user with progress reporting
+     * @param username Username to unenroll YubiKey from
+     * @param password User's current password (for verification)
+     * @param progress_callback Callback for YubiKey touch progress message
+     * @param completion_callback Called with result when unenrollment completes
+     *
+     * Runs unenrollment in background thread, reports progress when YubiKey
+     * verification touch is required. Callbacks are invoked on GTK main thread
+     * via Glib::signal_idle().
+     *
+     * Progress message:
+     * - "Verifying current password with YubiKey (touch required)..."
+     *
+     * @code
+     * // Async unenrollment with progress dialog
+     * vault_manager->unenroll_yubikey_for_user_async(
+     *     "alice", "password123",
+     *     [dialog](const std::string& msg) {
+     *         dialog->update_message(msg);
+     *         dialog->present();
+     *     },
+     *     [this, dialog](const auto& result) {
+     *         dialog->hide();
+     *         if (!result) {
+     *             show_error("Unenrollment failed");
+     *             return;
+     *         }
+     *         vault_manager->save_vault();
+     *         show_success("YubiKey removed successfully");
+     *     });
+     * @endcode
+     */
+    void unenroll_yubikey_for_user_async(
+        const Glib::ustring& username,
+        const Glib::ustring& password,
+        std::function<void(const std::string&)> progress_callback,
+        std::function<void(const KeepTower::VaultResult<>&)> completion_callback);
 
     /**
      * @brief Get current user session info
