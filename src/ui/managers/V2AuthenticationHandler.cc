@@ -387,82 +387,100 @@ void V2AuthenticationHandler::handle_yubikey_enrollment_required(const std::stri
                 }
 
                 // Show YubiKey touch prompt
-                auto touch_dialog = Gtk::make_managed<YubiKeyPromptDialog>(m_window,
-                    YubiKeyPromptDialog::PromptType::TOUCH);
+                // Show YubiKey touch prompt with initial message
+                auto touch_dialog = Gtk::make_managed<YubiKeyPromptDialog>(m_window, YubiKeyPromptDialog::PromptType::TOUCH);
+                touch_dialog->update_message(
+                    "<big><b>Enrolling YubiKey</b></big>\n\n"
+                    "Preparing to enroll your YubiKey...");
                 touch_dialog->present();
 
-                // Force GTK to process events
-                auto context = Glib::MainContext::get_default();
-                while (context->pending()) {
-                    context->iteration(false);
-                }
-                g_usleep(150000);
+                // Shared pointer for safe callback sharing
+                auto touch_dialog_ptr = std::make_shared<YubiKeyPromptDialog*>(touch_dialog);
 
-                // Attempt YubiKey enrollment with PIN
-                auto result = m_vault_manager->enroll_yubikey_for_user(username, password, pin);
+                // Progress callback - updates dialog for each touch
+                auto progress_callback = [touch_dialog_ptr](const std::string& message) {
+                    if (*touch_dialog_ptr) {
+                        (*touch_dialog_ptr)->update_message(
+                            "<big><b>Enrolling YubiKey</b></big>\n\n" + message);
+                    }
+                };
+
+                // Completion callback - handles result asynchronously
+                auto completion_callback = [this, touch_dialog_ptr, username, password, pin_entry](const KeepTower::VaultResult<>& result) {
+                    // Clear PIN
+                    pin_entry->set_text("");
+
+                    // Hide dialog
+                    if (*touch_dialog_ptr) {
+                        (*touch_dialog_ptr)->hide();
+                    }
+
+                    if (!result) {
+                        std::string error_msg = "Failed to enroll YubiKey";
+                        if (result.error() == KeepTower::VaultError::YubiKeyNotPresent) {
+                            error_msg = "YubiKey not detected. Please connect your YubiKey and try again.";
+                        } else if (result.error() == KeepTower::VaultError::AuthenticationFailed) {
+                            error_msg = "Authentication failed. The password or PIN may be incorrect.";
+                        } else if (result.error() == KeepTower::VaultError::CryptoError) {
+                            error_msg = "Cryptographic operation failed during enrollment.";
+                        } else if (result.error() == KeepTower::VaultError::YubiKeyError) {
+                            error_msg = "YubiKey error occurred. Please check your YubiKey.";
+                        } else {
+                            error_msg = "Failed to enroll YubiKey (error code: " +
+                                       std::to_string(static_cast<int>(result.error())) + ")";
+                        }
+
+                        KeepTower::Log::error("V2AuthenticationHandler: YubiKey enrollment failed - {}", error_msg);
+
+                        // Show error and retry
+                        auto error_dialog = Gtk::make_managed<Gtk::MessageDialog>(
+                            m_window, error_msg, false, Gtk::MessageType::ERROR, Gtk::ButtonsType::OK, true);
+                        error_dialog->set_title("Enrollment Failed");
+                        error_dialog->signal_response().connect([this, error_dialog, username, password](int) {
+                            error_dialog->hide();
+                            handle_yubikey_enrollment_required(username, password);  // Retry with same password
+                        });
+                        error_dialog->show();
+                        return;
+                    }
+
+                    // YubiKey enrolled successfully - save vault
+                    if (!m_vault_manager->save_vault()) {
+                        m_dialog_manager->show_error_dialog("Failed to save vault after YubiKey enrollment.");
+                        return;
+                    }
+
+                    // Complete authentication
+                    if (m_success_callback) {
+                        m_success_callback(m_current_vault_path, username);
+                    }
+
+                    // Show success message
+                    auto success_dialog = Gtk::make_managed<Gtk::MessageDialog>(
+                        m_window,
+                        "YubiKey enrolled successfully!\n\nYour YubiKey will be required for all future logins.",
+                        false,
+                        Gtk::MessageType::INFO,
+                        Gtk::ButtonsType::OK,
+                        true);
+                    success_dialog->set_title("Enrollment Complete");
+                    success_dialog->signal_response().connect([success_dialog](int) {
+                        success_dialog->hide();
+                    });
+                    success_dialog->show();
+                };
+
+                // ASYNC call - non-blocking
+                m_vault_manager->enroll_yubikey_for_user_async(
+                    username, password, pin,
+                    progress_callback,
+                    completion_callback);
 
                 // Clear PIN immediately
-                pin_entry->set_text("");
                 if (!pin.empty()) {
                     OPENSSL_cleanse(const_cast<char*>(pin.data()), pin.size());
                 }
                 pin.clear();
-
-                touch_dialog->hide();
-
-                if (!result) {
-                    std::string error_msg = "Failed to enroll YubiKey";
-                    if (result.error() == KeepTower::VaultError::YubiKeyNotPresent) {
-                        error_msg = "YubiKey not detected. Please connect your YubiKey and try again.";
-                    } else if (result.error() == KeepTower::VaultError::AuthenticationFailed) {
-                        error_msg = "Authentication failed. The password or PIN may be incorrect.";
-                    } else if (result.error() == KeepTower::VaultError::CryptoError) {
-                        error_msg = "Cryptographic operation failed during enrollment.";
-                    } else if (result.error() == KeepTower::VaultError::YubiKeyError) {
-                        error_msg = "YubiKey error occurred. Please check your YubiKey.";
-                    } else {
-                        error_msg = "Failed to enroll YubiKey (error code: " +
-                                   std::to_string(static_cast<int>(result.error())) + ")";
-                    }
-
-                    KeepTower::Log::error("V2AuthenticationHandler: YubiKey enrollment failed - {}", error_msg);
-
-                    // Show error and retry
-                    auto error_dialog = Gtk::make_managed<Gtk::MessageDialog>(
-                        m_window, error_msg, false, Gtk::MessageType::ERROR, Gtk::ButtonsType::OK, true);
-                    error_dialog->set_title("Enrollment Failed");
-                    error_dialog->signal_response().connect([this, error_dialog, username, password](int) {
-                        error_dialog->hide();
-                        handle_yubikey_enrollment_required(username, password);  // Retry with same password
-                    });
-                    error_dialog->show();
-                    return;
-                }
-
-                // YubiKey enrolled successfully - save vault
-                if (!m_vault_manager->save_vault()) {
-                    m_dialog_manager->show_error_dialog("Failed to save vault after YubiKey enrollment.");
-                    return;
-                }
-
-                // Complete authentication
-                if (m_success_callback) {
-                    m_success_callback(m_current_vault_path, username);
-                }
-
-                // Show success message
-                auto success_dialog = Gtk::make_managed<Gtk::MessageDialog>(
-                    m_window,
-                    "YubiKey enrolled successfully!\n\nYour YubiKey will be required for all future logins.",
-                    false,
-                    Gtk::MessageType::INFO,
-                    Gtk::ButtonsType::OK,
-                    true);
-                success_dialog->set_title("Enrollment Complete");
-                success_dialog->signal_response().connect([success_dialog](int) {
-                    success_dialog->hide();
-                });
-                success_dialog->show();
             });
 
             pin_dialog->show();
@@ -557,84 +575,101 @@ void V2AuthenticationHandler::handle_yubikey_enrollment_required(const std::stri
             }
 
             // Show YubiKey touch prompt
-            auto touch_dialog = Gtk::make_managed<YubiKeyPromptDialog>(m_window,
-                YubiKeyPromptDialog::PromptType::TOUCH);
+            // Show YubiKey touch prompt with initial message
+            auto touch_dialog = Gtk::make_managed<YubiKeyPromptDialog>(m_window, YubiKeyPromptDialog::PromptType::TOUCH);
+            touch_dialog->update_message(
+                "<big><b>Enrolling YubiKey</b></big>\n\n"
+                "Preparing to enroll your YubiKey...");
             touch_dialog->present();
 
-            // Force GTK to process events
-            auto context = Glib::MainContext::get_default();
-            while (context->pending()) {
-                context->iteration(false);
-            }
-            g_usleep(150000);
+            // Shared pointer for safe callback sharing
+            auto touch_dialog_ptr = std::make_shared<YubiKeyPromptDialog*>(touch_dialog);
 
-            // Attempt YubiKey enrollment with PIN
-            auto result = m_vault_manager->enroll_yubikey_for_user(username, password, pin);
+            // Progress callback - updates dialog for each touch
+            auto progress_callback = [touch_dialog_ptr](const std::string& message) {
+                if (*touch_dialog_ptr) {
+                    (*touch_dialog_ptr)->update_message(
+                        "<big><b>Enrolling YubiKey</b></big>\n\n" + message);
+                }
+            };
 
-            // Clear password and PIN immediately
-            password_entry->set_text("");
-            pin_entry->set_text("");
-            password = "";
+            // Completion callback - handles result asynchronously
+            auto completion_callback = [this, touch_dialog_ptr, username, password_entry, pin_entry](const KeepTower::VaultResult<>& result) {
+                // Clear password and PIN
+                password_entry->set_text("");
+                pin_entry->set_text("");
+
+                // Hide dialog
+                if (*touch_dialog_ptr) {
+                    (*touch_dialog_ptr)->hide();
+                }
+
+                if (!result) {
+                    std::string error_msg = "Failed to enroll YubiKey";
+                    if (result.error() == KeepTower::VaultError::YubiKeyNotPresent) {
+                        error_msg = "YubiKey not detected. Please connect your YubiKey and try again.";
+                    } else if (result.error() == KeepTower::VaultError::AuthenticationFailed) {
+                        error_msg = "Incorrect password. Please enter your current password.";
+                    } else if (result.error() == KeepTower::VaultError::CryptoError) {
+                        error_msg = "Cryptographic operation failed during enrollment.";
+                    } else if (result.error() == KeepTower::VaultError::YubiKeyError) {
+                        error_msg = "YubiKey error occurred. Please check your YubiKey.";
+                    } else {
+                        error_msg = "Failed to enroll YubiKey (error code: " +
+                                   std::to_string(static_cast<int>(result.error())) + ")";
+                    }
+
+                    KeepTower::Log::error("V2AuthenticationHandler: YubiKey enrollment failed - {}", error_msg);
+
+                    // Show error and retry
+                    auto error_dialog = Gtk::make_managed<Gtk::MessageDialog>(
+                        m_window, error_msg, false, Gtk::MessageType::ERROR, Gtk::ButtonsType::OK, true);
+                    error_dialog->set_title("Enrollment Failed");
+                    error_dialog->signal_response().connect([this, error_dialog, username](int) {
+                        error_dialog->hide();
+                        handle_yubikey_enrollment_required(username);  // Retry
+                    });
+                    error_dialog->show();
+                    return;
+                }
+
+                // YubiKey enrolled successfully - save vault
+                if (!m_vault_manager->save_vault()) {
+                    m_dialog_manager->show_error_dialog("Failed to save vault after YubiKey enrollment.");
+                    return;
+                }
+
+                // Complete authentication
+                if (m_success_callback) {
+                    m_success_callback(m_current_vault_path, username);
+                }
+
+                // Show success message
+                auto success_dialog = Gtk::make_managed<Gtk::MessageDialog>(
+                    m_window,
+                    "YubiKey enrolled successfully!\n\nYour YubiKey will be required for all future logins.",
+                    false,
+                    Gtk::MessageType::INFO,
+                    Gtk::ButtonsType::OK,
+                    true);
+                success_dialog->set_title("Enrollment Complete");
+                success_dialog->signal_response().connect([success_dialog](int) {
+                    success_dialog->hide();
+                });
+                success_dialog->show();
+            };
+
+            // ASYNC call - non-blocking
+            m_vault_manager->enroll_yubikey_for_user_async(
+                username, password, pin,
+                progress_callback,
+                completion_callback);
+
+            // Clear PIN immediately
             if (!pin.empty()) {
                 OPENSSL_cleanse(const_cast<char*>(pin.data()), pin.size());
             }
             pin.clear();
-
-            touch_dialog->hide();
-
-            if (!result) {
-                std::string error_msg = "Failed to enroll YubiKey";
-                if (result.error() == KeepTower::VaultError::YubiKeyNotPresent) {
-                    error_msg = "YubiKey not detected. Please connect your YubiKey and try again.";
-                } else if (result.error() == KeepTower::VaultError::AuthenticationFailed) {
-                    error_msg = "Incorrect password. Please enter your current password.";
-                } else if (result.error() == KeepTower::VaultError::CryptoError) {
-                    error_msg = "Cryptographic operation failed during enrollment.";
-                } else if (result.error() == KeepTower::VaultError::YubiKeyError) {
-                    error_msg = "YubiKey error occurred. Please check your YubiKey.";
-                } else {
-                    error_msg = "Failed to enroll YubiKey (error code: " +
-                               std::to_string(static_cast<int>(result.error())) + ")";
-                }
-
-                KeepTower::Log::error("V2AuthenticationHandler: YubiKey enrollment failed - {}", error_msg);
-
-                // Show error and retry
-                auto error_dialog = Gtk::make_managed<Gtk::MessageDialog>(
-                    m_window, error_msg, false, Gtk::MessageType::ERROR, Gtk::ButtonsType::OK, true);
-                error_dialog->set_title("Enrollment Failed");
-                error_dialog->signal_response().connect([this, error_dialog, username](int) {
-                    error_dialog->hide();
-                    handle_yubikey_enrollment_required(username);  // Retry
-                });
-                error_dialog->show();
-                return;
-            }
-
-            // YubiKey enrolled successfully - save vault
-            if (!m_vault_manager->save_vault()) {
-                m_dialog_manager->show_error_dialog("Failed to save vault after YubiKey enrollment.");
-                return;
-            }
-
-            // Complete authentication
-            if (m_success_callback) {
-                m_success_callback(m_current_vault_path, username);
-            }
-
-            // Show success message
-            auto success_dialog = Gtk::make_managed<Gtk::MessageDialog>(
-                m_window,
-                "YubiKey enrolled successfully!\n\nYour YubiKey will be required for all future logins.",
-                false,
-                Gtk::MessageType::INFO,
-                Gtk::ButtonsType::OK,
-                true);
-            success_dialog->set_title("Enrollment Complete");
-            success_dialog->signal_response().connect([success_dialog](int) {
-                success_dialog->hide();
-            });
-            success_dialog->show();
         });
 
         pwd_dialog->show();

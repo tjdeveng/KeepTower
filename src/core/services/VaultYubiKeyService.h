@@ -28,6 +28,7 @@
 #include <array>
 #include <vector>
 #include <string>
+#include <functional>
 #include <glibmm/ustring.h>
 #include <expected>
 
@@ -68,6 +69,7 @@ public:
     struct EnrollmentResult {
         std::vector<uint8_t> policy_response;  ///< Policy challenge response (20 bytes)
         std::vector<uint8_t> user_response;    ///< User challenge response (20 bytes)
+        std::vector<uint8_t> credential_id;    ///< FIDO2 credential ID
         DeviceInfo device_info;                ///< Device used for enrollment
     };
 
@@ -111,15 +113,19 @@ public:
      * This implements defense-in-depth: compromising one challenge
      * response is insufficient to unlock the vault.
      *
+     * @param user_id User identifier for FIDO2 credential
      * @param policy_challenge Fixed challenge for vault policy (32 bytes)
      * @param user_challenge Random challenge for user slot (32 bytes)
      * @param pin YubiKey PIN for authentication (4-63 chars)
      * @param slot HMAC slot to use (1 or 2)
+     * @param enforce_fips Enable FIPS mode enforcement
+     * @param progress_callback Optional callback for touch progress (touch 1 of 2, touch 2 of 2)
      * @return EnrollmentResult with both responses, or VaultError
      *
      * @note Requires user to touch YubiKey twice (once per challenge)
      * @note May fail if device is removed or user cancels
      * @note PIN is required for FIDO2/WebAuthn YubiKeys
+     * @note Progress callback is invoked before each touch operation
      */
     [[nodiscard]] VaultResult<EnrollmentResult> enroll_yubikey(
         const std::string& user_id,
@@ -127,7 +133,8 @@ public:
         const std::array<uint8_t, 32>& user_challenge,
         const std::string& pin,
         uint8_t slot = 1,
-        bool enforce_fips = false);
+        bool enforce_fips = false,
+        std::function<void(const std::string&)> progress_callback = nullptr);
 
     /**
      * @brief Perform single challenge-response operation

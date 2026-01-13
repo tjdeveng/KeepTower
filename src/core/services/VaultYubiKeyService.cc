@@ -58,7 +58,8 @@ VaultYubiKeyService::enroll_yubikey(
     const std::array<uint8_t, 32>& user_challenge,
     const std::string& pin,
     uint8_t slot,
-    bool enforce_fips) {
+    bool enforce_fips,
+    std::function<void(const std::string&)> progress_callback) {
 
     // Validate PIN format
     if (!validate_pin_format(pin)) {
@@ -83,6 +84,9 @@ VaultYubiKeyService::enroll_yubikey(
 
     // Step 1: Create FIDO2 credential (requires touch)
     Log::info("VaultYubiKeyService: Creating FIDO2 credential (requires touch)...");
+    if (progress_callback) {
+        progress_callback("Touch 1 of 2: Creating YubiKey credential to verify user presence");
+    }
     auto credential_id = yk_manager.create_credential(user_id, pin);
     if (!credential_id) {
         Log::error("VaultYubiKeyService: Failed to create FIDO2 credential");
@@ -92,6 +96,10 @@ VaultYubiKeyService::enroll_yubikey(
 
     // Step 2: Single challenge-response for user authentication
     // Note: FIDO2 always requires touch despite require_touch parameter
+    Log::info("VaultYubiKeyService: Performing challenge-response (requires touch)...");
+    if (progress_callback) {
+        progress_callback("Touch 2 of 2: Generating cryptographic response for authentication");
+    }
     std::span<const uint8_t> user_span(user_challenge);
     auto user_result = yk_manager.challenge_response(
         user_span,
@@ -123,6 +131,7 @@ VaultYubiKeyService::enroll_yubikey(
         user_result.response.begin(),
         user_result.response.begin() + user_result.response_size);
     result.policy_response = result.user_response;  // Same as user for single-challenge mode
+    result.credential_id = credential_id.value();  // Store FIDO2 credential ID
 
     result.device_info.serial = device_info_opt->serial_number;
     result.device_info.manufacturer = "Yubico";

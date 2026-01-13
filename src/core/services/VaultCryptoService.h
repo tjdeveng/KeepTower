@@ -171,6 +171,25 @@ public:
         const std::vector<uint8_t>& wrapped_dek);
 
     /**
+     * @brief Encrypt YubiKey PIN with password-derived KEK
+     *
+     * Encrypts YubiKey PIN using AES-256-GCM with the password-derived KEK.
+     * This allows storing the PIN securely in the vault for later retrieval.
+     * The PIN is encrypted BEFORE combining KEK with YubiKey response to avoid
+     * circular dependency during vault opening.
+     *
+     * @param pin YubiKey PIN (4-63 characters)
+     * @param kek Password-derived KEK (before YubiKey combination)
+     * @return Encrypted PIN (IV || ciphertext+tag) or VaultError
+     *
+     * @note Output format: [IV(12 bytes) || ciphertext || auth_tag(16 bytes)]
+     * @note FIPS-140-3 compliant when OpenSSL FIPS module enabled
+     */
+    [[nodiscard]] VaultResult<std::vector<uint8_t>> encrypt_yubikey_pin(
+        const std::string& pin,
+        const std::array<uint8_t, 32>& kek);
+
+    /**
      * @brief Encrypt vault data using AES-256-GCM
      *
      * Encrypts plaintext with DEK using AES-256-GCM authenticated encryption.

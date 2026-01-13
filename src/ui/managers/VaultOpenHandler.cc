@@ -208,37 +208,39 @@ void VaultOpenHandler::handle_new_vault() {
                             "<i>Note: Two touches will be required.</i>"
                         );
 
+                        // Define progress callback to update touch dialog message
+                        auto progress_callback = [touch_dialog](int step, int total, const std::string& desc) {
+                            // Update dialog message for YubiKey touch operations
+                            if (desc.find("Touch") != std::string::npos) {
+                                touch_dialog->update_message(desc);
+                            }
+                        };
+
+                        // Define completion callback
+                        auto completion_callback = [touch_dialog, handle_result](KeepTower::VaultResult<> result) {
+                            touch_dialog->hide();
+                            handle_result(result);
+                        };
+
                         // Wait for dialog to be fully mapped (shown on screen) before starting work
-                        // This ensures the spinner is visible and animating before YubiKey ops block
                         touch_dialog->signal_map().connect([this, touch_dialog, vault_path, admin_username,
-                                                           password, policy, yubikey_pin, handle_result]() {
-                            KeepTower::Log::info("VaultOpenHandler: Dialog mapped, starting background thread");
+                                                           password, policy, yubikey_pin, progress_callback,
+                                                           completion_callback]() {
+                            KeepTower::Log::info("VaultOpenHandler: Dialog mapped, starting async vault creation");
 
-                            // Run vault creation in background thread (YubiKey ops are blocking)
-                            std::thread([this, touch_dialog, vault_path, admin_username, password, policy,
-                                       yubikey_pin, handle_result]() {
-                                KeepTower::Log::info("VaultOpenHandler: Background thread started, calling create_vault_v2");
-
-                                auto result = m_vault_manager->create_vault_v2(
-                                    KeepTower::safe_ustring_to_string(Glib::ustring(vault_path), "vault_path"),
-                                    admin_username,
-                                    password,
-                                    policy,
-                                    yubikey_pin
-                                );
-
-                                KeepTower::Log::info("VaultOpenHandler: Background thread finished, scheduling UI update");
-
-                                // Use Glib::signal_idle() to safely update UI from main thread
-                                Glib::signal_idle().connect_once([touch_dialog, handle_result, result]() {
-                                    KeepTower::Log::info("VaultOpenHandler: UI update callback - hiding dialog");
-                                    touch_dialog->hide();
-                                    handle_result(result);
-                                });
-                            }).detach();
+                            // Use async method with progress callbacks
+                            m_vault_manager->create_vault_v2_async(
+                                KeepTower::safe_ustring_to_string(Glib::ustring(vault_path), "vault_path"),
+                                admin_username,
+                                password,
+                                policy,
+                                progress_callback,
+                                completion_callback,
+                                yubikey_pin
+                            );
                         });
 
-                        touch_dialog->present();  // 100ms to let GTK render and start spinner animation
+                        touch_dialog->present();
                         return;  // Exit early, result handled in callback
                     }
 #endif

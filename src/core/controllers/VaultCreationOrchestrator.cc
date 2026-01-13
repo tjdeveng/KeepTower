@@ -10,6 +10,8 @@
 #include "../PasswordHistory.h"
 #include "../../utils/Log.h"
 #include "../record.pb.h"
+#include <glibmm/main.h>
+#include <thread>
 #include <ctime>
 
 namespace KeepTower {
@@ -122,16 +124,41 @@ void VaultCreationOrchestrator::create_vault_v2_async(
     const CreationParams& params,
     CompletionCallback completion_callback)
 {
-    // TODO: Phase 3 - Implement async wrapper
-    // For now, just call sync version and invoke callback
-    Log::warning("VaultCreationOrchestrator: Async creation not yet implemented, using sync");
+    Log::info("VaultCreationOrchestrator: Starting async vault creation: {}", params.path);
 
-    auto result = create_vault_v2_sync(params);
-    if (result) {
-        completion_callback({});
-    } else {
-        completion_callback(std::unexpected(result.error()));
+    // Create a copy of params for the background thread
+    // Important: params contains callbacks that need to be wrapped
+    auto params_copy = params;
+
+    // Wrap the progress callback to run on GTK main thread
+    ProgressCallback original_progress = params.progress_callback;
+    if (original_progress) {
+        params_copy.progress_callback = [original_progress](
+            int current_step, int total_steps, const std::string& description)
+        {
+            // Capture by value to ensure data is still valid when idle callback runs
+            auto step = current_step;
+            auto total = total_steps;
+            auto desc = description;
+
+            // Schedule progress report on GTK main thread
+            Glib::signal_idle().connect_once([original_progress, step, total, desc]() {
+                original_progress(step, total, desc);
+            });
+        };
     }
+
+    // Launch background thread for vault creation (detached)
+    std::thread([this, params_copy, completion_callback]() {
+        // Execute synchronous vault creation on background thread
+        auto result = create_vault_v2_sync(params_copy);
+
+        // Schedule completion callback on GTK main thread
+        Glib::signal_idle().connect_once([completion_callback, result]() {
+            // Pass the full result (CreationResult or error) to callback
+            completion_callback(result);
+        });
+    }).detach();  // Detach thread - it will clean up itself when done
 }
 
 // ============================================================================
@@ -233,6 +260,9 @@ VaultCreationOrchestrator::enroll_yubikey(
         return std::optional<EnrollmentData>{};
     }
 
+    // Save original password-derived KEK (before combining with YubiKey)
+    std::array<uint8_t, 32> password_kek = kek;
+
     // Generate challenges for enrollment
     auto policy_challenge_result = VaultYubiKeyService::generate_challenge(32);
     if (!policy_challenge_result) {
@@ -248,6 +278,14 @@ VaultCreationOrchestrator::enroll_yubikey(
     std::array<uint8_t, 32> user_challenge;
     std::copy_n(user_challenge_result->begin(), 32, user_challenge.begin());
 
+    // Create progress callback wrapper for YubiKey touches
+    auto yubikey_progress = [&params](const std::string& message) {
+        if (params.progress_callback) {
+            // Report as sub-step within Step 4 (YubiKey Enrollment)
+            params.progress_callback(4, 8, message);
+        }
+    };
+
     // Enroll YubiKey with two challenges
     auto enroll_result = m_yubikey->enroll_yubikey(
         params.admin_username,  // Use admin username as FIDO2 user_id
@@ -255,14 +293,30 @@ VaultCreationOrchestrator::enroll_yubikey(
         user_challenge,
         params.yubikey_pin.value_or(""),
         1,  // slot 1
-        params.enforce_fips  // Pass FIPS mode from creation parameters
+        params.enforce_fips,  // Pass FIPS mode from creation parameters
+        yubikey_progress  // Pass progress callback for touch reporting
     );
     if (!enroll_result) {
         return std::unexpected(enroll_result.error());
     }
 
-    // Combine YubiKey user response with KEK via XOR
-    // This provides hybrid authentication: password + YubiKey
+    // Encrypt PIN with password-derived KEK BEFORE combining with YubiKey
+    // This avoids circular dependency during vault opening (need PIN to get YubiKey response)
+    std::vector<uint8_t> encrypted_pin;
+    if (params.yubikey_pin.has_value()) {
+        auto pin_encryption_result = m_crypto->encrypt_yubikey_pin(
+            params.yubikey_pin.value(),
+            password_kek);
+        if (!pin_encryption_result) {
+            Log::error("VaultCreationOrchestrator: Failed to encrypt YubiKey PIN");
+            return std::unexpected(pin_encryption_result.error());
+        }
+        encrypted_pin = pin_encryption_result.value();
+        Log::info("VaultCreationOrchestrator: YubiKey PIN encrypted ({} bytes)", encrypted_pin.size());
+    }
+
+    // Now combine KEK with YubiKey response to get final_kek for DEK wrapping
+    // This happens AFTER PIN encryption to break circular dependency
     if (enroll_result->user_response.size() >= 32) {
         for (size_t i = 0; i < 32; ++i) {
             kek[i] ^= enroll_result->user_response[i];
@@ -277,6 +331,8 @@ VaultCreationOrchestrator::enroll_yubikey(
     data.user_challenge = user_challenge;  // Store the challenge itself (not just response)
     data.policy_response = enroll_result->policy_response;
     data.user_response = enroll_result->user_response;
+    data.encrypted_pin = std::move(encrypted_pin);
+    data.credential_id = enroll_result->credential_id;
     data.slot = 1;  // hardcoded to slot 1 for now
 
     return data;
@@ -337,6 +393,11 @@ VaultCreationOrchestrator::create_admin_key_slot(
         slot.yubikey_serial = yubikey_data->serial;
         slot.yubikey_enrolled_at = std::time(nullptr);
         slot.yubikey_challenge = yubikey_data->user_challenge;  // Store 32-byte challenge
+        slot.yubikey_encrypted_pin = yubikey_data->encrypted_pin;  // Store encrypted PIN
+        slot.yubikey_credential_id = yubikey_data->credential_id;  // Store FIDO2 credential ID
+
+        Log::debug("VaultCreationOrchestrator: YubiKey enrollment data stored (serial: {}, PIN: {} bytes, credential: {} bytes)",
+                   yubikey_data->serial, yubikey_data->encrypted_pin.size(), yubikey_data->credential_id.size());
     }
 
     return slot;

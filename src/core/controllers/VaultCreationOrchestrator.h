@@ -116,11 +116,23 @@ public:
         const std::string& step_description)>;
 
     /**
+     * @brief Result of successful vault creation
+     */
+    struct CreationResult {
+        std::array<uint8_t, 32> dek;             ///< Data Encryption Key (for VaultManager)
+        VaultHeaderV2 header;                    ///< Vault header structure
+        std::string file_path;                   ///< Actual file path written
+        bool memory_locked;                      ///< Whether DEK was successfully locked in memory
+
+        CreationResult() : dek{}, memory_locked(false) {}
+    };
+
+    /**
      * @brief Completion callback for async operations
      *
-     * @param result Success (empty VaultResult) or error
+     * @param result CreationResult on success or VaultError on failure
      */
-    using CompletionCallback = std::function<void(VaultResult<>)>;
+    using CompletionCallback = std::function<void(VaultResult<CreationResult>)>;
 
     /**
      * @brief Enumeration of creation steps for progress tracking
@@ -149,18 +161,6 @@ public:
         ProgressCallback progress_callback;      ///< Optional progress reporting
 
         CreationParams() = default;
-    };
-
-    /**
-     * @brief Result of successful vault creation
-     */
-    struct CreationResult {
-        std::array<uint8_t, 32> dek;             ///< Data Encryption Key (for VaultManager)
-        VaultHeaderV2 header;                    ///< Vault header structure
-        std::string file_path;                   ///< Actual file path written
-        bool memory_locked;                      ///< Whether DEK was successfully locked in memory
-
-        CreationResult() : dek{}, memory_locked(false) {}
     };
 
     // ========================================================================
@@ -297,6 +297,8 @@ private:
         std::array<uint8_t, 32> user_challenge;     ///< User-specific challenge (input)
         std::vector<uint8_t> policy_response;       ///< Policy challenge response
         std::vector<uint8_t> user_response;         ///< User challenge response
+        std::vector<uint8_t> encrypted_pin;         ///< PIN encrypted with password-derived KEK
+        std::vector<uint8_t> credential_id;         ///< FIDO2 credential ID
         uint8_t slot;
     };
     [[nodiscard]] VaultResult<std::optional<EnrollmentData>> enroll_yubikey(

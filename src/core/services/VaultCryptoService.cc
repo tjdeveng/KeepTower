@@ -183,6 +183,43 @@ VaultResult<std::array<uint8_t, 32>> VaultCryptoService::unwrap_dek(
 }
 
 // ============================================================================
+// YubiKey PIN Encryption
+// ============================================================================
+
+VaultResult<std::vector<uint8_t>> VaultCryptoService::encrypt_yubikey_pin(
+    const std::string& pin,
+    const std::array<uint8_t, 32>& kek) {
+
+    if (pin.empty() || pin.size() > 63) {
+        Log::error("VaultCryptoService: Invalid PIN length (must be 1-63 chars)");
+        return std::unexpected(VaultError::CryptoError);
+    }
+
+    // Generate random IV
+    std::vector<uint8_t> iv = VaultCrypto::generate_random_bytes(VaultCrypto::IV_LENGTH);
+
+    // Convert PIN to bytes
+    std::vector<uint8_t> pin_bytes(pin.begin(), pin.end());
+
+    // Encrypt with AES-256-GCM using password-derived KEK
+    std::vector<uint8_t> ciphertext;
+    if (!VaultCrypto::encrypt_data(pin_bytes, kek, ciphertext, iv)) {
+        Log::error("VaultCryptoService: Failed to encrypt YubiKey PIN");
+        return std::unexpected(VaultError::CryptoError);
+    }
+
+    // Prepend IV to ciphertext: [IV || ciphertext+tag]
+    std::vector<uint8_t> encrypted_pin;
+    encrypted_pin.reserve(iv.size() + ciphertext.size());
+    encrypted_pin.insert(encrypted_pin.end(), iv.begin(), iv.end());
+    encrypted_pin.insert(encrypted_pin.end(), ciphertext.begin(), ciphertext.end());
+
+    Log::debug("VaultCryptoService: YubiKey PIN encrypted ({} bytes total)", encrypted_pin.size());
+
+    return encrypted_pin;
+}
+
+// ============================================================================
 // Vault Data Encryption/Decryption
 // ============================================================================
 
