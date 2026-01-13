@@ -98,9 +98,8 @@ Your master password (vault authentication password) is critical:
 
 **Vault User Password History** (Vault Security tab):
 - Prevents reusing passwords when users change their vault authentication passwords
-- Stored per user in V2 vaults
+- Stored per user in the vault
 - Default: Remember 5 previous passwords per user
-- **V2 only:** Not applicable to V1 vaults
 
 ## Storage Security
 

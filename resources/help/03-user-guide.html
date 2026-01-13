@@ -358,8 +358,6 @@ History</a></li>
 Policy</a></li>
 <li><a href="#yubikey-authentication-optional" id="toc-yubikey-authentication-optional">YubiKey Authentication
 (Optional)</a></li>
-<li><a href="#migrating-v1-to-v2" id="toc-migrating-v1-to-v2">Migrating
-V1 to V2</a></li>
 </ul></li>
 <li><a href="#account-management" id="toc-account-management">Account
 Management</a>
@@ -481,29 +479,17 @@ Line Usage</a></li>
 <code>Ctrl+N</code></p>
 <ol type="1">
 <li>Choose location and filename</li>
-<li>Select vault format:
-<ul>
-<li><strong>V1 (Legacy):</strong> Single-user, backwards compatible</li>
-<li><strong>V2 (Recommended):</strong> Multi-user with enhanced
-security</li>
-</ul></li>
-<li>For V2 vaults, configure:
+<li>Configure vault settings:
 <ul>
 <li>Admin username and password</li>
 <li>Security policy (password requirements, history depth)</li>
 <li>Optional YubiKey authentication</li>
 </ul></li>
-<li>For V1 vaults:
-<ul>
-<li>Create master password</li>
-<li>Optionally configure YubiKey 2FA</li>
-<li>Confirm master password</li>
-</ul></li>
 <li>Vault is created and opened</li>
 </ol>
-<p><strong>File Formats:</strong> - <code>.vault</code> - Encrypted
-binary format with optional Reed-Solomon encoding - V1: Single-user,
-AES-256-GCM - V2: Multi-user, role-based access, password history</p>
+<p><strong>File Format:</strong> - <code>.vault</code> - Encrypted
+binary format with optional Reed-Solomon encoding - Multi-user with
+role-based access, password history, and AES-256-GCM encryption</p>
 <h3 id="opening-a-vault">Opening a Vault</h3>
 <p><strong>Menu:</strong> File → Open Vault <strong>Shortcut:</strong>
 <code>Ctrl+O</code></p>
@@ -614,18 +600,6 @@ model/programming</p>
 <p><strong>Login with YubiKey:</strong> 1. Enter username and password
 2. Insert YubiKey when prompted 3. Touch YubiKey button 4. Vault
 unlocks</p>
-<h3 id="migrating-v1-to-v2">Migrating V1 to V2</h3>
-<p><strong>Menu:</strong> Vault → Convert to V2</p>
-<ol type="1">
-<li>Open V1 vault</li>
-<li>Select <strong>Vault → Convert to V2</strong></li>
-<li>Create admin credentials</li>
-<li>Configure security policy</li>
-<li>Original vault backed up automatically</li>
-<li>New V2 vault created</li>
-</ol>
-<p><strong>Note:</strong> One-way conversion. Keep V1 backup until
-confident.</p>
 <hr />
 <h2 id="account-management">Account Management</h2>
 <h3 id="adding-an-account">Adding an Account</h3>

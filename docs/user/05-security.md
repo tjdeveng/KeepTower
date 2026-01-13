@@ -60,8 +60,7 @@ KeepTower exclusively uses cryptographic primitives approved for FIPS 140-3:
 
 **Key Derivation:**
 - **PBKDF2-HMAC-SHA256** (FIPS 198-1, SP 800-132)
-  - For V1 vaults: 100,000 iterations minimum
-  - For V2 vaults: Configurable iterations (default 600,000)
+  - Configurable iterations (default 600,000)
   - 256-bit output for AES-256 keys
 
 **Password History:**
@@ -221,21 +220,7 @@ ykman otp chalresp --touch --generate 2
 ### Implementation
 
 ```
-V1 Vault File Structure (Single-User):
-┌──────────────────────────────────────┐
-│ Salt (32 bytes)                      │  ← Random per vault
-├──────────────────────────────────────┤
-│ IV (12 bytes)                        │  ← Random per save
-├──────────────────────────────────────┤
-│ Flags (1 byte)                       │  ← FEC enabled?
-├──────────────────────────────────────┤
-│ RS Redundancy (1 byte, optional)     │  ← If FEC enabled
-├──────────────────────────────────────┤
-│ Encrypted Data + Auth Tag            │  ← Your passwords
-│ (Reed-Solomon encoded if FEC enabled)│
-└──────────────────────────────────────┘
-
-V2 Vault File Structure (Multi-User):
+Vault File Structure:
 ┌──────────────────────────────────────┐
 │ Magic Number (4 bytes)               │  ← "KT2\0"
 ├──────────────────────────────────────┤

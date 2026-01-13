@@ -24,23 +24,15 @@ Complete reference for all KeepTower features.
 **Shortcut:** `Ctrl+N`
 
 1. Choose location and filename
-2. Select vault format:
-   - **V1 (Legacy):** Single-user, backwards compatible
-   - **V2 (Recommended):** Multi-user with enhanced security
-3. For V2 vaults, configure:
+2. Configure vault settings:
    - Admin username and password
    - Security policy (password requirements, history depth)
    - Optional YubiKey authentication
-4. For V1 vaults:
-   - Create master password
-   - Optionally configure YubiKey 2FA
-   - Confirm master password
-5. Vault is created and opened
+3. Vault is created and opened
 
-**File Formats:** 
+**File Format:**
 - `.vault` - Encrypted binary format with optional Reed-Solomon encoding
-- V1: Single-user, AES-256-GCM
-- V2: Multi-user, role-based access, password history
+- Multi-user with role-based access, password history, and AES-256-GCM encryption
 
 ### Opening a Vault
 
@@ -195,19 +187,6 @@ V2 vaults track password history to prevent reuse:
 2. Insert YubiKey when prompted
 3. Touch YubiKey button
 4. Vault unlocks
-
-### Migrating V1 to V2
-
-**Menu:** Vault → Convert to V2
-
-1. Open V1 vault
-2. Select **Vault → Convert to V2**
-3. Create admin credentials
-4. Configure security policy
-5. Original vault backed up automatically
-6. New V2 vault created
-
-**Note:** One-way conversion. Keep V1 backup until confident.
 
 ---
 

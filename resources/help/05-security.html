@@ -477,9 +477,9 @@ Used</h3>
 authenticated encryption - Provides both confidentiality and
 integrity</p>
 <p><strong>Key Derivation:</strong> -
-<strong>PBKDF2-HMAC-SHA256</strong> (FIPS 198-1, SP 800-132) - For V1
-vaults: 100,000 iterations minimum - For V2 vaults: Configurable
-iterations (default 600,000) - 256-bit output for AES-256 keys</p>
+<strong>PBKDF2-HMAC-SHA256</strong> (FIPS 198-1, SP 800-132) -
+Configurable iterations (default 600,000) - 256-bit output for AES-256
+keys</p>
 <p><strong>Password History:</strong> -
 <strong>PBKDF2-HMAC-SHA512</strong> (FIPS 198-1, SP 800-132) - 600,000
 iterations (OWASP 2023 recommendation) - Separate from vault encryption
@@ -608,21 +608,7 @@ Security:</strong> NIST-approved, widely analyzed - ✅
 <strong>Performance:</strong> Hardware-accelerated on modern CPUs - ✅
 <strong>Parallel:</strong> Fast encryption/decryption</p>
 <h3 id="implementation">Implementation</h3>
-<pre><code>V1 Vault File Structure (Single-User):
-┌──────────────────────────────────────┐
-│ Salt (32 bytes)                      │  ← Random per vault
-├──────────────────────────────────────┤
-│ IV (12 bytes)                        │  ← Random per save
-├──────────────────────────────────────┤
-│ Flags (1 byte)                       │  ← FEC enabled?
-├──────────────────────────────────────┤
-│ RS Redundancy (1 byte, optional)     │  ← If FEC enabled
-├──────────────────────────────────────┤
-│ Encrypted Data + Auth Tag            │  ← Your passwords
-│ (Reed-Solomon encoded if FEC enabled)│
-└──────────────────────────────────────┘
-
-V2 Vault File Structure (Multi-User):
+<pre><code>Vault File Structure:
 ┌──────────────────────────────────────┐
 │ Magic Number (4 bytes)               │  ← &quot;KT2\0&quot;
 ├──────────────────────────────────────┤
