@@ -37,8 +37,10 @@ void YubiKeyManagerDialog::setup_ui() {
     // Info label
     m_info_label.set_markup(
         "<b>Manage Authorized YubiKeys</b>\n\n"
-        "Add backup YubiKeys to access this vault. All keys must be programmed\n"
-        "with the same HMAC-SHA1 secret using <tt>ykpersonalize -2</tt>."
+        "Add backup YubiKeys to access this vault. All keys must be configured\n"
+        "with FIPS-compliant HMAC-SHA256 challenge-response.\n\n"
+        "<i>For complete setup instructions, see Help → Security or search for\n"
+        "\"YubiKey FIPS Configuration\" in the help documentation.</i>"
     );
     m_info_label.set_wrap(true);
     m_info_label.set_margin(12);
