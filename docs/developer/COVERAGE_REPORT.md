@@ -153,3 +153,8 @@ KeepTower uses integration tests for UI validation rather than unit testing GTK4
 6. 🎯 **Target: 77%+ line coverage** (from current 64.4%)
 
 This would bring testing quality from **B+** to **A+**.
+
+## Additional Resources
+
+For information on accessing test logs and debugging test runs, see:
+- **[FINDING_TEST_LOGS.md](FINDING_TEST_LOGS.md)** - How to locate and access testlog.txt files

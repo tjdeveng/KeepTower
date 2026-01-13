@@ -246,6 +246,9 @@ Click **Apply** to save all preference changes.
 - **README.md** - This file
 - **docs/EXPORT_FORMATS.md** - Import/export format specifications and security notes
 - **docs/api/** - Doxygen API documentation (generated)
+- **docs/developer/FINDING_TEST_LOGS.md** - How to locate test logs and testlog.txt files
+- **docs/developer/COVERAGE_REPORT.md** - Code coverage metrics and testing quality
+- **docs/developer/TESTING_UPGRADE.md** - Testing infrastructure documentation
 - **CODE_REVIEW.md** - Security audit and code review
 - **CONTRIBUTING.md** - Contribution guidelines
 - **SECURITY.md** - Security policy and vulnerability reporting

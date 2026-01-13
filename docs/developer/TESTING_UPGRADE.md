@@ -189,6 +189,11 @@ This bypasses benign format differences while still collecting accurate coverage
 - ✅ **Coverage trends over time**
 - ✅ **Detailed per-file coverage breakdown**
 
+## Additional Resources
+
+For information on accessing test logs and debugging test runs, see:
+- **[FINDING_TEST_LOGS.md](FINDING_TEST_LOGS.md)** - How to locate and access testlog.txt files
+
 ## Conclusion
 
 KeepTower now has **professional-grade testing infrastructure** with quantifiable metrics. The 64.4% current coverage establishes a solid baseline, and the HTML reports provide clear guidance on where to focus testing efforts.
