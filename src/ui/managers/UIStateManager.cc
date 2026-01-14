@@ -90,10 +90,19 @@ void UIStateManager::update_session_display(const std::function<void()>& update_
     // Add role indicator
     if (session.is_admin()) {
         session_text += " (Admin)";
+    } else {
+        session_text += " (Standard)";
     }
 
     // Show password change requirement
     if (session.password_change_required) {
+        session_text += " [Password Change Required]";
+    }
+
+    // Update the session label widget
+    if (m_widgets.session_label) {
+        m_widgets.session_label->set_text(session_text);
+        m_widgets.session_label->set_visible(true);
     }
 
     std::cout << "UIStateManager: Session display updated - " << session_text << "\n";
