@@ -32,8 +32,8 @@ void YubiKeyHandler::handle_test() {
 
     YubiKeyManager yk_manager{};
 
-    // Initialize YubiKey subsystem
-    if (!yk_manager.initialize()) {
+    // Initialize YubiKey subsystem in FIPS mode (same as vault operations)
+    if (!yk_manager.initialize(true)) {
         auto dialog = Gtk::AlertDialog::create("YubiKey Initialization Failed");
         dialog->set_detail("Could not initialize YubiKey subsystem. Make sure the required libraries are installed.");
         dialog->set_buttons({"OK"});
@@ -42,58 +42,45 @@ void YubiKeyHandler::handle_test() {
         return;
     }
 
-    // Test challenge-response functionality FIRST (without calling get_device_info)
-    // This avoids any state issues from yk_get_status()
-    std::string challenge_result;
-    const unsigned char test_challenge[64] = {
-        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-        0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
-        0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
-        0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20,
-        0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28,
-        0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f, 0x30,
-        0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38,
-        0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, 0x3f, 0x40
-    };
+    // Get device info to test detection and capabilities
+    // Note: FIDO2 challenge-response requires enrolled credentials, so we only test detection
+    auto device_info = yk_manager.get_device_info();
 
-    auto challenge_resp = yk_manager.challenge_response(
-        std::span<const unsigned char>(test_challenge, 64),
-        YubiKeyAlgorithm::HMAC_SHA256,  // Use FIPS-approved algorithm for testing
-        true,  // require_touch
-        15000  // 15 second timeout
-    );
-
-    if (challenge_resp.success) {
-        // Now get device info for display
-        auto device_info = yk_manager.get_device_info();
-
-        const std::string message = device_info ?
-            std::format(
-                "YubiKey Test Results\n\n"
-                "Serial Number: {}\n"
-                "Firmware Version: {}\n"
-                "Slot 2 Configured: Yes\n\n"
-                "✓ Challenge-Response Working\n"
-                "HMAC-SHA1 response received successfully!",
-                device_info->serial_number,
-                device_info->version_string()
-            ) :
-            "✓ Challenge-Response Working\nHMAC-SHA1 response received successfully!";
+    if (device_info) {
+        const std::string message = std::format(
+            "YubiKey Detected Successfully\n\n"
+            "Serial Number: {}\n"
+            "Firmware Version: {}\n"
+            "FIDO2 Support: Yes\n"
+            "HMAC-Secret Extension: {}\n"
+            "FIPS Capable: {}\n"
+            "FIPS Mode: {}\n\n"
+            "Device is ready for vault operations.\n\n"
+            "Note: Challenge-response requires an enrolled\n"
+            "credential (created when you set up a vault).",
+            device_info->serial_number,
+            device_info->version_string(),
+            device_info->slot2_configured ? "Yes" : "No",
+            device_info->is_fips_capable ? "Yes" : "No",
+            device_info->is_fips_mode ? "Yes" : "No"
+        );
 
         auto dialog = Gtk::AlertDialog::create("YubiKey Test Passed");
         dialog->set_detail(message);
         dialog->set_buttons({"OK"});
         dialog->choose(m_window, {});
-        info("YubiKey test passed");
+        info("YubiKey test passed: {}, firmware {}",
+             device_info->serial_number, device_info->version_string());
     } else {
-        challenge_result = std::format("✗ Challenge-Response Failed\n{}",
-                                      challenge_resp.error_message);
-
         auto dialog = Gtk::AlertDialog::create("YubiKey Test Failed");
-        dialog->set_detail(challenge_result);
+        dialog->set_detail("Could not detect YubiKey device.\n\n"
+                          "Please ensure:\n"
+                          "• YubiKey is inserted\n"
+                          "• You have permission to access /dev/hidraw*\n"
+                          "• libfido2 is properly installed");
         dialog->set_buttons({"OK"});
         dialog->choose(m_window, {});
-        warning("YubiKey challenge-response failed: {}", challenge_resp.error_message);
+        warning("YubiKey detection failed");
     }
 }
 

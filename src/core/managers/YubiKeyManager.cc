@@ -256,8 +256,10 @@ public:
         }
 
         info.slot2_configured = has_hmac_secret;
-        info.is_fips_capable = true;  // YubiKey 5 series with FIDO2 = FIPS capable
-        info.is_fips_mode = true;     // FIDO2 hmac-secret uses SHA-256 only
+        // Only FIPS-capable/compliant if device supports hmac-secret extension
+        // FIDO2 hmac-secret uses SHA-256 only (FIPS-140-3 approved)
+        info.is_fips_capable = has_hmac_secret;
+        info.is_fips_mode = has_hmac_secret;
 
         // Get firmware version (best effort)
         uint64_t version = fido_cbor_info_fwversion(cbor_info);
@@ -268,8 +270,12 @@ public:
         // YubiKey serial (not available via FIDO2, use device path as identifier)
         info.serial_number = device_path;
 
-        // FIDO2 hmac-secret only supports SHA-256
-        info.supported_algorithms = {YubiKeyAlgorithm::HMAC_SHA256};
+        // FIDO2 hmac-secret only supports SHA-256 (FIPS-approved)
+        if (has_hmac_secret) {
+            info.supported_algorithms = {YubiKeyAlgorithm::HMAC_SHA256};
+        } else {
+            info.supported_algorithms = {};  // No supported algorithms
+        }
 
         // Check if PIN is set
         if (fido_dev_has_pin(dev)) {
@@ -401,7 +407,8 @@ std::optional<YubiKeyManager::YubiKeyInfo> YubiKeyManager::get_device_info() con
         return std::nullopt;
     }
 
-    info.is_fips_mode = m_fips_mode;
+    // Note: is_fips_mode reflects device capability (FIDO2 hmac-secret = SHA-256 only = FIPS)
+    // Software enforcement via m_fips_mode is separate and checked during operations
 
     KeepTower::Log::info("Detected YubiKey via FIDO2: Version {}.{}.{}, FIPS: {}, hmac-secret: {}",
                          info.version_major, info.version_minor, info.version_build,
