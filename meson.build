@@ -139,17 +139,19 @@ libcorrect_dep = declare_dependency(
   dependencies: libcorrect_lib
 )
 
-# YubiKey dependencies (optional for hardware 2FA support)
+# YubiKey dependencies (required for hardware 2FA support)
 # Using libfido2 for FIDO2/WebAuthn HMAC-secret extension (FIPS-140-3 SHA-256 support)
-fido2_dep = dependency('libfido2', version: '>= 1.13.0', required: false)
+# 
+# YubiKey support is now a core feature and required for building KeepTower.
+# Install the development package for your distribution:
+#   Fedora/RHEL: dnf install libfido2-devel
+#   Ubuntu/Debian: apt install libfido2-dev
+#   Arch: pacman -S libfido2
+fido2_dep = dependency('libfido2', version: '>= 1.13.0', required: true)
 
-# Check if YubiKey support is available
-yubikey_available = fido2_dep.found()
-if yubikey_available
-  message('YubiKey support: ENABLED (via libfido2 FIDO2/WebAuthn)')
-else
-  warning('YubiKey support: DISABLED (install libfido2-devel/libfido2-dev to enable)')
-endif
+# YubiKey support is always enabled (dependency is required)
+yubikey_available = true
+message('YubiKey support: ENABLED (via libfido2 FIDO2/WebAuthn)')
 
 # Common dependencies
 common_deps = [
