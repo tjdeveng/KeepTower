@@ -20,6 +20,7 @@
 #include "../utils/Log.h"
 #include "../utils/SecureMemory.h"
 #include <glibmm/main.h>
+#include <thread>
 #include <chrono>
 #include <filesystem>
 #include <sys/stat.h>  // for chmod
