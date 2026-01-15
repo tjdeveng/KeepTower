@@ -186,12 +186,7 @@ void AccountTreeWidget::rebuild_rows(const std::vector<keeptower::AccountGroup>&
             }
         }
 
-
-        // Only show group if it has accounts
-        if (group_account_indices.empty()) {
-            continue;
-        }
-
+        // Always show groups, even if empty, so users can see newly created groups
         auto group_row = Gtk::make_managed<GroupRowWidget>();
         group_row->set_group(group);
         group_row->set_visible(true);
