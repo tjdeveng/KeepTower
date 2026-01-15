@@ -269,7 +269,8 @@ jobs:
           cmake \
           git \
           gettext \
-          desktop-file-utils
+          desktop-file-utils \
+          libfido2-dev
 
     - name: Build and install libcorrect
       run: |
