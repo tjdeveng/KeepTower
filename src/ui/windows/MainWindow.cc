@@ -1730,11 +1730,7 @@ void MainWindow::on_account_reordered(const std::string& account_id, const std::
     // Defer UI refresh until after drag operation completes (next idle cycle)
     // This prevents destroying widgets while drag is still in progress
     Glib::signal_idle().connect_once([this]() {
-        if (m_vault_manager && m_account_tree_widget) {
-            const auto& groups = m_vault_manager->get_all_groups();
-            const auto& accounts = m_vault_manager->get_all_accounts();
-            m_account_tree_widget->set_data(groups, accounts);
-        }
+        update_account_list();
     });
 }
 
@@ -1748,11 +1744,7 @@ void MainWindow::on_group_reordered(const std::string& group_id, int new_index) 
 
     // Defer UI refresh until after drag operation completes
     Glib::signal_idle().connect_once([this]() {
-        if (m_vault_manager && m_account_tree_widget) {
-            const auto& groups = m_vault_manager->get_all_groups();
-            const auto& accounts = m_vault_manager->get_all_accounts();
-            m_account_tree_widget->set_data(groups, accounts);
-        }
+        update_account_list();
     });
 }
 

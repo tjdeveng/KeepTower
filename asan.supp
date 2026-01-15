@@ -1,0 +1,17 @@
+# ASAN suppression file for GTK/GNOME library false positives
+# These are intentional caches maintained by the GUI libraries
+
+# Fontconfig font metadata caching
+leak:libfontconfig.so
+
+# Pango font rendering caches
+leak:libpangoft2-1.0.so
+leak:libpango-1.0.so
+
+# GTK4 GSK GPU renderer caches
+leak:libgtk-4.so
+
+# GLib/GIO static allocations
+leak:libglib-2.0.so
+leak:libgio-2.0.so
+leak:libgobject-2.0.so
