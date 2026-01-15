@@ -190,13 +190,18 @@ Gtk::PopoverMenu* MenuManager::create_group_context_menu(
     m_context_menu_group_id = group_id;
     auto menu = Gio::Menu::create();
 
-    // Actions section
-    auto actions_section = Gio::Menu::create();
-    actions_section->append("Rename Group", "win.rename-group");
-    menu->append_section(actions_section);
+    // Create Group section (always available)
+    auto create_section = Gio::Menu::create();
+    create_section->append("Create Group", "win.create-group");
+    menu->append_section(create_section);
 
-    // Delete section
-    if (group_id != "favorites") {
+    // Actions section (only for user-created groups, not system groups)
+    if (group_id != "all_accounts" && group_id != "favorites") {
+        auto actions_section = Gio::Menu::create();
+        actions_section->append("Rename Group", "win.rename-group");
+        menu->append_section(actions_section);
+
+        // Delete section
         auto delete_section = Gio::Menu::create();
         delete_section->append("Delete Group", "win.delete-group");
         menu->append_section(delete_section);
