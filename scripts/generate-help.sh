@@ -9,9 +9,17 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 DOCS_DIR="$PROJECT_ROOT/docs/user"
-OUTPUT_DIR="$PROJECT_ROOT/resources/help"
-TEMPLATE="$OUTPUT_DIR/template.html"
-CSS_FILE="$OUTPUT_DIR/css/help-style.css"
+
+# Accept output directory as first argument, default to resources/help for local builds
+if [ -n "$1" ]; then
+    OUTPUT_DIR="$1"
+else
+    OUTPUT_DIR="$PROJECT_ROOT/resources/help"
+fi
+
+# Template and CSS are always in source tree
+TEMPLATE="$PROJECT_ROOT/resources/help/template.html"
+CSS_FILE="$PROJECT_ROOT/resources/help/css/help-style.css"
 
 # Get version from meson.build
 VERSION=$(grep "version:" "$PROJECT_ROOT/meson.build" | head -1 | sed "s/.*'\(.*\)'.*/\1/")

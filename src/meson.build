@@ -19,20 +19,28 @@ gresources = gnome.compile_resources(
 # First check if pandoc exists
 pandoc = find_program('pandoc', required: false)
 if pandoc.found()
-  # Generate help HTML files during build
+  # Generate help HTML files in build directory during build
+  help_output_dir = meson.current_build_dir() / 'help-generated'
   generate_help = custom_target(
     'generate-help-src',
     output: 'help-src-generated.stamp',
-    command: [files('../scripts/generate-help.sh')],
+    command: [files('../scripts/generate-help.sh'), help_output_dir],
     build_by_default: true,
     build_always_stale: true,
   )
 
-  # Compile help GResources with dependency on generation
+  # Create a temporary gresource XML that points to build directory
+  help_gresource_xml = configure_file(
+    input: '../resources/help.gresource.xml',
+    output: 'help.gresource.xml',
+    copy: true,
+  )
+
+  # Compile help GResources from build directory with dependency on generation
   help_gresources = gnome.compile_resources(
     'keeptower-help-resources',
-    '../resources/help.gresource.xml',
-    source_dir: '../resources',
+    help_gresource_xml,
+    source_dir: [help_output_dir, meson.project_source_root() / 'resources'],
     c_name: 'keeptower_help',
     dependencies: [generate_help],
   )
