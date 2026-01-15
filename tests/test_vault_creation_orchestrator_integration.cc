@@ -47,6 +47,9 @@ protected:
 
     void TearDown() override {
         orchestrator.reset();
+        crypto_service.reset();
+        yubikey_service.reset();
+        file_service.reset();
         try {
             fs::remove_all(test_dir);
         } catch (...) {}

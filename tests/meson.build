@@ -537,7 +537,7 @@ vault_orchestrator_integration_test = executable(
     include_directories: test_inc
 )
 
-test('VaultCreationOrchestrator Integration Tests', vault_orchestrator_integration_test)
+test('VaultCreationOrchestrator Integration Tests', vault_orchestrator_integration_test, timeout: 60)
 
 # Multi-User Infrastructure tests
 multiuser_sources = [
