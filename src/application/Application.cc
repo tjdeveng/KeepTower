@@ -26,11 +26,31 @@ void Application::on_startup() {
     // Read FIPS preference from GSettings
     bool enable_fips = false;
     try {
-        auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
-        enable_fips = settings->get_boolean("fips-mode-enabled");
-        KeepTower::Log::info("FIPS mode preference: {}", enable_fips ? "enabled" : "disabled");
+        // Check if schema exists before trying to create settings
+        auto schema_source = Gio::SettingsSchemaSource::get_default();
+        if (!schema_source) {
+            KeepTower::Log::warning("GSettings schema source not available - using default FIPS setting (disabled)");
+            enable_fips = false;
+        } else {
+            auto schema = schema_source->lookup("com.tjdeveng.keeptower", false);
+            if (!schema) {
+                KeepTower::Log::warning("GSettings schema 'com.tjdeveng.keeptower' not found - using default FIPS setting (disabled)");
+                KeepTower::Log::info("This is normal for AppImage/portable builds. Install system-wide to enable settings persistence.");
+                enable_fips = false;
+            } else if (!schema->has_key("fips-mode-enabled")) {
+                KeepTower::Log::warning("GSettings key 'fips-mode-enabled' not found in schema - using default (disabled)");
+                enable_fips = false;
+            } else {
+                auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
+                enable_fips = settings->get_boolean("fips-mode-enabled");
+                KeepTower::Log::info("FIPS mode preference: {}", enable_fips ? "enabled" : "disabled");
+            }
+        }
     } catch (const Glib::Error& e) {
         KeepTower::Log::warning("Failed to read FIPS preference: {} - defaulting to disabled", e.what());
+        enable_fips = false;
+    } catch (const std::exception& e) {
+        KeepTower::Log::warning("Unexpected error reading settings: {} - defaulting to FIPS disabled", e.what());
         enable_fips = false;
     }
 

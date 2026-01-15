@@ -65,10 +65,23 @@ PreferencesDialog::PreferencesDialog(Gtk::Window& parent, VaultManager* vault_ma
 
     // Load settings with error handling
     try {
-        m_settings = Gio::Settings::create("com.tjdeveng.keeptower");
+        // Check if schema exists before creating settings
+        auto schema_source = Gio::SettingsSchemaSource::get_default();
+        if (schema_source) {
+            auto schema = schema_source->lookup("com.tjdeveng.keeptower", false);
+            if (schema) {
+                m_settings = Gio::Settings::create("com.tjdeveng.keeptower");
+            } else {
+                KeepTower::Log::warning("GSettings schema not found - settings persistence disabled");
+                m_settings.reset(); // Explicitly set to nullptr
+            }
+        } else {
+            KeepTower::Log::warning("GSettings schema source unavailable - settings persistence disabled");
+            m_settings.reset(); // Explicitly set to nullptr
+        }
     } catch (const Glib::Error& e) {
-        // Fatal: cannot continue without settings
-        throw std::runtime_error("Failed to load settings: " + std::string(e.what()));
+        KeepTower::Log::warning("Failed to load settings: {} - settings persistence disabled", e.what());
+        m_settings.reset(); // Explicitly set to nullptr
     }
 
     setup_ui();
@@ -952,7 +965,14 @@ void PreferencesDialog::load_settings() {
      * @see save_settings() for persisting FIPS preference changes
      * @see Application::on_startup() for FIPS initialization from settings
      */
-    bool fips_enabled = m_settings->get_boolean("fips-mode-enabled");
+    bool fips_enabled = false;
+    if (m_settings) {
+        try {
+            fips_enabled = m_settings->get_boolean("fips-mode-enabled");
+        } catch (const Glib::Error& e) {
+            KeepTower::Log::warning("Failed to read fips-mode-enabled: {}", e.what());
+        }
+    }
 
     // Only set checkbox state if FIPS is available
     // If FIPS unavailable, checkbox is disabled in setup_ui()
@@ -1149,7 +1169,13 @@ void PreferencesDialog::save_settings() {
      * @see VaultManager::init_fips_mode() for provider initialization
      */
     const bool fips_enabled = m_fips_mode_check.get_active();
-    m_settings->set_boolean("fips-mode-enabled", fips_enabled);
+    if (m_settings) {
+        try {
+            m_settings->set_boolean("fips-mode-enabled", fips_enabled);
+        } catch (const Glib::Error& e) {
+            KeepTower::Log::warning("Failed to save fips-mode-enabled: {}", e.what());
+        }
+    }
 
     // If vault is open, save it (settings were applied to vault)
     // This includes: backup, clipboard, password history, auto-lock, undo/redo settings
