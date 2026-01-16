@@ -9,6 +9,7 @@
 #include "../../core/VaultManager.h"
 #include "../../core/commands/UndoManager.h"
 #include "../../core/commands/AccountCommands.h"
+#include "../../utils/Log.h"
 #include "record.pb.h"
 
 #include <gtkmm.h>
