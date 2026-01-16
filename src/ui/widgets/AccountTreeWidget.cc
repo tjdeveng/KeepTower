@@ -102,6 +102,23 @@ void AccountTreeWidget::rebuild_rows(const std::vector<keeptower::AccountGroup>&
     m_group_rows.clear();
     m_account_rows.clear();
 
+    // Debug: Log total accounts and their group memberships
+    g_debug("AccountTreeWidget::rebuild_rows: %zu total accounts, %zu groups",
+            accounts.size(), groups.size());
+    for (size_t i = 0; i < accounts.size(); ++i) {
+        g_debug("  Account[%zu] '%s': %d group memberships",
+                i, accounts[i].account_name().c_str(), accounts[i].groups_size());
+        for (int j = 0; j < accounts[i].groups_size(); ++j) {
+            g_debug("    - Member of group_id: %s (display_order=%d)",
+                    accounts[i].groups(j).group_id().c_str(),
+                    accounts[i].groups(j).display_order());
+        }
+    }
+    for (size_t i = 0; i < groups.size(); ++i) {
+        g_debug("  Group[%zu] id='%s' name='%s'",
+                i, groups[i].group_id().c_str(), groups[i].group_name().c_str());
+    }
+
     // Create "Favorites" system group with favorited accounts
     std::vector<size_t> favorite_indices;
     for (size_t i = 0; i < accounts.size(); ++i) {
