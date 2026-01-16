@@ -1755,6 +1755,9 @@ void MainWindow::show_account_context_menu(const std::string& account_id, Gtk::W
         return;
     }
 
+    // Store account_id for use in callbacks
+    m_context_menu_account_id = account_id;
+
     // Phase 5: Use MenuManager to create context menu
     auto popover = m_menu_manager->create_account_context_menu(
         account_id,
