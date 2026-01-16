@@ -94,19 +94,23 @@ if compile_schemas.found()
     args: ['--strict', '--dry-run', meson.current_source_dir()],
   )
 
-  # Copy schema to build directory and compile for local development
-  schema_in_build = configure_file(
+  # Copy schema to build directory for local development
+  # This properly tracks changes to the source file
+  schema_in_build = custom_target('schema-copy',
     input: gschema_file,
     output: gschema_file,
-    copy: true,
+    command: ['cp', '@INPUT@', '@OUTPUT@'],
+    build_by_default: true,
   )
 
+  # Compile schemas whenever the source changes
   custom_target('gsettings-compile',
     input: schema_in_build,
     output: 'gschemas.compiled',
     command: [compile_schemas, meson.current_build_dir()],
     build_by_default: true,
     install: false,
+    depends: schema_in_build,
   )
 endif
 
