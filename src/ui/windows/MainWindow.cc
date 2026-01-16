@@ -354,7 +354,13 @@ MainWindow::MainWindow()
             filter_accounts(m_search_entry.get_text());
         },
         [this]() { return m_selected_account_index; },
-        [this]() { return is_undo_redo_enabled(); }
+        [this]() { return is_undo_redo_enabled(); },
+        [this](const std::string& account_id) {
+            // Select account by ID in the tree widget
+            if (m_account_tree_widget) {
+                m_account_tree_widget->select_account_by_id(account_id);
+            }
+        }
     );
 
     // Phase 5k: Initialize AutoLockHandler

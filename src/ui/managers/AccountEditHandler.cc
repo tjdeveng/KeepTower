@@ -27,7 +27,8 @@ AccountEditHandler::AccountEditHandler(Gtk::Window& window,
                                       StatusCallback status_callback,
                                       UpdateCallback update_callback,
                                       GetAccountIndexCallback get_account_index_callback,
-                                      IsUndoRedoEnabledCallback is_undo_redo_enabled_callback)
+                                      IsUndoRedoEnabledCallback is_undo_redo_enabled_callback,
+                                      SelectAccountCallback select_account_callback)
     : m_window(window)
     , m_vault_manager(vault_manager)
     , m_undo_manager(undo_manager)
@@ -38,6 +39,7 @@ AccountEditHandler::AccountEditHandler(Gtk::Window& window,
     , m_update_callback(std::move(update_callback))
     , m_get_account_index_callback(std::move(get_account_index_callback))
     , m_is_undo_redo_enabled_callback(std::move(is_undo_redo_enabled_callback))
+    , m_select_account_callback(std::move(select_account_callback))
 {
 }
 
@@ -54,15 +56,24 @@ void AccountEditHandler::handle_add() {
     new_account.set_website("");
     new_account.set_notes("");
 
+    // Store the account ID for later selection
+    const std::string new_account_id = new_account.id();
+
     // Create command with UI callback
-    auto ui_callback = [this]() {
+    auto ui_callback = [this, new_account_id]() {
         // Clear search filter so new account is visible
         m_search_entry->set_text("");
 
-        // Update the display first
+        // Update the display (synchronous GTK operation - completes before returning)
         m_update_callback();
 
-        // Focus the name field and select all text for easy editing (only on first add, not redo)
+        // Select the newly created account (now safe - tree widget is fully rebuilt)
+        if (m_select_account_callback) {
+            m_select_account_callback(new_account_id);
+        }
+
+        // Focus the name field for immediate editing
+        // Use idle callback here to allow the selection signal to propagate first
         Glib::signal_idle().connect_once([this]() {
             if (m_detail_widget) {
                 m_detail_widget->focus_account_name_entry();

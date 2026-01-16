@@ -67,6 +67,11 @@ public:
     using IsUndoRedoEnabledCallback = std::function<bool()>;
 
     /**
+     * @brief Callback to select an account by ID
+     */
+    using SelectAccountCallback = std::function<void(const std::string&)>;
+
+    /**
      * @brief Construct account edit handler
      * @param window Parent window for dialogs
      * @param vault_manager Vault manager for account operations
@@ -78,6 +83,7 @@ public:
      * @param update_callback Callback to refresh account list
      * @param get_account_index_callback Callback to get selected account index
      * @param is_undo_redo_enabled_callback Callback to check undo/redo status
+     * @param select_account_callback Callback to programmatically select an account
      */
     AccountEditHandler(Gtk::Window& window,
                       VaultManager* vault_manager,
@@ -88,7 +94,8 @@ public:
                       StatusCallback status_callback,
                       UpdateCallback update_callback,
                       GetAccountIndexCallback get_account_index_callback,
-                      IsUndoRedoEnabledCallback is_undo_redo_enabled_callback);
+                      IsUndoRedoEnabledCallback is_undo_redo_enabled_callback,
+                      SelectAccountCallback select_account_callback);
 
     /**
      * @brief Add a new account
@@ -137,6 +144,7 @@ private:
     UpdateCallback m_update_callback;
     GetAccountIndexCallback m_get_account_index_callback;
     IsUndoRedoEnabledCallback m_is_undo_redo_enabled_callback;
+    SelectAccountCallback m_select_account_callback;
 };
 
 } // namespace UI

@@ -451,3 +451,26 @@ void AccountTreeWidget::clear_filters() {
     m_field_filter = 0;
     rebuild_rows(m_all_groups, m_all_accounts);
 }
+
+void AccountTreeWidget::select_account_by_id(const std::string& account_id) {
+    // Safety check: ensure account rows vector is not empty
+    if (m_account_rows.empty()) {
+        g_warning("AccountTreeWidget::select_account_by_id: No account rows available");
+        return;
+    }
+
+    // Find the account row widget with this ID and trigger its selection
+    for (auto* account_row : m_account_rows) {
+        if (account_row && account_row->account_id() == account_id) {
+            // Trigger the selection signal which will propagate to MainWindow
+            on_account_row_selected(account_id);
+            // Also update visual state
+            account_row->set_selected(true);
+            return;  // Found and selected
+        }
+    }
+
+    // Account not found in current view (might be filtered out)
+    g_debug("AccountTreeWidget::select_account_by_id: Account '%s' not found in current view",
+            account_id.c_str());
+}

@@ -116,6 +116,15 @@ public:
     /** @brief Signal emitted when sort direction changes */
     sigc::signal<void(SortDirection)>& signal_sort_direction_changed();
 
+    /**
+     * @brief Programmatically select an account by ID
+     * @param account_id ID of the account to select
+     *
+     * Triggers the account_selected signal as if the user clicked on it.
+     * This allows auto-selection of newly created accounts.
+     */
+    void select_account_by_id(const std::string& account_id);
+
 private:
     // Internal widgets
     Gtk::ScrolledWindow m_scrolled_window;
