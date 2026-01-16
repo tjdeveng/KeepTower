@@ -181,10 +181,17 @@ void AccountTreeWidget::rebuild_rows(const std::vector<keeptower::AccountGroup>&
             for (int j = 0; j < accounts[i].groups_size(); ++j) {
                 if (accounts[i].groups(j).group_id() == group.group_id()) {
                     group_account_indices.push_back(i);
+                    // Debug: Log when we find an account in this group
+                    g_debug("AccountTreeWidget: Account '%s' (index %zu) is in group '%s'",
+                            accounts[i].account_name().c_str(), i, group.group_name().c_str());
                     break;
                 }
             }
         }
+
+        // Debug: Log group membership count
+        g_debug("AccountTreeWidget: Group '%s' has %zu accounts",
+                group.group_name().c_str(), group_account_indices.size());
 
         // Always show groups, even if empty, so users can see newly created groups
         auto group_row = Gtk::make_managed<GroupRowWidget>();

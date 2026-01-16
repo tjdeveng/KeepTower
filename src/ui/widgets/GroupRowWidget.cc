@@ -116,6 +116,8 @@ bool GroupRowWidget::is_expanded() const {
 
 void GroupRowWidget::add_child(Gtk::Widget& child) {
     m_children_box.append(child);
+    // Ensure revealer shows the children
+    m_revealer.set_reveal_child(m_expanded);
 }
 
 void GroupRowWidget::clear_children() {
