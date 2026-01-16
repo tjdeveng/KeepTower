@@ -98,7 +98,6 @@ public:
 private:
     Gtk::Image m_favorite_icon;  ///< Favorite star icon
     Gtk::Label m_label;
-    Gtk::Label m_username_label;
 
     // Account data
     std::string m_account_id;

@@ -20,13 +20,8 @@ AccountRowWidget::AccountRowWidget()
     m_label.set_hexpand(true);
     m_label.set_visible(true);
 
-    m_username_label.set_xalign(0.0);
-    m_username_label.set_hexpand(true);
-    m_username_label.set_visible(true);
-
     append(m_favorite_icon);
     append(m_label);
-    append(m_username_label);
 
     // Setup click and drag-and-drop
     setup_interactions();
@@ -37,7 +32,6 @@ AccountRowWidget::~AccountRowWidget() = default;
 void AccountRowWidget::set_account(const keeptower::AccountRecord& account) {
     m_account_id = account.id();
     m_label.set_text(account.account_name());
-    m_username_label.set_text(account.user_name());
     m_is_favorite = account.is_favorite();
     if (m_is_favorite) {
         m_favorite_icon.set_from_icon_name("starred-symbolic");
