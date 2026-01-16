@@ -3,16 +3,16 @@
 <!-- SPDX-FileCopyrightText: 2026 tjdeveng -->
 <gresources>
   <gresource prefix="/com/tjdeveng/keeptower/help">
-    <!-- Help documentation HTML files -->
-    <file compressed="true">help/00-home.html</file>
-    <file compressed="true">help/01-getting-started.html</file>
-    <file compressed="true">help/02-installation.html</file>
-    <file compressed="true">help/03-user-guide.html</file>
-    <file compressed="true">help/04-faq.html</file>
-    <file compressed="true">help/05-security.html</file>
-    <file compressed="true">help/SECURITY_BEST_PRACTICES.html</file>
+    <!-- Help documentation HTML files (from build/src/help-generated/) -->
+    <file compressed="true">00-home.html</file>
+    <file compressed="true">01-getting-started.html</file>
+    <file compressed="true">02-installation.html</file>
+    <file compressed="true">03-user-guide.html</file>
+    <file compressed="true">04-faq.html</file>
+    <file compressed="true">05-security.html</file>
+    <file compressed="true">SECURITY_BEST_PRACTICES.html</file>
 
-    <!-- Help CSS and template (for reference) -->
+    <!-- Help CSS and template (from resources/help/) -->
     <file compressed="true">help/css/help-style.css</file>
     <file>help/template.html</file>
   </gresource>
