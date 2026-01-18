@@ -319,7 +319,7 @@ MainWindow::MainWindow()
 
     // Phase 5: Initialize V2AuthenticationHandler
     m_v2_auth_handler = std::make_unique<UI::V2AuthenticationHandler>(
-        *this, m_vault_manager.get(), m_dialog_manager.get());
+        *this, m_vault_manager.get(), m_dialog_manager.get(), m_clipboard_manager.get());
 
     // Phase 5: Initialize VaultIOHandler
     m_vault_io_handler = std::make_unique<UI::VaultIOHandler>(
@@ -389,6 +389,7 @@ MainWindow::MainWindow()
         *this,
         m_vault_manager.get(),
         m_dialog_manager.get(),
+        m_clipboard_manager.get(),
         m_current_vault_path,
         [this](const std::string& message) { m_status_label.set_text(message); },
         [this](const std::string& message) { show_error_dialog(message); },

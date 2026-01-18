@@ -68,6 +68,13 @@ void ClipboardManager::clear_immediately() {
         return;
     }
 
+    // Check preservation flag
+    if (m_preserve_on_close) {
+        Log::info("ClipboardManager: Skipping clear (preservation active)");
+        m_preserve_on_close = false;  // One-time skip
+        return;
+    }
+
     // Stop timer
     if (m_clear_timeout_connection.connected()) {
         m_clear_timeout_connection.disconnect();
@@ -117,6 +124,49 @@ bool ClipboardManager::on_clear_timeout() {
 
     // Return false to stop repeating (one-shot timer)
     return false;
+}
+
+void ClipboardManager::enable_preservation() {
+    if (m_preserve_on_close) {
+        Log::warning("ClipboardManager: Preservation already enabled");
+        return;
+    }
+
+    m_preserve_on_close = true;
+
+    // Cancel any existing preservation timeout
+    if (m_preservation_timeout.connected()) {
+        m_preservation_timeout.disconnect();
+    }
+
+    // Set safety timeout using configured clear timeout
+    m_preservation_timeout = Glib::signal_timeout().connect(
+        [this]() -> bool {
+            Log::warning("ClipboardManager: Preservation safety timeout expired after {} seconds",
+                        m_clear_timeout_seconds);
+            m_preserve_on_close = false;
+            return false;  // One-shot
+        },
+        m_clear_timeout_seconds * 1000  // Use configured timeout
+    );
+
+    Log::info("ClipboardManager: Preservation enabled with {}s safety timeout", m_clear_timeout_seconds);
+}
+
+void ClipboardManager::disable_preservation() {
+    if (!m_preserve_on_close) {
+        Log::debug("ClipboardManager: Preservation already disabled");
+        return;
+    }
+
+    m_preserve_on_close = false;
+
+    // Cancel safety timeout
+    if (m_preservation_timeout.connected()) {
+        m_preservation_timeout.disconnect();
+    }
+
+    Log::info("ClipboardManager: Preservation disabled");
 }
 
 }  // namespace KeepTower

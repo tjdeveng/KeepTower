@@ -16,6 +16,7 @@ namespace UI {
 UserAccountHandler::UserAccountHandler(Gtk::Window& window,
                                       VaultManager* vault_manager,
                                       DialogManager* dialog_manager,
+                                      KeepTower::ClipboardManager* clipboard_manager,
                                       Glib::ustring& current_vault_path_ref,
                                       StatusCallback status_callback,
                                       ErrorDialogCallback error_dialog_callback,
@@ -27,6 +28,7 @@ UserAccountHandler::UserAccountHandler(Gtk::Window& window,
     : m_window(window)
     , m_vault_manager(vault_manager)
     , m_dialog_manager(dialog_manager)
+    , m_clipboard_manager(clipboard_manager)
     , m_current_vault_path(current_vault_path_ref)
     , m_status_callback(std::move(status_callback))
     , m_error_dialog_callback(std::move(error_dialog_callback))
@@ -267,7 +269,7 @@ void UserAccountHandler::handle_manage_users() {
     }
 
     // Show user management dialog
-    auto* dialog = new UserManagementDialog(m_window, *m_vault_manager, session_opt->username);
+    auto* dialog = new UserManagementDialog(m_window, *m_vault_manager, session_opt->username, m_clipboard_manager);
 
     // Handle relogin request
     dialog->m_signal_request_relogin.connect([this]([[maybe_unused]] const std::string& new_username) {

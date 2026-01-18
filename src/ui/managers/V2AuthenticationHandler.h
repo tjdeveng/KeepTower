@@ -19,6 +19,10 @@
 class VaultManager;
 class MainWindow;
 
+namespace KeepTower {
+    class ClipboardManager;
+}
+
 namespace UI {
 
 class DialogManager;
@@ -53,10 +57,12 @@ public:
      * @param window Reference to MainWindow for dialog parenting
      * @param vault_manager Pointer to VaultManager for operations
      * @param dialog_manager Pointer to DialogManager for error dialogs
+     * @param clipboard_manager Pointer to ClipboardManager for disabling preservation
      */
     V2AuthenticationHandler(MainWindow& window,
                            VaultManager* vault_manager,
-                           DialogManager* dialog_manager);
+                           DialogManager* dialog_manager,
+                           KeepTower::ClipboardManager* clipboard_manager);
 
     ~V2AuthenticationHandler() = default;
 
@@ -77,6 +83,7 @@ private:
     MainWindow& m_window;
     VaultManager* m_vault_manager;
     DialogManager* m_dialog_manager;
+    KeepTower::ClipboardManager* m_clipboard_manager;
 
     // Current authentication state
     std::string m_current_vault_path;

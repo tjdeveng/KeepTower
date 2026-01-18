@@ -19,12 +19,14 @@
 UserManagementDialog::UserManagementDialog(
     Gtk::Window& parent,
     VaultManager& vault_manager,
-    std::string_view current_username
+    std::string_view current_username,
+    KeepTower::ClipboardManager* clipboard_manager
 ) : Gtk::Dialog("Manage Users", parent, true),  // Modal dialog
     m_content_box(Gtk::Orientation::VERTICAL, 12),
     m_button_box(Gtk::Orientation::HORIZONTAL, 6),
     m_vault_manager(vault_manager),
-    m_current_username(current_username)
+    m_current_username(current_username),
+    m_clipboard_manager(clipboard_manager)
 {
     // Dialog setup
     set_default_size(600, 400);
@@ -494,19 +496,16 @@ void UserManagementDialog::show_temporary_password(std::string_view username, co
     // Add content to dialog
     dialog->get_content_area()->append(*content);
 
-    // Track clipboard timeout connection (shared_ptr to keep it alive even after dialog closes)
-    auto clipboard_timeout = std::make_shared<sigc::connection>();
-    // Track whether password was copied (shared_ptr so lambda can modify it)
-    auto password_copied = std::make_shared<bool>(false);
-
     // Capture temp_password as Glib::ustring to preserve encoding
     dialog->signal_response().connect([dialog, temp_password,
-                                       clipboard_timeout, password_copied, warning_label, on_closed](int response) {
+                                       warning_label, on_closed,
+                                       clipboard_manager = m_clipboard_manager](int response) {
         if (response == Gtk::ResponseType::APPLY) {
-            // Copy to clipboard (raw() converts to std::string for clipboard)
-            auto clipboard = dialog->get_clipboard();
-            clipboard->set_text(temp_password.raw());
-            *password_copied = true;
+            // Copy to clipboard using ClipboardManager and enable preservation
+            if (clipboard_manager) {
+                clipboard_manager->copy_text(temp_password.raw());
+                clipboard_manager->enable_preservation();
+            }
 
             // Get validated clipboard timeout from settings
             auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
@@ -515,28 +514,10 @@ void UserManagementDialog::show_temporary_password(std::string_view username, co
             // Update warning to show clipboard status
             warning_label->set_markup(
                 std::format(
-                    "✓ <b>Password copied to clipboard</b> (will clear in {} seconds)\n\n"
+                    "✓ <b>Password copied to clipboard</b> (preserved until login, max {} seconds)\n\n"
                     "⚠ <b>Important:</b> The user will be required to change this password on their next login.",
                     timeout_seconds
                 )
-            );
-
-            // Cancel previous timeout if exists
-            if (clipboard_timeout->connected()) {
-                clipboard_timeout->disconnect();
-            }
-
-            // Schedule clipboard clear
-            *clipboard_timeout = Glib::signal_timeout().connect(
-                [clipboard, warning_label]() {
-                    clipboard->set_text("");
-                    warning_label->set_markup(
-                        "🔒 <b>Clipboard cleared for security</b>\n\n"
-                        "⚠ <b>Important:</b> Make sure you saved the password before closing this dialog."
-                    );
-                    return false;  // Don't repeat
-                },
-                timeout_seconds * 1000  // Convert to milliseconds
             );
 
             // Don't close dialog - return to allow viewing password again
@@ -544,14 +525,6 @@ void UserManagementDialog::show_temporary_password(std::string_view username, co
         }
 
         // Close button or dialog closed
-        // DON'T disconnect clipboard timeout if password was copied - let it complete
-        // Only disconnect if password was never copied (user closed without copying)
-        if (!*password_copied && clipboard_timeout->connected()) {
-            clipboard_timeout->disconnect();
-        }
-        // Note: If password was copied, the timeout connection remains active
-        // and will clear the clipboard after the configured timeout period
-
         dialog->hide();
         delete dialog;
 

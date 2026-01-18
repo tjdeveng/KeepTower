@@ -36,6 +36,7 @@
 #include <vector>
 #include "../../core/VaultManager.h"
 #include "../../core/MultiUserTypes.h"
+#include "../controllers/ClipboardManager.h"
 
 /**
  * @brief User management dialog for administrators
@@ -63,11 +64,13 @@ public:
      * @param parent Parent window for modal behavior
      * @param vault_manager Vault manager for user operations
      * @param current_username Username of current logged-in user
+     * @param clipboard_manager Clipboard manager for temp password operations
      */
     explicit UserManagementDialog(
         Gtk::Window& parent,
         VaultManager& vault_manager,
-        std::string_view current_username
+        std::string_view current_username,
+        KeepTower::ClipboardManager* clipboard_manager
     );
 
     virtual ~UserManagementDialog() = default;
@@ -177,6 +180,7 @@ private:
     // State
     VaultManager& m_vault_manager;                 ///< Reference to vault manager
     std::string m_current_username;                ///< Current logged-in user
+    KeepTower::ClipboardManager* m_clipboard_manager;         ///< Clipboard manager for temp passwords
 };
 
 #endif // USER_MANAGEMENT_DIALOG_H

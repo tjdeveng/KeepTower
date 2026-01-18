@@ -171,6 +171,46 @@ public:
      */
     [[nodiscard]] sigc::signal<void()>& signal_cleared() { return m_signal_cleared; }
 
+    /**
+     * @brief Enable clipboard preservation
+     *
+     * When enabled, the next call to clear_immediately() will be skipped,
+     * allowing clipboard content to persist through vault close events.
+     *
+     * Use case: Preserve temporary password after copying so admin can
+     * paste it when logging in as the new user.
+     *
+     * Preservation automatically disables when:
+     * - User explicitly calls disable_preservation()
+     * - Safety timeout expires (uses configured clipboard-timeout setting)
+     *
+     * The safety timeout uses the same timeout value as the normal clipboard
+     * auto-clear (configured via GSettings/vault preferences). This ensures
+     * consistent behavior and respects user preferences.
+     *
+     * @post Preservation is enabled
+     * @post Safety timeout is scheduled
+     * @note Does not affect auto-clear timer - that continues normally
+     */
+    void enable_preservation();
+
+    /**
+     * @brief Disable clipboard preservation
+     *
+     * Resumes normal clearing behavior. Call this after the preserved
+     * content is no longer needed (e.g., after successful login).
+     *
+     * @post Preservation is disabled
+     * @post Safety timeout is cancelled
+     */
+    void disable_preservation();
+
+    /**
+     * @brief Check if preservation is active
+     * @return true if clear_immediately() will be skipped
+     */
+    [[nodiscard]] bool is_preservation_active() const noexcept { return m_preserve_on_close; }
+
 private:
     /**
      * @brief Callback when clear timeout expires
@@ -188,6 +228,10 @@ private:
     sigc::connection m_clear_timeout_connection;  ///< Active clear timer
     sigc::signal<void(const std::string&)> m_signal_copied;   ///< Copied signal
     sigc::signal<void()> m_signal_cleared;     ///< Cleared signal
+
+    // Preservation state
+    bool m_preserve_on_close{false};           ///< Skip next clear_immediately() call
+    sigc::connection m_preservation_timeout;   ///< Safety timeout for preservation
 };
 
 }  // namespace KeepTower

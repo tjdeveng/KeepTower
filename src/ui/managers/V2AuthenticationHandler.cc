@@ -8,6 +8,7 @@
 #include "../windows/MainWindow.h"
 #include "../dialogs/V2UserLoginDialog.h"
 #include "../dialogs/ChangePasswordDialog.h"
+#include "../controllers/ClipboardManager.h"
 
 #ifdef HAVE_YUBIKEY_SUPPORT
 #include "../dialogs/YubiKeyPromptDialog.h"
@@ -23,10 +24,12 @@ namespace UI {
 
 V2AuthenticationHandler::V2AuthenticationHandler(MainWindow& window,
                                                  VaultManager* vault_manager,
-                                                 DialogManager* dialog_manager)
+                                                 DialogManager* dialog_manager,
+                                                 KeepTower::ClipboardManager* clipboard_manager)
     : m_window(window)
     , m_vault_manager(vault_manager)
-    , m_dialog_manager(dialog_manager) {
+    , m_dialog_manager(dialog_manager)
+    , m_clipboard_manager(clipboard_manager) {
 }
 
 void V2AuthenticationHandler::handle_vault_open(const std::string& vault_path,
@@ -142,6 +145,12 @@ void V2AuthenticationHandler::handle_vault_open(const std::string& vault_path,
 
         // Complete authentication - call success callback
         KeepTower::Log::info("V2AuthenticationHandler: Authentication complete");
+
+        // Disable clipboard preservation after successful login
+        if (m_clipboard_manager) {
+            m_clipboard_manager->disable_preservation();
+        }
+
         if (m_success_callback) {
             m_success_callback(m_current_vault_path, session.username);
         }
@@ -277,6 +286,11 @@ void V2AuthenticationHandler::handle_password_change_required(const std::string&
 
         // Clear passwords immediately
         req.clear();
+
+        // Disable clipboard preservation after successful password change
+        if (m_clipboard_manager) {
+            m_clipboard_manager->disable_preservation();
+        }
 
         // Complete authentication
         if (m_success_callback) {
@@ -448,6 +462,11 @@ void V2AuthenticationHandler::handle_yubikey_enrollment_required(const std::stri
                     if (!m_vault_manager->save_vault()) {
                         m_dialog_manager->show_error_dialog("Failed to save vault after YubiKey enrollment.");
                         return;
+                    }
+
+                    // Disable clipboard preservation after successful YubiKey enrollment
+                    if (m_clipboard_manager) {
+                        m_clipboard_manager->disable_preservation();
                     }
 
                     // Complete authentication
@@ -637,6 +656,11 @@ void V2AuthenticationHandler::handle_yubikey_enrollment_required(const std::stri
                 if (!m_vault_manager->save_vault()) {
                     m_dialog_manager->show_error_dialog("Failed to save vault after YubiKey enrollment.");
                     return;
+                }
+
+                // Disable clipboard preservation after successful YubiKey enrollment
+                if (m_clipboard_manager) {
+                    m_clipboard_manager->disable_preservation();
                 }
 
                 // Complete authentication

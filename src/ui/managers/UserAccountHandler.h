@@ -11,6 +11,10 @@
 // Forward declarations
 class VaultManager;
 
+namespace KeepTower {
+    class ClipboardManager;
+}
+
 namespace UI {
 
 // Forward declarations
@@ -53,6 +57,7 @@ public:
      *  @param window Parent window for dialogs
      *  @param vault_manager VaultManager instance
      *  @param dialog_manager DialogManager for password/user dialogs
+     *  @param clipboard_manager ClipboardManager for temporary password operations
      *  @param current_vault_path_ref Reference to MainWindow current vault path
      *  @param status_callback Callback to update status bar
      *  @param error_dialog_callback Callback to show error dialogs
@@ -64,6 +69,7 @@ public:
     UserAccountHandler(Gtk::Window& window,
                       VaultManager* vault_manager,
                       DialogManager* dialog_manager,
+                      KeepTower::ClipboardManager* clipboard_manager,
                       Glib::ustring& current_vault_path_ref,
                       StatusCallback status_callback,
                       ErrorDialogCallback error_dialog_callback,
@@ -92,6 +98,7 @@ private:
     Gtk::Window& m_window;
     VaultManager* m_vault_manager;
     DialogManager* m_dialog_manager;
+    KeepTower::ClipboardManager* m_clipboard_manager;
 
     // Reference to MainWindow state
     Glib::ustring& m_current_vault_path;
