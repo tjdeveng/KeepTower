@@ -139,6 +139,24 @@ libcorrect_dep = declare_dependency(
   dependencies: libcorrect_lib
 )
 
+# Argon2 dependencies (optional for non-FIPS username hashing)
+# Argon2id is currently the strongest password hashing algorithm but is NOT FIPS-approved.
+# Users selecting Argon2id will disable FIPS-140-3 compliance mode.
+#
+# Install the development package for your distribution:
+#   Fedora/RHEL: dnf install libargon2-devel
+#   Ubuntu/Debian: apt install libargon2-dev
+#   Arch: pacman -S argon2
+argon2_dep = dependency('libargon2', required: false)
+
+argon2_available = argon2_dep.found()
+if argon2_available
+  message('Argon2 support: ENABLED (WARNING: Disables FIPS-140-3 compliance when used)')
+else
+  message('Argon2 support: DISABLED (optional - users can only select FIPS-approved algorithms)')
+  message('  To enable: apt install libargon2-dev (Ubuntu) or dnf install libargon2-devel (Fedora)')
+endif
+
 # YubiKey dependencies (required for hardware 2FA support)
 # Using libfido2 for FIDO2/WebAuthn HMAC-secret extension (FIPS-140-3 SHA-256 support)
 #
@@ -167,6 +185,11 @@ if yubikey_available
   common_deps += [fido2_dep]
 endif
 
+# Add Argon2 dependencies if available
+if argon2_available
+  common_deps += [argon2_dep]
+endif
+
 # Code coverage support
 if get_option('coverage')
   add_project_arguments('-fprofile-arcs', '-ftest-coverage', language: 'cpp')
@@ -187,6 +210,7 @@ conf_data.set_quoted('LOCALEDIR', get_option('prefix') / get_option('localedir')
 conf_data.set_quoted('DATADIR', get_option('prefix') / get_option('datadir'))
 conf_data.set_quoted('PROJECT_SOURCE_DIR', meson.project_source_root())
 conf_data.set('HAVE_YUBIKEY_SUPPORT', yubikey_available)
+conf_data.set('ENABLE_ARGON2', argon2_available)
 
 # Generate config header
 configure_file(

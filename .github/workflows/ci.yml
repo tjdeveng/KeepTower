@@ -61,7 +61,8 @@ jobs:
           curl \
           perl \
           desktop-file-utils \
-          libfido2-dev
+          libfido2-dev \
+          libargon2-dev
 
     - name: Verify C++23 support
       if: runner.os == 'Linux'
