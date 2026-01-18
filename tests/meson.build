@@ -307,6 +307,24 @@ yubikey_algorithms_test = executable(
     include_directories: test_inc
 )
 
+# Username Hashing tests (Phase 1: Core Hashing Infrastructure)
+username_hashing_sources = [
+    'test_username_hashing.cc',
+    '../src/core/services/UsernameHashService.cc',
+]
+
+username_hashing_deps = [
+    gtest_dep,
+    openssl_dep
+]
+
+username_hashing_test = executable(
+    'username_hashing_test',
+    username_hashing_sources,
+    dependencies: username_hashing_deps,
+    include_directories: test_inc
+)
+
 # Register all tests
 # VaultManager concurrency tests can be flaky under heavy CI load - allow retry
 test('VaultManager Tests', vault_manager_test,
@@ -329,6 +347,7 @@ test('Undo/Redo Tests', undo_redo_test)
 test('FIPS Mode Tests', fips_mode_test)
 test('Memory Locking Security Tests', memory_locking_test)
 test('YubiKey Algorithm Tests', yubikey_algorithms_test)
+test('Username Hashing Tests', username_hashing_test)
 
 # Secure memory tests
 secure_memory_sources = [
