@@ -115,9 +115,9 @@ std::vector<uint8_t> VaultSecurityPolicy::serialize() const {
 }
 
 std::optional<VaultSecurityPolicy> VaultSecurityPolicy::deserialize(const std::vector<uint8_t>& data) {
-    // Support both old (122 bytes) and new (123 bytes) format for backward compatibility
-    const size_t OLD_SIZE = 122;  // Pre-Phase 2 format
-    const size_t NEW_SIZE = 123;  // Phase 2 format with username_hash_algorithm
+    // Support both old (121 bytes) and new (122 bytes) format for backward compatibility
+    const size_t OLD_SIZE = 121;  // Pre-Phase 2 format (without username_hash_algorithm)
+    const size_t NEW_SIZE = 122;  // Phase 2 format with username_hash_algorithm
 
     if (data.size() < OLD_SIZE) {
         Log::error("VaultSecurityPolicy: Insufficient data for deserialization (need at least {}, got {})",
@@ -213,10 +213,8 @@ std::optional<VaultSecurityPolicy> VaultSecurityPolicy::deserialize(const std::v
 // ============================================================================
 
 size_t KeySlot::calculate_serialized_size() const {
-    // Phase 2 format (with username hashing fields):
+    // KeySlot format (username hash only, no plaintext):
     // 1 byte: active flag
-    // 1 byte: username length
-    // N bytes: username (UTF-8)
     // 64 bytes: username_hash (fixed array)
     // 1 byte: username_hash_size
     // 16 bytes: username_salt (fixed array)
@@ -238,8 +236,7 @@ size_t KeySlot::calculate_serialized_size() const {
     // 1 byte: password_history count
     // N * 88 bytes: password_history entries
 
-    // Base size now includes username hashing fields (64 + 1 + 16 = 81 additional bytes)
-    size_t base_size = 1 + 1 + username.size() + 64 + 1 + 16 + 32 + 40 + 1 + 1 + 8 + 8 + 1 + 32 + 1 + yubikey_serial.size() + 8 + 2 + yubikey_encrypted_pin.size() + 2 + yubikey_credential_id.size() + 1;
+    size_t base_size = 1 + 64 + 1 + 16 + 32 + 40 + 1 + 1 + 8 + 8 + 1 + 32 + 1 + yubikey_serial.size() + 8 + 2 + yubikey_encrypted_pin.size() + 2 + yubikey_credential_id.size() + 1;
     size_t history_size = password_history.size() * PasswordHistoryEntry::SERIALIZED_SIZE;
     return base_size + history_size;
 }
@@ -248,20 +245,13 @@ std::vector<uint8_t> KeySlot::serialize() const {
     std::vector<uint8_t> result;
     result.reserve(calculate_serialized_size());
 
+    // DEBUG: Log what we're serializing
+    Log::info("KeySlot::serialize: username='{}' (length={}, active={}, hash_size={})", username, username.length(), active, username_hash_size);
+
     // Byte 0: active flag
     result.push_back(active ? 1 : 0);
 
-    // Byte 1: username length
-    if (username.size() > 255) {
-        Log::error("KeySlot: Username too long (max 255 bytes): {}", username.size());
-        return {}; // Return empty vector on error
-    }
-    result.push_back(static_cast<uint8_t>(username.size()));
-
-    // Bytes 2..N: username (UTF-8)
-    result.insert(result.end(), username.begin(), username.end());
-
-    // Next 64 bytes: username_hash (Phase 2 - Username Hashing Security)
+    // Next 64 bytes: username_hash (for secure authentication, no plaintext username stored)
     result.insert(result.end(), username_hash.begin(), username_hash.end());
 
     // Next byte: username_hash_size (Phase 2)
@@ -359,67 +349,37 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
     // Byte 0: active flag
     slot.active = (data[pos++] != 0);
 
-    // Byte 1: username length
-    uint8_t username_len = data[pos++];
+    // Username not stored on disk (security) - will be populated in-memory after authentication
+    slot.username.clear();
 
-    // Username
-    if (pos + username_len > data.size()) {
-        Log::error("KeySlot: Insufficient data for username");
+    // Next 64 bytes: username_hash
+    if (pos + 64 > data.size()) {
+        Log::error("KeySlot: Insufficient data for username_hash");
         return std::nullopt;
     }
-    slot.username.assign(data.begin() + pos, data.begin() + pos + username_len);
-    pos += username_len;
+    std::copy(data.begin() + pos, data.begin() + pos + 64, slot.username_hash.begin());
+    pos += 64;
 
-    // Detect format version by trying to read ahead
-    // Old format: salt (32) + wrapped_dek (40) = next 72 bytes
-    // New format: username_hash (64) + username_hash_size (1) + username_salt (16) + salt (32) + wrapped_dek (40) = next 153 bytes
-
-    // We need at least 153 bytes for new format, 72 for old format
-    size_t remaining_after_username = data.size() - pos;
-    bool is_new_format = false;
-
-    // Heuristic: If we have at least 153 bytes remaining AND next byte at pos+64 could be a valid hash size (0-64)
-    if (remaining_after_username >= 153) {
-        // Check if byte at pos+64 (username_hash_size position) is a plausible hash size (0-64)
-        uint8_t potential_hash_size = data[pos + 64];
-        if (potential_hash_size <= 64) {
-            // Likely new format
-            is_new_format = true;
-        }
+    // Next byte: username_hash_size
+    if (pos + 1 > data.size()) {
+        Log::error("KeySlot: Insufficient data for username_hash_size");
+        return std::nullopt;
+    }
+    slot.username_hash_size = data[pos++];
+    if (slot.username_hash_size > 64) {
+        Log::error("KeySlot: Invalid username_hash_size: {}", slot.username_hash_size);
+        return std::nullopt;
     }
 
-    if (is_new_format) {
-        // NEW FORMAT (Phase 2): Read username hashing fields
-
-        // Next 64 bytes: username_hash
-        std::copy(data.begin() + pos, data.begin() + pos + 64, slot.username_hash.begin());
-        pos += 64;
-
-        // Next byte: username_hash_size
-        slot.username_hash_size = data[pos++];
-        if (slot.username_hash_size > 64) {
-            Log::error("KeySlot: Invalid username_hash_size: {}", slot.username_hash_size);
-            return std::nullopt;
-        }
-
-        // Next 16 bytes: username_salt
-        std::copy(data.begin() + pos, data.begin() + pos + 16, slot.username_salt.begin());
-        pos += 16;
-
-        Log::debug("KeySlot: Detected Phase 2 format (username_hash_size={})", slot.username_hash_size);
-    } else {
-        // OLD FORMAT (Pre-Phase 2): No username hashing fields
-        // Initialize to legacy mode (all zeros, hash_size = 0)
-        slot.username_hash.fill(0);
-        slot.username_hash_size = 0;
-        slot.username_salt.fill(0);
-
-        Log::debug("KeySlot: Detected legacy format (no username hashing)");
+    // Next 16 bytes: username_salt
+    if (pos + 16 > data.size()) {
+        Log::error("KeySlot: Insufficient data for username_salt");
+        return std::nullopt;
     }
+    std::copy(data.begin() + pos, data.begin() + pos + 16, slot.username_salt.begin());
+    pos += 16;
 
-    // Common fields for both formats
-
-    // Check remaining data for fixed fields
+    // Check remaining data for core fields
     if (pos + 32 + 40 + 1 + 1 + 8 + 8 > data.size()) {
         Log::error("KeySlot: Insufficient data for core fields");
         return std::nullopt;

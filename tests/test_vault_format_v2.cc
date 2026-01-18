@@ -483,7 +483,8 @@ TEST_F(VaultFormatV2Test, CompleteWorkflowWithKeySlots) {
 
     // Verify key slots
     ASSERT_EQ(read_header.vault_header.key_slots.size(), 1u);
-    EXPECT_EQ(read_header.vault_header.key_slots[0].username, "admin");
+    // Username is intentionally NOT serialized (security: USERNAME_HASHING_SECURITY_PLAN.md)
+    EXPECT_TRUE(read_header.vault_header.key_slots[0].username.empty());
     EXPECT_TRUE(read_header.vault_header.key_slots[0].active);
 }
 
@@ -519,7 +520,8 @@ TEST_F(VaultFormatV2Test, FECRecoveryFromMinorCorruption) {
     if (read_result.has_value()) {
         auto& [read_header, offset] = read_result.value();
         EXPECT_EQ(read_header.vault_header.key_slots.size(), 3u);
-        EXPECT_EQ(read_header.vault_header.key_slots[0].username, "user0");
+        // Username is intentionally NOT serialized (security: USERNAME_HASHING_SECURITY_PLAN.md)
+        EXPECT_TRUE(read_header.vault_header.key_slots[0].username.empty());
     } else {
         // If it fails, it should be FEC decoding error
         EXPECT_EQ(read_result.error(), VaultError::FECDecodingFailed);

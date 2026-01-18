@@ -6,9 +6,12 @@
 #include "../services/VaultCryptoService.h"
 #include "../services/VaultYubiKeyService.h"
 #include "../services/VaultFileService.h"
+#include "../services/UsernameHashService.h"
 #include "../VaultFormatV2.h"
 #include "../PasswordHistory.h"
+#include "../crypto/VaultCrypto.h"
 #include "../../utils/Log.h"
+#include "../../utils/SecureMemory.h"  // For secure_clear_std_string
 #include "../record.pb.h"
 #include <glibmm/main.h>
 #include <thread>
@@ -365,7 +368,28 @@ VaultCreationOrchestrator::create_admin_key_slot(
     // Build key slot
     KeySlot slot;
     slot.active = true;
-    slot.username = params.admin_username.raw();
+    slot.username = params.admin_username.raw();  // Keep in memory for UI (NOT serialized to disk)
+
+    // Hash username for secure storage
+    auto username_hash_algo = static_cast<KeepTower::UsernameHashService::Algorithm>(
+        params.policy.username_hash_algorithm);
+
+    std::vector<uint8_t> username_salt_vec = KeepTower::VaultCrypto::generate_random_bytes(16);
+    std::array<uint8_t, 16> username_salt{};
+    std::copy_n(username_salt_vec.begin(), 16, username_salt.begin());
+
+    auto username_hash_result = KeepTower::UsernameHashService::hash_username(
+        params.admin_username.raw(), username_hash_algo, username_salt);
+    if (!username_hash_result) {
+        return std::unexpected(VaultError::CryptoError);
+    }
+
+    // Copy hash from vector to array
+    const auto& hash_vec = username_hash_result.value();
+    std::copy_n(hash_vec.begin(), std::min(hash_vec.size(), size_t(64)), slot.username_hash.begin());
+    slot.username_hash_size = static_cast<uint8_t>(hash_vec.size());
+    slot.username_salt = username_salt;
+
     slot.role = UserRole::ADMINISTRATOR;
     slot.salt = kek.salt;
     slot.wrapped_dek = wrapped_array;
@@ -485,6 +509,16 @@ VaultCreationOrchestrator::write_vault_file(
     file_header.version = VaultFormatV2::VAULT_VERSION_V2;
     file_header.pbkdf2_iterations = params.policy.pbkdf2_iterations;
     file_header.vault_header = header;
+
+    // Securely clear plaintext usernames from header before serialization (security requirement)
+    // Usernames are kept in the 'header' parameter for caller's use but NOT written to disk
+    // Use secure_clear_std_string to overwrite memory before clearing
+    Log::info("VaultCreationOrchestrator: Clearing {} usernames before serialization", file_header.vault_header.key_slots.size());
+    for (auto& slot : file_header.vault_header.key_slots) {
+        Log::info("VaultCreationOrchestrator: BEFORE clear - username: '{}' (active={})", slot.username, slot.active);
+        secure_clear_std_string(slot.username);
+        Log::info("VaultCreationOrchestrator: AFTER clear - username: '{}' (length={})", slot.username, slot.username.length());
+    }
 
     // Copy encryption metadata
     // Note: data_salt is generated during encryption (in encrypted.iv derivation)

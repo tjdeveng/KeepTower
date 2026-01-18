@@ -100,11 +100,29 @@ void VaultOpenHandler::handle_new_vault() {
                     int vault_password_history_depth = settings->get_int("vault-user-password-history-depth");
                     vault_password_history_depth = std::clamp(vault_password_history_depth, 0, 24);
 
+                    // Load username hashing algorithm from settings
+                    Glib::ustring username_hash_algo = settings->get_string("username-hash-algorithm");
+                    uint8_t username_hash_algorithm = 1;  // Default to SHA3-256 if invalid
+                    if (username_hash_algo == "plaintext") {
+                        username_hash_algorithm = 0;  // INSECURE - legacy only
+                    } else if (username_hash_algo == "sha3-256") {
+                        username_hash_algorithm = 1;  // Recommended
+                    } else if (username_hash_algo == "sha3-384") {
+                        username_hash_algorithm = 2;
+                    } else if (username_hash_algo == "sha3-512") {
+                        username_hash_algorithm = 3;
+                    } else if (username_hash_algo == "pbkdf2-sha256") {
+                        username_hash_algorithm = 4;
+                    } else if (username_hash_algo == "argon2id") {
+                        username_hash_algorithm = 5;
+                    }
+
                     KeepTower::VaultSecurityPolicy policy;
                     policy.min_password_length = 8;  // NIST minimum
                     policy.pbkdf2_iterations = 100000;  // Default iterations
                     policy.password_history_depth = vault_password_history_depth;
                     policy.require_yubikey = require_yubikey;
+                    policy.username_hash_algorithm = username_hash_algorithm;
 
                     // Create V2 vault with admin account
                     std::optional<std::string> yubikey_pin;

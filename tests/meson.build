@@ -51,6 +51,7 @@ vault_manager_common_sources = [
     '../src/core/services/VaultCryptoService.cc',
     '../src/core/services/VaultYubiKeyService.cc',
     '../src/core/services/VaultFileService.cc',
+    '../src/core/services/UsernameHashService.cc',  # Username hashing service
     proto_gen
 ]
 
@@ -526,6 +527,7 @@ vault_creation_orchestrator_sources = [
     '../src/core/services/VaultCryptoService.cc',
     '../src/core/services/VaultYubiKeyService.cc',
     '../src/core/services/VaultFileService.cc',
+    '../src/core/services/UsernameHashService.cc',
     '../src/core/KeyWrapping.cc',
     '../src/core/crypto/VaultCrypto.cc',
     '../src/core/managers/YubiKeyManager.cc',

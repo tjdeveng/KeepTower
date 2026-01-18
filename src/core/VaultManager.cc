@@ -592,6 +592,16 @@ bool VaultManager::save_vault(bool explicit_save) {
         KeepTower::VaultFormatV2::V2FileHeader file_header;
         file_header.pbkdf2_iterations = m_v2_header->security_policy.pbkdf2_iterations;
         file_header.vault_header = *m_v2_header;
+
+        // Securely clear plaintext usernames from header before serialization (security requirement)
+        // Usernames are kept in memory (m_v2_header) for UI display but NOT written to disk
+        // Use secure_clear_std_string to overwrite memory before clearing
+        KeepTower::Log::info("VaultManager: Clearing {} usernames before serialization (save_vault)", file_header.vault_header.key_slots.size());
+        for (auto& slot : file_header.vault_header.key_slots) {
+            KeepTower::Log::info("VaultManager: BEFORE clear - username: '{}' (active={})", slot.username, slot.active);
+            secure_clear_std_string(slot.username);
+            KeepTower::Log::info("VaultManager: AFTER clear - username: '{}' (length={})", slot.username, slot.username.length());
+        }
         std::copy(data_iv.begin(),
                   std::min(data_iv.begin() + static_cast<std::ptrdiff_t>(32), data_iv.end()),
                   file_header.data_salt.begin());
@@ -1542,13 +1552,67 @@ bool VaultManager::verify_credentials(const Glib::ustring& password, const std::
                 return false;
             }
 
+            // Load FIDO2 credential ID (required for challenge-response)
+            if (!user_slot->yubikey_credential_id.empty()) {
+                if (!yk_manager.set_credential(user_slot->yubikey_credential_id)) {
+                    KeepTower::Log::error("VaultManager: verify_credentials - Failed to set FIDO2 credential ID");
+                    return false;
+                }
+                KeepTower::Log::debug("VaultManager: verify_credentials - Loaded FIDO2 credential ID ({} bytes)",
+                                     user_slot->yubikey_credential_id.size());
+            } else {
+                KeepTower::Log::error("VaultManager: verify_credentials - No FIDO2 credential ID stored for user");
+                return false;
+            }
+
+            // Decrypt YubiKey PIN for FIDO2 authentication
+            std::string decrypted_pin;
+            if (!user_slot->yubikey_encrypted_pin.empty()) {
+                // Validate encrypted PIN format (IV + ciphertext)
+                if (user_slot->yubikey_encrypted_pin.size() <= KeepTower::VaultCrypto::IV_LENGTH) {
+                    KeepTower::Log::error("VaultManager: verify_credentials - Invalid encrypted PIN format");
+                    return false;
+                }
+
+                // Derive KEK for PIN decryption (using password-based KEK)
+                auto kek_result = KeyWrapping::derive_kek_from_password(
+                    password,
+                    user_slot->salt,
+                    m_v2_header->security_policy.pbkdf2_iterations);
+
+                if (!kek_result) {
+                    KeepTower::Log::error("VaultManager: verify_credentials - Failed to derive KEK for PIN decryption");
+                    return false;
+                }
+
+                // Extract IV and ciphertext
+                std::vector<uint8_t> pin_iv(
+                    user_slot->yubikey_encrypted_pin.begin(),
+                    user_slot->yubikey_encrypted_pin.begin() + KeepTower::VaultCrypto::IV_LENGTH);
+
+                std::vector<uint8_t> pin_ciphertext(
+                    user_slot->yubikey_encrypted_pin.begin() + KeepTower::VaultCrypto::IV_LENGTH,
+                    user_slot->yubikey_encrypted_pin.end());
+
+                // Decrypt PIN using password-derived KEK
+                std::vector<uint8_t> pin_bytes;
+                if (!KeepTower::VaultCrypto::decrypt_data(pin_ciphertext, kek_result.value(), pin_iv, pin_bytes)) {
+                    KeepTower::Log::error("VaultManager: verify_credentials - Failed to decrypt YubiKey PIN");
+                    return false;
+                }
+
+                decrypted_pin = std::string(reinterpret_cast<const char*>(pin_bytes.data()), pin_bytes.size());
+                KeepTower::Log::debug("VaultManager: verify_credentials - Successfully decrypted YubiKey PIN");
+            }
+
             // Perform challenge-response
             KeepTower::Log::debug("VaultManager: Starting YubiKey challenge-response (timeout: {}ms)", YUBIKEY_TIMEOUT_MS);
             auto cr_result = yk_manager.challenge_response(
                 user_slot->yubikey_challenge,
                 YubiKeyAlgorithm::HMAC_SHA256,  // FIPS-140-3: SHA-256 minimum
-                true,
-                YUBIKEY_TIMEOUT_MS
+                true,  // require touch for re-authentication
+                YUBIKEY_TIMEOUT_MS,
+                decrypted_pin  // Use decrypted PIN for FIDO2 authentication
             );
             if (!cr_result.success) {
                 KeepTower::Log::error("YubiKey challenge-response failed in verify_credentials: {}",

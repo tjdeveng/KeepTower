@@ -124,7 +124,7 @@
 
     <!-- Username Hashing Configuration (Phase 2) -->
     <key name="username-hash-algorithm" type="s">
-      <default>'plaintext'</default>
+      <default>'sha3-256'</default>
       <summary>Username hashing algorithm</summary>
       <description>Algorithm used for hashing usernames in newly created vaults. Options: 'plaintext' (legacy, insecure), 'sha3-256' (recommended, FIPS-approved), 'sha3-384' (FIPS-approved), 'sha3-512' (FIPS-approved), 'pbkdf2-sha256' (FIPS-approved, slower), 'argon2id' (non-FIPS, highest security). Changing this setting only affects NEW vaults created after the change. To upgrade an existing vault, use Preferences → Security → Upgrade Vault Algorithm.</description>
     </key>

@@ -195,16 +195,11 @@ struct VaultSecurityPolicy {
      * @section fips_compliance FIPS Mode Enforcement
      * - FIPS mode blocks Argon2id (value 5) and Plaintext (value 0)
      * - Enforced at SettingsValidator level before vault creation
-     * - Existing vaults with non-FIPS algorithms remain readable
-     *
-     * @section backward_compatibility Backward Compatibility
-     * - Vaults created before Phase 2: username_hash_algorithm = 0 (plaintext)
-     * - KeySlot.username_hash_size = 0 indicates legacy mode
-     * - Authentication falls back to plaintext username comparison
      *
      * @note Cannot be changed after vault creation (prevents downgrade attacks)
      * @note Maps to UsernameHashService::Algorithm enum values
-     * @note Default: 0 (plaintext) for backward compatibility with existing vaults
+     * @note Default: 0 (plaintext) - **DEPRECATED**, use SHA3-256 or higher for new vaults
+     * @note Vaults with username_hash_algorithm = 0 are NOT supported (breaking change in Phase 2)
      */
     uint8_t username_hash_algorithm = 0;
 
@@ -260,7 +255,7 @@ struct VaultSecurityPolicy {
 
     /**
      * @brief Get serialized size in bytes
-     * @return 123 bytes (1 + 1 + 4 + 4 + 4 + 1 + 64 + 44)
+     * @return 122 bytes (1 + 1 + 4 + 4 + 4 + 1 + 64 + 43)
      *
      * @section layout Serialization Layout
      * - Byte 0: require_yubikey (bool)
@@ -270,9 +265,9 @@ struct VaultSecurityPolicy {
      * - Bytes 10-13: password_history_depth (uint32_t, big-endian)
      * - Byte 14: username_hash_algorithm (uint8_t) - NEW in Phase 2
      * - Bytes 15-78: yubikey_challenge (64 bytes)
-     * - Bytes 79-122: reserved (44 bytes - reduced by 1 for new field)
+     * - Bytes 79-121: reserved (43 bytes - reduced by 1 for new field)
      */
-    static constexpr size_t SERIALIZED_SIZE = 123;
+    static constexpr size_t SERIALIZED_SIZE = 122;
 
     /** @brief Reserved bytes for future expansion (first block) */
     static constexpr size_t RESERVED_BYTES_1 = 0;
@@ -314,17 +309,14 @@ struct KeySlot {
     bool active = false;
 
     /**
-     * @brief Username for this key slot (plaintext - for legacy compatibility)
+     * @brief Username for this key slot (plaintext - for UI display only)
      *
-     * Used for user selection during authentication when username hashing
-     * is disabled (username_hash_size == 0).
-     *
-     * For new vaults with hashing enabled, this field should remain empty
-     * and username_hash should be used instead for authentication.
+     * Stored in plaintext for user identification and display in the UI.
+     * Authentication uses username_hash, not this field.
      *
      * @note Stored as UTF-8 string
      * @note Max length: 255 characters (enforced at API level)
-     * @note Deprecated: Use username_hash for new vaults
+     * @note For display only - authentication uses username_hash
      */
     std::string username;
 
@@ -333,10 +325,6 @@ struct KeySlot {
      *
      * Stores the cryptographically hashed username to prevent username enumeration.
      * Hash algorithm is specified in VaultSecurityPolicy.username_hash_algorithm.
-     *
-     * @section usage_modes Usage Modes
-     * - **Legacy mode** (username_hash_size == 0): Use plaintext username field
-     * - **Hashed mode** (username_hash_size > 0): Use this hash for authentication
      *
      * @section hash_sizes Hash Sizes by Algorithm
      * - SHA3-256: 32 bytes
@@ -347,7 +335,7 @@ struct KeySlot {
      *
      * @note Array size is 64 bytes (maximum for SHA3-512)
      * @note Actual used size indicated by username_hash_size
-     * @note Empty (all zeros) if username hashing disabled (legacy vaults)
+     * @note Authentication always uses this hash, never plaintext username
      */
     std::array<uint8_t, 64> username_hash = {};
 
@@ -357,13 +345,12 @@ struct KeySlot {
      * Indicates the number of valid bytes in username_hash array.
      *
      * @section size_interpretation Size Interpretation
-     * - **0**: Username hashing disabled, use plaintext username (legacy mode)
      * - **32**: SHA3-256, PBKDF2-SHA256, or Argon2id
      * - **48**: SHA3-384
      * - **64**: SHA3-512
      *
      * @note Must match the output size of algorithm in VaultSecurityPolicy
-     * @note Used for backward compatibility detection
+     * @note Must be > 0 for all valid vaults (username hashing is mandatory)
      */
     uint8_t username_hash_size = 0;
 
@@ -380,7 +367,6 @@ struct KeySlot {
      *
      * @note Size: 16 bytes (sufficient for username hashing)
      * @note Different from password salt (32 bytes) - username salt is shorter
-     * @note Empty (all zeros) if username_hash_size == 0 (legacy mode)
      */
     std::array<uint8_t, 16> username_salt = {};
 
@@ -608,12 +594,12 @@ struct KeySlot {
 
     /**
      * @brief Minimum serialized size (empty username, no password history, legacy format)
-     * @return Base size varies: ~213 bytes with username hashing fields
+     * @return Base size: 220 bytes with Phase 2 username hashing fields
      *
-     * @note Size increased by 81 bytes in Phase 2 (64 + 1 + 16)
-     * @note Backward compatible: Deserializer detects version by size
+     * @note Size increased by 81 bytes in Phase 2 (64 + 1 + 16 for username hashing)
+     * @note Backward compatible: Deserializer detects version by heuristic
      */
-    static constexpr size_t MIN_SERIALIZED_SIZE = 132;
+    static constexpr size_t MIN_SERIALIZED_SIZE = 220;
 };
 
 /**

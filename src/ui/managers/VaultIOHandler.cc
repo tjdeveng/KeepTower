@@ -379,7 +379,14 @@ void VaultIOHandler::show_export_file_dialog([[maybe_unused]] const std::string&
             "Export Accounts",
             "passwords_export.csv",
             [this](const std::string& file_path_str) {
-                KeepTower::Log::info("File chosen for export");
+                // Validate that we received a valid file path
+                if (file_path_str.empty()) {
+                    KeepTower::Log::error("Export failed: No file path provided");
+                    m_dialog_manager->show_error_dialog("Export failed: No file was selected");
+                    return;
+                }
+
+                KeepTower::Log::info("File chosen for export: {}", file_path_str);
                 std::string path = file_path_str;
 
                 // Get all accounts from vault (optimized with reserve)

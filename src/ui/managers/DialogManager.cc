@@ -133,14 +133,13 @@ void DialogManager::show_open_file_dialog(
     add_file_filters(*dialog, filters);
 
     dialog->signal_response().connect([dialog, callback](int response) {
-        std::string result;
         if (response == static_cast<int>(Gtk::ResponseType::OK)) {
             auto file = dialog->get_file();
             if (file) {
-                result = file->get_path();
+                std::string result = file->get_path();
+                callback(result);
             }
         }
-        callback(result);
         dialog->hide();
     });
 
@@ -170,14 +169,13 @@ void DialogManager::show_save_file_dialog(
     add_file_filters(*dialog, filters);
 
     dialog->signal_response().connect([dialog, callback](int response) {
-        std::string result;
         if (response == static_cast<int>(Gtk::ResponseType::OK)) {
             auto file = dialog->get_file();
             if (file) {
-                result = file->get_path();
+                std::string result = file->get_path();
+                callback(result);
             }
         }
-        callback(result);
         dialog->hide();
     });
 
