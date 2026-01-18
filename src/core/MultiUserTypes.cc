@@ -100,10 +100,13 @@ std::vector<uint8_t> VaultSecurityPolicy::serialize() const {
     result.push_back(static_cast<uint8_t>((password_history_depth >> 8) & 0xFF));
     result.push_back(static_cast<uint8_t>(password_history_depth & 0xFF));
 
-    // Bytes 14-77: yubikey_challenge (64 bytes)
+    // Byte 14: username_hash_algorithm (Phase 2 - Username Hashing Security)
+    result.push_back(username_hash_algorithm);
+
+    // Bytes 15-78: yubikey_challenge (64 bytes)
     result.insert(result.end(), yubikey_challenge.begin(), yubikey_challenge.end());
 
-    // Bytes 78-121: reserved for future use (43 bytes, reduced from 44)
+    // Bytes 79-122: reserved for future use (43 bytes, reduced from 44)
     for (size_t i = 0; i < RESERVED_BYTES_2; ++i) {
         result.push_back(0);
     }
@@ -112,10 +115,13 @@ std::vector<uint8_t> VaultSecurityPolicy::serialize() const {
 }
 
 std::optional<VaultSecurityPolicy> VaultSecurityPolicy::deserialize(const std::vector<uint8_t>& data) {
-    // Only support new format (122 bytes) - FIPS-140-3 compliant vaults only
-    if (data.size() < SERIALIZED_SIZE) {
-        Log::error("VaultSecurityPolicy: Insufficient data for deserialization (need {}, got {})",
-                   SERIALIZED_SIZE, data.size());
+    // Support both old (122 bytes) and new (123 bytes) format for backward compatibility
+    const size_t OLD_SIZE = 122;  // Pre-Phase 2 format
+    const size_t NEW_SIZE = 123;  // Phase 2 format with username_hash_algorithm
+
+    if (data.size() < OLD_SIZE) {
+        Log::error("VaultSecurityPolicy: Insufficient data for deserialization (need at least {}, got {})",
+                   OLD_SIZE, data.size());
         return std::nullopt;
     }
 
@@ -163,6 +169,24 @@ std::optional<VaultSecurityPolicy> VaultSecurityPolicy::deserialize(const std::v
                                     static_cast<uint32_t>(data[offset + 3]);
     offset += 4;
 
+    // Backward compatibility: Check if new format (123 bytes) with username_hash_algorithm
+    if (data.size() >= NEW_SIZE) {
+        // Byte 14: username_hash_algorithm (Phase 2)
+        policy.username_hash_algorithm = data[offset];
+        offset += 1;
+
+        // Validate algorithm (0-5 are valid values)
+        if (policy.username_hash_algorithm > 5) {
+            Log::error("VaultSecurityPolicy: Invalid username_hash_algorithm: {}",
+                       policy.username_hash_algorithm);
+            return std::nullopt;
+        }
+    } else {
+        // Old format (122 bytes): default to plaintext (0) for backward compatibility
+        policy.username_hash_algorithm = 0;
+        Log::info("VaultSecurityPolicy: Legacy format detected, defaulting username_hash_algorithm to 0 (plaintext)");
+    }
+
     // Next 64 bytes: yubikey_challenge
     std::copy(data.begin() + offset, data.begin() + offset + 64, policy.yubikey_challenge.begin());
     offset += 64;
@@ -189,9 +213,13 @@ std::optional<VaultSecurityPolicy> VaultSecurityPolicy::deserialize(const std::v
 // ============================================================================
 
 size_t KeySlot::calculate_serialized_size() const {
+    // Phase 2 format (with username hashing fields):
     // 1 byte: active flag
     // 1 byte: username length
     // N bytes: username (UTF-8)
+    // 64 bytes: username_hash (fixed array)
+    // 1 byte: username_hash_size
+    // 16 bytes: username_salt (fixed array)
     // 32 bytes: salt
     // 40 bytes: wrapped_dek
     // 1 byte: role
@@ -209,7 +237,9 @@ size_t KeySlot::calculate_serialized_size() const {
     // N bytes: yubikey_credential_id
     // 1 byte: password_history count
     // N * 88 bytes: password_history entries
-    size_t base_size = 1 + 1 + username.size() + 32 + 40 + 1 + 1 + 8 + 8 + 1 + 32 + 1 + yubikey_serial.size() + 8 + 2 + yubikey_encrypted_pin.size() + 2 + yubikey_credential_id.size() + 1;
+
+    // Base size now includes username hashing fields (64 + 1 + 16 = 81 additional bytes)
+    size_t base_size = 1 + 1 + username.size() + 64 + 1 + 16 + 32 + 40 + 1 + 1 + 8 + 8 + 1 + 32 + 1 + yubikey_serial.size() + 8 + 2 + yubikey_encrypted_pin.size() + 2 + yubikey_credential_id.size() + 1;
     size_t history_size = password_history.size() * PasswordHistoryEntry::SERIALIZED_SIZE;
     return base_size + history_size;
 }
@@ -231,7 +261,16 @@ std::vector<uint8_t> KeySlot::serialize() const {
     // Bytes 2..N: username (UTF-8)
     result.insert(result.end(), username.begin(), username.end());
 
-    // Next 32 bytes: salt
+    // Next 64 bytes: username_hash (Phase 2 - Username Hashing Security)
+    result.insert(result.end(), username_hash.begin(), username_hash.end());
+
+    // Next byte: username_hash_size (Phase 2)
+    result.push_back(username_hash_size);
+
+    // Next 16 bytes: username_salt (Phase 2)
+    result.insert(result.end(), username_salt.begin(), username_salt.end());
+
+    // Next 32 bytes: salt (password derivation)
     result.insert(result.end(), salt.begin(), salt.end());
 
     // Next 40 bytes: wrapped_dek
@@ -323,18 +362,70 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
     // Byte 1: username length
     uint8_t username_len = data[pos++];
 
-    // Check if we have enough data for username + fixed fields (minimum without YubiKey fields)
-    if (pos + username_len + 32 + 40 + 1 + 1 + 8 + 8 > data.size()) {
-        Log::error("KeySlot: Insufficient data for slot (need {}, have {})",
-                   username_len + 32 + 40 + 1 + 1 + 8 + 8, data.size() - pos);
+    // Username
+    if (pos + username_len > data.size()) {
+        Log::error("KeySlot: Insufficient data for username");
         return std::nullopt;
     }
-
-    // Username
     slot.username.assign(data.begin() + pos, data.begin() + pos + username_len);
     pos += username_len;
 
-    // Salt (32 bytes)
+    // Detect format version by trying to read ahead
+    // Old format: salt (32) + wrapped_dek (40) = next 72 bytes
+    // New format: username_hash (64) + username_hash_size (1) + username_salt (16) + salt (32) + wrapped_dek (40) = next 153 bytes
+
+    // We need at least 153 bytes for new format, 72 for old format
+    size_t remaining_after_username = data.size() - pos;
+    bool is_new_format = false;
+
+    // Heuristic: If we have at least 153 bytes remaining AND next byte at pos+64 could be a valid hash size (0-64)
+    if (remaining_after_username >= 153) {
+        // Check if byte at pos+64 (username_hash_size position) is a plausible hash size (0-64)
+        uint8_t potential_hash_size = data[pos + 64];
+        if (potential_hash_size <= 64) {
+            // Likely new format
+            is_new_format = true;
+        }
+    }
+
+    if (is_new_format) {
+        // NEW FORMAT (Phase 2): Read username hashing fields
+
+        // Next 64 bytes: username_hash
+        std::copy(data.begin() + pos, data.begin() + pos + 64, slot.username_hash.begin());
+        pos += 64;
+
+        // Next byte: username_hash_size
+        slot.username_hash_size = data[pos++];
+        if (slot.username_hash_size > 64) {
+            Log::error("KeySlot: Invalid username_hash_size: {}", slot.username_hash_size);
+            return std::nullopt;
+        }
+
+        // Next 16 bytes: username_salt
+        std::copy(data.begin() + pos, data.begin() + pos + 16, slot.username_salt.begin());
+        pos += 16;
+
+        Log::debug("KeySlot: Detected Phase 2 format (username_hash_size={})", slot.username_hash_size);
+    } else {
+        // OLD FORMAT (Pre-Phase 2): No username hashing fields
+        // Initialize to legacy mode (all zeros, hash_size = 0)
+        slot.username_hash.fill(0);
+        slot.username_hash_size = 0;
+        slot.username_salt.fill(0);
+
+        Log::debug("KeySlot: Detected legacy format (no username hashing)");
+    }
+
+    // Common fields for both formats
+
+    // Check remaining data for fixed fields
+    if (pos + 32 + 40 + 1 + 1 + 8 + 8 > data.size()) {
+        Log::error("KeySlot: Insufficient data for core fields");
+        return std::nullopt;
+    }
+
+    // Salt (32 bytes - password derivation)
     std::copy(data.begin() + pos, data.begin() + pos + 32, slot.salt.begin());
     pos += 32;
 

@@ -445,6 +445,246 @@ bool test_header_fec_redundancy_levels() {
 }
 
 // ============================================================================
+// Phase 2: Username Hashing Tests
+// ============================================================================
+
+bool test_vault_security_policy_username_hash_algorithm_serialization() {
+    VaultSecurityPolicy policy;
+    policy.require_yubikey = false;
+    policy.min_password_length = 12;
+    policy.pbkdf2_iterations = 100000;
+    policy.password_history_depth = 5;
+    policy.username_hash_algorithm = 1;  // SHA3-256
+
+    // Set challenge
+    for (size_t i = 0; i < policy.yubikey_challenge.size(); ++i) {
+        policy.yubikey_challenge[i] = static_cast<uint8_t>(i % 256);
+    }
+
+    // Serialize
+    auto serialized = policy.serialize();
+    TEST_ASSERT(serialized.size() == VaultSecurityPolicy::SERIALIZED_SIZE,
+                "Serialized size should be 123 bytes (Phase 2 format)");
+
+    // Deserialize
+    auto deserialized_opt = VaultSecurityPolicy::deserialize(serialized);
+    TEST_ASSERT(deserialized_opt.has_value(), "Deserialization failed");
+
+    auto& deserialized = deserialized_opt.value();
+    TEST_ASSERT(deserialized.require_yubikey == policy.require_yubikey,
+                "require_yubikey mismatch");
+    TEST_ASSERT(deserialized.min_password_length == policy.min_password_length,
+                "min_password_length mismatch");
+    TEST_ASSERT(deserialized.pbkdf2_iterations == policy.pbkdf2_iterations,
+                "pbkdf2_iterations mismatch");
+    TEST_ASSERT(deserialized.password_history_depth == policy.password_history_depth,
+                "password_history_depth mismatch");
+    TEST_ASSERT(deserialized.username_hash_algorithm == policy.username_hash_algorithm,
+                "username_hash_algorithm mismatch");
+    TEST_ASSERT(deserialized.yubikey_challenge == policy.yubikey_challenge,
+                "yubikey_challenge mismatch");
+
+    return true;
+}
+
+bool test_vault_security_policy_backward_compatibility() {
+    // Create an old-format policy (122 bytes, no username_hash_algorithm)
+    std::vector<uint8_t> old_format_data(122, 0);
+
+    // Byte 0: require_yubikey = false
+    old_format_data[0] = 0;
+
+    // Byte 1: yubikey_algorithm = 0x02 (SHA-256)
+    old_format_data[1] = 0x02;
+
+    // Bytes 2-5: min_password_length = 12 (big-endian)
+    old_format_data[2] = 0;
+    old_format_data[3] = 0;
+    old_format_data[4] = 0;
+    old_format_data[5] = 12;
+
+    // Bytes 6-9: pbkdf2_iterations = 100000
+    uint32_t iterations = 100000;
+    old_format_data[6] = (iterations >> 24) & 0xFF;
+    old_format_data[7] = (iterations >> 16) & 0xFF;
+    old_format_data[8] = (iterations >> 8) & 0xFF;
+    old_format_data[9] = iterations & 0xFF;
+
+    // Bytes 10-13: password_history_depth = 5
+    old_format_data[10] = 0;
+    old_format_data[11] = 0;
+    old_format_data[12] = 0;
+    old_format_data[13] = 5;
+
+    // Bytes 14-77: yubikey_challenge (64 bytes of zeros)
+    // Bytes 78-121: reserved (44 bytes of zeros)
+
+    // Deserialize old format
+    auto deserialized_opt = VaultSecurityPolicy::deserialize(old_format_data);
+    TEST_ASSERT(deserialized_opt.has_value(), "Deserialization of old format failed");
+
+    auto& policy = deserialized_opt.value();
+    TEST_ASSERT(policy.require_yubikey == false, "require_yubikey mismatch");
+    TEST_ASSERT(policy.min_password_length == 12, "min_password_length mismatch");
+    TEST_ASSERT(policy.pbkdf2_iterations == 100000, "pbkdf2_iterations mismatch");
+    TEST_ASSERT(policy.password_history_depth == 5, "password_history_depth mismatch");
+    TEST_ASSERT(policy.username_hash_algorithm == 0,
+                "username_hash_algorithm should default to 0 (plaintext) for old format");
+
+    return true;
+}
+
+bool test_key_slot_username_hashing_serialization() {
+    KeySlot slot;
+    slot.active = true;
+    slot.username = "";  // Empty for hashed mode
+    slot.role = UserRole::ADMINISTRATOR;
+    slot.must_change_password = false;
+    slot.password_changed_at = 1234567890;
+    slot.last_login_at = 1234567900;
+
+    // Set username hashing fields (SHA3-256 example)
+    slot.username_hash_size = 32;  // SHA3-256 produces 32 bytes
+    for (size_t i = 0; i < 32; ++i) {
+        slot.username_hash[i] = static_cast<uint8_t>((i * 7) % 256);
+    }
+    for (size_t i = 0; i < 16; ++i) {
+        slot.username_salt[i] = static_cast<uint8_t>((i * 13) % 256);
+    }
+
+    // Set salt and wrapped_dek
+    for (size_t i = 0; i < slot.salt.size(); ++i) {
+        slot.salt[i] = static_cast<uint8_t>(i % 256);
+    }
+    for (size_t i = 0; i < slot.wrapped_dek.size(); ++i) {
+        slot.wrapped_dek[i] = static_cast<uint8_t>((i * 3) % 256);
+    }
+
+    // Serialize
+    auto serialized = slot.serialize();
+    TEST_ASSERT(!serialized.empty(), "Serialization failed");
+
+    // Deserialize
+    auto deserialized_opt = KeySlot::deserialize(serialized, 0);
+    TEST_ASSERT(deserialized_opt.has_value(), "Deserialization failed");
+
+    auto& [deserialized, bytes_consumed] = deserialized_opt.value();
+    TEST_ASSERT(bytes_consumed == serialized.size(), "Bytes consumed mismatch");
+    TEST_ASSERT(deserialized.active == slot.active, "active mismatch");
+    TEST_ASSERT(deserialized.username == slot.username, "username mismatch");
+    TEST_ASSERT(deserialized.username_hash_size == slot.username_hash_size,
+                "username_hash_size mismatch");
+
+    // Verify username_hash (first 32 bytes)
+    for (size_t i = 0; i < 32; ++i) {
+        TEST_ASSERT(deserialized.username_hash[i] == slot.username_hash[i],
+                    "username_hash mismatch at byte " + std::to_string(i));
+    }
+
+    // Verify username_salt
+    TEST_ASSERT(deserialized.username_salt == slot.username_salt, "username_salt mismatch");
+    TEST_ASSERT(deserialized.role == slot.role, "role mismatch");
+    TEST_ASSERT(deserialized.salt == slot.salt, "salt mismatch");
+    TEST_ASSERT(deserialized.wrapped_dek == slot.wrapped_dek, "wrapped_dek mismatch");
+
+    return true;
+}
+
+bool test_key_slot_backward_compatibility_legacy_format() {
+    // Create a KeySlot in old format (no username hashing fields)
+    // Simulate old serialization manually
+    std::vector<uint8_t> old_data;
+
+    // Byte 0: active = true
+    old_data.push_back(1);
+
+    // Byte 1: username length = 8
+    std::string username = "testuser";
+    old_data.push_back(static_cast<uint8_t>(username.size()));
+
+    // Username bytes
+    old_data.insert(old_data.end(), username.begin(), username.end());
+
+    // 32 bytes: salt (password derivation)
+    for (size_t i = 0; i < 32; ++i) {
+        old_data.push_back(static_cast<uint8_t>(i % 256));
+    }
+
+    // 40 bytes: wrapped_dek
+    for (size_t i = 0; i < 40; ++i) {
+        old_data.push_back(static_cast<uint8_t>((i * 3) % 256));
+    }
+
+    // 1 byte: role = ADMINISTRATOR (0)
+    old_data.push_back(0);
+
+    // 1 byte: must_change_password = false
+    old_data.push_back(0);
+
+    // 8 bytes: password_changed_at = 1234567890
+    int64_t timestamp = 1234567890;
+    for (int i = 7; i >= 0; --i) {
+        old_data.push_back(static_cast<uint8_t>((timestamp >> (i * 8)) & 0xFF));
+    }
+
+    // 8 bytes: last_login_at = 1234567900
+    timestamp = 1234567900;
+    for (int i = 7; i >= 0; --i) {
+        old_data.push_back(static_cast<uint8_t>((timestamp >> (i * 8)) & 0xFF));
+    }
+
+    // 1 byte: yubikey_enrolled = false
+    old_data.push_back(0);
+
+    // 32 bytes: yubikey_challenge (all zeros)
+    for (size_t i = 0; i < 32; ++i) {
+        old_data.push_back(0);
+    }
+
+    // 1 byte: yubikey_serial length = 0
+    old_data.push_back(0);
+
+    // 8 bytes: yubikey_enrolled_at = 0
+    for (int i = 0; i < 8; ++i) {
+        old_data.push_back(0);
+    }
+
+    // 2 bytes: yubikey_encrypted_pin length = 0
+    old_data.push_back(0);
+    old_data.push_back(0);
+
+    // 2 bytes: yubikey_credential_id length = 0
+    old_data.push_back(0);
+    old_data.push_back(0);
+
+    // 1 byte: password_history count = 0
+    old_data.push_back(0);
+
+    // Deserialize
+    auto deserialized_opt = KeySlot::deserialize(old_data, 0);
+    TEST_ASSERT(deserialized_opt.has_value(), "Deserialization of old format failed");
+
+    auto& [slot, bytes_consumed] = deserialized_opt.value();
+    TEST_ASSERT(slot.active == true, "active should be true");
+    TEST_ASSERT(slot.username == username, "username should match");
+    TEST_ASSERT(slot.username_hash_size == 0,
+                "username_hash_size should be 0 for legacy format");
+    TEST_ASSERT(slot.role == UserRole::ADMINISTRATOR, "role should be ADMINISTRATOR");
+
+    // Verify username_hash and username_salt are all zeros (default initialized)
+    for (size_t i = 0; i < slot.username_hash.size(); ++i) {
+        TEST_ASSERT(slot.username_hash[i] == 0,
+                    "username_hash should be zeros for legacy format");
+    }
+    for (size_t i = 0; i < slot.username_salt.size(); ++i) {
+        TEST_ASSERT(slot.username_salt[i] == 0,
+                    "username_salt should be zeros for legacy format");
+    }
+
+    return true;
+}
+
+// ============================================================================
 // Main Test Runner
 // ============================================================================
 
@@ -463,6 +703,12 @@ int main() {
     RUN_TEST(test_vault_format_v2_header_write_read);
     RUN_TEST(test_version_detection);
     RUN_TEST(test_header_fec_redundancy_levels);
+
+    // Phase 2: Username hashing tests
+    RUN_TEST(test_vault_security_policy_username_hash_algorithm_serialization);
+    RUN_TEST(test_vault_security_policy_backward_compatibility);
+    RUN_TEST(test_key_slot_username_hashing_serialization);
+    RUN_TEST(test_key_slot_backward_compatibility_legacy_format);
 
     std::cout << "========================================" << std::endl;
     std::cout << "Results: " << tests_passed << " passed, " << tests_failed << " failed" << std::endl;
