@@ -39,6 +39,11 @@ protected:
             settings->reset("auto-lock-timeout");
             settings->reset("password-history-enabled");
             settings->reset("password-history-limit");
+            settings->reset("fips-mode-enabled");
+            settings->reset("username-hash-algorithm");
+            settings->reset("username-pbkdf2-iterations");
+            settings->reset("username-argon2-memory-kb");
+            settings->reset("username-argon2-iterations");
         }
     }
 
@@ -197,7 +202,223 @@ TEST_F(SettingsValidatorTest, ValidatorProvidesDefenseInDepth) {
     clamped = std::clamp(1, SettingsValidator::MIN_AUTO_LOCK_TIMEOUT,
                         SettingsValidator::MAX_AUTO_LOCK_TIMEOUT);
     EXPECT_GE(clamped, 60) << "Validator would enforce minimum 60 seconds";
-}int main(int argc, char** argv) {
+}
+
+// ============================================================================
+// Username Hashing Preferences Tests (Phase 2)
+// ============================================================================
+
+/**
+ * @brief Test username hash algorithm parsing
+ */
+TEST_F(SettingsValidatorTest, UsernameHashAlgorithmParsing) {
+    using Algorithm = KeepTower::UsernameHashService::Algorithm;
+
+    // Test all valid algorithm strings
+    EXPECT_EQ(SettingsValidator::parse_username_hash_algorithm("sha3-256"), Algorithm::SHA3_256);
+    EXPECT_EQ(SettingsValidator::parse_username_hash_algorithm("sha3-384"), Algorithm::SHA3_384);
+    EXPECT_EQ(SettingsValidator::parse_username_hash_algorithm("sha3-512"), Algorithm::SHA3_512);
+    EXPECT_EQ(SettingsValidator::parse_username_hash_algorithm("pbkdf2-sha256"), Algorithm::PBKDF2_SHA256);
+    EXPECT_EQ(SettingsValidator::parse_username_hash_algorithm("argon2id"), Algorithm::ARGON2ID);
+    EXPECT_EQ(SettingsValidator::parse_username_hash_algorithm("plaintext"), Algorithm::PLAINTEXT_LEGACY);
+
+    // Test invalid/unknown strings default to plaintext
+    EXPECT_EQ(SettingsValidator::parse_username_hash_algorithm("invalid"), Algorithm::PLAINTEXT_LEGACY);
+    EXPECT_EQ(SettingsValidator::parse_username_hash_algorithm(""), Algorithm::PLAINTEXT_LEGACY);
+    EXPECT_EQ(SettingsValidator::parse_username_hash_algorithm("sha256"), Algorithm::PLAINTEXT_LEGACY);
+}
+
+/**
+ * @brief Test algorithm to string conversion
+ */
+TEST_F(SettingsValidatorTest, AlgorithmToString) {
+    using Algorithm = KeepTower::UsernameHashService::Algorithm;
+
+    EXPECT_EQ(SettingsValidator::algorithm_to_string(Algorithm::SHA3_256), "sha3-256");
+    EXPECT_EQ(SettingsValidator::algorithm_to_string(Algorithm::SHA3_384), "sha3-384");
+    EXPECT_EQ(SettingsValidator::algorithm_to_string(Algorithm::SHA3_512), "sha3-512");
+    EXPECT_EQ(SettingsValidator::algorithm_to_string(Algorithm::PBKDF2_SHA256), "pbkdf2-sha256");
+    EXPECT_EQ(SettingsValidator::algorithm_to_string(Algorithm::ARGON2ID), "argon2id");
+    EXPECT_EQ(SettingsValidator::algorithm_to_string(Algorithm::PLAINTEXT_LEGACY), "plaintext");
+}
+
+/**
+ * @brief Test getting username hash algorithm preference
+ */
+TEST_F(SettingsValidatorTest, GetUsernameHashAlgorithm) {
+    using Algorithm = KeepTower::UsernameHashService::Algorithm;
+
+    // Test SHA3-256 (recommended)
+    settings->set_string("username-hash-algorithm", "sha3-256");
+    EXPECT_EQ(SettingsValidator::get_username_hash_algorithm(settings), Algorithm::SHA3_256);
+
+    // Test SHA3-384
+    settings->set_string("username-hash-algorithm", "sha3-384");
+    EXPECT_EQ(SettingsValidator::get_username_hash_algorithm(settings), Algorithm::SHA3_384);
+
+    // Test SHA3-512
+    settings->set_string("username-hash-algorithm", "sha3-512");
+    EXPECT_EQ(SettingsValidator::get_username_hash_algorithm(settings), Algorithm::SHA3_512);
+
+    // Test PBKDF2
+    settings->set_string("username-hash-algorithm", "pbkdf2-sha256");
+    EXPECT_EQ(SettingsValidator::get_username_hash_algorithm(settings), Algorithm::PBKDF2_SHA256);
+
+    // Test Argon2id (when not in FIPS mode)
+    settings->set_boolean("fips-mode-enabled", false);
+    settings->set_string("username-hash-algorithm", "argon2id");
+    EXPECT_EQ(SettingsValidator::get_username_hash_algorithm(settings), Algorithm::ARGON2ID);
+
+    // Test plaintext (legacy)
+    settings->set_string("username-hash-algorithm", "plaintext");
+    EXPECT_EQ(SettingsValidator::get_username_hash_algorithm(settings), Algorithm::PLAINTEXT_LEGACY);
+}
+
+/**
+ * @brief Test FIPS mode blocks non-approved algorithms
+ */
+TEST_F(SettingsValidatorTest, FIPSModeBlocksNonApprovedAlgorithms) {
+    using Algorithm = KeepTower::UsernameHashService::Algorithm;
+
+    // Enable FIPS mode
+    settings->set_boolean("fips-mode-enabled", true);
+
+    // FIPS-approved algorithms should work
+    settings->set_string("username-hash-algorithm", "sha3-256");
+    EXPECT_EQ(SettingsValidator::get_username_hash_algorithm(settings), Algorithm::SHA3_256);
+
+    settings->set_string("username-hash-algorithm", "sha3-384");
+    EXPECT_EQ(SettingsValidator::get_username_hash_algorithm(settings), Algorithm::SHA3_384);
+
+    settings->set_string("username-hash-algorithm", "sha3-512");
+    EXPECT_EQ(SettingsValidator::get_username_hash_algorithm(settings), Algorithm::SHA3_512);
+
+    settings->set_string("username-hash-algorithm", "pbkdf2-sha256");
+    EXPECT_EQ(SettingsValidator::get_username_hash_algorithm(settings), Algorithm::PBKDF2_SHA256);
+
+    // Non-FIPS-approved algorithms should be blocked and fallback to SHA3-256
+    settings->set_string("username-hash-algorithm", "argon2id");
+    EXPECT_EQ(SettingsValidator::get_username_hash_algorithm(settings), Algorithm::SHA3_256)
+        << "FIPS mode should block Argon2id and fallback to SHA3-256";
+
+    settings->set_string("username-hash-algorithm", "plaintext");
+    EXPECT_EQ(SettingsValidator::get_username_hash_algorithm(settings), Algorithm::SHA3_256)
+        << "FIPS mode should block plaintext and fallback to SHA3-256";
+}
+
+/**
+ * @brief Test PBKDF2 iterations validation
+ */
+TEST_F(SettingsValidatorTest, PBKDF2IterationsClampsToSafeRange) {
+    // Schema prevents setting values outside its defined range (1000-100000)
+
+    // Test minimum
+    settings->set_uint("username-pbkdf2-iterations", 1000);
+    uint32_t value = SettingsValidator::get_username_pbkdf2_iterations(settings);
+    EXPECT_EQ(value, 1000);
+    EXPECT_GE(value, SettingsValidator::MIN_USERNAME_PBKDF2_ITERATIONS);
+
+    // Test maximum
+    settings->set_uint("username-pbkdf2-iterations", 100000);
+    value = SettingsValidator::get_username_pbkdf2_iterations(settings);
+    EXPECT_EQ(value, 100000);
+    EXPECT_LE(value, SettingsValidator::MAX_USERNAME_PBKDF2_ITERATIONS);
+
+    // Test valid value passes through
+    settings->set_uint("username-pbkdf2-iterations", 10000);
+    value = SettingsValidator::get_username_pbkdf2_iterations(settings);
+    EXPECT_EQ(value, 10000);
+}
+
+/**
+ * @brief Test Argon2 memory cost validation
+ */
+TEST_F(SettingsValidatorTest, Argon2MemoryClampsToSafeRange) {
+    // Schema prevents setting values outside its defined range (8192-1048576)
+
+    // Test minimum (8 MB)
+    settings->set_uint("username-argon2-memory-kb", 8192);
+    uint32_t value = SettingsValidator::get_username_argon2_memory_kb(settings);
+    EXPECT_EQ(value, 8192);
+    EXPECT_GE(value, SettingsValidator::MIN_USERNAME_ARGON2_MEMORY_KB);
+
+    // Test maximum (1 GB)
+    settings->set_uint("username-argon2-memory-kb", 1048576);
+    value = SettingsValidator::get_username_argon2_memory_kb(settings);
+    EXPECT_EQ(value, 1048576);
+    EXPECT_LE(value, SettingsValidator::MAX_USERNAME_ARGON2_MEMORY_KB);
+
+    // Test valid value passes through (64 MB)
+    settings->set_uint("username-argon2-memory-kb", 65536);
+    value = SettingsValidator::get_username_argon2_memory_kb(settings);
+    EXPECT_EQ(value, 65536);
+}
+
+/**
+ * @brief Test Argon2 time cost validation
+ */
+TEST_F(SettingsValidatorTest, Argon2IterationsClampsToSafeRange) {
+    // Schema prevents setting values outside its defined range (1-10)
+
+    // Test minimum
+    settings->set_uint("username-argon2-iterations", 1);
+    uint32_t value = SettingsValidator::get_username_argon2_iterations(settings);
+    EXPECT_EQ(value, 1);
+    EXPECT_GE(value, SettingsValidator::MIN_USERNAME_ARGON2_ITERATIONS);
+
+    // Test maximum
+    settings->set_uint("username-argon2-iterations", 10);
+    value = SettingsValidator::get_username_argon2_iterations(settings);
+    EXPECT_EQ(value, 10);
+    EXPECT_LE(value, SettingsValidator::MAX_USERNAME_ARGON2_ITERATIONS);
+
+    // Test valid value passes through
+    settings->set_uint("username-argon2-iterations", 3);
+    value = SettingsValidator::get_username_argon2_iterations(settings);
+    EXPECT_EQ(value, 3);
+}
+
+/**
+ * @brief Test FIPS mode boolean getter
+ */
+TEST_F(SettingsValidatorTest, FIPSModeGetter) {
+    settings->set_boolean("fips-mode-enabled", true);
+    EXPECT_TRUE(SettingsValidator::is_fips_mode_enabled(settings));
+
+    settings->set_boolean("fips-mode-enabled", false);
+    EXPECT_FALSE(SettingsValidator::is_fips_mode_enabled(settings));
+}
+
+/**
+ * @brief Test username hashing validator constants are sensible
+ */
+TEST(SettingsValidatorConstantsTest, UsernameHashingConstantsAreSensible) {
+    // PBKDF2 iterations
+    EXPECT_GE(SettingsValidator::MIN_USERNAME_PBKDF2_ITERATIONS, 1000);  // NIST SP 800-132 minimum
+    EXPECT_LE(SettingsValidator::MAX_USERNAME_PBKDF2_ITERATIONS, 100000);
+    EXPECT_GE(SettingsValidator::DEFAULT_USERNAME_PBKDF2_ITERATIONS,
+              SettingsValidator::MIN_USERNAME_PBKDF2_ITERATIONS);
+    EXPECT_LE(SettingsValidator::DEFAULT_USERNAME_PBKDF2_ITERATIONS,
+              SettingsValidator::MAX_USERNAME_PBKDF2_ITERATIONS);
+
+    // Argon2 memory cost
+    EXPECT_GE(SettingsValidator::MIN_USERNAME_ARGON2_MEMORY_KB, 8192);  // 8 MB minimum
+    EXPECT_LE(SettingsValidator::MAX_USERNAME_ARGON2_MEMORY_KB, 1048576);  // 1 GB maximum
+    EXPECT_GE(SettingsValidator::DEFAULT_USERNAME_ARGON2_MEMORY_KB,
+              SettingsValidator::MIN_USERNAME_ARGON2_MEMORY_KB);
+    EXPECT_LE(SettingsValidator::DEFAULT_USERNAME_ARGON2_MEMORY_KB,
+              SettingsValidator::MAX_USERNAME_ARGON2_MEMORY_KB);
+
+    // Argon2 time cost
+    EXPECT_GE(SettingsValidator::MIN_USERNAME_ARGON2_ITERATIONS, 1);
+    EXPECT_LE(SettingsValidator::MAX_USERNAME_ARGON2_ITERATIONS, 10);
+    EXPECT_GE(SettingsValidator::DEFAULT_USERNAME_ARGON2_ITERATIONS,
+              SettingsValidator::MIN_USERNAME_ARGON2_ITERATIONS);
+    EXPECT_LE(SettingsValidator::DEFAULT_USERNAME_ARGON2_ITERATIONS,
+              SettingsValidator::MAX_USERNAME_ARGON2_ITERATIONS);
+}
+
+int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }

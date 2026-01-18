@@ -122,6 +122,34 @@
       <description>Enable FIPS-140-3 validated cryptographic operations using the NIST-certified OpenSSL FIPS module. Requires application restart to take effect. Only available if OpenSSL FIPS provider is properly configured. Note: KeepTower uses FIPS-validated modules but is not itself FIPS-certified.</description>
     </key>
 
+    <!-- Username Hashing Configuration (Phase 2) -->
+    <key name="username-hash-algorithm" type="s">
+      <default>'plaintext'</default>
+      <summary>Username hashing algorithm</summary>
+      <description>Algorithm used for hashing usernames in newly created vaults. Options: 'plaintext' (legacy, insecure), 'sha3-256' (recommended, FIPS-approved), 'sha3-384' (FIPS-approved), 'sha3-512' (FIPS-approved), 'pbkdf2-sha256' (FIPS-approved, slower), 'argon2id' (non-FIPS, highest security). Changing this setting only affects NEW vaults created after the change. To upgrade an existing vault, use Preferences → Security → Upgrade Vault Algorithm.</description>
+    </key>
+
+    <key name="username-pbkdf2-iterations" type="u">
+      <default>10000</default>
+      <range min="1000" max="100000"/>
+      <summary>PBKDF2 iterations for username hashing</summary>
+      <description>Iteration count when using PBKDF2 for username hashing. Only applies when username-hash-algorithm is 'pbkdf2-sha256'. Higher values increase security but slow authentication. NIST SP 800-132 recommends minimum 1000 iterations.</description>
+    </key>
+
+    <key name="username-argon2-memory-kb" type="u">
+      <default>65536</default>
+      <range min="8192" max="1048576"/>
+      <summary>Argon2 memory cost (KB)</summary>
+      <description>Memory cost for Argon2id username hashing (in kilobytes). Only applies when username-hash-algorithm is 'argon2id'. Default: 64 MB. Higher values increase resistance to GPU/ASIC attacks but require more RAM.</description>
+    </key>
+
+    <key name="username-argon2-iterations" type="u">
+      <default>3</default>
+      <range min="1" max="10"/>
+      <summary>Argon2 time cost (iterations)</summary>
+      <description>Time cost (iteration count) for Argon2id username hashing. Only applies when username-hash-algorithm is 'argon2id'. Higher values increase security but slow authentication.</description>
+    </key>
+
     <key name="sort-direction" type="s">
       <default>'ascending'</default>
       <summary>Account sort direction</summary>
