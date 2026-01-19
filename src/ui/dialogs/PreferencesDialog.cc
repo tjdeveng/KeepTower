@@ -106,6 +106,9 @@ PreferencesDialog::PreferencesDialog(Gtk::Window& parent, VaultManager* vault_ma
     m_clear_history_button.signal_clicked().connect(
         sigc::mem_fun(*this, &PreferencesDialog::on_clear_password_history_clicked));
 
+    m_username_hash_combo.signal_changed().connect(
+        sigc::mem_fun(*this, &PreferencesDialog::on_username_hash_changed));
+
     // Defer vault password history UI update until dialog is shown (lazy loading)
     // This prevents slow dialog opening when vault has many users
     signal_show().connect(sigc::mem_fun(*this, &PreferencesDialog::on_dialog_shown));
@@ -603,6 +606,73 @@ void PreferencesDialog::setup_vault_security_page() {
 
     m_vault_security_box.append(*default_history_section);
 
+    // ========================================================================
+    // Username Hashing Algorithm Section (applies to NEW vaults only)
+    // ========================================================================
+    auto* username_hash_section = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 6);
+    username_hash_section->set_margin_top(24);
+
+    // Section title
+    auto* username_hash_title = Gtk::make_managed<Gtk::Label>("Username Hashing Algorithm (New Vaults Only)");
+    username_hash_title->set_halign(Gtk::Align::START);
+    username_hash_title->add_css_class("heading");
+    username_hash_section->append(*username_hash_title);
+
+    // Description
+    auto* username_hash_desc = Gtk::make_managed<Gtk::Label>(
+        "Choose how usernames are stored in newly created vault files");
+    username_hash_desc->set_halign(Gtk::Align::START);
+    username_hash_desc->add_css_class("dim-label");
+    username_hash_desc->set_wrap(true);
+    username_hash_desc->set_max_width_chars(60);
+    username_hash_section->append(*username_hash_desc);
+
+    // Algorithm selection row
+    auto* username_hash_row = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 12);
+    username_hash_row->set_margin_top(12);
+
+    auto* username_hash_label = Gtk::make_managed<Gtk::Label>("Algorithm:");
+    username_hash_label->set_halign(Gtk::Align::START);
+    username_hash_row->append(*username_hash_label);
+
+    // Populate dropdown with available algorithms
+    m_username_hash_combo.append("plaintext", "Plaintext (DEPRECATED)");
+    m_username_hash_combo.append("sha3-256", "SHA3-256 (FIPS)");
+    m_username_hash_combo.append("sha3-384", "SHA3-384 (FIPS)");
+    m_username_hash_combo.append("sha3-512", "SHA3-512 (FIPS)");
+    m_username_hash_combo.append("pbkdf2-sha256", "PBKDF2-SHA256 (FIPS)");
+#ifdef ENABLE_ARGON2
+    m_username_hash_combo.append("argon2id", "Argon2id (non-FIPS)");
+#endif
+
+    m_username_hash_combo.set_active_id("sha3-256");  // Default
+    username_hash_row->append(m_username_hash_combo);
+
+    username_hash_row->set_halign(Gtk::Align::START);
+    username_hash_section->append(*username_hash_row);
+
+    // Info label (dynamically updated based on selection)
+    m_username_hash_info.set_halign(Gtk::Align::START);
+    m_username_hash_info.set_wrap(true);
+    m_username_hash_info.set_max_width_chars(60);
+    m_username_hash_info.set_margin_top(6);
+    m_username_hash_info.set_margin_start(12);
+    username_hash_section->append(m_username_hash_info);
+
+    // Important note about existing vaults
+    auto* username_hash_note = Gtk::make_managed<Gtk::Label>();
+    username_hash_note->set_markup(
+        "<span size='small'>⚠️  This setting only affects newly created vaults. "
+        "Existing vaults continue to use their original algorithm.</span>");
+    username_hash_note->set_halign(Gtk::Align::START);
+    username_hash_note->set_wrap(true);
+    username_hash_note->set_max_width_chars(60);
+    username_hash_note->add_css_class("dim-label");
+    username_hash_note->set_margin_top(12);
+    username_hash_section->append(*username_hash_note);
+
+    m_vault_security_box.append(*username_hash_section);
+
     // Add page to stack
     m_stack.add(m_vault_security_box, "vault-security", "Vault Security");
 
@@ -983,6 +1053,13 @@ void PreferencesDialog::load_settings() {
         m_fips_mode_check.set_sensitive(false);
         m_fips_mode_check.set_active(false);
     }
+
+    // Load username hashing algorithm
+    Glib::ustring username_hash_algorithm = m_settings->get_string("username-hash-algorithm");
+    m_username_hash_combo.set_active_id(username_hash_algorithm);
+
+    // Update info label with initial selection
+    update_username_hash_info();
 }
 
 void PreferencesDialog::save_settings() {
@@ -1177,6 +1254,13 @@ void PreferencesDialog::save_settings() {
         }
     }
 
+    // Save username hashing algorithm
+    // This only affects newly created vaults, not existing ones
+    Glib::ustring username_hash_algorithm = m_username_hash_combo.get_active_id();
+    if (!username_hash_algorithm.empty()) {
+        m_settings->set_string("username-hash-algorithm", username_hash_algorithm);
+    }
+
     // If vault is open, save it (settings were applied to vault)
     // This includes: backup, clipboard, password history, auto-lock, undo/redo settings
     // FEC is also saved if the "Apply to current vault" checkbox was ticked
@@ -1306,6 +1390,10 @@ void PreferencesDialog::on_undo_redo_enabled_toggled() noexcept {
     m_undo_history_limit_suffix.set_sensitive(enabled);
 }
 
+void PreferencesDialog::on_username_hash_changed() noexcept {
+    update_username_hash_info();
+}
+
 void PreferencesDialog::on_dialog_shown() noexcept {
     // Lazy load vault password history UI only once (expensive operation if many users)
     if (!m_history_ui_loaded) {
@@ -1366,6 +1454,46 @@ void PreferencesDialog::update_vault_password_history_ui() noexcept {
 
     // Enable clear button only if there's history to clear
     m_clear_history_button.set_sensitive(history_count > 0);
+}
+
+void PreferencesDialog::update_username_hash_info() noexcept {
+    const auto algorithm = m_username_hash_combo.get_active_id();
+
+    if (algorithm == "plaintext") {
+        m_username_hash_info.set_markup(
+            "<span size='small' foreground='#e01b24'>⚠️  <b>DEPRECATED:</b> Usernames stored in plain text. "
+            "Not recommended for security. Use for legacy compatibility only.</span>");
+    } else if (algorithm == "sha3-256") {
+        m_username_hash_info.set_markup(
+            "<span size='small'>ℹ️  Fast, FIPS-approved, 32-byte hash. Recommended for most users.</span>");
+    } else if (algorithm == "sha3-384") {
+        m_username_hash_info.set_markup(
+            "<span size='small'>ℹ️  Fast, FIPS-approved, 48-byte hash. Stronger than SHA3-256.</span>");
+    } else if (algorithm == "sha3-512") {
+        m_username_hash_info.set_markup(
+            "<span size='small'>ℹ️  Fast, FIPS-approved, 64-byte hash. Maximum strength.</span>");
+    } else if (algorithm == "pbkdf2-sha256") {
+        m_username_hash_info.set_markup(
+            "<span size='small'>ℹ️  Slow (100,000 iterations), FIPS-approved, 32-byte hash. "
+            "Better resistance to brute-force attacks.</span>");
+    } else if (algorithm == "argon2id") {
+        m_username_hash_info.set_markup(
+            "<span size='small' foreground='#f57900'>⚠️  <b>Non-FIPS:</b> Very slow, memory-hard, 32-byte hash. "
+            "Maximum security but not approved for FIPS mode. Requires ENABLE_ARGON2.</span>");
+    } else {
+        m_username_hash_info.set_text("Unknown algorithm");
+    }
+
+    // Check FIPS mode and warn if non-compliant algorithm selected
+    if (m_settings) {
+        const bool fips_enabled = m_settings->get_boolean("fips-mode-enabled");
+        if (fips_enabled && (algorithm == "plaintext" || algorithm == "argon2id")) {
+            m_username_hash_info.set_markup(
+                "<span size='small' foreground='#e01b24'>⚠️  <b>FIPS MODE ACTIVE:</b> "
+                "This algorithm is not FIPS-approved and will be blocked when creating vaults. "
+                "Please select a FIPS-approved algorithm (SHA3 or PBKDF2).</span>");
+        }
+    }
 }
 
 void PreferencesDialog::on_clear_password_history_clicked() noexcept {

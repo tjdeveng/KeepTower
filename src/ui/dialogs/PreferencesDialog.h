@@ -40,12 +40,14 @@ private:
     void save_settings();                                ///< Save all UI control values to GSettings
     void apply_color_scheme(const Glib::ustring& scheme);  ///< Apply color scheme to GTK application
     void update_vault_password_history_ui() noexcept;    ///< Update vault password history UI when vault changes
+    void update_username_hash_info() noexcept;           ///< Update username hash info label based on selected algorithm
     void on_dialog_shown() noexcept;                     ///< Handle dialog shown event (lazy loading)
     void on_rs_enabled_toggled() noexcept;               ///< Handle Reed-Solomon enabled checkbox toggle
     void on_backup_enabled_toggled() noexcept;           ///< Handle backup enabled checkbox toggle
     void on_auto_lock_enabled_toggled() noexcept;        ///< Handle auto-lock enabled checkbox toggle
     void on_account_password_history_toggled() noexcept; ///< Handle account password history checkbox toggle
     void on_undo_redo_enabled_toggled() noexcept;        ///< Handle undo/redo enabled checkbox toggle
+    void on_username_hash_changed() noexcept;            ///< Handle username hash algorithm dropdown change
     void on_apply_to_current_toggled() noexcept;         ///< Handle "Apply to current vault" checkbox toggle
     void on_color_scheme_changed() noexcept;             ///< Handle color scheme dropdown selection change
     void on_clear_password_history_clicked() noexcept;   ///< Handle clear password history button click
@@ -249,6 +251,57 @@ private:
     Gtk::Label m_fips_restart_warning;
 
     /** @} */ // end of FIPS-140-3 UI widgets
+
+    /** @name Username Hashing UI Widgets
+     * @brief User interface controls for username hashing algorithm selection
+     *
+     * These widgets allow users to select the hashing algorithm used for
+     * usernames in newly created vaults. This affects security and FIPS compliance.
+     *
+     * **Available Algorithms:**
+     * - plaintext (DEPRECATED, legacy only)
+     * - sha3-256 (FIPS-approved, default, 32 bytes)
+     * - sha3-384 (FIPS-approved, 48 bytes)
+     * - sha3-512 (FIPS-approved, 64 bytes)
+     * - pbkdf2-sha256 (FIPS-approved, 32 bytes, slow)
+     * - argon2id (non-FIPS, 32 bytes, very slow, requires ENABLE_ARGON2)
+     *
+     * **FIPS Enforcement:**
+     * When FIPS mode is enabled, only FIPS-approved algorithms are available.
+     * The dropdown will be filtered to show only sha3-* and pbkdf2-sha256.
+     *
+     * **UI Layout in Security Page:**
+     * ```
+     * Username Hashing Algorithm (New Vaults Only)
+     * Choose how usernames are stored in newly created vault files
+     *
+     * Algorithm: [SHA3-256 (FIPS)       v]
+     * ℹ️  Fast, FIPS-approved, 32-byte hash. Recommended for most users.
+     * ```
+     *
+     * @{
+     */
+
+    /**
+     * @brief Dropdown for selecting username hashing algorithm
+     *
+     * Contains entries for all available algorithms with FIPS indicators.
+     * Filtered dynamically based on FIPS mode and build configuration.
+     */
+    Gtk::ComboBoxText m_username_hash_combo;
+
+    /**
+     * @brief Info label showing details about selected algorithm
+     *
+     * Dynamically updates to show:
+     * - Hash size (e.g., "32-byte hash")
+     * - Performance (e.g., "Fast", "Slow", "Very slow")
+     * - FIPS compliance status
+     * - Security trade-offs and recommendations
+     */
+    Gtk::Label m_username_hash_info;
+
+    /** @} */ // end of Username Hashing UI widgets
 
     // Storage page (Reed-Solomon + Backups)
     Gtk::Box m_storage_box;

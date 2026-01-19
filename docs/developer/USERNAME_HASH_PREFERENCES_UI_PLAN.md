@@ -1,8 +1,8 @@
 # Username Hashing Algorithm Selection - Preferences UI Implementation Plan
 
-**Date:** 2026-01-19  
-**Feature:** Add UI for selecting username hashing algorithm in Preferences  
-**Phase:** Username Hashing Security - Phase 2 (UI Configuration)  
+**Date:** 2026-01-19
+**Feature:** Add UI for selecting username hashing algorithm in Preferences
+**Phase:** Username Hashing Security - Phase 2 (UI Configuration)
 **Status:** Planning
 
 ---
@@ -98,19 +98,19 @@ Add a user-facing preference control to the Security tab of PreferencesDialog th
    ```cpp
    // Algorithm ComboBoxText
    m_username_hash_combo = Gtk::make_managed<Gtk::ComboBoxText>();
-   
+
    // Populate with available algorithms (check ENABLE_ARGON2)
    m_username_hash_combo->append("sha3-256", "SHA3-256 (Recommended, FIPS-Approved)");
    m_username_hash_combo->append("sha3-384", "SHA3-384 (FIPS-Approved)");
    m_username_hash_combo->append("sha3-512", "SHA3-512 (Strongest FIPS-Approved)");
    m_username_hash_combo->append("pbkdf2-sha256", "PBKDF2-SHA256 (Slow, FIPS-Approved)");
-   
+
    #ifdef ENABLE_ARGON2
    if (!fips_mode_enabled()) {
        m_username_hash_combo->append("argon2id", "Argon2id (Strongest, NOT FIPS-Approved)");
    }
    #endif
-   
+
    // Load current value from GSettings
    Glib::ustring current_algo = m_settings->get_string("username-hash-algorithm");
    m_username_hash_combo->set_active_id(current_algo);
@@ -140,13 +140,13 @@ Add a user-facing preference control to the Security tab of PreferencesDialog th
    ```cpp
    void PreferencesDialog::on_username_hash_changed() {
        Glib::ustring selected = m_username_hash_combo->get_active_id();
-       
+
        // Update GSettings
        m_settings->set_string("username-hash-algorithm", selected);
-       
+
        // Update info label
        update_username_hash_info();
-       
+
        // Show/hide advanced parameters based on selection
        update_advanced_params_visibility();
    }
@@ -156,10 +156,10 @@ Add a user-facing preference control to the Security tab of PreferencesDialog th
    ```cpp
    void PreferencesDialog::update_username_hash_info() {
        Glib::ustring selected = m_username_hash_combo->get_active_id();
-       
+
        std::string info_text;
        bool show_warning = false;
-       
+
        if (selected == "sha3-256") {
            info_text = "✓ FIPS 140-3 approved. Fast, secure, recommended for most users.";
        } else if (selected == "sha3-384") {
@@ -174,12 +174,12 @@ Add a user-facing preference control to the Security tab of PreferencesDialog th
                       "memory-hard (64 MB). Disables FIPS compliance mode.";
            show_warning = true;
        }
-       
+
        info_text += "\n\n<i>Note: This setting only affects NEW vaults created after "
                    "this change. Existing vaults retain their configured algorithm.</i>";
-       
+
        m_username_hash_info->set_markup(info_text);
-       
+
        // Style the label based on FIPS compliance
        if (show_warning) {
            m_username_hash_info->add_css_class("warning");
@@ -193,11 +193,11 @@ Add a user-facing preference control to the Security tab of PreferencesDialog th
    ```cpp
    void PreferencesDialog::update_advanced_params_visibility() {
        Glib::ustring selected = m_username_hash_combo->get_active_id();
-       
+
        // Show PBKDF2 iterations control if PBKDF2 selected
        bool show_pbkdf2_params = (selected == "pbkdf2-sha256");
        m_pbkdf2_iterations_box->set_visible(show_pbkdf2_params);
-       
+
        // Show Argon2 memory control if Argon2id selected
        bool show_argon2_params = (selected == "argon2id");
        m_argon2_memory_box->set_visible(show_argon2_params);
@@ -212,17 +212,17 @@ Add a user-facing preference control to the Security tab of PreferencesDialog th
 class PreferencesDialog : public Gtk::Dialog {
 private:
     // ... existing members ...
-    
+
     // Username Hashing UI (Phase 2)
     Gtk::ComboBoxText* m_username_hash_combo;
     Gtk::Label* m_username_hash_info;
-    
+
     // Optional: Advanced parameters (can defer to Phase 3)
     Gtk::Box* m_pbkdf2_iterations_box;
     Gtk::SpinButton* m_pbkdf2_iterations_spin;
     Gtk::Box* m_argon2_memory_box;
     Gtk::SpinButton* m_argon2_memory_spin;
-    
+
     // Signal handlers
     void on_username_hash_changed();
     void update_username_hash_info();
@@ -258,7 +258,7 @@ Add validation method:
 class SettingsValidator {
 public:
     // ... existing methods ...
-    
+
     /**
      * @brief Validate username hashing algorithm selection
      * @param settings GSettings object
@@ -270,7 +270,7 @@ public:
         bool fips_mode_enabled
     ) {
         Glib::ustring algo = settings->get_string("username-hash-algorithm");
-        
+
         // FIPS mode: Block non-approved algorithms
         if (fips_mode_enabled) {
             if (algo == "argon2id" || algo == "plaintext") {
@@ -280,7 +280,7 @@ public:
                 return "sha3-256";
             }
         }
-        
+
         // Check if Argon2 is available
         #ifndef ENABLE_ARGON2
         if (algo == "argon2id") {
@@ -290,7 +290,7 @@ public:
             return "sha3-256";
         }
         #endif
-        
+
         return algo;
     }
 };
@@ -474,5 +474,5 @@ users have accounts without trying to authenticate.
 
 ---
 
-**Status:** Ready for implementation  
+**Status:** Ready for implementation
 **Next Step:** Create feature branch and implement Step 1 (UI Controls)
