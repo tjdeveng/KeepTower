@@ -33,6 +33,17 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="0.3.3.4" date="2026-01-19">
+      <description>
+        <p>Security Enhancement: Username Hashing</p>
+        <ul>
+          <li>Implement username hashing to prevent plaintext username storage in vaults</li>
+          <li>Add configurable hashing algorithms (SHA3-256, PBKDF2, Argon2id)</li>
+          <li>Add Vault Security preferences with customizable hashing parameters</li>
+          <li>Fix test failures for username hashing constants</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.1.0" date="2025-12-06">
       <description>
         <p>Initial release</p>
