@@ -72,6 +72,23 @@ echo
 echo "✓ Help documentation generated successfully!"
 echo "  Files: $OUTPUT_DIR/*.html"
 echo "  CSS: $CSS_FILE"
+
+# Sync to source tree resources/help/ if we generated to build directory
+# This ensures development runs always see latest help files
+RESOURCES_HELP_DIR="$PROJECT_ROOT/resources/help"
+if [ "$OUTPUT_DIR" != "$RESOURCES_HELP_DIR" ] && [ -d "$OUTPUT_DIR" ]; then
+    echo
+    echo "Syncing to source tree: $RESOURCES_HELP_DIR"
+    for html_file in "$OUTPUT_DIR"/*.html; do
+        if [ -f "$html_file" ]; then
+            filename=$(basename "$html_file")
+            cp "$html_file" "$RESOURCES_HELP_DIR/$filename"
+            echo "  ✓ $filename"
+        fi
+    done
+    echo "  ✓ Source tree help files updated"
+fi
+
 echo
 echo "To view locally:"
 echo "  xdg-open $OUTPUT_DIR/00-home.html"

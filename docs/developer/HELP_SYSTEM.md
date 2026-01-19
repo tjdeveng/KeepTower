@@ -86,8 +86,14 @@ docs/user/
 
 **File Discovery Strategy**:
 1. **Installed location**: `$DATADIR/keeptower/help/` (production)
-2. **Development paths**: Relative to executable (4 fallback locations)
-3. **GResources**: Embedded in binary, extracted to temp files
+2. **Development paths**: Relative to executable
+   - `./resources/help/` ← Auto-synced from build directory
+   - `../resources/help/`
+   - `../../resources/help/`
+   - `../../../resources/help/`
+3. **GResources**: Embedded in binary, extracted to `/tmp/keeptower-help-*.html`
+
+**Build-Time Sync**: The `generate-help.sh` script automatically syncs generated HTML from `build/src/help-generated/` to `resources/help/` to ensure development runs always load the latest documentation. This prevents stale help content when running via `./run.sh`.
 
 **Security**:
 - Path traversal prevention (validates `..`, `/`, `\`)
@@ -178,25 +184,36 @@ Help opens in default web browser.
 #### Updating Existing Documentation
 
 1. Edit markdown file in `docs/user/`
-2. Commit changes to main branch
-3. **Automatic**:
-   - Help HTML regenerated during next build
+2. Rebuild the project:
+   ```bash
+   meson compile -C build
+   ```
+3. **Automatic build process**:
+   - Help HTML generated to `build/src/help-generated/*.html`
+   - Files auto-synced to `resources/help/*.html` (for dev runs)
+   - Embedded into binary via GResources
+4. Commit changes to main branch
+5. **Automatic deployment**:
    - Wiki synced via GitHub Actions
    - Users get updated help on next install
+
+**Important**: Never manually edit HTML files in `resources/help/` - they are auto-generated and will be overwritten on next build!
 
 #### Testing Help Locally
 
 ```bash
-# Generate HTML
+# Generate HTML (if not using meson build)
 ./scripts/generate-help.sh
 
 # View in browser
 xdg-open resources/help/00-home.html
 
 # Test in application
-./build/src/keeptower
+./run.sh
 # Navigate: ☰ → Help → User Guide
 ```
+
+**Note**: The `run.sh` script loads help from `resources/help/` which is automatically synced during build. This ensures you always see the latest documentation during development.
 
 #### Updating CSS/Styling
 

@@ -20,6 +20,8 @@ gresources = gnome.compile_resources(
 pandoc = find_program('pandoc', required: false)
 if pandoc.found()
   # Generate help HTML files in build directory during build
+  # Note: generate-help.sh automatically syncs to resources/help/ to ensure
+  # development runs always see latest help (HelpManager checks there first)
   help_output_dir = meson.current_build_dir() / 'help-generated'
   generate_help = custom_target(
     'generate-help-src',

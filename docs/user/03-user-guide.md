@@ -447,6 +447,180 @@ Access via **Edit** → **Preferences** or `Ctrl+,`
 
 **Recommendation:** Enable with 10-25% redundancy for important vaults.
 
+### Vault Security
+
+**Purpose:** Configure security settings for vault authentication and encryption
+
+#### Auto-Lock
+
+**Settings:**
+- **☑️ Enable auto-lock after inactivity**
+  - Automatically locks vault after specified timeout
+  - Protects against unauthorized access when stepping away
+- **Lock timeout:** 60-3600 seconds (1-60 minutes)
+  - Default: 300 seconds (5 minutes)
+  - Shorter timeout = better security, less convenience
+
+#### FIPS-140-3 Mode
+
+**Purpose:** Enable FIPS-validated cryptographic operations for government/enterprise compliance
+
+**Settings:**
+- **☑️ Enable FIPS-140-3 mode**
+  - Uses NIST-certified OpenSSL FIPS module
+  - Required for government/regulated environments
+  - **Requires application restart to take effect**
+
+**Status Indicators:**
+- ✓ **FIPS module available** - Can be enabled
+- ⚠️ **FIPS module not available** - OpenSSL FIPS provider not configured
+
+**Important Notes:**
+- Only FIPS-approved algorithms available when enabled
+- Argon2id username hashing disabled in FIPS mode
+- See [FIPS Setup Guide](YUBIKEY_FIPS_SETUP.md) for configuration
+
+#### Username Hashing Algorithm
+
+**Purpose:** Select cryptographic algorithm for hashing usernames in newly created vaults
+
+**Available Algorithms:**
+
+1. **SHA3-256** (Recommended, FIPS-approved)
+   - 32-byte hash, very fast (~1-2 µs)
+   - Default for most users
+   - FIPS 202 compliant
+
+2. **SHA3-384** (FIPS-approved)
+   - 48-byte hash, fast (~2 µs)
+   - Higher security margin than SHA3-256
+
+3. **SHA3-512** (FIPS-approved)
+   - 64-byte hash, fast (~2.5 µs)
+   - Maximum FIPS-approved hash length
+
+4. **PBKDF2-SHA256** (FIPS-approved, slower)
+   - 32-byte hash, slow (~50-500 ms)
+   - Memory-hard, GPU-resistant
+   - Tunable iteration count (10,000-1,000,000)
+
+5. **Argon2id** (Maximum security, NOT FIPS-approved)
+   - 32-byte hash, very slow (~100-1000 ms)
+   - Winner of Password Hashing Competition
+   - Tunable memory cost (8 MB-1 GB) and time cost (1-10)
+   - Disabled in FIPS mode
+
+**Advanced Parameters:**
+
+When selecting **PBKDF2-SHA256**:
+- **Iterations:** 10,000 - 1,000,000 (default: 100,000)
+  - Higher = stronger security, slower authentication
+  - NIST recommends minimum 10,000
+  - 100,000 recommended for 2024+
+
+When selecting **Argon2id**:
+- **Memory Cost:** 8 MB - 1 GB (default: 64 MB)
+  - Higher = more GPU/ASIC resistance, more RAM required
+- **Time Cost:** 1 - 10 iterations (default: 3)
+  - Higher = more computational work
+
+**Important:**
+- ⚠️ This setting only affects **NEW vaults** created after the change
+- Existing vaults continue using their original algorithm
+- Cannot be changed without vault migration (see Phase 4)
+
+**Performance Impact:**
+- **SHA3:** < 5 ms (instant)
+- **PBKDF2 (100K):** ~250 ms (barely noticeable)
+- **Argon2id (64 MB):** ~500 ms (noticeable but acceptable)
+- Multi-user vaults: multiply by number of users
+
+**Algorithm Selection Guide:**
+- **Most users:** SHA3-256 (fast, FIPS-compliant)
+- **High security + FIPS:** PBKDF2-SHA256 (100K+ iterations)
+- **Maximum security (no FIPS):** Argon2id (64 MB, 3 iterations)
+- **Government/Enterprise:** SHA3-256 or PBKDF2 (FIPS required)
+
+For detailed comparison, see [Username Hashing Algorithms](../USERNAME_HASHING_ALGORITHMS.md)
+
+#### Vault User Password History
+
+**Purpose:** Track previous vault user authentication passwords to prevent reuse
+
+**Settings:**
+- **Remember up to:** 0-24 previous passwords per user (default: 5)
+  - 0 = disabled (no password history)
+  - Higher values = better protection against password reuse
+
+**Current Vault Policy** (when vault open):
+- Displays current vault's password history policy
+- Shows logged-in user
+- Shows number of stored passwords in history
+- **Clear My Password History** button - permanently deletes your password history
+
+**Important:**
+- Applies to vault user authentication passwords
+- Separate from account password history (Gmail, GitHub, etc.)
+- Only administrators can modify vault-wide policy
+
+### Account Security
+
+**Purpose:** Configure security for account entries (stored passwords)
+
+#### Clipboard Protection
+
+**Settings:**
+- **Clear clipboard after:** 5-300 seconds (default: 30)
+  - Automatically clears copied passwords
+  - Prevents accidental password exposure
+
+**Recommendation:** Keep at 30 seconds for balance of security and usability
+
+#### Account Password History
+
+**Purpose:** Prevent reusing passwords when updating account entries
+
+**Settings:**
+- **☑️ Prevent account password reuse**
+  - Tracks previous passwords for each account entry
+- **Remember up to:** 0-24 previous passwords per account (default: 5)
+  - 0 = disabled
+  - Higher values = better protection
+
+**Note:** This is separate from vault user password history
+
+#### Undo/Redo
+
+**Settings:**
+- **☑️ Enable undo/redo** (Ctrl+Z / Ctrl+Shift+Z)
+  - Allow undoing vault operations
+- **Keep up to:** 1-100 operations (default: 50)
+
+**Security Trade-off:**
+- When enabled: Operations can be undone, but passwords kept in memory
+- When disabled: No undo capability, but better memory security
+
+**Recommendation:** Keep enabled unless security policy requires minimizing password memory exposure
+
+### Appearance
+
+**Color Scheme:**
+- **System Default:** Follow desktop theme (light/dark)
+- **Light:** Always use light theme
+- **Dark:** Always use dark theme
+
+Theme changes take effect immediately.
+
+### Storage
+
+#### Reed-Solomon Error Correction
+
+See [Reed-Solomon Error Correction](#reed-solomon-error-correction) above.
+
+#### Automatic Backups
+
+See [Backup Settings](#backup-settings) above.
+
 ### YubiKey Settings
 
 **Hardware 2FA:**
@@ -459,27 +633,6 @@ Access via **Edit** → **Preferences** or `Ctrl+,`
 - Two-factor vault encryption
 - Protection against password compromise
 - Hardware-based security
-
-### Backup Settings
-
-**Enable Automatic Backups**
-- ☑️ Checked: Creates backups before each save
-- ☐ Unchecked: No automatic backups
-
-**Number of Backups to Keep:** 1-50
-- Older backups are automatically deleted
-- Backups stored as: `vault.vault.backup.YYYYMMDD_HHMMSS_mmm`
-
-**Location:** Same directory as the vault file
-
-### Appearance
-
-**Color Scheme:**
-- **System Default:** Follow desktop theme (light/dark)
-- **Light:** Always use light theme
-- **Dark:** Always use dark theme
-
-Theme changes take effect immediately.
 
 ---
 

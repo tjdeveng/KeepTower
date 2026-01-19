@@ -308,27 +308,19 @@ private:
      * Contains algorithm-specific tuning parameters:
      * - PBKDF2: Iteration count (10,000-1,000,000)
      * - Argon2id: Memory cost (8 MB-1 GB) and time cost (1-10)
+     *
+     * Managed pointers ensure proper GTK4 widget lifecycle management.
      */
-    Gtk::Box m_username_hash_advanced_box;
+    Gtk::Box* m_username_hash_advanced_box;
 
-    // PBKDF2 advanced parameters
-    Gtk::Box m_pbkdf2_iterations_box;
-    Gtk::Label m_pbkdf2_iterations_label;
-    Gtk::SpinButton m_pbkdf2_iterations_spin;
-    Gtk::Label m_pbkdf2_iterations_suffix;
-    Gtk::Label m_pbkdf2_iterations_help;
+    // PBKDF2 advanced parameters (managed pointers)
+    Gtk::Box* m_pbkdf2_iterations_box;
+    Gtk::SpinButton* m_pbkdf2_iterations_spin;
 
-    // Argon2 advanced parameters
-    Gtk::Box m_argon2_params_box;
-    Gtk::Box m_argon2_memory_box;
-    Gtk::Label m_argon2_memory_label;
-    Gtk::SpinButton m_argon2_memory_spin;
-    Gtk::Label m_argon2_memory_suffix;
-    Gtk::Box m_argon2_time_box;
-    Gtk::Label m_argon2_time_label;
-    Gtk::SpinButton m_argon2_time_spin;
-    Gtk::Label m_argon2_time_suffix;
-    Gtk::Label m_argon2_params_help;
+    // Argon2 advanced parameters (managed pointers)
+    Gtk::Box* m_argon2_params_box;
+    Gtk::SpinButton* m_argon2_memory_spin;
+    Gtk::SpinButton* m_argon2_time_spin;
 
     /** @} */ // end of Username Hashing UI widgets
 
