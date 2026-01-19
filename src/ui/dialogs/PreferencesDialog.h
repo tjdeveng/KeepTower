@@ -41,6 +41,7 @@ private:
     void apply_color_scheme(const Glib::ustring& scheme);  ///< Apply color scheme to GTK application
     void update_vault_password_history_ui() noexcept;    ///< Update vault password history UI when vault changes
     void update_username_hash_info() noexcept;           ///< Update username hash info label based on selected algorithm
+    void update_username_hash_advanced_params() noexcept; ///< Show/hide advanced parameters based on selected algorithm
     void on_dialog_shown() noexcept;                     ///< Handle dialog shown event (lazy loading)
     void on_rs_enabled_toggled() noexcept;               ///< Handle Reed-Solomon enabled checkbox toggle
     void on_backup_enabled_toggled() noexcept;           ///< Handle backup enabled checkbox toggle
@@ -300,6 +301,34 @@ private:
      * - Security trade-offs and recommendations
      */
     Gtk::Label m_username_hash_info;
+
+    /**
+     * @brief Advanced parameters section (shown/hidden based on algorithm)
+     *
+     * Contains algorithm-specific tuning parameters:
+     * - PBKDF2: Iteration count (10,000-1,000,000)
+     * - Argon2id: Memory cost (8 MB-1 GB) and time cost (1-10)
+     */
+    Gtk::Box m_username_hash_advanced_box;
+
+    // PBKDF2 advanced parameters
+    Gtk::Box m_pbkdf2_iterations_box;
+    Gtk::Label m_pbkdf2_iterations_label;
+    Gtk::SpinButton m_pbkdf2_iterations_spin;
+    Gtk::Label m_pbkdf2_iterations_suffix;
+    Gtk::Label m_pbkdf2_iterations_help;
+
+    // Argon2 advanced parameters
+    Gtk::Box m_argon2_params_box;
+    Gtk::Box m_argon2_memory_box;
+    Gtk::Label m_argon2_memory_label;
+    Gtk::SpinButton m_argon2_memory_spin;
+    Gtk::Label m_argon2_memory_suffix;
+    Gtk::Box m_argon2_time_box;
+    Gtk::Label m_argon2_time_label;
+    Gtk::SpinButton m_argon2_time_spin;
+    Gtk::Label m_argon2_time_suffix;
+    Gtk::Label m_argon2_params_help;
 
     /** @} */ // end of Username Hashing UI widgets
 

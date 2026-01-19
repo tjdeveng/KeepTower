@@ -671,6 +671,116 @@ void PreferencesDialog::setup_vault_security_page() {
     username_hash_note->set_margin_top(12);
     username_hash_section->append(*username_hash_note);
 
+    // Advanced Parameters section
+    m_username_hash_advanced_box.set_orientation(Gtk::Orientation::VERTICAL);
+    m_username_hash_advanced_box.set_spacing(12);
+    m_username_hash_advanced_box.set_margin_top(16);
+    m_username_hash_advanced_box.set_visible(false); // Hidden by default
+
+    auto* advanced_label = Gtk::make_managed<Gtk::Label>();
+    advanced_label->set_markup("<b>Advanced Parameters</b>");
+    advanced_label->set_halign(Gtk::Align::START);
+    m_username_hash_advanced_box.append(*advanced_label);
+
+    // PBKDF2 Iterations
+    m_pbkdf2_iterations_box.set_orientation(Gtk::Orientation::VERTICAL);
+    m_pbkdf2_iterations_box.set_spacing(6);
+    m_pbkdf2_iterations_box.set_visible(false);
+
+    auto* pbkdf2_iter_hbox = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 12);
+    m_pbkdf2_iterations_label.set_text("PBKDF2 Iterations:");
+    m_pbkdf2_iterations_label.set_halign(Gtk::Align::START);
+    m_pbkdf2_iterations_label.set_width_chars(20);
+
+    auto pbkdf2_adjustment = Gtk::Adjustment::create(100000.0, 10000.0, 1000000.0, 10000.0, 50000.0);
+    m_pbkdf2_iterations_spin.set_adjustment(pbkdf2_adjustment);
+    m_pbkdf2_iterations_spin.set_digits(0);
+    m_pbkdf2_iterations_spin.set_numeric(true);
+    m_pbkdf2_iterations_spin.set_hexpand(false);
+
+    m_pbkdf2_iterations_suffix.set_text("iterations");
+    m_pbkdf2_iterations_suffix.add_css_class("dim-label");
+
+    pbkdf2_iter_hbox->append(m_pbkdf2_iterations_label);
+    pbkdf2_iter_hbox->append(m_pbkdf2_iterations_spin);
+    pbkdf2_iter_hbox->append(m_pbkdf2_iterations_suffix);
+
+    m_pbkdf2_iterations_help.set_markup(
+        "<span size='small'>Higher values increase security against brute-force attacks but slow down vault operations. "
+        "100,000 iterations is recommended for most users.</span>");
+    m_pbkdf2_iterations_help.set_wrap(true);
+    m_pbkdf2_iterations_help.set_max_width_chars(60);
+    m_pbkdf2_iterations_help.add_css_class("dim-label");
+    m_pbkdf2_iterations_help.set_halign(Gtk::Align::START);
+
+    m_pbkdf2_iterations_box.append(*pbkdf2_iter_hbox);
+    m_pbkdf2_iterations_box.append(m_pbkdf2_iterations_help);
+    m_username_hash_advanced_box.append(m_pbkdf2_iterations_box);
+
+    // Argon2 Parameters
+    m_argon2_params_box.set_orientation(Gtk::Orientation::VERTICAL);
+    m_argon2_params_box.set_spacing(6);
+    m_argon2_params_box.set_visible(false);
+
+    // Argon2 Memory Cost
+    m_argon2_memory_box.set_orientation(Gtk::Orientation::HORIZONTAL);
+    m_argon2_memory_box.set_spacing(12);
+
+    m_argon2_memory_label.set_text("Memory Cost:");
+    m_argon2_memory_label.set_halign(Gtk::Align::START);
+    m_argon2_memory_label.set_width_chars(20);
+
+    auto argon2_memory_adjustment = Gtk::Adjustment::create(64.0, 8.0, 1024.0, 8.0, 64.0);
+    m_argon2_memory_spin.set_adjustment(argon2_memory_adjustment);
+    m_argon2_memory_spin.set_digits(0);
+    m_argon2_memory_spin.set_numeric(true);
+    m_argon2_memory_spin.set_hexpand(false);
+
+    m_argon2_memory_suffix.set_text("MB");
+    m_argon2_memory_suffix.add_css_class("dim-label");
+
+    m_argon2_memory_box.append(m_argon2_memory_label);
+    m_argon2_memory_box.append(m_argon2_memory_spin);
+    m_argon2_memory_box.append(m_argon2_memory_suffix);
+
+    // Argon2 Time Cost
+    m_argon2_time_box.set_orientation(Gtk::Orientation::HORIZONTAL);
+    m_argon2_time_box.set_spacing(12);
+    m_argon2_time_box.set_margin_top(6);
+
+    m_argon2_time_label.set_text("Time Cost:");
+    m_argon2_time_label.set_halign(Gtk::Align::START);
+    m_argon2_time_label.set_width_chars(20);
+
+    auto argon2_time_adjustment = Gtk::Adjustment::create(3.0, 1.0, 10.0, 1.0, 2.0);
+    m_argon2_time_spin.set_adjustment(argon2_time_adjustment);
+    m_argon2_time_spin.set_digits(0);
+    m_argon2_time_spin.set_numeric(true);
+    m_argon2_time_spin.set_hexpand(false);
+
+    m_argon2_time_suffix.set_text("iterations");
+    m_argon2_time_suffix.add_css_class("dim-label");
+
+    m_argon2_time_box.append(m_argon2_time_label);
+    m_argon2_time_box.append(m_argon2_time_spin);
+    m_argon2_time_box.append(m_argon2_time_suffix);
+
+    m_argon2_params_help.set_markup(
+        "<span size='small'>Memory cost increases resistance to GPU-based attacks. Time cost increases computational work. "
+        "64 MB memory and 3 iterations are recommended for most users.</span>");
+    m_argon2_params_help.set_wrap(true);
+    m_argon2_params_help.set_max_width_chars(60);
+    m_argon2_params_help.add_css_class("dim-label");
+    m_argon2_params_help.set_halign(Gtk::Align::START);
+    m_argon2_params_help.set_margin_top(6);
+
+    m_argon2_params_box.append(m_argon2_memory_box);
+    m_argon2_params_box.append(m_argon2_time_box);
+    m_argon2_params_box.append(m_argon2_params_help);
+    m_username_hash_advanced_box.append(m_argon2_params_box);
+
+    username_hash_section->append(m_username_hash_advanced_box);
+
     m_vault_security_box.append(*username_hash_section);
 
     // Add page to stack
@@ -1058,8 +1168,19 @@ void PreferencesDialog::load_settings() {
     Glib::ustring username_hash_algorithm = m_settings->get_string("username-hash-algorithm");
     m_username_hash_combo.set_active_id(username_hash_algorithm);
 
-    // Update info label with initial selection
+    // Load advanced parameters
+    guint32 pbkdf2_iterations = m_settings->get_uint("username-pbkdf2-iterations");
+    m_pbkdf2_iterations_spin.set_value(static_cast<double>(pbkdf2_iterations));
+
+    guint32 argon2_memory_kb = m_settings->get_uint("username-argon2-memory-kb");
+    m_argon2_memory_spin.set_value(static_cast<double>(argon2_memory_kb / 1024)); // Convert KB to MB
+
+    guint32 argon2_iterations = m_settings->get_uint("username-argon2-iterations");
+    m_argon2_time_spin.set_value(static_cast<double>(argon2_iterations));
+
+    // Update info label and advanced params visibility with initial selection
     update_username_hash_info();
+    update_username_hash_advanced_params();
 }
 
 void PreferencesDialog::save_settings() {
@@ -1261,6 +1382,16 @@ void PreferencesDialog::save_settings() {
         m_settings->set_string("username-hash-algorithm", username_hash_algorithm);
     }
 
+    // Save advanced parameters
+    guint32 pbkdf2_iterations = static_cast<guint32>(m_pbkdf2_iterations_spin.get_value());
+    m_settings->set_uint("username-pbkdf2-iterations", pbkdf2_iterations);
+
+    guint32 argon2_memory_mb = static_cast<guint32>(m_argon2_memory_spin.get_value());
+    m_settings->set_uint("username-argon2-memory-kb", argon2_memory_mb * 1024); // Convert MB to KB
+
+    guint32 argon2_iterations = static_cast<guint32>(m_argon2_time_spin.get_value());
+    m_settings->set_uint("username-argon2-iterations", argon2_iterations);
+
     // If vault is open, save it (settings were applied to vault)
     // This includes: backup, clipboard, password history, auto-lock, undo/redo settings
     // FEC is also saved if the "Apply to current vault" checkbox was ticked
@@ -1392,6 +1523,33 @@ void PreferencesDialog::on_undo_redo_enabled_toggled() noexcept {
 
 void PreferencesDialog::on_username_hash_changed() noexcept {
     update_username_hash_info();
+    update_username_hash_advanced_params();
+}
+
+void PreferencesDialog::update_username_hash_advanced_params() noexcept {
+    // Get the currently selected algorithm
+    const auto active_text = m_username_hash_combo.get_active_text();
+
+    // Hide all advanced parameter sections by default
+    m_pbkdf2_iterations_box.set_visible(false);
+    m_argon2_params_box.set_visible(false);
+
+    // Show/hide advanced parameters section based on algorithm
+    if (active_text == "SHA3-256" || active_text == "SHA3-384" || active_text == "SHA3-512" || active_text == "Plaintext") {
+        // SHA3 algorithms and plaintext have no tunable parameters
+        m_username_hash_advanced_box.set_visible(false);
+    } else if (active_text == "PBKDF2-SHA256") {
+        // Show PBKDF2 iterations control
+        m_username_hash_advanced_box.set_visible(true);
+        m_pbkdf2_iterations_box.set_visible(true);
+    } else if (active_text == "Argon2id") {
+        // Show Argon2 memory and time cost controls
+        m_username_hash_advanced_box.set_visible(true);
+        m_argon2_params_box.set_visible(true);
+    } else {
+        // Unknown algorithm - hide advanced section
+        m_username_hash_advanced_box.set_visible(false);
+    }
 }
 
 void PreferencesDialog::on_dialog_shown() noexcept {

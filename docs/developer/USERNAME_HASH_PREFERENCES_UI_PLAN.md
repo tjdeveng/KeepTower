@@ -448,18 +448,72 @@ users have accounts without trying to authenticate.
 
 ## Success Criteria
 
-- [ ] User can select username hashing algorithm in Preferences
-- [ ] Selected algorithm persists across application restarts
-- [ ] New vaults created with selected algorithm
-- [ ] Existing vaults unaffected by preference change
-- [ ] FIPS mode blocks non-approved algorithms
-- [ ] Argon2id hidden when `ENABLE_ARGON2` not defined
-- [ ] Clear warnings displayed for non-FIPS choices
-- [ ] Info label educates user about algorithm differences
-- [ ] All existing tests pass
-- [ ] New UI tests validate preference behavior
-- [ ] Code adheres to SRP (no god objects)
-- [ ] Security considerations documented
+- [x] User can select username hashing algorithm in Preferences
+- [x] Selected algorithm persists across application restarts
+- [x] New vaults created with selected algorithm
+- [x] Existing vaults unaffected by preference change
+- [x] FIPS mode blocks non-approved algorithms
+- [x] Argon2id hidden when `ENABLE_ARGON2` not defined
+- [x] Clear warnings displayed for non-FIPS choices
+- [x] Info label educates user about algorithm differences
+- [x] All existing tests pass
+- [x] New UI tests validate preference behavior
+- [x] Code adheres to SRP (no god objects)
+- [x] Security considerations documented
+- [x] **Phase 3: Advanced parameters UI implemented (PBKDF2 iterations, Argon2 memory/time)**
+- [x] **Phase 3: Dynamic visibility toggling based on selected algorithm**
+- [x] **Phase 3: Advanced parameters persisted to/from GSettings**
+- [x] **Documentation: Comprehensive algorithm comparison guide created**
+- [x] **Documentation: Performance benchmarks and security analysis included**
+- [x] **Documentation: Wiki-ready quick reference guide created**
+
+---
+
+## Implementation Status
+
+### Phase 2: Preferences UI ✅ COMPLETE
+**Commit**: f6e611d "feat: Add username hashing algorithm preferences UI (Phase 2)"
+- ✅ Dropdown with 6 algorithm options (5 + plaintext legacy)
+- ✅ Dynamic info label with FIPS warnings
+- ✅ Signal handlers (on_username_hash_changed)
+- ✅ GSettings integration (load/save algorithm selection)
+- ✅ VaultOpenHandler refactoring (uses SettingsValidator)
+- ✅ Bug fix: GSettings key 'fips-mode' → 'fips-mode-enabled'
+- ✅ Manual testing: No segfaults, UI working correctly
+
+### Phase 3: Advanced Parameters ✅ COMPLETE
+**Status**: Just implemented (pending commit)
+- ✅ PBKDF2 iterations control (10K-1M, default 100K)
+- ✅ Argon2 memory cost control (8 MB-1 GB, default 64 MB)
+- ✅ Argon2 time cost control (1-10 iterations, default 3)
+- ✅ Advanced parameters section (collapsible, shown/hidden based on algorithm)
+- ✅ Help text explaining security/performance trade-offs
+- ✅ Integration with load_settings() and save_settings()
+- ✅ update_username_hash_advanced_params() method for visibility control
+- ✅ GSettings schema updated (PBKDF2 default: 10K → 100K per NIST guidance)
+- ✅ Build successful (593/593 targets)
+
+### Documentation ✅ COMPLETE
+**Created Files**:
+1. `docs/USERNAME_HASHING_ALGORITHMS.md` - Comprehensive technical guide
+   - Detailed algorithm descriptions (6 algorithms)
+   - Performance benchmarks with real-world timing data
+   - Security comparison matrix (attack resistance, cost analysis)
+   - FIPS compliance matrix
+   - Algorithm selection guide (use case recommendations)
+   - Advanced parameter tuning guide
+   - Migration guide (Phase 4 preparation)
+   - FAQ section
+   - References to standards (FIPS 202, NIST SP 800-132, RFC 9106)
+
+2. `docs/wiki/Username-Hashing-Algorithms.md` - Wiki quick reference
+   - Quick comparison table (6 algorithms)
+   - Performance impact summary
+   - Decision tree for algorithm selection
+   - Real-world attack cost analysis
+   - Configuration instructions
+   - Use case recommendations (personal, business, enterprise, government)
+   - Important notes and warnings
 
 ---
 

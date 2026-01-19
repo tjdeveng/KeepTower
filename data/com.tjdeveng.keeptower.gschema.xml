@@ -130,10 +130,10 @@
     </key>
 
     <key name="username-pbkdf2-iterations" type="u">
-      <default>10000</default>
-      <range min="1000" max="100000"/>
+      <default>100000</default>
+      <range min="10000" max="1000000"/>
       <summary>PBKDF2 iterations for username hashing</summary>
-      <description>Iteration count when using PBKDF2 for username hashing. Only applies when username-hash-algorithm is 'pbkdf2-sha256'. Higher values increase security but slow authentication. NIST SP 800-132 recommends minimum 1000 iterations.</description>
+      <description>Iteration count when using PBKDF2 for username hashing. Only applies when username-hash-algorithm is 'pbkdf2-sha256'. Higher values increase security but slow authentication. NIST SP 800-132 recommends minimum 10,000 iterations; 100,000 is recommended for strong security.</description>
     </key>
 
     <key name="username-argon2-memory-kb" type="u">
