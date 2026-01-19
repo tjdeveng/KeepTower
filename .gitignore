@@ -82,3 +82,4 @@ RELEASE_NOTES_*.md
 # Flatpak build directories
 build-flatpak/
 .flatpak-builder/
+data/gschemas.compiled
