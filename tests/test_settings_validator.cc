@@ -310,18 +310,18 @@ TEST_F(SettingsValidatorTest, FIPSModeBlocksNonApprovedAlgorithms) {
  * @brief Test PBKDF2 iterations validation
  */
 TEST_F(SettingsValidatorTest, PBKDF2IterationsClampsToSafeRange) {
-    // Schema prevents setting values outside its defined range (1000-100000)
+    // Schema prevents setting values outside its defined range (10000-1000000)
 
     // Test minimum
-    settings->set_uint("username-pbkdf2-iterations", 1000);
+    settings->set_uint("username-pbkdf2-iterations", 10000);
     uint32_t value = SettingsValidator::get_username_pbkdf2_iterations(settings);
-    EXPECT_EQ(value, 1000);
+    EXPECT_EQ(value, 10000);
     EXPECT_GE(value, SettingsValidator::MIN_USERNAME_PBKDF2_ITERATIONS);
 
     // Test maximum
-    settings->set_uint("username-pbkdf2-iterations", 100000);
+    settings->set_uint("username-pbkdf2-iterations", 1000000);
     value = SettingsValidator::get_username_pbkdf2_iterations(settings);
-    EXPECT_EQ(value, 100000);
+    EXPECT_EQ(value, 1000000);
     EXPECT_LE(value, SettingsValidator::MAX_USERNAME_PBKDF2_ITERATIONS);
 
     // Test valid value passes through
@@ -394,8 +394,8 @@ TEST_F(SettingsValidatorTest, FIPSModeGetter) {
  */
 TEST(SettingsValidatorConstantsTest, UsernameHashingConstantsAreSensible) {
     // PBKDF2 iterations
-    EXPECT_GE(SettingsValidator::MIN_USERNAME_PBKDF2_ITERATIONS, 1000);  // NIST SP 800-132 minimum
-    EXPECT_LE(SettingsValidator::MAX_USERNAME_PBKDF2_ITERATIONS, 100000);
+    EXPECT_GE(SettingsValidator::MIN_USERNAME_PBKDF2_ITERATIONS, 10000);  // Schema minimum
+    EXPECT_LE(SettingsValidator::MAX_USERNAME_PBKDF2_ITERATIONS, 1000000); // Schema maximum
     EXPECT_GE(SettingsValidator::DEFAULT_USERNAME_PBKDF2_ITERATIONS,
               SettingsValidator::MIN_USERNAME_PBKDF2_ITERATIONS);
     EXPECT_LE(SettingsValidator::DEFAULT_USERNAME_PBKDF2_ITERATIONS,

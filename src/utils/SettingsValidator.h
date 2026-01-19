@@ -35,9 +35,9 @@ public:
     static inline constexpr int DEFAULT_PASSWORD_HISTORY{5};   ///< Default password history entries
 
     // Username hashing constraints (Phase 2)
-    static inline constexpr uint32_t MIN_USERNAME_PBKDF2_ITERATIONS{1000};    ///< Minimum PBKDF2 iterations (NIST SP 800-132)
-    static inline constexpr uint32_t MAX_USERNAME_PBKDF2_ITERATIONS{100000};  ///< Maximum PBKDF2 iterations
-    static inline constexpr uint32_t DEFAULT_USERNAME_PBKDF2_ITERATIONS{10000}; ///< Default PBKDF2 iterations
+    static inline constexpr uint32_t MIN_USERNAME_PBKDF2_ITERATIONS{10000};    ///< Minimum PBKDF2 iterations (NIST SP 800-132)
+    static inline constexpr uint32_t MAX_USERNAME_PBKDF2_ITERATIONS{1000000};  ///< Maximum PBKDF2 iterations
+    static inline constexpr uint32_t DEFAULT_USERNAME_PBKDF2_ITERATIONS{100000}; ///< Default PBKDF2 iterations
 
     static inline constexpr uint32_t MIN_USERNAME_ARGON2_MEMORY_KB{8192};     ///< Minimum Argon2 memory (8 MB)
     static inline constexpr uint32_t MAX_USERNAME_ARGON2_MEMORY_KB{1048576};  ///< Maximum Argon2 memory (1 GB)

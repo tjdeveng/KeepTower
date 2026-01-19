@@ -23,11 +23,15 @@ protected:
         Glib::init();
         Gio::init();
 
-        // Ensure schema is compiled
-        schema_dir = fs::current_path() / ".." / "data";
-
-        // Set schema directory environment variable
-        g_setenv("GSETTINGS_SCHEMA_DIR", schema_dir.c_str(), TRUE);
+        // Use GSETTINGS_SCHEMA_DIR from environment if set (for meson test),
+        // otherwise fallback to source directory
+        const char* env_schema_dir = std::getenv("GSETTINGS_SCHEMA_DIR");
+        if (env_schema_dir) {
+            schema_dir = env_schema_dir;
+        } else {
+            schema_dir = fs::current_path() / ".." / "data";
+            g_setenv("GSETTINGS_SCHEMA_DIR", schema_dir.c_str(), TRUE);
+        }
 
         try {
             settings = Gio::Settings::create("com.tjdeveng.keeptower");
@@ -55,7 +59,7 @@ protected:
 TEST_F(UISecurityTest, ClipboardTimeoutDefaults) {
     ASSERT_TRUE(settings);
 
-    // Check default value
+    // Check default value (schema default is 30 seconds)
     const int default_timeout = settings->get_int("clipboard-clear-timeout");
     EXPECT_EQ(default_timeout, 30) << "Default clipboard timeout should be 30 seconds";
 }
