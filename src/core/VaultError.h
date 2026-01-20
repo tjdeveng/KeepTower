@@ -65,6 +65,8 @@ enum class VaultError {
     EncryptionFailed,          ///< AES-256-GCM encryption operation failed
     DecryptionFailed,          ///< AES-256-GCM decryption operation failed
     KeyDerivationFailed,       ///< PBKDF2 key derivation failed
+    InvalidSalt,               ///< Cryptographic salt too short or invalid
+    UnsupportedAlgorithm,      ///< Cryptographic algorithm not supported
 
     // Data operations
     SerializationFailed,       ///< Failed to serialize vault data to protobuf
@@ -149,6 +151,10 @@ inline constexpr std::string_view to_string(VaultError error) noexcept {
             return "Decryption failed";
         case VaultError::KeyDerivationFailed:
             return "Key derivation failed";
+        case VaultError::InvalidSalt:
+            return "Invalid cryptographic salt";
+        case VaultError::UnsupportedAlgorithm:
+            return "Unsupported cryptographic algorithm";
         case VaultError::SerializationFailed:
             return "Failed to serialize data";
         case VaultError::DeserializationFailed:

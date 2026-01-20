@@ -326,6 +326,26 @@ username_hashing_test = executable(
     include_directories: test_inc
 )
 
+# KEK Derivation tests (Phase 1: Core KEK Derivation Service)
+kek_derivation_sources = [
+    'test_kek_derivation.cc',
+    '../src/core/services/KekDerivationService.cc',
+]
+
+kek_derivation_deps = [
+    gtest_dep,
+    gtkmm_dep,
+    openssl_dep,
+    argon2_dep
+]
+
+kek_derivation_test = executable(
+    'kek_derivation_test',
+    kek_derivation_sources,
+    dependencies: kek_derivation_deps,
+    include_directories: test_inc
+)
+
 # Register all tests
 # VaultManager concurrency tests can be flaky under heavy CI load - allow retry
 test('VaultManager Tests', vault_manager_test,
@@ -349,6 +369,7 @@ test('FIPS Mode Tests', fips_mode_test)
 test('Memory Locking Security Tests', memory_locking_test)
 test('YubiKey Algorithm Tests', yubikey_algorithms_test)
 test('Username Hashing Tests', username_hashing_test)
+test('KEK Derivation Tests', kek_derivation_test)
 
 # Secure memory tests
 secure_memory_sources = [
