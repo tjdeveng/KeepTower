@@ -319,6 +319,11 @@ username_hashing_deps = [
     openssl_dep
 ]
 
+# Add argon2 if available
+if argon2_available
+    username_hashing_deps += [argon2_dep]
+endif
+
 username_hashing_test = executable(
     'username_hashing_test',
     username_hashing_sources,
@@ -335,9 +340,13 @@ kek_derivation_sources = [
 kek_derivation_deps = [
     gtest_dep,
     gtkmm_dep,
-    openssl_dep,
-    argon2_dep
+    openssl_dep
 ]
+
+# Add argon2 if available
+if argon2_available
+    kek_derivation_deps += [argon2_dep]
+endif
 
 kek_derivation_test = executable(
     'kek_derivation_test',
