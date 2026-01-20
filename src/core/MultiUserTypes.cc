@@ -100,13 +100,28 @@ std::vector<uint8_t> VaultSecurityPolicy::serialize() const {
     result.push_back(static_cast<uint8_t>((password_history_depth >> 8) & 0xFF));
     result.push_back(static_cast<uint8_t>(password_history_depth & 0xFF));
 
-    // Byte 14: username_hash_algorithm (Phase 2 - Username Hashing Security)
+    // Byte 14: username_hash_algorithm (V2 username hashing extension)
     result.push_back(username_hash_algorithm);
 
-    // Bytes 15-78: yubikey_challenge (64 bytes)
+    // Bytes 15-18: argon2_memory_kb (V2 KEK derivation extension)
+    result.push_back(static_cast<uint8_t>((argon2_memory_kb >> 24) & 0xFF));
+    result.push_back(static_cast<uint8_t>((argon2_memory_kb >> 16) & 0xFF));
+    result.push_back(static_cast<uint8_t>((argon2_memory_kb >> 8) & 0xFF));
+    result.push_back(static_cast<uint8_t>(argon2_memory_kb & 0xFF));
+
+    // Bytes 19-22: argon2_iterations (V2 KEK derivation extension)
+    result.push_back(static_cast<uint8_t>((argon2_iterations >> 24) & 0xFF));
+    result.push_back(static_cast<uint8_t>((argon2_iterations >> 16) & 0xFF));
+    result.push_back(static_cast<uint8_t>((argon2_iterations >> 8) & 0xFF));
+    result.push_back(static_cast<uint8_t>(argon2_iterations & 0xFF));
+
+    // Byte 23: argon2_parallelism (V2 KEK derivation extension)
+    result.push_back(argon2_parallelism);
+
+    // Bytes 24-87: yubikey_challenge (64 bytes)
     result.insert(result.end(), yubikey_challenge.begin(), yubikey_challenge.end());
 
-    // Bytes 79-122: reserved for future use (43 bytes, reduced from 44)
+    // Bytes 88-130: reserved for future use (43 bytes, reduced from 44 by 10 bytes total)
     for (size_t i = 0; i < RESERVED_BYTES_2; ++i) {
         result.push_back(0);
     }
@@ -115,13 +130,17 @@ std::vector<uint8_t> VaultSecurityPolicy::serialize() const {
 }
 
 std::optional<VaultSecurityPolicy> VaultSecurityPolicy::deserialize(const std::vector<uint8_t>& data) {
-    // Support both old (121 bytes) and new (122 bytes) format for backward compatibility
-    const size_t OLD_SIZE = 121;  // Pre-Phase 2 format (without username_hash_algorithm)
-    const size_t NEW_SIZE = 122;  // Phase 2 format with username_hash_algorithm
+    // V2 format evolved over development (no production vaults exist):
+    // - Early V2 (121 bytes): Basic multi-user, no username hashing
+    // - Mid V2 (122 bytes): Added username_hash_algorithm field
+    // - Current V2 (131 bytes): Added Argon2id parameters for KEK derivation
+    const size_t EARLY_V2_SIZE = 121;    // Pre-username-hashing
+    const size_t MID_V2_SIZE = 122;      // Username hashing only
+    const size_t CURRENT_V2_SIZE = 131;  // Full Argon2id support
 
-    if (data.size() < OLD_SIZE) {
+    if (data.size() < EARLY_V2_SIZE) {
         Log::error("VaultSecurityPolicy: Insufficient data for deserialization (need at least {}, got {})",
-                   OLD_SIZE, data.size());
+                   EARLY_V2_SIZE, data.size());
         return std::nullopt;
     }
 
@@ -169,9 +188,9 @@ std::optional<VaultSecurityPolicy> VaultSecurityPolicy::deserialize(const std::v
                                     static_cast<uint32_t>(data[offset + 3]);
     offset += 4;
 
-    // Backward compatibility: Check if new format (123 bytes) with username_hash_algorithm
-    if (data.size() >= NEW_SIZE) {
-        // Byte 14: username_hash_algorithm (Phase 2)
+    // Backward compatibility: Check if this is mid V2 format (with username hashing) or later
+    if (data.size() >= MID_V2_SIZE) {
+        // Byte 14: username_hash_algorithm
         policy.username_hash_algorithm = data[offset];
         offset += 1;
 
@@ -182,9 +201,55 @@ std::optional<VaultSecurityPolicy> VaultSecurityPolicy::deserialize(const std::v
             return std::nullopt;
         }
     } else {
-        // Old format (122 bytes): default to plaintext (0) for backward compatibility
+        // Early V2 format: default to plaintext (0) for backward compatibility
         policy.username_hash_algorithm = 0;
-        Log::info("VaultSecurityPolicy: Legacy format detected, defaulting username_hash_algorithm to 0 (plaintext)");
+        Log::info("VaultSecurityPolicy: Early V2 format detected (no username hashing), defaulting username_hash_algorithm to 0");
+    }
+
+    // Check for current V2 format (with Argon2id KEK parameters)
+    if (data.size() >= CURRENT_V2_SIZE) {
+        // Bytes 15-18: argon2_memory_kb
+        policy.argon2_memory_kb = (static_cast<uint32_t>(data[offset]) << 24) |
+                                  (static_cast<uint32_t>(data[offset + 1]) << 16) |
+                                  (static_cast<uint32_t>(data[offset + 2]) << 8) |
+                                  static_cast<uint32_t>(data[offset + 3]);
+        offset += 4;
+
+        // Bytes 19-22: argon2_iterations
+        policy.argon2_iterations = (static_cast<uint32_t>(data[offset]) << 24) |
+                                   (static_cast<uint32_t>(data[offset + 1]) << 16) |
+                                   (static_cast<uint32_t>(data[offset + 2]) << 8) |
+                                   static_cast<uint32_t>(data[offset + 3]);
+        offset += 4;
+
+        // Byte 23: argon2_parallelism
+        policy.argon2_parallelism = data[offset];
+        offset += 1;
+
+        // Validate Argon2 parameters
+        if (policy.argon2_memory_kb < 8192 || policy.argon2_memory_kb > 1048576) {
+            Log::error("VaultSecurityPolicy: Invalid argon2_memory_kb: {} (range: 8192-1048576)",
+                       policy.argon2_memory_kb);
+            return std::nullopt;
+        }
+        if (policy.argon2_iterations < 1 || policy.argon2_iterations > 10) {
+            Log::error("VaultSecurityPolicy: Invalid argon2_iterations: {} (range: 1-10)",
+                       policy.argon2_iterations);
+            return std::nullopt;
+        }
+        if (policy.argon2_parallelism < 1 || policy.argon2_parallelism > 16) {
+            Log::error("VaultSecurityPolicy: Invalid argon2_parallelism: {} (range: 1-16)",
+                       policy.argon2_parallelism);
+            return std::nullopt;
+        }
+    } else {
+        // Mid V2 format: use default Argon2id parameters
+        policy.argon2_memory_kb = 65536;  // 64 MB default
+        policy.argon2_iterations = 3;     // Time cost default
+        policy.argon2_parallelism = 4;    // Thread count default
+        if (data.size() >= MID_V2_SIZE) {
+            Log::info("VaultSecurityPolicy: Mid V2 format detected (username hashing only), using default Argon2id parameters");
+        }
     }
 
     // Next 64 bytes: yubikey_challenge
@@ -213,8 +278,9 @@ std::optional<VaultSecurityPolicy> VaultSecurityPolicy::deserialize(const std::v
 // ============================================================================
 
 size_t KeySlot::calculate_serialized_size() const {
-    // KeySlot format (username hash only, no plaintext):
+    // KeySlot format (V2 with KEK derivation enhancement):
     // 1 byte: active flag
+    // 1 byte: kek_derivation_algorithm (V2 KEK derivation extension)
     // 64 bytes: username_hash (fixed array)
     // 1 byte: username_hash_size
     // 16 bytes: username_salt (fixed array)
@@ -236,7 +302,7 @@ size_t KeySlot::calculate_serialized_size() const {
     // 1 byte: password_history count
     // N * 88 bytes: password_history entries
 
-    size_t base_size = 1 + 64 + 1 + 16 + 32 + 40 + 1 + 1 + 8 + 8 + 1 + 32 + 1 + yubikey_serial.size() + 8 + 2 + yubikey_encrypted_pin.size() + 2 + yubikey_credential_id.size() + 1;
+    size_t base_size = 1 + 1 + 64 + 1 + 16 + 32 + 40 + 1 + 1 + 8 + 8 + 1 + 32 + 1 + yubikey_serial.size() + 8 + 2 + yubikey_encrypted_pin.size() + 2 + yubikey_credential_id.size() + 1;
     size_t history_size = password_history.size() * PasswordHistoryEntry::SERIALIZED_SIZE;
     return base_size + history_size;
 }
@@ -246,10 +312,14 @@ std::vector<uint8_t> KeySlot::serialize() const {
     result.reserve(calculate_serialized_size());
 
     // DEBUG: Log what we're serializing
-    Log::info("KeySlot::serialize: username='{}' (length={}, active={}, hash_size={})", username, username.length(), active, username_hash_size);
+    Log::info("KeySlot::serialize: username='{}' (length={}, active={}, hash_size={}, kek_algo=0x{:02X})",
+              username, username.length(), active, username_hash_size, kek_derivation_algorithm);
 
     // Byte 0: active flag
     result.push_back(active ? 1 : 0);
+
+    // Byte 1: kek_derivation_algorithm (V2 KEK derivation extension)
+    result.push_back(kek_derivation_algorithm);
 
     // Next 64 bytes: username_hash (for secure authentication, no plaintext username stored)
     result.insert(result.end(), username_hash.begin(), username_hash.end());
@@ -351,6 +421,20 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
 
     // Username not stored on disk (security) - will be populated in-memory after authentication
     slot.username.clear();
+
+    // Detect if this is current V2 format (with kek_derivation_algorithm field)
+    // Heuristic: If next byte is 0x04 or 0x05, it's likely kek_derivation_algorithm
+    // Otherwise, it's the first byte of username_hash (older V2 format)
+    bool has_kek_algorithm = false;
+    if (pos < data.size() && (data[pos] == 0x04 || data[pos] == 0x05)) {
+        // Current V2 format with kek_derivation_algorithm
+        slot.kek_derivation_algorithm = data[pos++];
+        has_kek_algorithm = true;
+    } else {
+        // Older V2 format: default to PBKDF2
+        slot.kek_derivation_algorithm = 0x04;  // PBKDF2-HMAC-SHA256 default
+        has_kek_algorithm = false;
+    }
 
     // Next 64 bytes: username_hash
     if (pos + 64 > data.size()) {

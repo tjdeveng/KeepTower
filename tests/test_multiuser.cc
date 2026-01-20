@@ -182,7 +182,7 @@ bool test_vault_security_policy_serialization() {
     // Serialize
     auto serialized = policy.serialize();
     TEST_ASSERT(serialized.size() == VaultSecurityPolicy::SERIALIZED_SIZE,
-                "Serialized size should be 123 bytes (Phase 2 format)");
+                "Serialized size should be 131 bytes (current V2 format)");
 
     // Deserialize
     auto deserialized_opt = VaultSecurityPolicy::deserialize(serialized);
@@ -482,7 +482,7 @@ bool test_vault_security_policy_username_hash_algorithm_serialization() {
     // Serialize
     auto serialized = policy.serialize();
     TEST_ASSERT(serialized.size() == VaultSecurityPolicy::SERIALIZED_SIZE,
-                "Serialized size should be 123 bytes (Phase 2 format)");
+                "Serialized size should be 131 bytes (current V2 format)");
 
     // Deserialize
     auto deserialized_opt = VaultSecurityPolicy::deserialize(serialized);

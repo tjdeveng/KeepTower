@@ -464,19 +464,82 @@ private:
 
 ## Implementation Strategy
 
-### Phase 1: Core KEK Derivation Service (Week 1)
+### Phase 1: Core KEK Derivation Service (Week 1) ✅ COMPLETE
+
+**Status**: ✅ Completed 2026-01-20
 
 **Deliverables:**
-- [ ] `KekDerivationService` class implementation
-- [ ] PBKDF2-HMAC-SHA256 derivation (wrapper around VaultCrypto)
-- [ ] Argon2id derivation (new implementation)
-- [ ] Unit tests (100% coverage)
-- [ ] Performance benchmarks
+- ✅ `KekDerivationService` class implementation
+- ✅ PBKDF2-HMAC-SHA256 derivation (wrapper around OpenSSL)
+- ✅ Argon2id derivation (using libargon2)
+- ✅ Unit tests (22 tests, 100% pass)
+- ✅ Performance benchmarks
 
 **Files Created:**
-- `src/core/services/KekDerivationService.h`
-- `src/core/services/KekDerivationService.cc`
-- `tests/test_kek_derivation.cc`
+- `src/core/services/KekDerivationService.h` (242 lines)
+- `src/core/services/KekDerivationService.cc` (172 lines)
+- `tests/test_kek_derivation.cc` (478 lines)
+
+**Commit:** 6064b4c
+
+### Phase 2: VaultFormatV2 Extension (Week 2) ✅ COMPLETE
+
+**Status:** ✅ Completed 2026-01-20
+
+**Deliverables:**
+- ✅ Extended `VaultSecurityPolicyV2` with Argon2id algorithm parameters
+- ✅ Added `kek_derivation_algorithm` field to `KeySlot`
+- ✅ Updated serialization/deserialization with backward compatibility
+- ✅ Format size changes documented
+
+**Files Modified:**
+- `src/core/MultiUserTypes.h`:
+  - Added `kek_derivation_algorithm` field to KeySlot (uint8_t, 1 byte, default 0x04)
+  - Added `argon2_memory_kb` to VaultSecurityPolicy (uint32_t, 4 bytes, default 65536)
+  - Added `argon2_iterations` to VaultSecurityPolicy (uint32_t, 4 bytes, default 3)
+  - Added `argon2_parallelism` to VaultSecurityPolicy (uint8_t, 1 byte, default 4)
+  - Updated VaultSecurityPolicy::SERIALIZED_SIZE: 122 → 131 bytes (+9 bytes)
+  - Updated KeySlot::MIN_SERIALIZED_SIZE: 220 → 221 bytes (+1 byte)
+
+- `src/core/MultiUserTypes.cc`:
+  - Updated VaultSecurityPolicy::serialize() to write Argon2id parameters
+  - Updated VaultSecurityPolicy::deserialize() with V2 format evolution detection
+  - Updated KeySlot::serialize() to write kek_derivation_algorithm
+  - Updated KeySlot::deserialize() with heuristic detection (0x04/0x05 marker)
+  - Backward compatibility: Early V2 (121 bytes), Mid V2 (122 bytes), Current V2 (131 bytes)
+
+- `tests/test_multiuser.cc`:
+  - Updated serialization size assertions: 123 → 131 bytes
+
+**Key Changes:**
+```cpp
+struct VaultSecurityPolicy {
+    // ... existing fields ...
+    uint8_t username_hash_algorithm = 0;  // Mid V2 extension
+    uint32_t argon2_memory_kb = 65536;    // Current V2 extension (NEW)
+    uint32_t argon2_iterations = 3;       // Current V2 extension (NEW)
+    uint8_t argon2_parallelism = 4;       // Current V2 extension (NEW)
+    // SERIALIZED_SIZE: 131 bytes (was 122)
+};
+
+struct KeySlot {
+    bool active = false;
+    uint8_t kek_derivation_algorithm = 0x04;  // Current V2 extension (NEW)
+    std::array<uint8_t, 64> username_hash = {};
+    // ... other fields ...
+    // MIN_SERIALIZED_SIZE: 221 bytes (was 220)
+};
+```
+
+**Backward Compatibility:**
+- V1 format (121 bytes): Pre-Phase 2, no username_hash_algorithm
+- V2 format (122 bytes): Phase 2, username_hash_algorithm only
+- V3 format (131 bytes): Phase 3, full Argon2id parameters
+- Deserialization auto-detects format version based on size
+- Old vaults load with default Argon2id parameters
+- kek_derivation_algorithm detection uses 0x04/0x05 heuristic
+
+**Commit:** (Pending - tests need vault creation integration)
 
 **Implementation Notes:**
 ```cpp

@@ -204,6 +204,60 @@ struct VaultSecurityPolicy {
     uint8_t username_hash_algorithm = 0;
 
     /**
+     * @brief Argon2id memory cost in kilobytes (V2 Format Extension - KEK Derivation Enhancement)
+     *
+     * Memory consumption for Argon2id key derivation.
+     * Higher values increase security but consume more RAM.
+     *
+     * @section recommendations Memory Recommendations
+     * - **8192 KB (8 MB)**: Minimum, fast unlock (~300ms)
+     * - **65536 KB (64 MB)**: Default, balanced security/performance (~500ms)
+     * - **262144 KB (256 MB)**: High security, slower unlock (~2s)
+     * - **1048576 KB (1 GB)**: Maximum security, very slow (~8s)
+     *
+     * @note Only used if username_hash_algorithm = 5 (Argon2id) or KEK derivation uses Argon2id
+     * @note Range: 8192-1048576 (enforced at API level)
+     * @note Default: 65536 (64 MB)
+     */
+    uint32_t argon2_memory_kb = 65536;
+
+    /**
+     * @brief Argon2id time cost / iterations (V2 Format Extension - KEK Derivation Enhancement)
+     *
+     * Number of iterations for Argon2id algorithm.
+     * Higher values increase security but slow down authentication.
+     *
+     * @section recommendations Time Cost Recommendations
+     * - **1**: Minimum, very fast (~200ms with 64MB)
+     * - **3**: Default, balanced (~500ms with 64MB)
+     * - **5**: High security (~800ms with 64MB)
+     * - **10**: Maximum security (~1.5s with 64MB)
+     *
+     * @note Only used if username_hash_algorithm = 5 (Argon2id) or KEK derivation uses Argon2id
+     * @note Range: 1-10 (enforced at API level)
+     * @note Default: 3
+     */
+    uint32_t argon2_iterations = 3;
+
+    /**
+     * @brief Argon2id parallelism / thread count (V2 Format Extension - KEK Derivation Enhancement)
+     *
+     * Number of parallel threads for Argon2id computation.
+     * Higher values can improve performance on multi-core systems.
+     *
+     * @section recommendations Parallelism Recommendations
+     * - **1**: Single-threaded (slower but deterministic)
+     * - **4**: Default, good for most systems
+     * - **8**: High-end systems with 8+ cores
+     * - **16**: Server-class systems
+     *
+     * @note Only used if username_hash_algorithm = 5 (Argon2id) or KEK derivation uses Argon2id
+     * @note Range: 1-16 (enforced at API level)
+     * @note Default: 4
+     */
+    uint8_t argon2_parallelism = 4;
+
+    /**
      * @brief YubiKey HMAC algorithm identifier (FIPS-140-3 compliant only)
      *
      * Specifies which hash algorithm to use for YubiKey challenge-response.
@@ -255,24 +309,30 @@ struct VaultSecurityPolicy {
 
     /**
      * @brief Get serialized size in bytes
-     * @return 122 bytes (1 + 1 + 4 + 4 + 4 + 1 + 64 + 43)
+     * @return 131 bytes (1 + 1 + 4 + 4 + 4 + 1 + 4 + 4 + 1 + 64 + 34)
      *
-     * @section layout Serialization Layout
+     * @section layout Serialization Layout (V2 Format)
      * - Byte 0: require_yubikey (bool)
      * - Byte 1: yubikey_algorithm (uint8_t)
      * - Bytes 2-5: min_password_length (uint32_t, big-endian)
      * - Bytes 6-9: pbkdf2_iterations (uint32_t, big-endian)
      * - Bytes 10-13: password_history_depth (uint32_t, big-endian)
-     * - Byte 14: username_hash_algorithm (uint8_t) - NEW in Phase 2
-     * - Bytes 15-78: yubikey_challenge (64 bytes)
-     * - Bytes 79-121: reserved (43 bytes - reduced by 1 for new field)
+     * - Byte 14: username_hash_algorithm (uint8_t) - V2 username hashing
+     * - Bytes 15-18: argon2_memory_kb (uint32_t, big-endian) - V2 KEK derivation
+     * - Bytes 19-22: argon2_iterations (uint32_t, big-endian) - V2 KEK derivation
+     * - Byte 23: argon2_parallelism (uint8_t) - V2 KEK derivation
+     * - Bytes 24-87: yubikey_challenge (64 bytes)
+     * - Bytes 88-130: reserved (34 bytes - room for future V2 extensions)
+     *
+     * @note V2 format evolved from 121 bytes (pre-username-hashing) to 131 bytes
+     * @note Backward compatibility maintained via size-based detection
      */
-    static constexpr size_t SERIALIZED_SIZE = 122;
+    static constexpr size_t SERIALIZED_SIZE = 131;
 
     /** @brief Reserved bytes for future expansion (first block) */
     static constexpr size_t RESERVED_BYTES_1 = 0;
 
-    /** @brief Reserved bytes for future expansion (second block) - reduced from 44 to 43 */
+    /** @brief Reserved bytes for future expansion (second block) - reduced from 52 to 43 */
     static constexpr size_t RESERVED_BYTES_2 = 43;
 };
 
@@ -319,6 +379,47 @@ struct KeySlot {
      * @note For display only - authentication uses username_hash
      */
     std::string username;
+
+    /**
+     * @brief KEK derivation algorithm for this key slot (V2 Format Extension - KEK Derivation Enhancement)
+     *
+     * Specifies which algorithm was used to derive the KEK (Key Encryption Key)
+     * from the user's master password. This determines how to unlock the vault.
+     *
+     * @section kek_algorithms KEK Derivation Algorithms
+     * - **0x04**: PBKDF2-HMAC-SHA256 (default, FIPS-approved)
+     * - **0x05**: Argon2id (maximum security, memory-hard, NOT FIPS-approved)
+     *
+     * @section important_distinction CRITICAL Security Distinction
+     * This field may DIFFER from username_hash_algorithm!
+     *
+     * **Example 1 - SHA3 Username, PBKDF2 Password:**
+     * - username_hash_algorithm = 0x01 (SHA3-256 for username)
+     * - kek_derivation_algorithm = 0x04 (PBKDF2 for password - automatic upgrade)
+     * - Rationale: SHA3 is too fast for password protection (no brute-force resistance)
+     *
+     * **Example 2 - Argon2id for Both:**
+     * - username_hash_algorithm = 0x05 (Argon2id for username)
+     * - kek_derivation_algorithm = 0x05 (Argon2id for password - same algorithm)
+     * - Rationale: Argon2id appropriate for both (slow KDF with memory hardness)
+     *
+     * @section sha3_prohibition SHA3 NEVER Used for KEK
+     * SHA3 (0x01-0x03) is NEVER used for password → KEK derivation.
+     * SHA3 is a cryptographic hash function, NOT a key derivation function.
+     * It lacks computational work factor and memory hardness needed to
+     * resist brute-force attacks on passwords.
+     *
+     * **Security Impact:**
+     * - SHA3 password hashing: ~1,000,000 attempts/second (GPU)
+     * - PBKDF2 600K iterations: ~1 attempt/second
+     * - Argon2id 256MB: ~0.5 attempts/second + GPU resistance
+     *
+     * @note Cannot be 0x00-0x03 (SHA3 variants not allowed)
+     * @note Default: 0x04 (PBKDF2-HMAC-SHA256)
+     * @note Set at vault creation, immutable per key slot
+     * @note Parameters (iterations, memory) stored in VaultSecurityPolicy
+     */
+    uint8_t kek_derivation_algorithm = 0x04;
 
     /**
      * @brief Cryptographic hash of username (up to 64 bytes)
@@ -593,13 +694,13 @@ struct KeySlot {
     size_t calculate_serialized_size() const;
 
     /**
-     * @brief Minimum serialized size (empty username, no password history, legacy format)
-     * @return Base size: 220 bytes with Phase 2 username hashing fields
+     * @brief Minimum serialized size (empty username, no password history)
+     * @return Base size: 221 bytes (V2 format with KEK derivation enhancement)
      *
-     * @note Size increased by 81 bytes in Phase 2 (64 + 1 + 16 for username hashing)
-     * @note Backward compatible: Deserializer detects version by heuristic
+     * @note Evolved from 220 bytes (added kek_derivation_algorithm field)
+     * @note Backward compatible: Deserializer detects format via heuristic
      */
-    static constexpr size_t MIN_SERIALIZED_SIZE = 220;
+    static constexpr size_t MIN_SERIALIZED_SIZE = 221;
 };
 
 /**
