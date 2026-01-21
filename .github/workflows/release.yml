@@ -107,8 +107,8 @@ jobs:
           gettext \
           desktop-file-utils
 
-        # Try to install YubiKey dependencies (may not be available in all Ubuntu versions)
-        sudo apt-get install -y libfido2-dev || echo "Warning: YubiKey dependencies not available, building without YubiKey support"
+        # Try to install YubiKey and Argon2 dependencies (may not be available in all Ubuntu versions)
+        sudo apt-get install -y libfido2-dev libargon2-dev || echo "Warning: Optional dependencies not available"
 
     - name: Build and install libcorrect
       run: |

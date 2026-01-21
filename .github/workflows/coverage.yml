@@ -45,7 +45,8 @@ jobs:
           git \
           gettext \
           desktop-file-utils \
-          libfido2-dev
+          libfido2-dev \
+          libargon2-dev
 
     - name: Cache libcorrect
       id: cache-libcorrect

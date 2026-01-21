@@ -72,7 +72,8 @@ jobs:
           gettext \
           desktop-file-utils \
           doxygen \
-          libfido2-dev
+          libfido2-dev \
+          libargon2-dev
 
         # Build and install libcorrect from source
         if [ "${{ steps.cache-libcorrect.outputs.cache-hit }}" != "true" ]; then
@@ -143,6 +144,7 @@ jobs:
               gtest-devel \
               libcorrect-devel \
               libfido2-devel \
+              libargon2-devel \
               desktop-file-utils \
               gettext \
               perl \
@@ -196,6 +198,7 @@ jobs:
               openssl-devel \
               libcorrect-devel \
               libfido2-devel \
+              libargon2-devel \
               gettext \
               desktop-file-utils \
               wget \
