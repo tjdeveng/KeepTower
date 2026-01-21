@@ -52,7 +52,19 @@ vault_manager_common_sources = [
     '../src/core/services/VaultYubiKeyService.cc',
     '../src/core/services/VaultFileService.cc',
     '../src/core/services/UsernameHashService.cc',  # Username hashing service
+    '../src/core/services/KekDerivationService.cc',  # KEK derivation service (Phase 3)
     proto_gen
+]
+
+# Common dependencies for all tests using vault_manager_common_sources
+# These tests all link against KekDerivationService which requires argon2
+vault_manager_common_deps = [
+    gtest_dep,
+    protobuf_dep,
+    openssl_dep,
+    giomm_dep,
+    libcorrect_dep,
+    argon2_dep
 ]
 
 # VaultManager tests
@@ -60,13 +72,7 @@ vault_manager_sources = [
     'test_vault_manager.cc',
 ] + vault_manager_common_sources
 
-vault_manager_deps = [
-    gtest_dep,
-    protobuf_dep,
-    openssl_dep,
-    giomm_dep,
-    libcorrect_dep
-]
+vault_manager_deps = vault_manager_common_deps
 
 # Add YubiKey support if available
 if yubikey_available
@@ -86,13 +92,7 @@ fips_mode_sources = [
     'test_fips_mode.cc',
 ] + vault_manager_common_sources
 
-fips_mode_deps = [
-    gtest_dep,
-    protobuf_dep,
-    openssl_dep,
-    giomm_dep,
-    libcorrect_dep
-]
+fips_mode_deps = vault_manager_common_deps + []
 
 if yubikey_available
     fips_mode_sources += files('../src/core/managers/YubiKeyManager.cc')
@@ -117,7 +117,8 @@ memory_locking_deps = [
     protobuf_dep,
     openssl_dep,
     giomm_dep,
-    libcorrect_dep
+    libcorrect_dep,
+    argon2_dep
 ]
 
 if yubikey_available
@@ -149,7 +150,7 @@ security_sources = [
     ] + vault_manager_common_sources
 
 
-security_deps = [protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
+security_deps = [protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep]
 if yubikey_available
     security_sources += files('../src/core/managers/YubiKeyManager.cc')
     security_deps += [fido2_dep]
@@ -190,7 +191,7 @@ vault_rs_sources = [
     ] + vault_manager_common_sources
 
 
-vault_rs_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
+vault_rs_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep]
 if yubikey_available
     vault_rs_sources += files('../src/core/managers/YubiKeyManager.cc')
     vault_rs_deps += [fido2_dep]
@@ -209,7 +210,7 @@ fec_pref_sources = [
     ] + vault_manager_common_sources
 
 
-fec_pref_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
+fec_pref_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep]
 if yubikey_available
     fec_pref_sources += files('../src/core/managers/YubiKeyManager.cc')
     fec_pref_deps += [fido2_dep]
@@ -260,7 +261,7 @@ vault_helpers_sources = [
     ] + vault_manager_common_sources
 
 
-vault_helpers_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
+vault_helpers_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep]
 if yubikey_available
     vault_helpers_sources += files('../src/core/managers/YubiKeyManager.cc')
     vault_helpers_deps += [fido2_dep]
@@ -287,7 +288,7 @@ undo_redo_sources = [
     ] + vault_manager_common_sources
 
 
-undo_redo_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
+undo_redo_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep]
 if yubikey_available
     undo_redo_sources += files('../src/core/managers/YubiKeyManager.cc')
     undo_redo_deps += [fido2_dep]
@@ -378,7 +379,7 @@ test('FIPS Mode Tests', fips_mode_test)
 test('Memory Locking Security Tests', memory_locking_test)
 test('YubiKey Algorithm Tests', yubikey_algorithms_test)
 test('Username Hashing Tests', username_hashing_test)
-test('KEK Derivation Tests', kek_derivation_test)
+test('KEK Derivation Tests', kek_derivation_test, env: ['GSETTINGS_SCHEMA_DIR=' + meson.project_build_root() / 'data'])
 
 # Secure memory tests
 secure_memory_sources = [
@@ -386,7 +387,7 @@ secure_memory_sources = [
     ] + vault_manager_common_sources
 
 
-secure_memory_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
+secure_memory_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep]
 if yubikey_available
     secure_memory_sources += files('../src/core/managers/YubiKeyManager.cc')
     secure_memory_deps += [fido2_dep]
@@ -407,7 +408,7 @@ undo_redo_prefs_sources = [
     ] + vault_manager_common_sources
 
 
-undo_redo_prefs_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
+undo_redo_prefs_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep]
 if yubikey_available
     undo_redo_prefs_sources += files('../src/core/managers/YubiKeyManager.cc')
     undo_redo_prefs_deps += [fido2_dep]
@@ -428,7 +429,7 @@ account_groups_sources = [
     ] + vault_manager_common_sources
 
 
-account_groups_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
+account_groups_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep]
 if yubikey_available
     account_groups_sources += files('../src/core/managers/YubiKeyManager.cc')
     account_groups_deps += [fido2_dep]
@@ -467,7 +468,7 @@ vault_format_v2_sources = [
     '../src/core/MultiUserTypes.cc',
     proto_gen
 ]
-vault_format_v2_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
+vault_format_v2_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep]
 
 vault_format_v2_test = executable(
     'vault_format_v2_test',
@@ -540,7 +541,7 @@ vault_file_service_sources = [
     '../src/core/MultiUserTypes.cc',
     '../src/core/PasswordHistory.cc'
 ]
-vault_file_service_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
+vault_file_service_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep]
 
 vault_file_service_test = executable(
     'vault_file_service_test',
@@ -558,6 +559,7 @@ vault_creation_orchestrator_sources = [
     '../src/core/services/VaultYubiKeyService.cc',
     '../src/core/services/VaultFileService.cc',
     '../src/core/services/UsernameHashService.cc',
+    '../src/core/services/KekDerivationService.cc',  # KEK derivation service (Phase 3)
     '../src/core/KeyWrapping.cc',
     '../src/core/crypto/VaultCrypto.cc',
     '../src/core/managers/YubiKeyManager.cc',
@@ -568,7 +570,7 @@ vault_creation_orchestrator_sources = [
     '../src/core/PasswordHistory.cc',
     proto_gen
 ]
-vault_creation_orchestrator_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, fido2_dep]
+vault_creation_orchestrator_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, fido2_dep, argon2_dep]
 
 # TODO: Fix corrupted test file
 # vault_creation_orchestrator_test = executable(
@@ -598,7 +600,7 @@ multiuser_sources = [
     '../src/core/KeyWrapping.cc',
     '../src/core/VaultFormatV2.cc',
 ]
-multiuser_deps = [gtest_dep, openssl_dep, giomm_dep, libcorrect_dep]
+multiuser_deps = [gtest_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep]
 
 multiuser_test = executable(
     'multiuser_test',
@@ -614,7 +616,7 @@ v2_auth_sources = [
     'test_vault_manager_v2.cc',
     '../src/core/VaultManagerV2.cc',
 ] + vault_manager_common_sources
-v2_auth_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
+v2_auth_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep]
 if yubikey_available
     v2_auth_sources += files('../src/core/managers/YubiKeyManager.cc')
     v2_auth_deps += [fido2_dep]
@@ -634,7 +636,7 @@ migration_test_sources = [
     'test_migration_manual.cc',
     '../src/core/VaultManagerV2.cc',
 ] + vault_manager_common_sources
-migration_test_deps = [protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
+migration_test_deps = [protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep]
 if yubikey_available
     migration_test_sources += files('../src/core/managers/YubiKeyManager.cc')
     migration_test_deps += [fido2_dep]
@@ -652,7 +654,7 @@ v2_creation_test_sources = [
     'test_v2_creation.cc',
     '../src/core/VaultManagerV2.cc',
 ] + vault_manager_common_sources
-v2_creation_test_deps = [protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep]
+v2_creation_test_deps = [protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep]
 if yubikey_available
     v2_creation_test_sources += files('../src/core/managers/YubiKeyManager.cc')
     v2_creation_test_deps += [fido2_dep]
@@ -675,7 +677,8 @@ password_history_test_deps = [
     protobuf_dep,
     openssl_dep,
     giomm_dep,
-    libcorrect_dep
+    libcorrect_dep,
+    argon2_dep
 ]
 if yubikey_available
     password_history_test_sources += files('../src/core/managers/YubiKeyManager.cc')
@@ -772,7 +775,8 @@ account_view_controller_test_deps = [
     protobuf_dep,
     openssl_dep,
     giomm_dep,
-    libcorrect_dep
+    libcorrect_dep,
+    argon2_dep
 ]
 
 if yubikey_available
@@ -863,7 +867,8 @@ account_repository_test_deps = [
     protobuf_dep,
     openssl_dep,
     giomm_dep,
-    libcorrect_dep
+    libcorrect_dep,
+    argon2_dep
 ]
 
 if yubikey_available
@@ -892,7 +897,8 @@ group_repository_test_deps = [
     protobuf_dep,
     openssl_dep,
     giomm_dep,
-    libcorrect_dep
+    libcorrect_dep,
+    argon2_dep
 ]
 
 if yubikey_available
@@ -922,7 +928,8 @@ account_service_test_deps = [
     protobuf_dep,
     openssl_dep,
     giomm_dep,
-    libcorrect_dep
+    libcorrect_dep,
+    argon2_dep
 ]
 
 if yubikey_available
@@ -952,7 +959,8 @@ group_service_test_deps = [
     protobuf_dep,
     openssl_dep,
     giomm_dep,
-    libcorrect_dep
+    libcorrect_dep,
+    argon2_dep
 ]
 
 if yubikey_available

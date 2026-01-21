@@ -18,6 +18,7 @@
 #include "KeyWrapping.h"
 #include "PasswordHistory.h"
 #include "services/UsernameHashService.h"
+#include "services/KekDerivationService.h"
 #include "../utils/Log.h"
 #include "../utils/SecureMemory.h"
 #include <glibmm/main.h>
@@ -32,6 +33,7 @@ using KeepTower::VaultHeaderV2;
 using KeepTower::KeySlot;
 using KeepTower::UserRole;
 using KeepTower::UserSession;
+using KeepTower::KekDerivationService;
 using KeepTower::VaultSecurityPolicy;
 using KeepTower::VaultFormatV2;
 using KeepTower::VaultIO;
@@ -324,19 +326,33 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
         return std::unexpected(VaultError::AuthenticationFailed);
     }
 
-    // Derive KEK from password
-    Log::info("VaultManager: Deriving KEK for user: {} (password length: {} bytes, {} chars)",
-              username.raw(), password.bytes(), password.length());
-    auto kek_result = KeyWrapping::derive_kek_from_password(
-        password,
-        user_slot->salt,
-        file_header.pbkdf2_iterations);
+    // Derive KEK from password using algorithm stored in KeySlot
+    Log::info("VaultManager: Deriving KEK for user: {} (password length: {} bytes, {} chars, algorithm: 0x{:02x})",
+              username.raw(), password.bytes(), password.length(), user_slot->kek_derivation_algorithm);
+
+    // Convert algorithm byte to enum
+    auto algorithm = static_cast<KekDerivationService::Algorithm>(user_slot->kek_derivation_algorithm);
+
+    // Prepare algorithm parameters from security policy
+    KekDerivationService::AlgorithmParameters params;
+    params.pbkdf2_iterations = file_header.pbkdf2_iterations;
+    params.argon2_memory_kb = file_header.vault_header.security_policy.argon2_memory_kb;
+    params.argon2_time_cost = m_v2_header->security_policy.argon2_iterations;
+    params.argon2_parallelism = file_header.vault_header.security_policy.argon2_parallelism;
+
+    // Derive KEK using KekDerivationService
+    auto kek_result = KekDerivationService::derive_kek(
+        password.raw(),
+        algorithm,
+        std::span<const uint8_t>(user_slot->salt.data(), user_slot->salt.size()),
+        params);
     if (!kek_result) {
         Log::error("VaultManager: Failed to derive KEK");
         return std::unexpected(VaultError::CryptoError);
     }
 
-    std::array<uint8_t, 32> final_kek = kek_result.value();
+    std::array<uint8_t, 32> final_kek;
+    std::copy(kek_result->begin(), kek_result->end(), final_kek.begin());
 
     // Check if this user has YubiKey enrolled
 #ifdef HAVE_YUBIKEY_SUPPORT
@@ -621,18 +637,31 @@ KeepTower::VaultResult<> VaultManager::add_user(
         return std::unexpected(VaultError::CryptoError);
     }
 
-    // Derive KEK from temporary password
-    auto kek_result = KeyWrapping::derive_kek_from_password(
-        temporary_password,
-        salt_result.value(),
-        m_v2_header->security_policy.pbkdf2_iterations);
+    // Derive KEK from temporary password (use vault's default algorithm - PBKDF2 for now)
+    // TODO: Allow per-user algorithm selection when UI is implemented
+    auto algorithm = KekDerivationService::Algorithm::PBKDF2_HMAC_SHA256;
+
+    KekDerivationService::AlgorithmParameters params;
+    params.pbkdf2_iterations = m_v2_header->security_policy.pbkdf2_iterations;
+    params.argon2_memory_kb = m_v2_header->security_policy.argon2_memory_kb;
+    params.argon2_time_cost = m_v2_header->security_policy.argon2_iterations;
+    params.argon2_parallelism = m_v2_header->security_policy.argon2_parallelism;
+
+    auto kek_result = KekDerivationService::derive_kek(
+        temporary_password.raw(),
+        algorithm,
+        std::span<const uint8_t>(salt_result->data(), salt_result->size()),
+        params);
     if (!kek_result) {
         Log::error("VaultManager: Failed to derive KEK");
         return std::unexpected(VaultError::CryptoError);
     }
 
+    std::array<uint8_t, 32> kek_array;
+    std::copy(kek_result->begin(), kek_result->end(), kek_array.begin());
+
     // Wrap vault DEK with new user's KEK
-    auto wrapped_result = KeyWrapping::wrap_key(kek_result.value(), m_v2_dek);
+    auto wrapped_result = KeyWrapping::wrap_key(kek_array, m_v2_dek);
     if (!wrapped_result) {
         Log::error("VaultManager: Failed to wrap DEK");
         return std::unexpected(VaultError::CryptoError);
@@ -657,6 +686,7 @@ KeepTower::VaultResult<> VaultManager::add_user(
     KeySlot new_slot;
     new_slot.active = true;
     new_slot.username = username.raw();  // Keep in memory for UI (NOT serialized to disk)
+    new_slot.kek_derivation_algorithm = static_cast<uint8_t>(algorithm);  // Store algorithm used
 
     // Copy hash from vector to array
     const auto& hash_vec = username_hash_result.value();
@@ -737,7 +767,7 @@ KeepTower::VaultResult<> VaultManager::add_user(
         std::vector<uint8_t> pin_bytes(pin_str.begin(), pin_str.end());
         std::vector<uint8_t> pin_ciphertext;
 
-        if (!KeepTower::VaultCrypto::encrypt_data(pin_bytes, kek_result.value(),
+        if (!KeepTower::VaultCrypto::encrypt_data(pin_bytes, kek_array,
                                                    pin_ciphertext, pin_iv)) {
             Log::error("VaultManager: Failed to encrypt YubiKey PIN");
             return std::unexpected(VaultError::CryptoError);
@@ -751,7 +781,7 @@ KeepTower::VaultResult<> VaultManager::add_user(
         // Re-wrap DEK with YubiKey-enhanced KEK
         std::vector<uint8_t> yk_response_vec(response.get_response().begin(),
                                              response.get_response().end());
-        auto final_kek = KeyWrapping::combine_with_yubikey_v2(kek_result.value(), yk_response_vec);
+        auto final_kek = KeyWrapping::combine_with_yubikey_v2(kek_array, yk_response_vec);
 
         auto wrapped_result_yk = KeyWrapping::wrap_key(final_kek, m_v2_dek);
         if (!wrapped_result_yk) {
@@ -955,17 +985,29 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
         Log::debug("VaultManager: Password not found in history (OK)");
     }
 
-    // Verify old password by unwrapping DEK
-    auto old_kek_result = KeyWrapping::derive_kek_from_password(
-        old_password,
-        user_slot->salt,
-        m_v2_header->security_policy.pbkdf2_iterations);
+    // Verify old password by unwrapping DEK (use algorithm from KeySlot)
+    auto old_algorithm = static_cast<KekDerivationService::Algorithm>(user_slot->kek_derivation_algorithm);
+
+    KekDerivationService::AlgorithmParameters params;
+    params.pbkdf2_iterations = m_v2_header->security_policy.pbkdf2_iterations;
+    params.argon2_memory_kb = m_v2_header->security_policy.argon2_memory_kb;
+    params.argon2_time_cost = m_v2_header->security_policy.argon2_iterations;
+    params.argon2_parallelism = m_v2_header->security_policy.argon2_parallelism;
+
+    auto old_kek_result = KekDerivationService::derive_kek(
+        old_password.raw(),
+        old_algorithm,
+        std::span<const uint8_t>(user_slot->salt.data(), user_slot->salt.size()),
+        params);
     if (!old_kek_result) {
         Log::error("VaultManager: Failed to derive old KEK");
         return std::unexpected(VaultError::CryptoError);
     }
 
-    std::array<uint8_t, 32> old_final_kek = old_kek_result.value();
+    std::array<uint8_t, 32> old_kek_array;
+    std::copy(old_kek_result->begin(), old_kek_result->end(), old_kek_array.begin());
+
+    std::array<uint8_t, 32> old_final_kek = old_kek_array;
 
 #ifdef HAVE_YUBIKEY_SUPPORT
     // If user has YubiKey enrolled, verify with YubiKey
@@ -1069,17 +1111,19 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
         return std::unexpected(VaultError::CryptoError);
     }
 
-    // Derive new KEK
-    auto new_kek_result = KeyWrapping::derive_kek_from_password(
-        new_password,
-        new_salt_result.value(),
-        m_v2_header->security_policy.pbkdf2_iterations);
+    // Derive new KEK (keep same algorithm as old KEK for consistency)
+    auto new_kek_result = KekDerivationService::derive_kek(
+        new_password.raw(),
+        old_algorithm,  // Use same algorithm
+        std::span<const uint8_t>(new_salt_result->data(), new_salt_result->size()),
+        params);
     if (!new_kek_result) {
         Log::error("VaultManager: Failed to derive new KEK");
         return std::unexpected(VaultError::CryptoError);
     }
 
-    std::array<uint8_t, 32> new_final_kek = new_kek_result.value();
+    std::array<uint8_t, 32> new_final_kek;
+    std::copy(new_kek_result->begin(), new_kek_result->end(), new_final_kek.begin());
 
 #ifdef HAVE_YUBIKEY_SUPPORT
     // If user has YubiKey enrolled, combine new KEK with SAME YubiKey challenge and re-encrypt PIN
@@ -1110,7 +1154,7 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
                 user_slot->yubikey_encrypted_pin.end());
 
             std::vector<uint8_t> pin_bytes;
-            if (!KeepTower::VaultCrypto::decrypt_data(pin_ciphertext, old_kek_result.value(), pin_iv, pin_bytes)) {
+            if (!KeepTower::VaultCrypto::decrypt_data(pin_ciphertext, old_kek_array, pin_iv, pin_bytes)) {
                 Log::error("VaultManager: Failed to decrypt PIN");
                 return std::unexpected(VaultError::CryptoError);
             }
@@ -1163,7 +1207,7 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
             KeepTower::VaultCrypto::IV_LENGTH);
 
         std::vector<uint8_t> pin_bytes(pin_to_use.begin(), pin_to_use.end());
-        if (!KeepTower::VaultCrypto::encrypt_data(pin_bytes, new_kek_result.value(), new_encrypted_pin, new_pin_iv)) {
+        if (!KeepTower::VaultCrypto::encrypt_data(pin_bytes, new_final_kek, new_encrypted_pin, new_pin_iv)) {
             Log::error("VaultManager: Failed to re-encrypt PIN with new password");
             return std::unexpected(VaultError::CryptoError);
         }
@@ -1428,18 +1472,30 @@ KeepTower::VaultResult<> VaultManager::admin_reset_user_password(
         return std::unexpected(VaultError::CryptoError);
     }
 
-    // Derive new KEK from temporary password
-    auto new_kek_result = KeyWrapping::derive_kek_from_password(
-        new_temporary_password,
-        new_salt_result.value(),
-        m_v2_header->security_policy.pbkdf2_iterations);
+    // Derive new KEK from temporary password (use same algorithm as user's current algorithm)
+    auto user_algorithm = static_cast<KekDerivationService::Algorithm>(user_slot->kek_derivation_algorithm);
+
+    KekDerivationService::AlgorithmParameters params;
+    params.pbkdf2_iterations = m_v2_header->security_policy.pbkdf2_iterations;
+    params.argon2_memory_kb = m_v2_header->security_policy.argon2_memory_kb;
+    params.argon2_time_cost = m_v2_header->security_policy.argon2_iterations;
+    params.argon2_parallelism = m_v2_header->security_policy.argon2_parallelism;
+
+    auto new_kek_result = KekDerivationService::derive_kek(
+        new_temporary_password.raw(),
+        user_algorithm,
+        std::span<const uint8_t>(new_salt_result->data(), new_salt_result->size()),
+        params);
     if (!new_kek_result) {
         Log::error("VaultManager: Failed to derive new KEK");
         return std::unexpected(VaultError::CryptoError);
     }
 
+    std::array<uint8_t, 32> new_kek_array;
+    std::copy(new_kek_result->begin(), new_kek_result->end(), new_kek_array.begin());
+
     // Wrap DEK with new KEK (password-only, no YubiKey)
-    auto new_wrapped_result = KeyWrapping::wrap_key(new_kek_result.value(), m_v2_dek);
+    auto new_wrapped_result = KeyWrapping::wrap_key(new_kek_array, m_v2_dek);
     if (!new_wrapped_result) {
         Log::error("VaultManager: Failed to wrap DEK with new KEK");
         return std::unexpected(VaultError::CryptoError);
@@ -1538,18 +1594,30 @@ KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
         return std::unexpected(VaultError::YubiKeyNotPresent);
     }
 
-    // Verify password by unwrapping DEK with password-only KEK
-    auto kek_result = KeyWrapping::derive_kek_from_password(
-        password,
-        user_slot->salt,
-        m_v2_header->security_policy.pbkdf2_iterations);
+    // Verify password by unwrapping DEK with password-only KEK (use user's algorithm)
+    auto user_algorithm = static_cast<KekDerivationService::Algorithm>(user_slot->kek_derivation_algorithm);
+
+    KekDerivationService::AlgorithmParameters params;
+    params.pbkdf2_iterations = m_v2_header->security_policy.pbkdf2_iterations;
+    params.argon2_memory_kb = m_v2_header->security_policy.argon2_memory_kb;
+    params.argon2_time_cost = m_v2_header->security_policy.argon2_iterations;
+    params.argon2_parallelism = m_v2_header->security_policy.argon2_parallelism;
+
+    auto kek_result = KekDerivationService::derive_kek(
+        password.raw(),
+        user_algorithm,
+        std::span<const uint8_t>(user_slot->salt.data(), user_slot->salt.size()),
+        params);
     if (!kek_result) {
         Log::error("VaultManager: Failed to derive KEK");
         return std::unexpected(VaultError::CryptoError);
     }
 
+    std::array<uint8_t, 32> kek_array;
+    std::copy(kek_result->begin(), kek_result->end(), kek_array.begin());
+
     auto verify_unwrap = KeyWrapping::unwrap_key(
-        kek_result.value(),
+        kek_array,
         user_slot->wrapped_dek);
     if (!verify_unwrap) {
         Log::error("VaultManager: Password verification failed");
@@ -1611,7 +1679,7 @@ KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
     // Combine KEK with YubiKey response (use v2 for variable-length responses)
     std::vector<uint8_t> yk_response_vec(response.get_response().begin(),
                                           response.get_response().end());
-    auto final_kek = KeyWrapping::combine_with_yubikey_v2(kek_result.value(), yk_response_vec);
+    auto final_kek = KeyWrapping::combine_with_yubikey_v2(kek_array, yk_response_vec);
 
     // Re-wrap DEK with password+YubiKey combined KEK
     auto new_wrapped_result = KeyWrapping::wrap_key(final_kek, m_v2_dek);
@@ -1627,7 +1695,7 @@ KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
     std::vector<uint8_t> encrypted_pin;
     std::array<uint8_t, 12> pin_iv;
 
-    if (!KeepTower::VaultCrypto::encrypt_data(pin_bytes, kek_result.value(), encrypted_pin, pin_iv)) {
+    if (!KeepTower::VaultCrypto::encrypt_data(pin_bytes, kek_array, encrypted_pin, pin_iv)) {
         Log::error("VaultManager: Failed to encrypt YubiKey PIN");
         return std::unexpected(VaultError::CryptoError);
     }
@@ -1724,11 +1792,20 @@ KeepTower::VaultResult<> VaultManager::unenroll_yubikey_for_user(
         progress_callback("Verifying current password with YubiKey (touch required)...");
     }
 
-    // Verify password+YubiKey by unwrapping DEK
-    auto kek_result = KeyWrapping::derive_kek_from_password(
-        password,
-        user_slot->salt,
-        m_v2_header->security_policy.pbkdf2_iterations);
+    // Verify password+YubiKey by unwrapping DEK (use user's algorithm)
+    auto user_algorithm = static_cast<KekDerivationService::Algorithm>(user_slot->kek_derivation_algorithm);
+
+    KekDerivationService::AlgorithmParameters params;
+    params.pbkdf2_iterations = m_v2_header->security_policy.pbkdf2_iterations;
+    params.argon2_memory_kb = m_v2_header->security_policy.argon2_memory_kb;
+    params.argon2_time_cost = m_v2_header->security_policy.argon2_iterations;
+    params.argon2_parallelism = m_v2_header->security_policy.argon2_parallelism;
+
+    auto kek_result = KekDerivationService::derive_kek(
+        password.raw(),
+        user_algorithm,
+        std::span<const uint8_t>(user_slot->salt.data(), user_slot->salt.size()),
+        params);
     if (!kek_result) {
         Log::error("VaultManager: Failed to derive KEK");
         return std::unexpected(VaultError::CryptoError);
@@ -1747,9 +1824,12 @@ KeepTower::VaultResult<> VaultManager::unenroll_yubikey_for_user(
     }
 
     // Combine KEK with YubiKey response for verification
+    std::array<uint8_t, 32> kek_array;
+    std::copy(kek_result->begin(), kek_result->end(), kek_array.begin());
+
     std::array<uint8_t, 20> yk_response_array;
     std::copy_n(response.response.begin(), 20, yk_response_array.begin());
-    auto current_kek = KeyWrapping::combine_with_yubikey(kek_result.value(), yk_response_array);
+    auto current_kek = KeyWrapping::combine_with_yubikey(kek_array, yk_response_array);
 
     auto verify_unwrap = KeyWrapping::unwrap_key(current_kek, user_slot->wrapped_dek);
     if (!verify_unwrap) {
@@ -1764,18 +1844,22 @@ KeepTower::VaultResult<> VaultManager::unenroll_yubikey_for_user(
         return std::unexpected(VaultError::CryptoError);
     }
 
-    // Derive password-only KEK (no YubiKey combination)
-    auto new_kek_result = KeyWrapping::derive_kek_from_password(
-        password,
-        new_salt_result.value(),
-        m_v2_header->security_policy.pbkdf2_iterations);
+    // Derive password-only KEK (no YubiKey combination, use same algorithm as before)
+    auto new_kek_result = KekDerivationService::derive_kek(
+        password.raw(),
+        user_algorithm,
+        std::span<const uint8_t>(new_salt_result->data(), new_salt_result->size()),
+        params);
     if (!new_kek_result) {
         Log::error("VaultManager: Failed to derive new KEK");
         return std::unexpected(VaultError::CryptoError);
     }
 
+    std::array<uint8_t, 32> new_kek_array;
+    std::copy(new_kek_result->begin(), new_kek_result->end(), new_kek_array.begin());
+
     // Re-wrap DEK with password-only KEK
-    auto new_wrapped_result = KeyWrapping::wrap_key(new_kek_result.value(), m_v2_dek);
+    auto new_wrapped_result = KeyWrapping::wrap_key(new_kek_array, m_v2_dek);
     if (!new_wrapped_result) {
         Log::error("VaultManager: Failed to wrap DEK with new KEK");
         return std::unexpected(VaultError::CryptoError);

@@ -7,6 +7,8 @@
 #include "../services/VaultYubiKeyService.h"
 #include "../services/VaultFileService.h"
 #include "../services/UsernameHashService.h"
+#include "../services/KekDerivationService.h"
+#include "../KeyWrapping.h"
 #include "../VaultFormatV2.h"
 #include "../PasswordHistory.h"
 #include "../crypto/VaultCrypto.h"
@@ -232,18 +234,37 @@ VaultCreationOrchestrator::generate_dek()
 VaultResult<VaultCreationOrchestrator::KEKResult>
 VaultCreationOrchestrator::derive_admin_kek(const CreationParams& params)
 {
-    // Derive KEK from password (VaultCryptoService generates salt internally)
-    auto kek_result = m_crypto->derive_kek_from_password(
-        params.admin_password,
-        params.policy.pbkdf2_iterations
+    // Determine KEK derivation algorithm (default to PBKDF2 for now)
+    // TODO: Read from settings/preferences when UI is implemented
+    auto algorithm = KekDerivationService::Algorithm::PBKDF2_HMAC_SHA256;
+
+    // Prepare algorithm parameters
+    KekDerivationService::AlgorithmParameters algo_params;
+    algo_params.pbkdf2_iterations = params.policy.pbkdf2_iterations;
+    algo_params.argon2_memory_kb = params.policy.argon2_memory_kb;
+    algo_params.argon2_time_cost = params.policy.argon2_iterations;
+    algo_params.argon2_parallelism = params.policy.argon2_parallelism;
+
+    // Generate random salt
+    auto salt_result = KeyWrapping::generate_random_salt();
+    if (!salt_result) {
+        return std::unexpected(VaultError::CryptoError);
+    }
+
+    // Derive KEK using KekDerivationService
+    auto kek_result = KekDerivationService::derive_kek(
+        params.admin_password.raw(),
+        algorithm,
+        std::span<const uint8_t>(salt_result->data(), salt_result->size()),
+        algo_params
     );
     if (!kek_result) {
         return std::unexpected(kek_result.error());
     }
 
     KEKResult result;
-    result.kek = kek_result->kek;
-    result.salt = kek_result->salt;
+    std::copy(kek_result->begin(), kek_result->end(), result.kek.begin());
+    result.salt = salt_result.value();
 
     return result;
 }
@@ -369,6 +390,10 @@ VaultCreationOrchestrator::create_admin_key_slot(
     KeySlot slot;
     slot.active = true;
     slot.username = params.admin_username.raw();  // Keep in memory for UI (NOT serialized to disk)
+
+    // Set KEK derivation algorithm (default to PBKDF2 for now)
+    // TODO: Read from settings/preferences when UI is implemented
+    slot.kek_derivation_algorithm = static_cast<uint8_t>(KekDerivationService::Algorithm::PBKDF2_HMAC_SHA256);
 
     // Hash username for secure storage
     auto username_hash_algo = static_cast<KeepTower::UsernameHashService::Algorithm>(

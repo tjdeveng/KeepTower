@@ -29,11 +29,13 @@ cc = meson.get_compiler('cpp')
 # OpenSSL 3.5+ required for FIPS-140-3 support
 # First, try to find OpenSSL 3.5+ on the system
 openssl_dep = dependency('openssl', version: '>= 3.5.0', required: false)
+openssl_version_string = ''  # Track version for summary display
 
 if not openssl_dep.found()
   message('OpenSSL 3.5.0+ not found on system')
 else
   # OpenSSL 3.5 found via pkg-config
+  openssl_version_string = openssl_dep.version()
   # Check if it's from a non-standard location and set rpath if needed
   pkgconfig = find_program('pkg-config')
   result = run_command(pkgconfig, '--variable=libdir', 'openssl', check: false)
@@ -48,7 +50,7 @@ else
       message('→ Using system OpenSSL, no rpath needed')
     endif
   endif
-  message('Using system OpenSSL @0@ (FIPS-140-3 capable)'.format(openssl_dep.version()))
+  message('Using system OpenSSL @0@ (FIPS-140-3 capable)'.format(openssl_version_string))
 endif
 
 if not openssl_dep.found()
@@ -96,6 +98,7 @@ Please check the error messages above or run manually:
 
   if result.returncode() == 0
     openssl_version = result.stdout().strip()
+    openssl_version_string = openssl_version  # Save for summary display
     message('Detected locally built OpenSSL @0@'.format(openssl_version))
 
     # Determine which lib directory exists (lib or lib64)
@@ -298,5 +301,5 @@ summary({
 summary({
   'GTKmm4': gtkmm_dep.version(),
   'Protobuf': protobuf_dep.version(),
-  'OpenSSL': openssl_dep.version(),
+  'OpenSSL': openssl_version_string,
 }, section: 'Dependencies')

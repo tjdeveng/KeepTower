@@ -242,14 +242,14 @@ struct KeySlotV2 {
     /**
      * @brief PBKDF2 iterations for KEK derivation
      * Default: 600,000 (NIST SP 800-132 recommended, 2023)
-     * Reuses username_pbkdf2_iterations from VaultSecurityPolicyV3
+     * Reuses username_pbkdf2_iterations from VaultSecurityPolicy
      */
     // (Implicitly uses username_pbkdf2_iterations from policy)
 
     /**
      * @brief Argon2id parameters for KEK derivation
      * Reuses username_argon2_memory_kb and username_argon2_iterations
-     * from VaultSecurityPolicyV3
+     * from VaultSecurityPolicy
      */
     // (Implicitly uses argon2 params from policy)
 };
@@ -532,10 +532,10 @@ struct KeySlot {
 ```
 
 **Backward Compatibility:**
-- V1 format (121 bytes): Pre-Phase 2, no username_hash_algorithm
-- V2 format (122 bytes): Phase 2, username_hash_algorithm only
-- V3 format (131 bytes): Phase 3, full Argon2id parameters
-- Deserialization auto-detects format version based on size
+- Early V2 format (121 bytes): Basic multi-user, no username_hash_algorithm
+- Mid V2 format (122 bytes): Username hashing extension
+- Current V2 format (131 bytes): Full Argon2id KEK derivation support
+- Deserialization auto-detects format evolution based on size
 - Old vaults load with default Argon2id parameters
 - kek_derivation_algorithm detection uses 0x04/0x05 heuristic
 
