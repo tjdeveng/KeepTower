@@ -15,6 +15,7 @@
 
 #include <array>
 #include <memory>
+#include <vector>
 #include <openssl/evp.h>
 #include <openssl/crypto.h>
 #include <glibmm/ustring.h>

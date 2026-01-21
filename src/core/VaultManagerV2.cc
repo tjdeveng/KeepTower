@@ -337,7 +337,7 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
     KekDerivationService::AlgorithmParameters params;
     params.pbkdf2_iterations = file_header.pbkdf2_iterations;
     params.argon2_memory_kb = file_header.vault_header.security_policy.argon2_memory_kb;
-    params.argon2_time_cost = m_v2_header->security_policy.argon2_iterations;
+    params.argon2_time_cost = file_header.vault_header.security_policy.argon2_iterations;
     params.argon2_parallelism = file_header.vault_header.security_policy.argon2_parallelism;
 
     // Derive KEK using KekDerivationService

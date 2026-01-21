@@ -141,8 +141,10 @@ KekDerivationService::get_algorithm_from_settings(
                      "using PBKDF2 fallback");
         return Algorithm::PBKDF2_HMAC_SHA256;
     } else {
+        // Convert Glib::ustring to std::string for C++23 std::format compatibility
+        // (GCC 13 doesn't have std::formatter specialization for Glib::ustring)
         Log::warning("KekDerivationService: Unknown algorithm '{}', defaulting to PBKDF2",
-                     pref);
+                     std::string(pref));
         return Algorithm::PBKDF2_HMAC_SHA256;
     }
 }
