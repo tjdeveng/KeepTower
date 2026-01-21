@@ -42,6 +42,10 @@ private:
     void update_vault_password_history_ui() noexcept;    ///< Update vault password history UI when vault changes
     void update_username_hash_info() noexcept;           ///< Update username hash info label based on selected algorithm
     void update_username_hash_advanced_params() noexcept; ///< Show/hide advanced parameters based on selected algorithm
+    void update_argon2_performance_warning() noexcept;   ///< Update Argon2id performance warning based on parameters
+    void update_current_vault_kek_info() noexcept;       ///< Update current vault KEK algorithm display
+    void update_security_layout() noexcept;              ///< Update two-column layout visibility based on vault state
+    void resize_to_content() noexcept;                   ///< Resize dialog to fit content (shrink when content hidden)
     void on_dialog_shown() noexcept;                     ///< Handle dialog shown event (lazy loading)
     void on_rs_enabled_toggled() noexcept;               ///< Handle Reed-Solomon enabled checkbox toggle
     void on_backup_enabled_toggled() noexcept;           ///< Handle backup enabled checkbox toggle
@@ -321,8 +325,48 @@ private:
     Gtk::Box* m_argon2_params_box;
     Gtk::SpinButton* m_argon2_memory_spin;
     Gtk::SpinButton* m_argon2_time_spin;
+    Gtk::Label* m_argon2_perf_warning; ///< Performance warning label (managed)
 
     /** @} */ // end of Username Hashing UI widgets
+
+    // Two-column layout for Vault Security tab
+    Gtk::Grid* m_security_grid;       ///< Grid container for two-column layout
+    Gtk::Box* m_security_right_column; ///< Right column (current vault info)
+
+    /** @name Current Vault KEK Display (Read-Only)
+     * @brief Display current vault's KEK derivation algorithm
+     *
+     * Shows the cryptographic settings of the currently open vault.
+     * Read-only display - algorithms cannot be changed after vault creation.
+     *
+     * @{
+     */
+
+    /**
+     * @brief Container for current vault KEK information
+     * Shown only when a vault is open, hidden otherwise.
+     */
+    Gtk::Box* m_current_vault_kek_box;
+
+    /**
+     * @brief Shows current vault's username hash algorithm
+     * Example: "Username Algorithm: SHA3-256 (FIPS)"
+     */
+    Gtk::Label m_current_username_hash_label;
+
+    /**
+     * @brief Shows current vault's KEK derivation algorithm
+     * Example: "Password KEK Algorithm: PBKDF2-HMAC-SHA256 (FIPS)"
+     */
+    Gtk::Label m_current_kek_label;
+
+    /**
+     * @brief Shows algorithm parameters
+     * Example: "Parameters: 600,000 iterations"
+     */
+    Gtk::Label m_current_kek_params_label;
+
+    /** @} */ // end of Current Vault KEK Display
 
     // Storage page (Reed-Solomon + Backups)
     Gtk::Box m_storage_box;

@@ -391,19 +391,64 @@ docs/audits/MEMORY_LOCKING_AUDIT.md
 
 ### Documentation
 
-- **File Headers**: Include SPDX license identifier
+All user-facing documentation follows the **single source of truth** principle.
+
+#### Documentation Architecture
+
+**Source of Truth:** `docs/user/*.md` files in the main repository
+
+**Automated Syncing:**
+1. **GitHub Wiki:** Automatically synced via `.github/workflows/sync-wiki.yml` when `docs/user/` changes
+2. **In-App Help:** Generated via `scripts/generate-help.sh` during build process
+
+**DO NOT:**
+- ❌ Edit the GitHub Wiki directly (changes will be overwritten)
+- ❌ Create documentation files outside `docs/user/` or `docs/developer/`
+- ❌ Use hardcoded version numbers (pull from `meson.build`)
+
+**DO:**
+- ✅ Edit markdown files in `docs/user/` for user documentation
+- ✅ Follow naming convention: `XX-topic-name.md` (00-home, 01-getting-started, etc.)
+- ✅ Use relative links: `[Security](05-security.md)` or wiki-style `[[Security]]`
+- ✅ Test generated HTML: `meson compile -C build && xdg-open resources/help/00-home.html`
+
+#### Adding New Documentation
+
+1. Create `docs/user/XX-new-topic.md` with next sequential number (e.g., `07-troubleshooting.md`)
+2. Use standard markdown with front matter if needed
+3. Add links to new page in other relevant docs
+4. Commit and push to trigger automatic sync
+5. Verify wiki page created: `https://github.com/tjdeveng/KeepTower/wiki/New-Topic`
+
+#### Documentation Types
+
+| Location | Purpose | Format | Sync |
+|----------|---------|--------|------|
+| `docs/user/` | User-facing guides | Numbered markdown | Auto → Wiki + Help |
+| `docs/developer/` | Development guides | Markdown | Manual |
+| `CONTRIBUTING.md` | Contribution guide | Markdown | Auto → Wiki |
+| Code comments | API documentation | Doxygen | N/A |
+
+For detailed architecture, see `docs/DOCUMENTATION_AUDIT_2026-01-21.md`.
+
+#### File Headers
+
+Include SPDX license identifier in all source files:
   ```cpp
   // SPDX-License-Identifier: GPL-3.0-or-later
-  // SPDX-FileCopyrightText: 2025 tjdeveng
+  // SPDX-FileCopyrightText: 2026 tjdeveng
   ```
 
-- **Comments**:
-  - Use `//` for single-line comments
-  - Document non-obvious logic
-  - Explain "why" not "what"
-  - Keep comments up-to-date
+#### Code Comments
 
-- **API Documentation**: Document public interfaces clearly
+- Use `//` for single-line comments
+- Document non-obvious logic
+- Explain "why" not "what"
+- Keep comments up-to-date
+
+#### API Documentation
+
+Document public interfaces clearly using Doxygen-style comments.
 
 ## Testing Requirements
 

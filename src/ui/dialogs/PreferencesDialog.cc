@@ -380,6 +380,38 @@ void PreferencesDialog::setup_vault_security_page() {
     info_label->set_margin_bottom(12);
     m_vault_security_box.append(*info_label);
 
+    // ========================================================================
+    // Two-Column Layout for Vault Security Settings
+    // ========================================================================
+    // Use Gtk::Grid for responsive two-column layout
+    // Left column: Settings for new vaults (Auto-Lock, FIPS, Key Derivation)
+    // Right column: Current vault information (Current Vault Security, User Password History)
+    m_security_grid = Gtk::make_managed<Gtk::Grid>();
+    m_security_grid->set_column_spacing(24);
+    m_security_grid->set_row_spacing(0);
+    m_security_grid->set_column_homogeneous(false);  // Allow columns to have different widths
+
+    // Left column container
+    auto* left_column = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 0);
+    left_column->set_hexpand(true);
+    left_column->set_vexpand(true);
+    left_column->set_valign(Gtk::Align::START);
+
+    // Right column container (member variable for visibility control)
+    m_security_right_column = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 0);
+    m_security_right_column->set_hexpand(true);
+    m_security_right_column->set_vexpand(true);
+    m_security_right_column->set_valign(Gtk::Align::START);
+
+    m_security_grid->attach(*left_column, 0, 0, 1, 1);
+    m_security_grid->attach(*m_security_right_column, 1, 0, 1, 1);
+
+    m_vault_security_box.append(*m_security_grid);
+
+    // ========================================================================
+    // LEFT COLUMN: Settings for New Vaults
+    // ========================================================================
+
     // Auto-lock section
     auto* auto_lock_section = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 6);
 
@@ -416,7 +448,7 @@ void PreferencesDialog::setup_vault_security_page() {
     m_auto_lock_timeout_box.set_halign(Gtk::Align::START);
     auto_lock_section->append(m_auto_lock_timeout_box);
 
-    m_vault_security_box.append(*auto_lock_section);
+    left_column->append(*auto_lock_section);
 
     // ========================================================================
     // FIPS-140-3 Compliance Section
@@ -513,52 +545,7 @@ void PreferencesDialog::setup_vault_security_page() {
         // Don't show restart warning when FIPS is not available
     }
 
-    m_vault_security_box.append(*fips_section);
-
-    // ========================================================================
-    // User Password History Section (only visible when vault is open)
-    // ========================================================================
-    m_vault_password_history_box.set_orientation(Gtk::Orientation::VERTICAL);
-    m_vault_password_history_box.set_spacing(6);
-    m_vault_password_history_box.set_margin_top(24);
-
-    auto* history_title = Gtk::make_managed<Gtk::Label>("User Password History");
-    history_title->set_halign(Gtk::Align::START);
-    history_title->add_css_class("heading");
-    m_vault_password_history_box.append(*history_title);
-
-    auto* history_desc = Gtk::make_managed<Gtk::Label>("Track previous user passwords to prevent reuse");
-    history_desc->set_halign(Gtk::Align::START);
-    history_desc->add_css_class("dim-label");
-    history_desc->set_wrap(true);
-    m_vault_password_history_box.append(*history_desc);
-
-    m_vault_policy_label.set_halign(Gtk::Align::START);
-    m_vault_policy_label.set_margin_top(12);
-    m_vault_password_history_box.append(m_vault_policy_label);
-
-    m_current_user_label.set_halign(Gtk::Align::START);
-    m_current_user_label.set_margin_top(6);
-    m_vault_password_history_box.append(m_current_user_label);
-
-    m_history_count_label.set_halign(Gtk::Align::START);
-    m_history_count_label.set_margin_top(6);
-    m_vault_password_history_box.append(m_history_count_label);
-
-    m_clear_history_button.set_label("Clear My Password History");
-    m_clear_history_button.set_halign(Gtk::Align::START);
-    m_clear_history_button.set_margin_top(12);
-    m_vault_password_history_box.append(m_clear_history_button);
-
-    m_clear_history_warning.set_markup("<span size='small'>⚠️  This will delete all your password history. You will be able to reuse old passwords.</span>");
-    m_clear_history_warning.set_halign(Gtk::Align::START);
-    m_clear_history_warning.set_wrap(true);
-    m_clear_history_warning.set_max_width_chars(60);
-    m_clear_history_warning.add_css_class("dim-label");
-    m_clear_history_warning.set_margin_top(6);
-    m_vault_password_history_box.append(m_clear_history_warning);
-
-    m_vault_security_box.append(m_vault_password_history_box);
+    left_column->append(*fips_section);
 
     // ========================================================================
     // Vault User Password History Default (only visible when NO vault is open)
@@ -607,20 +594,20 @@ void PreferencesDialog::setup_vault_security_page() {
     m_vault_security_box.append(*default_history_section);
 
     // ========================================================================
-    // Username Hashing Algorithm Section (applies to NEW vaults only)
+    // Key Derivation Algorithm Section (applies to NEW vaults only)
     // ========================================================================
     auto* username_hash_section = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 6);
     username_hash_section->set_margin_top(24);
 
     // Section title
-    auto* username_hash_title = Gtk::make_managed<Gtk::Label>("Username Hashing Algorithm (New Vaults Only)");
+    auto* username_hash_title = Gtk::make_managed<Gtk::Label>("Key Derivation Algorithm (New Vaults Only)");
     username_hash_title->set_halign(Gtk::Align::START);
     username_hash_title->add_css_class("heading");
     username_hash_section->append(*username_hash_title);
 
     // Description
     auto* username_hash_desc = Gtk::make_managed<Gtk::Label>(
-        "Choose how usernames are stored in newly created vault files");
+        "Choose the cryptographic algorithm for securing usernames and master passwords in newly created vaults");
     username_hash_desc->set_halign(Gtk::Align::START);
     username_hash_desc->add_css_class("dim-label");
     username_hash_desc->set_wrap(true);
@@ -705,8 +692,9 @@ void PreferencesDialog::setup_vault_security_page() {
 
     auto* pbkdf2_help = Gtk::make_managed<Gtk::Label>();
     pbkdf2_help->set_markup(
-        "<span size='small'>Higher values increase security against brute-force attacks but slow down vault operations. "
-        "100,000 iterations is recommended for most users.</span>");
+        "<span size='small'>Higher iterations increase security against brute-force attacks but slow down login and username operations. "
+        "OWASP recommends 600,000+ iterations for password KEK derivation (2024). Default: 100,000 for username hashing, "
+        "600,000 for password KEK.</span>");
     pbkdf2_help->set_wrap(true);
     pbkdf2_help->set_max_width_chars(60);
     pbkdf2_help->add_css_class("dim-label");
@@ -761,8 +749,9 @@ void PreferencesDialog::setup_vault_security_page() {
 
     auto* argon2_help = Gtk::make_managed<Gtk::Label>();
     argon2_help->set_markup(
-        "<span size='small'>Memory cost increases resistance to GPU-based attacks. Time cost increases computational work. "
-        "64 MB memory and 3 iterations are recommended for most users.</span>");
+        "<span size='small'>Memory cost (MB) provides resistance to GPU/ASIC attacks (higher = more secure). "
+        "Time cost is the number of computational passes (higher = slower but more secure). "
+        "Default: 256 MB memory, 4 iterations. <b>Warning:</b> High memory values (512+ MB) may cause slow login times.</span>");
     argon2_help->set_wrap(true);
     argon2_help->set_max_width_chars(60);
     argon2_help->add_css_class("dim-label");
@@ -772,16 +761,125 @@ void PreferencesDialog::setup_vault_security_page() {
     m_argon2_params_box->append(*argon2_memory_hbox);
     m_argon2_params_box->append(*argon2_time_hbox);
     m_argon2_params_box->append(*argon2_help);
+
+    // Performance warning label (shown dynamically based on parameters)
+    m_argon2_perf_warning = Gtk::make_managed<Gtk::Label>();
+    m_argon2_perf_warning->set_wrap(true);
+    m_argon2_perf_warning->set_max_width_chars(60);
+    m_argon2_perf_warning->set_halign(Gtk::Align::START);
+    m_argon2_perf_warning->set_margin_top(6);
+    m_argon2_perf_warning->set_visible(false); // Hidden by default
+    m_argon2_params_box->append(*m_argon2_perf_warning);
+
+    // Connect signal handlers to update performance warning when parameters change
+    m_argon2_memory_spin->signal_value_changed().connect(
+        sigc::mem_fun(*this, &PreferencesDialog::update_argon2_performance_warning));
+    m_argon2_time_spin->signal_value_changed().connect(
+        sigc::mem_fun(*this, &PreferencesDialog::update_argon2_performance_warning));
+
     m_username_hash_advanced_box->append(*m_argon2_params_box);
 
     username_hash_section->append(*m_username_hash_advanced_box);
 
     m_vault_security_box.append(*username_hash_section);
 
+    // ========================================================================
+    // Current Vault KEK Algorithm (Read-Only, shown when vault open)
+    // ========================================================================
+    m_current_vault_kek_box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 6);
+    m_current_vault_kek_box->set_margin_top(24);
+
+    auto* current_kek_title = Gtk::make_managed<Gtk::Label>("Current Vault Security");
+    current_kek_title->set_halign(Gtk::Align::START);
+    current_kek_title->add_css_class("heading");
+    m_current_vault_kek_box->append(*current_kek_title);
+
+    auto* current_kek_desc = Gtk::make_managed<Gtk::Label>(
+        "Security settings of the currently open vault (read-only)");
+    current_kek_desc->set_halign(Gtk::Align::START);
+    current_kek_desc->add_css_class("dim-label");
+    current_kek_desc->set_wrap(true);
+    current_kek_desc->set_max_width_chars(60);
+    m_current_vault_kek_box->append(*current_kek_desc);
+
+    // Username Hash Algorithm (current vault)
+    m_current_username_hash_label.set_halign(Gtk::Align::START);
+    m_current_username_hash_label.set_margin_top(12);
+    m_current_vault_kek_box->append(m_current_username_hash_label);
+
+    // KEK Derivation Algorithm (current vault)
+    m_current_kek_label.set_halign(Gtk::Align::START);
+    m_current_kek_label.set_margin_top(6);
+    m_current_vault_kek_box->append(m_current_kek_label);
+
+    // Parameters display (conditionally shown for PBKDF2/Argon2id)
+    m_current_kek_params_label.set_halign(Gtk::Align::START);
+    m_current_kek_params_label.add_css_class("dim-label");
+    m_current_kek_params_label.set_margin_top(6);
+    m_current_kek_params_label.set_margin_start(12);
+    m_current_vault_kek_box->append(m_current_kek_params_label);
+
+    // Initially hidden (shown when vault opens)
+    m_current_vault_kek_box->set_visible(false);
+
+    m_security_right_column->append(*m_current_vault_kek_box);
+
+    // ========================================================================
+    // User Password History Section (only visible when vault is open)
+    // ========================================================================
+    m_vault_password_history_box.set_orientation(Gtk::Orientation::VERTICAL);
+    m_vault_password_history_box.set_spacing(6);
+    m_vault_password_history_box.set_margin_top(24);
+
+    auto* history_title = Gtk::make_managed<Gtk::Label>("User Password History");
+    history_title->set_halign(Gtk::Align::START);
+    history_title->add_css_class("heading");
+    m_vault_password_history_box.append(*history_title);
+
+    auto* history_desc = Gtk::make_managed<Gtk::Label>("Track previous user passwords to prevent reuse");
+    history_desc->set_halign(Gtk::Align::START);
+    history_desc->add_css_class("dim-label");
+    history_desc->set_wrap(true);
+    m_vault_password_history_box.append(*history_desc);
+
+    m_vault_policy_label.set_halign(Gtk::Align::START);
+    m_vault_policy_label.set_margin_top(12);
+    m_vault_password_history_box.append(m_vault_policy_label);
+
+    m_current_user_label.set_halign(Gtk::Align::START);
+    m_current_user_label.set_margin_top(6);
+    m_vault_password_history_box.append(m_current_user_label);
+
+    m_history_count_label.set_halign(Gtk::Align::START);
+    m_history_count_label.set_margin_top(6);
+    m_vault_password_history_box.append(m_history_count_label);
+
+    m_clear_history_button.set_label("Clear My Password History");
+    m_clear_history_button.set_halign(Gtk::Align::START);
+    m_clear_history_button.set_margin_top(12);
+    m_vault_password_history_box.append(m_clear_history_button);
+
+    m_clear_history_warning.set_markup("<span size='small'>⚠️  This will delete all your password history. You will be able to reuse old passwords.</span>");
+    m_clear_history_warning.set_halign(Gtk::Align::START);
+    m_clear_history_warning.set_wrap(true);
+    m_clear_history_warning.set_max_width_chars(60);
+    m_clear_history_warning.add_css_class("dim-label");
+    m_clear_history_warning.set_margin_top(6);
+    m_vault_password_history_box.append(m_clear_history_warning);
+
+    m_security_right_column->append(m_vault_password_history_box);
+
+    // Hide right column if no vault open (will be shown when vault opens)
+    update_security_layout();
+
     // Add page to stack
     m_stack.add(m_vault_security_box, "vault-security", "Vault Security");
+left_column->append(*username_hash_section);
 
-    // Disable vault security page for non-admin users (V2 multi-user vaults)
+    // ========================================================================
+    // RIGHT COLUMN: Current Vault Information
+    // ========================================================================
+        // Disable vault security page for non-admin users (V2 multi-user vaults)
     if (m_vault_manager && m_vault_manager->is_vault_open()) {
         auto session = m_vault_manager->get_current_user_session();
         if (session && session->role != KeepTower::UserRole::ADMINISTRATOR) {
@@ -1161,6 +1259,14 @@ void PreferencesDialog::load_settings() {
 
     // Load username hashing algorithm
     Glib::ustring username_hash_algorithm = m_settings->get_string("username-hash-algorithm");
+
+    // FIPS mode enforcement - override saved algorithm if it's non-FIPS and FIPS mode is enabled
+    if (fips_enabled && (username_hash_algorithm == "plaintext" || username_hash_algorithm == "argon2id")) {
+        KeepTower::Log::info("FIPS mode enabled: Overriding saved algorithm {} with SHA3-256",
+                            std::string(username_hash_algorithm));
+        username_hash_algorithm = "sha3-256";
+    }
+
     m_username_hash_combo.set_active_id(username_hash_algorithm);
 
     // Load advanced parameters
@@ -1176,6 +1282,7 @@ void PreferencesDialog::load_settings() {
     // Update info label and advanced params visibility with initial selection
     update_username_hash_info();
     update_username_hash_advanced_params();
+    update_argon2_performance_warning(); // Update performance warning with loaded values
 }
 
 void PreferencesDialog::save_settings() {
@@ -1519,6 +1626,20 @@ void PreferencesDialog::on_undo_redo_enabled_toggled() noexcept {
 void PreferencesDialog::on_username_hash_changed() noexcept {
     update_username_hash_info();
     update_username_hash_advanced_params();
+
+    // FIPS mode enforcement - auto-revert to SHA3-256 if non-FIPS algorithm selected
+    if (m_settings) {
+        const bool fips_enabled = m_settings->get_boolean("fips-mode-enabled");
+        const auto algorithm = m_username_hash_combo.get_active_id();
+
+        // If FIPS mode enabled and user somehow selected non-FIPS algorithm, revert to SHA3-256
+        if (fips_enabled && (algorithm == "plaintext" || algorithm == "argon2id")) {
+            KeepTower::Log::warning("FIPS mode active: Cannot select {} algorithm, reverting to SHA3-256",
+                                   std::string(algorithm));
+            m_username_hash_combo.set_active_id("sha3-256");
+            return;  // Will trigger this handler again with valid selection
+        }
+    }
 }
 
 void PreferencesDialog::update_username_hash_advanced_params() noexcept {
@@ -1545,6 +1666,37 @@ void PreferencesDialog::update_username_hash_advanced_params() noexcept {
         // Unknown algorithm - hide advanced section
         m_username_hash_advanced_box->set_visible(false);
     }
+
+    // Resize dialog to fit content after showing/hiding sections
+    resize_to_content();
+}
+
+void PreferencesDialog::update_security_layout() noexcept {
+    // Show/hide right column based on vault state
+    const bool vault_open = m_vault_manager && m_vault_manager->is_vault_open();
+
+    if (m_security_right_column) {
+        m_security_right_column->set_visible(vault_open);
+    }
+
+    // Adjust grid layout for single/double column
+    if (m_security_grid) {
+        m_security_grid->set_column_homogeneous(!vault_open);  // Single column when no vault
+    }
+}
+
+void PreferencesDialog::resize_to_content() noexcept {
+    // Request the dialog to resize to its natural size
+    // This allows the dialog to shrink when content is hidden
+    set_default_size(-1, -1);  // Reset to natural size
+
+    // Queue a resize operation
+    queue_resize();
+
+    // Restore default width but allow height to adjust
+    Glib::signal_idle().connect_once([this]() {
+        set_default_size(DEFAULT_WIDTH, -1);
+    });
 }
 
 void PreferencesDialog::on_dialog_shown() noexcept {
@@ -1553,6 +1705,12 @@ void PreferencesDialog::on_dialog_shown() noexcept {
         m_history_ui_loaded = true;
         update_vault_password_history_ui();
     }
+
+    // Update current vault KEK info every time dialog is shown (vault state may have changed)
+    update_current_vault_kek_info();
+
+    // Update layout based on vault state
+    update_security_layout();
 }
 
 void PreferencesDialog::update_vault_password_history_ui() noexcept {
@@ -1618,34 +1776,161 @@ void PreferencesDialog::update_username_hash_info() noexcept {
             "Not recommended for security. Use for legacy compatibility only.</span>");
     } else if (algorithm == "sha3-256") {
         m_username_hash_info.set_markup(
-            "<span size='small'>ℹ️  Fast, FIPS-approved, 32-byte hash. Recommended for most users.</span>");
+            "<span size='small'>ℹ️  <b>Username:</b> SHA3-256 (fast, FIPS-approved)\n"
+            "    <b>Password KEK:</b> PBKDF2-SHA256 (600K iterations)\n"
+            "    Passwords automatically protected with stronger algorithm.</span>");
     } else if (algorithm == "sha3-384") {
         m_username_hash_info.set_markup(
-            "<span size='small'>ℹ️  Fast, FIPS-approved, 48-byte hash. Stronger than SHA3-256.</span>");
+            "<span size='small'>ℹ️  <b>Username:</b> SHA3-384 (fast, FIPS-approved)\n"
+            "    <b>Password KEK:</b> PBKDF2-SHA256 (600K iterations)\n"
+            "    Passwords automatically protected with stronger algorithm.</span>");
     } else if (algorithm == "sha3-512") {
         m_username_hash_info.set_markup(
-            "<span size='small'>ℹ️  Fast, FIPS-approved, 64-byte hash. Maximum strength.</span>");
+            "<span size='small'>ℹ️  <b>Username:</b> SHA3-512 (fast, FIPS-approved)\n"
+            "    <b>Password KEK:</b> PBKDF2-SHA256 (600K iterations)\n"
+            "    Passwords automatically protected with stronger algorithm.</span>");
     } else if (algorithm == "pbkdf2-sha256") {
         m_username_hash_info.set_markup(
-            "<span size='small'>ℹ️  Slow (100,000 iterations), FIPS-approved, 32-byte hash. "
-            "Better resistance to brute-force attacks.</span>");
+            "<span size='small'>ℹ️  <b>Username:</b> PBKDF2-SHA256 (configurable iterations)\n"
+            "    <b>Password KEK:</b> PBKDF2-SHA256 (same parameters)\n"
+            "    Consistent security for both username and password. FIPS-approved.</span>");
     } else if (algorithm == "argon2id") {
         m_username_hash_info.set_markup(
-            "<span size='small' foreground='#f57900'>⚠️  <b>Non-FIPS:</b> Very slow, memory-hard, 32-byte hash. "
-            "Maximum security but not approved for FIPS mode. Requires ENABLE_ARGON2.</span>");
+            "<span size='small' foreground='#f57900'>⚠️  <b>Non-FIPS Vault:</b> "
+            "<b>Username:</b> Argon2id (memory-hard, configurable)\n"
+            "    <b>Password KEK:</b> Argon2id (same parameters)\n"
+            "    <b>⚠️  Vaults created with this algorithm are NOT FIPS-140-3 compliant.</b>\n"
+            "    Maximum security but slower unlock (2-8 seconds).</span>");
     } else {
         m_username_hash_info.set_text("Unknown algorithm");
     }
 
-    // Check FIPS mode and warn if non-compliant algorithm selected
+    // FIPS mode enforcement check
     if (m_settings) {
         const bool fips_enabled = m_settings->get_boolean("fips-mode-enabled");
         if (fips_enabled && (algorithm == "plaintext" || algorithm == "argon2id")) {
             m_username_hash_info.set_markup(
                 "<span size='small' foreground='#e01b24'>⚠️  <b>FIPS MODE ACTIVE:</b> "
-                "This algorithm is not FIPS-approved and will be blocked when creating vaults. "
-                "Please select a FIPS-approved algorithm (SHA3 or PBKDF2).</span>");
+                "This algorithm is not FIPS-approved and cannot be used. "
+                "Please select a FIPS-approved algorithm (SHA3-256/384/512 or PBKDF2).</span>");
         }
+    }
+}
+
+void PreferencesDialog::update_current_vault_kek_info() noexcept {
+    // Check if vault is open
+    if (!m_vault_manager || !m_vault_manager->is_vault_open()) {
+        // No vault open - hide current vault info
+        if (m_current_vault_kek_box) {
+            m_current_vault_kek_box->set_visible(false);
+        }
+        return;
+    }
+
+    // Vault open - show current vault info
+    if (m_current_vault_kek_box) {
+        m_current_vault_kek_box->set_visible(true);
+    }
+
+    // Get vault security policy
+    const auto policy_opt = m_vault_manager->get_vault_security_policy();
+    if (!policy_opt) {
+        m_current_username_hash_label.set_markup(
+            "<span>Username Algorithm: <b>N/A</b></span>");
+        m_current_kek_label.set_markup(
+            "<span>Password KEK Algorithm: <b>N/A</b></span>");
+        m_current_kek_params_label.set_text("");
+        return;
+    }
+
+    const auto& policy = *policy_opt;
+
+    // Display username hash algorithm
+    std::string username_algo_display;
+    switch (policy.username_hash_algorithm) {
+        case 0x00: username_algo_display = "Plaintext (DEPRECATED)"; break;
+        case 0x01: username_algo_display = "SHA3-256 (FIPS)"; break;
+        case 0x02: username_algo_display = "SHA3-384 (FIPS)"; break;
+        case 0x03: username_algo_display = "SHA3-512 (FIPS)"; break;
+        case 0x04: username_algo_display = "PBKDF2-HMAC-SHA256 (FIPS)"; break;
+        case 0x05: username_algo_display = "Argon2id (⚠️ non-FIPS vault)"; break;
+        default: username_algo_display = "Unknown (" +
+            std::to_string(policy.username_hash_algorithm) + ")";
+    }
+
+    m_current_username_hash_label.set_markup(
+        "<span>Username Algorithm: <b>" + username_algo_display + "</b></span>");
+
+    // Get KEK algorithm - infer from policy (same as username for PBKDF2/Argon2id, PBKDF2 for SHA3)
+    std::string kek_algo_display;
+    std::string params_display;
+
+    if (policy.username_hash_algorithm >= 0x01 && policy.username_hash_algorithm <= 0x03) {
+        // SHA3 variants → KEK uses PBKDF2
+        kek_algo_display = "PBKDF2-HMAC-SHA256 (FIPS)";
+        params_display = std::to_string(policy.pbkdf2_iterations) + " iterations";
+    } else if (policy.username_hash_algorithm == 0x04) {
+        // PBKDF2
+        kek_algo_display = "PBKDF2-HMAC-SHA256 (FIPS)";
+        params_display = std::to_string(policy.pbkdf2_iterations) + " iterations";
+    } else if (policy.username_hash_algorithm == 0x05) {
+        // Argon2id
+        kek_algo_display = "Argon2id (⚠️ non-FIPS vault)";
+        params_display = std::to_string(policy.argon2_memory_kb) + " KB memory, " +
+                        std::to_string(policy.argon2_iterations) + " time cost, " +
+                        std::to_string(policy.argon2_parallelism) + " threads";
+    } else {
+        // Plaintext or unknown
+        kek_algo_display = "PBKDF2-HMAC-SHA256 (default fallback)";
+        params_display = "600,000 iterations";
+    }
+
+    m_current_kek_label.set_markup(
+        "<span>Password KEK Algorithm: <b>" + kek_algo_display + "</b></span>");
+    m_current_kek_params_label.set_text("  Parameters: " + params_display);
+}
+
+void PreferencesDialog::update_argon2_performance_warning() noexcept {
+    if (!m_argon2_perf_warning || !m_argon2_memory_spin || !m_argon2_time_spin) {
+        return;
+    }
+
+    // Get current parameter values
+    const double memory_mb = m_argon2_memory_spin->get_value();
+    const double time_cost = m_argon2_time_spin->get_value();
+
+    // Estimate login time based on parameters
+    // Baseline: 256 MB memory + 4 iterations ≈ 500ms on modern hardware
+    // Memory scales linearly, time_cost scales linearly
+    const double baseline_time_ms = 500.0;
+    const double baseline_memory_mb = 256.0;
+    const double baseline_time_cost = 4.0;
+
+    const double estimated_time_ms = baseline_time_ms *
+                                     (memory_mb / baseline_memory_mb) *
+                                     (time_cost / baseline_time_cost);
+
+    // Show warning if estimated time exceeds thresholds
+    if (estimated_time_ms >= 2000.0) {
+        // >= 2 seconds: Strong warning (red)
+        const double seconds = estimated_time_ms / 1000.0;
+        m_argon2_perf_warning->set_markup(
+            "<span size='small' foreground='#e01b24'><b>⚠️  Performance Warning:</b> "
+            "Estimated login time: ~" + std::to_string(static_cast<int>(seconds)) + " seconds. "
+            "High memory/time values will significantly slow vault operations. "
+            "Consider reducing parameters unless maximum security is required.</span>");
+        m_argon2_perf_warning->set_visible(true);
+    } else if (estimated_time_ms >= 1000.0) {
+        // >= 1 second: Moderate warning (orange)
+        const double seconds = estimated_time_ms / 1000.0;
+        m_argon2_perf_warning->set_markup(
+            "<span size='small' foreground='#f57900'><b>ℹ️  Performance Note:</b> "
+            "Estimated login time: ~" + std::to_string(static_cast<int>(seconds)) + " seconds. "
+            "This may be noticeable on slower systems.</span>");
+        m_argon2_perf_warning->set_visible(true);
+    } else {
+        // < 1 second: No warning needed
+        m_argon2_perf_warning->set_visible(false);
     }
 }
 
