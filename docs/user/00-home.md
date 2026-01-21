@@ -62,7 +62,7 @@ See **[[Installation]]** for detailed instructions for your distribution.
 
 ## Version
 
-**Current Version:** v0.3.4
+**Current Version:** @VERSION@
 **Release Date:** January 21, 2026
 
 ### Recent Updates (v0.3.4)

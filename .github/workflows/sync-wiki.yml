@@ -44,6 +44,10 @@ jobs:
 
       - name: Sync documentation files
         run: |
+          # Extract version from meson.build (single source of truth)
+          VERSION=$(grep "version:" meson.build | head -1 | sed "s/.*version: '\(.*\)'.*/\1/")
+          echo "Detected version: v$VERSION"
+
           # User documentation (auto-discover all numbered files)
           # Converts: XX-topic-name.md → Topic-Name.md (except 00-home.md → Home.md)
           for file in docs/user/[0-9][0-9]-*.md; do
@@ -59,14 +63,24 @@ jobs:
               fi
 
               echo "Syncing: $basename.md → $wikiname.md"
-              cp "$file" "wiki/${wikiname}.md"
+              # Substitute @VERSION@ with actual version from meson.build
+              sed "s/@VERSION@/v$VERSION/g" "$file" > "wiki/${wikiname}.md"
             fi
           done
 
           # Additional user documentation (non-numbered files)
-          [ -f docs/user/README.md ] && cp docs/user/README.md wiki/README.md && echo "Synced: README.md"
-          [ -f docs/user/SECURITY_BEST_PRACTICES.md ] && cp docs/user/SECURITY_BEST_PRACTICES.md wiki/Security-Best-Practices.md && echo "Synced: Security-Best-Practices.md"
-          [ -f docs/user/YUBIKEY_FIPS_SETUP.md ] && cp docs/user/YUBIKEY_FIPS_SETUP.md wiki/YubiKey-FIPS-Setup.md && echo "Synced: YubiKey-FIPS-Setup.md"
+          if [ -f docs/user/README.md ]; then
+            sed "s/@VERSION@/v$VERSION/g" docs/user/README.md > wiki/README.md
+            echo "Synced: README.md"
+          fi
+          if [ -f docs/user/SECURITY_BEST_PRACTICES.md ]; then
+            sed "s/@VERSION@/v$VERSION/g" docs/user/SECURITY_BEST_PRACTICES.md > wiki/Security-Best-Practices.md
+            echo "Synced: Security-Best-Practices.md"
+          fi
+          if [ -f docs/user/YUBIKEY_FIPS_SETUP.md ]; then
+            sed "s/@VERSION@/v$VERSION/g" docs/user/YUBIKEY_FIPS_SETUP.md > wiki/YubiKey-FIPS-Setup.md
+            echo "Synced: YubiKey-FIPS-Setup.md"
+          fi
 
           # Developer documentation
           cp docs/developer/CONTRIBUTING.md wiki/Contributing.md
