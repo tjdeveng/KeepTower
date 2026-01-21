@@ -83,3 +83,4 @@ RELEASE_NOTES_*.md
 build-flatpak/
 .flatpak-builder/
 data/gschemas.compiled
+*.code-workspace
