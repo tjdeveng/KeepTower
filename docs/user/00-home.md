@@ -62,16 +62,17 @@ See **[[Installation]]** for detailed instructions for your distribution.
 
 ## Version
 
-**Current Version:** v0.3.0-beta
-**Release Date:** December 29, 2025
+**Current Version:** v0.3.4
+**Release Date:** January 21, 2026
 
-### Recent Updates
+### Recent Updates (v0.3.4)
 
-- ✅ Multi-user V2 vault format with role-based access
-- ✅ Password history tracking and enforcement
-- ✅ Preferences dialog refactor with backup/restore
-- ✅ Enhanced security policy configuration
-- ✅ CI/CD improvements and stability fixes
+- ✅ Per-keyslot KEK derivation algorithm selection (PBKDF2-SHA256/SHA512, Argon2id)
+- ✅ UI integration for KEK algorithm selection with FIPS-140 compliance
+- ✅ Username hashing with configurable algorithms (SHA3-256, PBKDF2, Argon2id)
+- ✅ Display current vault's security algorithms in Preferences
+- ✅ Comprehensive vault security algorithms documentation
+- ✅ GCC 13 compatibility fixes for broader platform support
 
 ## Support
 

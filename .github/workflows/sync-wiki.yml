@@ -15,7 +15,7 @@ name: Sync Documentation to Wiki
 on:
   push:
     branches:
-      - main
+      - master
     paths:
       - 'docs/user/**'
       - 'docs/developer/CONTRIBUTING.md'
@@ -44,16 +44,33 @@ jobs:
 
       - name: Sync documentation files
         run: |
-          # User documentation (numbered files become wiki pages)
-          cp docs/user/00-home.md wiki/Home.md
-          cp docs/user/01-getting-started.md wiki/Getting-Started.md
-          cp docs/user/02-installation.md wiki/Installation.md
-          cp docs/user/03-user-guide.md wiki/User-Guide.md
-          cp docs/user/04-faq.md wiki/FAQ.md
-          cp docs/user/05-security.md wiki/Security.md
+          # User documentation (auto-discover all numbered files)
+          # Converts: XX-topic-name.md → Topic-Name.md (except 00-home.md → Home.md)
+          for file in docs/user/[0-9][0-9]-*.md; do
+            if [ -f "$file" ]; then
+              basename=$(basename "$file" .md)
+
+              # Special case: 00-home.md → Home.md
+              if [[ "$basename" == "00-home" ]]; then
+                wikiname="Home"
+              else
+                # Convert: 01-getting-started → Getting-Started
+                wikiname=$(echo "$basename" | sed 's/^[0-9][0-9]-//' | sed -r 's/(^|-)([a-z])/\U\2/g')
+              fi
+
+              echo "Syncing: $basename.md → $wikiname.md"
+              cp "$file" "wiki/${wikiname}.md"
+            fi
+          done
+
+          # Additional user documentation (non-numbered files)
+          [ -f docs/user/README.md ] && cp docs/user/README.md wiki/README.md && echo "Synced: README.md"
+          [ -f docs/user/SECURITY_BEST_PRACTICES.md ] && cp docs/user/SECURITY_BEST_PRACTICES.md wiki/Security-Best-Practices.md && echo "Synced: Security-Best-Practices.md"
+          [ -f docs/user/YUBIKEY_FIPS_SETUP.md ] && cp docs/user/YUBIKEY_FIPS_SETUP.md wiki/YubiKey-FIPS-Setup.md && echo "Synced: YubiKey-FIPS-Setup.md"
 
           # Developer documentation
           cp docs/developer/CONTRIBUTING.md wiki/Contributing.md
+          echo "Synced: Contributing.md"
 
           # Add sync timestamp footer to each file
           TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
@@ -92,11 +109,7 @@ jobs:
         if: success()
         run: |
           echo "✅ Wiki documentation successfully synced"
-          echo "📚 Files updated:"
-          echo "  - Home (00-home.md)"
-          echo "  - Getting Started (01-getting-started.md)"
-          echo "  - Installation (02-installation.md)"
-          echo "  - User Guide (03-user-guide.md)"
-          echo "  - FAQ (04-faq.md)"
-          echo "  - Security (05-security.md)"
-          echo "  - Contributing (CONTRIBUTING.md)"
+          echo "📚 Files synced from docs/user/ and docs/developer/"
+          echo ""
+          echo "Synced files:"
+          ls -1 wiki/*.md | sed 's|wiki/||' | sed 's/^/  - /'
