@@ -536,19 +536,21 @@ TEST_F(UsernameHashMigrationPriority2Test, BackupRestore_RecoveryFromFailure) {
 
     // 4. Find the backup file
     std::filesystem::path backup_path;
-    bool backup_found = false;
+    std::vector<std::string> backups;
+
     for (const auto& entry : std::filesystem::directory_iterator(test_vault_path.parent_path())) {
          // Look for backup files associated with our unique vault name
          if (entry.path().string().find(test_vault_path.filename().string() + ".backup") != std::string::npos) {
-             backup_path = entry.path();
-             backup_found = true;
-             // We might find multiple if we ran multiple times, but since we use unique scoped name, should be one.
-             // If multiple (e.g. from previous steps?), pick the latest?
-             // With unique name there should be exactly one from this run.
-             break;
+             backups.push_back(entry.path().string());
          }
     }
-    ASSERT_TRUE(backup_found) << "Backup file should exist after migration";
+
+    ASSERT_FALSE(backups.empty()) << "Backup file should exist after migration";
+
+    // Sort to get the latest backup
+    // Filenames include timestamps (YYYYMMDD_HHMMSS_MMM), so lexicographical sort puts latest last
+    std::sort(backups.begin(), backups.end());
+    backup_path = backups.back();
 
     // 5. Simulate "Catastrophic Failure" (Corruption of the migrated vault)
     // We'll just delete the main vault file
