@@ -191,12 +191,23 @@ jobs:
 
         # Run tests with xvfb-run for GTK/clipboard tests in headless environment
         # Use timeout multiplier for cryptographic tests (V2 Auth takes ~37s)
-        # Retry flaky tests (concurrency tests can occasionally fail under heavy CI load)
         # Disable YubiKey detection to prevent libfido2 device enumeration issues in CI
         export DISABLE_YUBIKEY_DETECT=1
-        xvfb-run -a meson test -C build --verbose --print-errorlogs --timeout-multiplier 1.5 || \
-          (echo "Some tests failed, retrying once..." && \
-           xvfb-run -a meson test -C build --verbose --print-errorlogs --timeout-multiplier 1.5)
+
+        # 1. Run General Regression Tests (excluding specialized migration suite)
+        # We exclude the migration suite here because we want to run it with specific
+        # performance monitoring and logic in the next step.
+        echo "=== Running General Regression Suite ==="
+        xvfb-run -a meson test -C build --no-suite migration --verbose --print-errorlogs --timeout-multiplier 1.5 || \
+          (echo "General tests failed, retrying once..." && \
+           xvfb-run -a meson test -C build --no-suite migration --verbose --print-errorlogs --timeout-multiplier 1.5)
+
+        # 2. Run Migration Campaign (P1, P2, P3, Concurrency) via Custom Runner
+        # This runner handles performance baselines, regression checking, and
+        # specific failure logic (e.g. non-blocking performance warnings).
+        echo "=== Running Migration Campaign ==="
+        chmod +x scripts/ci_test_runner.py
+        xvfb-run -a python3 scripts/ci_test_runner.py --build-dir build
 
     - name: Display test summary
       if: always()

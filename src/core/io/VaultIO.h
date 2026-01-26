@@ -40,6 +40,11 @@ namespace KeepTower {
  * - Directory fsync ensures durability on power loss
  * - Backup files automatically rotated to prevent disk exhaustion
  *
+ * @section limitations Limitations
+ * - No file locking mechanism implemented. Concurrent writes from multiple processes
+ *   or threads may result in "Last Writer Wins" race conditions.
+ *   TODO: Implement file locking (flock/fcntl) to prevent data loss during concurrent access.
+ *
  * @section usage Usage Example
  * @code
  * std::vector<uint8_t> data = {...};

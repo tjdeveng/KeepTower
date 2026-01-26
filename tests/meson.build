@@ -332,6 +332,127 @@ username_hashing_test = executable(
     include_directories: test_inc
 )
 
+# Username Hash Migration tests (Phase 1: Two-phase authentication and migration)
+username_hash_migration_sources = [
+    'test_username_hash_migration.cc',
+    vault_manager_common_sources,
+    proto_gen,
+]
+
+username_hash_migration_deps = [
+    gtest_dep,
+    openssl_dep,
+    protobuf_dep,
+    giomm_dep,
+    libcorrect_dep,
+]
+
+# Add optional dependencies
+if argon2_available
+    username_hash_migration_deps += [argon2_dep]
+endif
+
+if yubikey_available
+    username_hash_migration_sources += files('../src/core/managers/YubiKeyManager.cc')
+    username_hash_migration_deps += [fido2_dep]
+endif
+
+username_hash_migration_test = executable(
+    'username_hash_migration_test',
+    username_hash_migration_sources,
+    dependencies: username_hash_migration_deps,
+    include_directories: test_inc
+)
+
+# Username Hash Migration Priority 2 tests (advanced scenarios)
+username_hash_migration_priority2_sources = [
+    'test_username_hash_migration_priority2.cc',
+    ] + vault_manager_common_sources
+
+username_hash_migration_priority2_deps = [
+    gtest_dep,
+    openssl_dep,
+    protobuf_dep,
+    giomm_dep,
+    libcorrect_dep,
+]
+
+# Add optional dependencies
+if argon2_available
+    username_hash_migration_priority2_deps += [argon2_dep]
+endif
+
+if yubikey_available
+    username_hash_migration_priority2_sources += files('../src/core/managers/YubiKeyManager.cc')
+    username_hash_migration_priority2_deps += [fido2_dep]
+endif
+
+username_hash_migration_priority2_test = executable(
+    'username_hash_migration_priority2_test',
+    username_hash_migration_priority2_sources,
+    dependencies: username_hash_migration_priority2_deps,
+    include_directories: test_inc
+)
+
+# Username Hash Migration Priority 3 tests (performance, security, edge cases)
+username_hash_migration_priority3_sources = [
+    'test_username_hash_migration_priority3.cc',
+    ] + vault_manager_common_sources
+
+username_hash_migration_priority3_deps = [
+    gtest_dep,
+    openssl_dep,
+    protobuf_dep,
+    giomm_dep,
+    libcorrect_dep,
+]
+
+# Add optional dependencies
+if argon2_available
+    username_hash_migration_priority3_deps += [argon2_dep]
+endif
+
+if yubikey_available
+    username_hash_migration_priority3_sources += files('../src/core/managers/YubiKeyManager.cc')
+    username_hash_migration_priority3_deps += [fido2_dep]
+endif
+
+username_hash_migration_priority3_test = executable(
+    'username_hash_migration_priority3_test',
+    username_hash_migration_priority3_sources,
+    dependencies: username_hash_migration_priority3_deps,
+    include_directories: test_inc
+)
+
+# Username Hash Migration Concurrency tests (Phase 3)
+username_hash_migration_concurrency_sources = [
+    'test_username_hash_migration_concurrency.cc',
+    ] + vault_manager_common_sources
+
+username_hash_migration_concurrency_deps = [
+    gtest_dep,
+    openssl_dep,
+    protobuf_dep,
+    giomm_dep,
+    libcorrect_dep,
+]
+
+if argon2_available
+    username_hash_migration_concurrency_deps += [argon2_dep]
+endif
+
+if yubikey_available
+    username_hash_migration_concurrency_sources += files('../src/core/managers/YubiKeyManager.cc')
+    username_hash_migration_concurrency_deps += [fido2_dep]
+endif
+
+username_hash_migration_concurrency_test = executable(
+    'username_hash_migration_concurrency_test',
+    username_hash_migration_concurrency_sources,
+    dependencies: username_hash_migration_concurrency_deps,
+    include_directories: test_inc
+)
+
 # KEK Derivation tests (Phase 1: Core KEK Derivation Service)
 kek_derivation_sources = [
     'test_kek_derivation.cc',
@@ -379,6 +500,10 @@ test('FIPS Mode Tests', fips_mode_test)
 test('Memory Locking Security Tests', memory_locking_test)
 test('YubiKey Algorithm Tests', yubikey_algorithms_test)
 test('Username Hashing Tests', username_hashing_test)
+test('Username Hash Migration Tests', username_hash_migration_test, suite: 'migration')
+test('Username Hash Migration Priority 2 Tests', username_hash_migration_priority2_test, suite: 'migration')
+test('Username Hash Migration Priority 3 Tests', username_hash_migration_priority3_test, timeout: 120, suite: 'migration')
+test('Username Hash Migration Concurrency Tests', username_hash_migration_concurrency_test, timeout: 180, suite: 'migration')
 test('KEK Derivation Tests', kek_derivation_test, env: ['GSETTINGS_SCHEMA_DIR=' + meson.project_build_root() / 'data'])
 
 # Secure memory tests

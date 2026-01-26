@@ -294,24 +294,101 @@ struct VaultSecurityPolicy {
      */
     std::array<uint8_t, 64> yubikey_challenge = {};
 
+    // ========== USERNAME HASH MIGRATION SUPPORT (Phase 1) ==========
+
+    /**
+     * @brief Previous username hash algorithm (used during migration only)
+     *
+     * When admin initiates username hash algorithm migration, this field stores
+     * the OLD algorithm that not-yet-migrated users still authenticate with.
+     *
+     * @section migration_workflow Migration Workflow
+     * 1. Admin changes username_hash_algorithm (e.g., 1→5, SHA3→Argon2id)
+     * 2. System sets username_hash_algorithm_previous = old value (e.g., 1)
+     * 3. System sets migration_flags bit 0 = 1 (migration active)
+     * 4. Users login one-by-one:
+     *    - Migrated users: Authenticate with username_hash_algorithm (new)
+     *    - Not-yet-migrated: Authenticate with username_hash_algorithm_previous (old)
+     * 5. After authentication, system migrates user to new algorithm
+     * 6. When all users migrated, admin clears migration flags
+     *
+     * @section security_guarantee Security Guarantee
+     * Migration ONLY occurs after successful authentication. If authentication
+     * fails, no migration happens. This ensures only legitimate users with
+     * correct passwords can trigger migration.
+     *
+     * @note Set to 0x00 when no migration is active
+     * @note Must match a valid UsernameHashService::Algorithm value when active
+     * @note Ignored if migration_flags bit 0 is 0
+     * @note Default: 0x00 (no migration)
+     */
+    uint8_t username_hash_algorithm_previous = 0x00;
+
+    /**
+     * @brief Timestamp when migration was initiated (Unix epoch seconds)
+     *
+     * Recorded when admin starts username hash migration. Used for:
+     * - Audit logging and compliance
+     * - Warning admins of stale migrations (> 30 days)
+     * - Troubleshooting stuck migrations
+     * - Rollback support (know when migration started)
+     *
+     * @note 0 = no migration ever started
+     * @note Non-zero with migration_flags=0 = completed migration (historical)
+     * @note Updated when migration is initiated, not when it completes
+     */
+    uint64_t migration_started_at = 0;
+
+    /**
+     * @brief Migration control flags (bitfield)
+     *
+     * Controls migration behavior and tracks migration state.
+     *
+     * @section bit_layout Bit Layout
+     * - **Bit 0**: Migration active
+     *   - 0 = No migration in progress
+     *   - 1 = Migration active (two-phase authentication enabled)
+     * - **Bit 1**: Force YubiKey re-enrollment (reserved for future)
+     *   - 0 = Keep existing YubiKey credentials
+     *   - 1 = Require YubiKey re-enrollment during migration
+     * - **Bits 2-7**: Reserved (must be 0)
+     *
+     * @section usage_example Usage Example
+     * ```cpp
+     * // Check if migration is active
+     * bool migration_active = (policy.migration_flags & 0x01) != 0;
+     *
+     * // Start migration
+     * policy.migration_flags |= 0x01;
+     * policy.migration_started_at = std::time(nullptr);
+     *
+     * // Complete migration
+     * policy.migration_flags &= ~0x01;
+     * ```
+     *
+     * @note All reserved bits must be 0 (validation enforced)
+     * @note Default: 0x00 (no migration, no special flags)
+     */
+    uint8_t migration_flags = 0x00;
+
     /**
      * @brief Serialize to binary format for vault header
-     * @return Binary representation (117 bytes)
+     * @return Binary representation (141 bytes with migration support)
      */
     std::vector<uint8_t> serialize() const;
 
     /**
      * @brief Deserialize from binary format
-     * @param data Binary data (must be at least 117 bytes)
+     * @param data Binary data (must be at least 131 bytes for V2, 141 bytes for migration support)
      * @return Deserialized policy, or empty optional on error
      */
     static std::optional<VaultSecurityPolicy> deserialize(const std::vector<uint8_t>& data);
 
     /**
      * @brief Get serialized size in bytes
-     * @return 131 bytes (1 + 1 + 4 + 4 + 4 + 1 + 4 + 4 + 1 + 64 + 34)
+     * @return 141 bytes (with migration support)
      *
-     * @section layout Serialization Layout (V2 Format)
+     * @section layout Serialization Layout (V2 Format with Migration)
      * - Byte 0: require_yubikey (bool)
      * - Byte 1: yubikey_algorithm (uint8_t)
      * - Bytes 2-5: min_password_length (uint32_t, big-endian)
@@ -322,12 +399,16 @@ struct VaultSecurityPolicy {
      * - Bytes 19-22: argon2_iterations (uint32_t, big-endian) - V2 KEK derivation
      * - Byte 23: argon2_parallelism (uint8_t) - V2 KEK derivation
      * - Bytes 24-87: yubikey_challenge (64 bytes)
-     * - Bytes 88-130: reserved (34 bytes - room for future V2 extensions)
+     * - Byte 88: username_hash_algorithm_previous (uint8_t) - Migration support
+     * - Bytes 89-96: migration_started_at (uint64_t, big-endian) - Migration timestamp
+     * - Byte 97: migration_flags (uint8_t) - Migration control flags
+     * - Bytes 98-140: reserved (43 bytes - room for future V2 extensions)
      *
-     * @note V2 format evolved from 121 bytes (pre-username-hashing) to 131 bytes
+     * @note V2 format evolution: 121→131→141 bytes
      * @note Backward compatibility maintained via size-based detection
+     * @note Old vaults (131 bytes) will be auto-upgraded on first save
      */
-    static constexpr size_t SERIALIZED_SIZE = 131;
+    static constexpr size_t SERIALIZED_SIZE = 141;
 
     /** @brief Reserved bytes for future expansion (first block) */
     static constexpr size_t RESERVED_BYTES_1 = 0;
@@ -661,6 +742,55 @@ struct KeySlot {
      */
     std::vector<PasswordHistoryEntry> password_history;
 
+    // ========== USERNAME HASH MIGRATION SUPPORT (Phase 1) ==========
+
+    /**
+     * @brief Migration status for this user's username hash
+     *
+     * Tracks whether this user has been migrated to the new username hash algorithm.
+     * Used during two-phase authentication when migration is active.
+     *
+     * @section status_values Status Values
+     * - **0x00**: Not migrated (using old algorithm from policy.username_hash_algorithm_previous)
+     * - **0x01**: Migrated (using new algorithm from policy.username_hash_algorithm)
+     * - **0xFF**: Temporary state during migration (pending save)
+     *
+     * @section lifecycle Migration Lifecycle
+     * 1. Admin initiates migration → all users set to 0x00 (not migrated)
+     * 2. User authenticates successfully → status remains 0x00 (auth uses old algo)
+     * 3. System detects 0x00 during login → re-hashes username with new algo
+     * 4. System updates username_hash, username_salt, sets status = 0x01
+     * 5. System saves vault → status permanently set to 0x01
+     * 6. Next login → user authenticates with new algo (migration complete)
+     *
+     * @section security_guarantee Security Guarantee
+     * Status is only changed from 0x00→0x01 AFTER successful authentication.
+     * Failed authentication attempts never trigger migration or status changes.
+     *
+     * @note Only meaningful when VaultSecurityPolicy.migration_flags bit 0 is set
+     * @note Status 0xFF is transient (immediately saved as 0x01)
+     * @note Default: 0x00 (not migrated, or no migration active)
+     */
+    uint8_t migration_status = 0x00;
+
+    /**
+     * @brief Timestamp when this user was migrated (Unix epoch seconds)
+     *
+     * Records when this user's username hash was migrated to the new algorithm.
+     * Used for audit logging, compliance reporting, and troubleshooting.
+     *
+     * @section audit_trail Audit Trail Usage
+     * - Compliance: Prove when security upgrades were applied per-user
+     * - Troubleshooting: Identify users who haven't migrated yet
+     * - Reporting: Generate migration completion reports for admins
+     * - Debugging: Correlate migration events with vault access logs
+     *
+     * @note 0 = user never migrated (or no migration occurred)
+     * @note Non-zero only when migration_status = 0x01
+     * @note Set atomically with migration_status update
+     */
+    uint64_t migrated_at = 0;
+
     /**
      * @brief Serialize to binary format for vault header
      * @return Binary representation (variable length due to username)
@@ -695,12 +825,13 @@ struct KeySlot {
 
     /**
      * @brief Minimum serialized size (empty username, no password history)
-     * @return Base size: 221 bytes (V2 format with KEK derivation enhancement)
+     * @return Base size: 230 bytes (V2 format with migration support)
      *
-     * @note Evolved from 220 bytes (added kek_derivation_algorithm field)
-     * @note Backward compatible: Deserializer detects format via heuristic
+     * @note Evolved: 220→221 (KEK algo)→230 (migration fields)
+     * @note Backward compatible: Deserializer detects format via size heuristic
+     * @note Added 9 bytes: migration_status(1) + migrated_at(8)
      */
-    static constexpr size_t MIN_SERIALIZED_SIZE = 221;
+    static constexpr size_t MIN_SERIALIZED_SIZE = 230;
 };
 
 /**

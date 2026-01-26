@@ -598,6 +598,80 @@ public:
      * @param username Username whose password history to clear
      * @return Expected void or VaultError
      *
+     * Clears all stored password history entries for the specified user.
+     * Used when admin disables password history or for manual cleanup.
+     *
+     * @note Requires admin privileges
+     * @note Changes take effect immediately but vault must be saved
+     */
+    [[nodiscard]] KeepTower::VaultResult<> clear_password_history(
+        const Glib::ustring& username);
+
+    // ========== USERNAME HASH MIGRATION (Phase 1) ==========
+
+    /**
+     * @brief Migrate user's username hash to new algorithm (internal use only)
+     *
+     * Called automatically after successful authentication when migration is active.
+     * Re-hashes the user's username with the new algorithm from policy and updates
+     * the KeySlot with new hash and salt.
+     *
+     * @section when_called When Called
+     * Invoked by open_vault_v2() when:
+     * 1. Migration is active (policy.migration_flags bit 0 = 1)
+     * 2. User authenticated successfully (password verified)
+     * 3. User's migration_status = 0xFF (authenticated with old algorithm)
+     *
+     * @section security_guarantee Security Guarantee
+     * This function is ONLY called after successful authentication. Failed
+     * authentication attempts never reach this code. The plaintext password
+     * is already validated, so we have cryptographic proof of user identity.
+     *
+     * @section what_changes What Changes
+     * - Generates new random username_salt (16 bytes)
+     * - Computes new username_hash using policy.username_hash_algorithm
+     * - Updates KeySlot.username_hash and username_hash_size
+     * - Sets KeySlot.migration_status = 0x01 (migrated)
+     * - Sets KeySlot.migrated_at = current timestamp
+     * - Saves vault immediately (critical for persistence)
+     *
+     * @section what_unchanged What Stays Unchanged
+     * - User's password (not re-entered, not changed)
+     * - KEK derivation (separate from username hashing)
+     * - Wrapped DEK (no re-encryption needed)
+     * - YubiKey credentials (FIDO2 uses plaintext username, not hash)
+     * - User's role, permissions, and other metadata
+     *
+     * @param user_slot Pointer to user's KeySlot (must be non-null)
+     * @param username Plaintext username (for hashing)
+     * @param password Plaintext password (for logging only, not used for migration)
+     * @return Expected void or VaultError
+     *
+     * @note Private/internal function - not exposed to UI layer
+     * @note Logs all migration events for audit trail
+     * @note Creates backup before saving (migration is critical operation)
+     *
+     * @code
+     * // Called internally by open_vault_v2():
+     * if (user_slot->migration_status == 0xFF) {
+     *     auto result = migrate_user_hash(user_slot, username.raw(), password.raw());
+     *     if (!result) {
+     *         Log::error("Migration failed, but user can still access vault");
+     *         // Don't fail login - migration can be retried next time
+     *     }
+     * }
+     * @endcode
+     */
+    [[nodiscard]] KeepTower::VaultResult<> migrate_user_hash(
+        KeepTower::KeySlot* user_slot,
+        const std::string& username,
+        const std::string& password);
+
+    /**
+     * @brief Clear password history for a user
+     * @param username Username whose password history to clear
+     * @return Expected void or VaultError
+     *
      * Requirements:
      * - Vault must be open (V2 only)
      * - Either: current user is target user OR current user is admin
@@ -893,6 +967,45 @@ public:
      * @note Returns copy of policy (modifications don't affect vault)
      */
     [[nodiscard]] std::optional<KeepTower::VaultSecurityPolicy> get_vault_security_policy() const noexcept;
+
+    /**
+     * @brief Update vault security policy (admin only)
+     * @param new_policy New security policy to apply
+     * @return Expected void or VaultError
+     *
+     * Updates the security policy for a V2 vault. This operation:
+     * - Requires administrator permissions
+     * - Marks vault as modified (must save)
+     * - Can be used to enable/disable migration
+     * - Can change password requirements
+     * - Can change algorithm settings
+     *
+     * @note Changes take effect immediately for new operations
+     * @note Existing users are not re-validated against new policy
+     * @note Migration flag changes affect authentication behavior immediately
+     *
+     * @warning Changing username_hash_algorithm without proper migration setup
+     *          will lock out all users! Use migration_flags to enable gradual migration.
+     *
+     * Example usage (enabling migration):
+     * @code
+     * auto policy_opt = vault_mgr.get_vault_security_policy();
+     * if (policy_opt) {
+     *     auto policy = *policy_opt;
+     *     policy.username_hash_algorithm_previous = policy.username_hash_algorithm;
+     *     policy.username_hash_algorithm = 0x04; // PBKDF2
+     *     policy.migration_flags = 0x01; // Enable migration
+     *     policy.migration_started_at = std::time(nullptr);
+     *
+     *     auto result = vault_mgr.update_security_policy(policy);
+     *     if (result) {
+     *         vault_mgr.save_vault();
+     *     }
+     * }
+     * @endcode
+     */
+    [[nodiscard]] KeepTower::VaultResult<> update_security_policy(
+        const KeepTower::VaultSecurityPolicy& new_policy);
 
     /**
      * @brief Check if current user can view an account

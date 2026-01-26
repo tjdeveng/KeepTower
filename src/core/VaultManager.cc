@@ -558,7 +558,7 @@ bool VaultManager::save_vault(bool explicit_save) {
 
     // V2 vault saving
     if (m_is_v2_vault) {
-        if (!m_v2_header || !m_current_session) {
+        if (!m_v2_header) {
             KeepTower::Log::error("VaultManager: Invalid V2 vault state");
             return false;
         }

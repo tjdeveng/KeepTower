@@ -403,8 +403,9 @@ VaultCreationOrchestrator::create_admin_key_slot(
     std::array<uint8_t, 16> username_salt{};
     std::copy_n(username_salt_vec.begin(), 16, username_salt.begin());
 
+    // Hash username with policy's iteration count (critical for PBKDF2/Argon2 algorithms)
     auto username_hash_result = KeepTower::UsernameHashService::hash_username(
-        params.admin_username.raw(), username_hash_algo, username_salt);
+        params.admin_username.raw(), username_hash_algo, username_salt, params.policy.pbkdf2_iterations);
     if (!username_hash_result) {
         return std::unexpected(VaultError::CryptoError);
     }

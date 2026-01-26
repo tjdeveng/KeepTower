@@ -45,14 +45,32 @@ namespace Log = KeepTower::Log;
 // ============================================================================
 
 /**
- * @brief Find key slot by verifying username hash
+ * @brief Find key slot by verifying username hash (with migration support)
  *
- * Iterates through all active key slots and verifies the username against
- * the stored hash using constant-time comparison.
+ * Implements two-phase authentication to support username hash algorithm migration.
+ * When migration is active, tries new algorithm first (for migrated users),
+ * then falls back to old algorithm (for not-yet-migrated users).
+ *
+ * @section migration_logic Migration Logic
+ * **Phase 1: Try New Algorithm** (for already-migrated users)
+ * - Check slots with migration_status = 0x01 (migrated)
+ * - Verify username against hash using policy.username_hash_algorithm (new)
+ * - If match found → return slot (user successfully authenticated)
+ *
+ * **Phase 2: Try Old Algorithm** (for not-yet-migrated users)
+ * - Only runs if migration is active (migration_flags bit 0 set)
+ * - Check slots with migration_status = 0x00 (not migrated)
+ * - Verify username against hash using policy.username_hash_algorithm_previous (old)
+ * - If match found → mark slot for migration (status = 0xFF), return slot
+ * - Caller must detect status=0xFF and trigger migration after successful auth
+ *
+ * @section security_guarantee Security Guarantee
+ * Migration ONLY happens after successful authentication. If username verification
+ * fails, no migration occurs and no state changes. Attackers cannot trigger migration.
  *
  * @param slots Vector of key slots to search
  * @param username Plaintext username to find
- * @param policy Security policy containing hash algorithm setting
+ * @param policy Security policy containing hash algorithm settings
  * @return Pointer to matching slot (with username populated in memory), or nullptr
  */
 static KeySlot* find_slot_by_username_hash(
@@ -60,29 +78,140 @@ static KeySlot* find_slot_by_username_hash(
     const std::string& username,
     const VaultSecurityPolicy& policy) {
 
-    auto algorithm = static_cast<KeepTower::UsernameHashService::Algorithm>(
+    // Determine current algorithm and whether migration is active
+    auto current_algo = static_cast<KeepTower::UsernameHashService::Algorithm>(
         policy.username_hash_algorithm);
 
+    bool migration_active = (policy.migration_flags & 0x01) != 0;
+
+    std::optional<KeepTower::UsernameHashService::Algorithm> fallback_algo;
+    if (migration_active && policy.username_hash_algorithm_previous != 0x00) {
+        fallback_algo = static_cast<KeepTower::UsernameHashService::Algorithm>(
+            policy.username_hash_algorithm_previous);
+        Log::info("find_slot_by_username_hash: Migration active - trying algorithm 0x{:02x} (new) then 0x{:02x} (old)",
+                 policy.username_hash_algorithm, policy.username_hash_algorithm_previous);
+    }
+
+    // Phase 1: Try current algorithm (for already-migrated users OR no migration)
     for (auto& slot : slots) {
         if (!slot.active) {
             continue;
         }
 
-        // Verify username hash using constant-time comparison
+        // Skip not-yet-migrated users during Phase 1 (they use old algorithm)
+        if (migration_active && slot.migration_status == 0x00) {
+            continue;  // Will be checked in Phase 2
+        }
+
+        // Verify username hash using current algorithm
         std::span<const uint8_t> stored_hash(slot.username_hash.data(), slot.username_hash_size);
         bool matches = KeepTower::UsernameHashService::verify_username(
             username,
             stored_hash,
-            algorithm,
-            slot.username_salt);
+            current_algo,
+            slot.username_salt,
+            policy.pbkdf2_iterations);
 
         if (matches) {
             // Populate username in memory for UI display (NOT serialized to disk)
             slot.username = username;
+            Log::info("find_slot_by_username_hash: Found user '{}' using current algorithm (migration_status=0x{:02x})",
+                     username, slot.migration_status);
             return &slot;
         }
     }
 
+    // Phase 2: Try fallback algorithm (for not-yet-migrated users)
+    if (migration_active && fallback_algo.has_value()) {
+        for (auto& slot : slots) {
+            if (!slot.active) {
+                continue;
+            }
+
+            // Phase 2 Check: We previously filtered by migration_status != 0x00 here,
+            // but for "Rapid Migrations" where a user migrated to an intermediate algorithm (status=0x01)
+            // and policies changed again, we MUST allow checking against the fallback algorithm regardless of status flag.
+            // if (slot.migration_status != 0x00) continue;
+
+
+            // Verify username hash using old algorithm
+            std::span<const uint8_t> stored_hash(slot.username_hash.data(), slot.username_hash_size);
+            bool matches = KeepTower::UsernameHashService::verify_username(
+                username,
+                stored_hash,
+                *fallback_algo,
+                slot.username_salt,
+                policy.pbkdf2_iterations);
+
+            if (matches) {
+                // Authentication successful with old algorithm!
+                // Mark this user for post-login migration
+                slot.username = username;
+                slot.migration_status = 0xFF;  // Temporary flag: "authenticated, needs migration"
+                Log::info("find_slot_by_username_hash: Found user '{}' using old algorithm - marked for migration",
+                         username);
+                return &slot;
+            }
+        }
+    }
+
+    // Phase 3: Fallback Sweep (Rescue Mode)
+    // Try ALL supported algorithms for users not found in Phase 1 or 2.
+    // This handles:
+    // 1. Rollback Protection: Policy reverted but user already migrated (migrated user needs new algo, but policy says old)
+    // 2. Rapid Migrations: User skipped "Previous" algo (user on Algo A, Vault on Algo C, Previous is B)
+    // CRITICAL FIX: Run this sweep even if migration is NOT active to prevent lockouts during policy rollbacks
+    {
+        // List of all possible algorithms to sweep
+        static const std::vector<KeepTower::UsernameHashService::Algorithm> sweep_algos = {
+            KeepTower::UsernameHashService::Algorithm::SHA3_256,
+            KeepTower::UsernameHashService::Algorithm::SHA3_384,
+            KeepTower::UsernameHashService::Algorithm::SHA3_512,
+            KeepTower::UsernameHashService::Algorithm::PBKDF2_SHA256,
+            KeepTower::UsernameHashService::Algorithm::ARGON2ID
+        };
+
+        for (auto algo : sweep_algos) {
+            // Optimization: Don't re-check algorithms we already tried
+            if (algo == current_algo) continue;
+            if (migration_active && fallback_algo.has_value() && algo == *fallback_algo) continue;
+
+            for (auto& slot : slots) {
+                if (!slot.active) continue;
+
+                // Optimization: If slot status claims it's migrated (0x01), checking random algos is unlikely to help
+                // unless the policy itself is mismatched (Rollback Scenario).
+                // If status is 0x00, checking random algos is necessary for Rapid Migration Scenario.
+
+                // Verify username hash
+                std::span<const uint8_t> stored_hash(slot.username_hash.data(), slot.username_hash_size);
+                bool matches = KeepTower::UsernameHashService::verify_username(
+                    username,
+                    stored_hash,
+                    algo,
+                    slot.username_salt,
+                    policy.pbkdf2_iterations);
+
+                if (matches) {
+                    // Rescue successful!
+                    slot.username = username;
+
+                    // Mark for migration to the CURRENT policy algorithm
+                    // This is crucial: We found them on some random algorithm, we want them on the CURRENT one.
+                    slot.migration_status = 0xFF;
+
+                    Log::warning("find_slot_by_username_hash: RESCUE! Found user '{}' using algo 0x{:02x} (Status=0x{:02x}, Expected=0x{:02x}/0x{:02x})",
+                             username, static_cast<int>(algo), slot.migration_status,
+                             static_cast<int>(current_algo),
+                             fallback_algo.has_value() ? static_cast<int>(*fallback_algo) : 0);
+                    return &slot;
+                }
+            }
+        }
+    }
+
+    Log::warning("find_slot_by_username_hash: User '{}' not found (migration_active={}, tried {} algorithm(s))",
+                username, migration_active, fallback_algo.has_value() ? 2 : 1);
     return nullptr;
 }
 
@@ -527,11 +656,47 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
     // Update last login timestamp
     user_slot->last_login_at = std::chrono::system_clock::now().time_since_epoch().count();
 
-    // Initialize vault state
+    // Initialize vault state BEFORE migration (migrate_user_hash needs these set)
     m_vault_open = true;
     m_is_v2_vault = true;
     m_current_vault_path = path;
     m_v2_header = file_header.vault_header;
+
+    // CRITICAL BUG FIX: user_slot still points to file_header.vault_header.key_slots,
+    // but we just copied to m_v2_header. We need to find the corresponding slot in
+    // m_v2_header so that modifications persist when we save.
+    KeySlot* user_slot_in_header = nullptr;
+    for (auto& slot : m_v2_header->key_slots) {
+        if (slot.active &&
+            slot.username_hash == user_slot->username_hash &&
+            slot.username_hash_size == user_slot->username_hash_size) {
+            user_slot_in_header = &slot;
+            break;
+        }
+    }
+
+    if (!user_slot_in_header) {
+        Log::error("VaultManager: Failed to find user slot in m_v2_header after copy");
+        return std::unexpected(VaultError::InvalidData);
+    }
+
+    // Check if user needs username hash migration
+    // Status 0xFF = authenticated via old algorithm, must migrate to new
+    bool migration_active = (file_header.vault_header.security_policy.migration_flags & 0x01) != 0;
+    if (migration_active && user_slot_in_header->migration_status == 0xFF) {
+        Log::info("VaultManager: User {} requires username hash migration", username.raw());
+
+        // Perform migration (now using the slot from m_v2_header)
+        auto migrate_result = migrate_user_hash(user_slot_in_header, username.raw(), password.raw());
+        if (!migrate_result) {
+            Log::error("VaultManager: Username hash migration failed for user {}: {}",
+                      username.raw(), to_string(migrate_result.error()));
+            // Don't fail authentication - user can try again later
+            // Migration will be retried on next login
+        } else {
+            Log::info("VaultManager: Username hash migration completed for user {}", username.raw());
+        }
+    }
     m_vault_data = vault_data;
     m_modified = true;  // Mark modified to save updated last_login_at
 
@@ -675,8 +840,9 @@ KeepTower::VaultResult<> VaultManager::add_user(
     std::array<uint8_t, 16> username_salt{};
     std::copy_n(username_salt_vec.begin(), 16, username_salt.begin());
 
+    // Hash username with policy's iteration count (critical for PBKDF2/Argon2 algorithms)
     auto username_hash_result = KeepTower::UsernameHashService::hash_username(
-        username.raw(), username_hash_algo, username_salt);
+        username.raw(), username_hash_algo, username_salt, m_v2_header->security_policy.pbkdf2_iterations);
     if (!username_hash_result) {
         Log::error("VaultManager: Failed to hash username");
         return std::unexpected(VaultError::CryptoError);
@@ -1260,6 +1426,86 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
 
     Log::info("VaultManager: Password changed successfully for user: {}", username.raw());
     return {};
+}
+
+// ============================================================================
+// Username Hash Migration (Phase 1)
+// ============================================================================
+
+KeepTower::VaultResult<> VaultManager::migrate_user_hash(
+    KeySlot* user_slot,
+    const std::string& username,
+    const std::string& password) {
+
+    if (!user_slot || !m_v2_header) {
+        Log::error("VaultManager: migrate_user_hash called with null parameters");
+        return std::unexpected(VaultError::InvalidData);
+    }
+
+    if (!m_vault_open || !m_is_v2_vault) {
+        Log::error("VaultManager: migrate_user_hash called but no V2 vault open");
+        return std::unexpected(VaultError::VaultNotOpen);
+    }
+
+    // Verify migration is actually active
+    bool migration_active = (m_v2_header->security_policy.migration_flags & 0x01) != 0;
+    if (!migration_active) {
+        Log::warning("VaultManager: migrate_user_hash called but migration not active (flags=0x{:02x})",
+                    m_v2_header->security_policy.migration_flags);
+        return std::unexpected(VaultError::InvalidData);
+    }
+
+    Log::info("VaultManager: Starting username hash migration for user: {}", username);
+    Log::info("VaultManager:   Old algorithm: 0x{:02x}", m_v2_header->security_policy.username_hash_algorithm_previous);
+    Log::info("VaultManager:   New algorithm: 0x{:02x}", m_v2_header->security_policy.username_hash_algorithm);
+
+    // Get new algorithm from policy
+    auto new_algo = static_cast<KeepTower::UsernameHashService::Algorithm>(
+        m_v2_header->security_policy.username_hash_algorithm);
+
+    // Generate new salt for username (best practice: don't reuse salt across algorithms)
+    std::vector<uint8_t> new_username_salt_vec = KeepTower::VaultCrypto::generate_random_bytes(16);
+    std::array<uint8_t, 16> new_username_salt{};
+    std::copy_n(new_username_salt_vec.begin(), 16, new_username_salt.begin());
+
+    // Compute new username hash with new algorithm
+    // Use policy's pbkdf2_iterations (critical for PBKDF2/Argon2 algorithms)
+    auto new_hash_result = KeepTower::UsernameHashService::hash_username(
+        username, new_algo, new_username_salt, m_v2_header->security_policy.pbkdf2_iterations);
+
+    if (!new_hash_result) {
+        Log::error("VaultManager: Failed to compute new username hash");
+        return std::unexpected(VaultError::CryptoError);
+    }
+
+    // Update KeySlot with new hash
+    const auto& new_hash_vec = new_hash_result.value();
+    std::fill(user_slot->username_hash.begin(), user_slot->username_hash.end(), 0);
+    std::copy_n(new_hash_vec.begin(),
+                std::min(new_hash_vec.size(), size_t(64)),
+                user_slot->username_hash.begin());
+    user_slot->username_hash_size = static_cast<uint8_t>(new_hash_vec.size());
+    user_slot->username_salt = new_username_salt;
+
+    // Mark as migrated with timestamp
+    user_slot->migration_status = 0x01;  // Migrated
+    user_slot->migrated_at = static_cast<uint64_t>(std::time(nullptr));
+
+    // Mark vault as modified
+    m_modified = true;
+
+    // Save vault immediately (critical! migration must persist)
+    Log::info("VaultManager: Saving vault after migration (creating backup)");
+    if (!save_vault(true)) {  // true = create backup
+        Log::error("VaultManager: Failed to save vault after migration");
+        return std::unexpected(VaultError::FileWriteError);
+    }
+
+    Log::info("VaultManager: Successfully migrated user {} to algorithm 0x{:02x} (hash_size={}, timestamp={})",
+             username, m_v2_header->security_policy.username_hash_algorithm,
+             user_slot->username_hash_size, user_slot->migrated_at);
+
+    return {};  // Success
 }
 
 // ============================================================================
@@ -1965,6 +2211,103 @@ std::optional<KeepTower::VaultSecurityPolicy> VaultManager::get_vault_security_p
         return std::nullopt;
     }
     return m_v2_header->security_policy;
+}
+
+KeepTower::VaultResult<> VaultManager::update_security_policy(
+    const KeepTower::VaultSecurityPolicy& new_policy) {
+
+    Log::info("VaultManager: Updating security policy");
+
+    // Validate vault state
+    if (!m_vault_open || !m_is_v2_vault) {
+        Log::error("VaultManager: No V2 vault open");
+        return std::unexpected(VaultError::VaultNotOpen);
+    }
+
+    if (!m_v2_header) {
+        Log::error("VaultManager: V2 header not initialized");
+        return std::unexpected(VaultError::VaultNotOpen);
+    }
+
+    // Verify administrator permissions
+    if (!m_current_session.has_value()) {
+        Log::error("VaultManager: No active session");
+        return std::unexpected(VaultError::PermissionDenied);
+    }
+
+    if (m_current_session->role != UserRole::ADMINISTRATOR) {
+        Log::error("VaultManager: User '{}' is not an administrator (role: {})",
+                   m_current_session->username,
+                   static_cast<int>(m_current_session->role));
+        return std::unexpected(VaultError::PermissionDenied);
+    }
+
+    // Validate the new policy
+    // Minimum password length should be reasonable (at least 8)
+    if (new_policy.min_password_length < 8) {
+        Log::warning("VaultManager: min_password_length too low ({}), using 8",
+                    new_policy.min_password_length);
+    }
+
+    // PBKDF2 iterations should be at least 100,000 (NIST recommendation)
+    if (new_policy.pbkdf2_iterations < 100000) {
+        Log::warning("VaultManager: pbkdf2_iterations too low ({}), recommend >= 100000",
+                    new_policy.pbkdf2_iterations);
+    }
+
+    // Validate username hash algorithm
+    if (new_policy.username_hash_algorithm > 0x05) {
+        Log::error("VaultManager: Invalid username_hash_algorithm: 0x{:02x}",
+                  new_policy.username_hash_algorithm);
+        return std::unexpected(VaultError::InvalidData);
+    }
+
+    // Warn about migration risks
+    bool migration_enabled = (new_policy.migration_flags & 0x01) != 0;
+    bool algorithm_changed = (new_policy.username_hash_algorithm !=
+                             m_v2_header->security_policy.username_hash_algorithm);
+
+    if (algorithm_changed && !migration_enabled) {
+        Log::warning("VaultManager: username_hash_algorithm changed without migration enabled!");
+        Log::warning("VaultManager:   Old: 0x{:02x}, New: 0x{:02x}",
+                    m_v2_header->security_policy.username_hash_algorithm,
+                    new_policy.username_hash_algorithm);
+        Log::warning("VaultManager:   This will lock out ALL users! Enable migration_flags to avoid this.");
+    }
+
+    if (migration_enabled) {
+        Log::info("VaultManager: Migration enabled - two-phase authentication will be used");
+        Log::info("VaultManager:   Old algorithm: 0x{:02x}", new_policy.username_hash_algorithm_previous);
+        Log::info("VaultManager:   New algorithm: 0x{:02x}", new_policy.username_hash_algorithm);
+    }
+
+    // Reset migration status if targeting a new algorithm
+    if (algorithm_changed) {
+        Log::info("VaultManager: Algorithm changed (0x{:02x} -> 0x{:02x}) - resetting migration status for all users",
+                 m_v2_header->security_policy.username_hash_algorithm,
+                 new_policy.username_hash_algorithm);
+
+        for (auto& slot : m_v2_header->key_slots) {
+            if (slot.active && slot.migration_status != 0x00) {
+                slot.migration_status = 0x00; // Reset to not-yet-migrated relative to NEW target
+            }
+        }
+    }
+
+    // Update the policy
+    m_v2_header->security_policy = new_policy;
+
+    // Mark vault as modified
+    m_modified = true;
+
+    Log::info("VaultManager: Security policy updated successfully");
+    Log::info("VaultManager:   min_password_length: {}", new_policy.min_password_length);
+    Log::info("VaultManager:   pbkdf2_iterations: {}", new_policy.pbkdf2_iterations);
+    Log::info("VaultManager:   username_hash_algorithm: 0x{:02x}", new_policy.username_hash_algorithm);
+    Log::info("VaultManager:   migration_flags: 0x{:02x}", new_policy.migration_flags);
+    Log::info("VaultManager:   require_yubikey: {}", new_policy.require_yubikey);
+
+    return {};
 }
 
 bool VaultManager::can_view_account(size_t account_index) const noexcept {

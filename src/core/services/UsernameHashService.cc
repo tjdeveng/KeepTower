@@ -6,6 +6,7 @@
  * @brief Implementation of username hashing service
  */
 
+#include "config.h"  // For ENABLE_ARGON2
 #include "UsernameHashService.h"
 #include <openssl/evp.h>
 #include <openssl/sha.h>
@@ -261,16 +262,16 @@ UsernameHashService::hash_argon2id(std::string_view username,
     const uint32_t parallelism = 1;     // Single thread for username hashing
     const uint32_t hash_len = 32;       // 256 bits
 
-    // Validate iteration count (time cost)
-    if (iterations == 0) {
-        iterations = 3;  // Default Argon2id time cost
-    }
+    // Argon2id time cost (t_cost) - NOT the same as PBKDF2 iterations!
+    // Typical values: 1-10 (not 100,000 like PBKDF2)
+    // Ignore the 'iterations' parameter for Argon2id and use a fixed sensible default
+    const uint32_t time_cost = 3;  // Default Argon2id time cost (iterations parameter is ignored)
 
     std::vector<uint8_t> hash(hash_len);
 
     // Hash using Argon2id
     int result = argon2id_hash_raw(
-        iterations,                         // t_cost (time iterations)
+        time_cost,                          // t_cost (time iterations) - fixed at 3
         memory_kb,                          // m_cost (memory in KB)
         parallelism,                        // parallelism
         username.data(),                    // password (username in our case)

@@ -121,7 +121,23 @@ std::vector<uint8_t> VaultSecurityPolicy::serialize() const {
     // Bytes 24-87: yubikey_challenge (64 bytes)
     result.insert(result.end(), yubikey_challenge.begin(), yubikey_challenge.end());
 
-    // Bytes 88-130: reserved for future use (43 bytes, reduced from 44 by 10 bytes total)
+    // Byte 88: username_hash_algorithm_previous (migration support)
+    result.push_back(username_hash_algorithm_previous);
+
+    // Bytes 89-96: migration_started_at (big-endian uint64_t)
+    result.push_back(static_cast<uint8_t>((migration_started_at >> 56) & 0xFF));
+    result.push_back(static_cast<uint8_t>((migration_started_at >> 48) & 0xFF));
+    result.push_back(static_cast<uint8_t>((migration_started_at >> 40) & 0xFF));
+    result.push_back(static_cast<uint8_t>((migration_started_at >> 32) & 0xFF));
+    result.push_back(static_cast<uint8_t>((migration_started_at >> 24) & 0xFF));
+    result.push_back(static_cast<uint8_t>((migration_started_at >> 16) & 0xFF));
+    result.push_back(static_cast<uint8_t>((migration_started_at >> 8) & 0xFF));
+    result.push_back(static_cast<uint8_t>(migration_started_at & 0xFF));
+
+    // Byte 97: migration_flags
+    result.push_back(migration_flags);
+
+    // Bytes 98-140: reserved for future use (43 bytes)
     for (size_t i = 0; i < RESERVED_BYTES_2; ++i) {
         result.push_back(0);
     }
@@ -256,6 +272,55 @@ std::optional<VaultSecurityPolicy> VaultSecurityPolicy::deserialize(const std::v
     std::copy(data.begin() + offset, data.begin() + offset + 64, policy.yubikey_challenge.begin());
     offset += 64;
 
+    // Check for migration support format (141 bytes)
+    const size_t MIGRATION_V2_SIZE = 141;
+    if (data.size() >= MIGRATION_V2_SIZE) {
+        // Byte 88: username_hash_algorithm_previous
+        policy.username_hash_algorithm_previous = data[offset];
+        offset += 1;
+
+        // Validate previous algorithm (0-5 are valid, or 0 for no migration)
+        if (policy.username_hash_algorithm_previous > 5) {
+            Log::error("VaultSecurityPolicy: Invalid username_hash_algorithm_previous: {}",
+                       policy.username_hash_algorithm_previous);
+            return std::nullopt;
+        }
+
+        // Bytes 89-96: migration_started_at (big-endian uint64_t)
+        policy.migration_started_at = 0;
+        for (int i = 0; i < 8; ++i) {
+            policy.migration_started_at = (policy.migration_started_at << 8) | data[offset++];
+        }
+
+        // Byte 97: migration_flags
+        policy.migration_flags = data[offset];
+        offset += 1;
+
+        // Validate migration flags (reserved bits must be 0)
+        if ((policy.migration_flags & 0xFC) != 0) {  // Bits 2-7 must be 0
+            Log::warning("VaultSecurityPolicy: Reserved migration flag bits are set: 0x{:02X}",
+                        policy.migration_flags);
+            // Don't fail - just clear reserved bits for forward compatibility
+            policy.migration_flags &= 0x03;
+        }
+
+        // Validation: If migration is not active, previous algo and timestamp should be 0
+        bool migration_active = (policy.migration_flags & 0x01) != 0;
+        if (!migration_active && (policy.username_hash_algorithm_previous != 0 || policy.migration_started_at != 0)) {
+            Log::warning("VaultSecurityPolicy: Migration not active but previous algo or timestamp set - clearing");
+            policy.username_hash_algorithm_previous = 0;
+            policy.migration_started_at = 0;
+        }
+    } else {
+        // Pre-migration format: use defaults (no migration active)
+        policy.username_hash_algorithm_previous = 0;
+        policy.migration_started_at = 0;
+        policy.migration_flags = 0;
+        if (data.size() >= CURRENT_V2_SIZE) {
+            Log::info("VaultSecurityPolicy: Pre-migration V2 format detected, using migration defaults");
+        }
+    }
+
     // Remaining bytes: reserved (skip)
 
     // Validation
@@ -301,8 +366,10 @@ size_t KeySlot::calculate_serialized_size() const {
     // N bytes: yubikey_credential_id
     // 1 byte: password_history count
     // N * 88 bytes: password_history entries
+    // 1 byte: migration_status (migration support)
+    // 8 bytes: migrated_at (migration support)
 
-    size_t base_size = 1 + 1 + 64 + 1 + 16 + 32 + 40 + 1 + 1 + 8 + 8 + 1 + 32 + 1 + yubikey_serial.size() + 8 + 2 + yubikey_encrypted_pin.size() + 2 + yubikey_credential_id.size() + 1;
+    size_t base_size = 1 + 1 + 64 + 1 + 16 + 32 + 40 + 1 + 1 + 8 + 8 + 1 + 32 + 1 + yubikey_serial.size() + 8 + 2 + yubikey_encrypted_pin.size() + 2 + yubikey_credential_id.size() + 1 + 1 + 8;
     size_t history_size = password_history.size() * PasswordHistoryEntry::SERIALIZED_SIZE;
     return base_size + history_size;
 }
@@ -400,6 +467,14 @@ std::vector<uint8_t> KeySlot::serialize() const {
     for (const auto& entry : password_history) {
         auto entry_data = entry.serialize();
         result.insert(result.end(), entry_data.begin(), entry_data.end());
+    }
+
+    // Next byte: migration_status (migration support)
+    result.push_back(migration_status);
+
+    // Next 8 bytes: migrated_at (big-endian uint64_t)
+    for (unsigned int i = 0; i < 8; ++i) {
+        result.push_back(static_cast<uint8_t>((migrated_at >> ((7 - i) * 8)) & 0xFF));
     }
 
     return result;
@@ -617,6 +692,31 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
         }
         slot.password_history.push_back(*entry_opt);
         pos += PasswordHistoryEntry::SERIALIZED_SIZE;
+    }
+
+    // Check if we have migration fields (backward compatibility)
+    // Old format (pre-migration) won't have these fields
+    if (pos + 1 + 8 > data.size()) {
+        // Old format without migration fields - use defaults
+        slot.migration_status = 0x00;
+        slot.migrated_at = 0;
+        size_t bytes_consumed = pos - offset;
+        return std::make_pair(slot, bytes_consumed);
+    }
+
+    // migration_status (1 byte)
+    slot.migration_status = data[pos++];
+
+    // Validate migration_status (only 0x00, 0x01, 0xFF are valid)
+    if (slot.migration_status != 0x00 && slot.migration_status != 0x01 && slot.migration_status != 0xFF) {
+        Log::warning("KeySlot: Invalid migration_status: 0x{:02X}, defaulting to 0x00", slot.migration_status);
+        slot.migration_status = 0x00;
+    }
+
+    // migrated_at (8 bytes, big-endian uint64_t)
+    slot.migrated_at = 0;
+    for (int i = 0; i < 8; ++i) {
+        slot.migrated_at = (slot.migrated_at << 8) | data[pos++];
     }
 
     size_t bytes_consumed = pos - offset;
