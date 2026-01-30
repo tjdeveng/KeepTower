@@ -72,7 +72,6 @@ A secure, modern password manager built with C++23 and GTK4.
 - C++23 compatible compiler (GCC 13+ or Clang 16+)
 - GTKmm 4.0 (>= 4.10) - Available in Ubuntu 24.04+, Fedora 39+
 - **OpenSSL 3.5.0 or higher** (required for FIPS-140-3 support)
-  - OpenSSL 1.1.0+ supported but FIPS mode unavailable
   - See [FIPS_SETUP_GUIDE.md](FIPS_SETUP_GUIDE.md) for FIPS configuration
 - Protocol Buffers (>= 3.0)
 - libcorrect (for Reed-Solomon error correction)
