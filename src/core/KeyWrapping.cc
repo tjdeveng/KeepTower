@@ -120,16 +120,7 @@ KeyWrapping::derive_kek_from_password(const Glib::ustring& password,
 
     std::array<uint8_t, KEK_SIZE> kek;
 
-    // Debug: Log first 16 bytes of password for comparison
-    std::string hex_preview;
-    size_t preview_len = std::min<size_t>(16, password.bytes());
-    for (size_t i = 0; i < preview_len; ++i) {
-        char buf[4];
-        snprintf(buf, sizeof(buf), "%02x", static_cast<unsigned char>(password.data()[i]));
-        hex_preview += buf;
-    }
-    Log::info("KeyWrapping: PBKDF2 input - {} bytes, hex preview: {}",
-              password.bytes(), hex_preview);
+    // Never log password material (even partial previews).
 
     // Use PKCS5_PBKDF2_HMAC (supports SHA-256)
     int result = PKCS5_PBKDF2_HMAC(

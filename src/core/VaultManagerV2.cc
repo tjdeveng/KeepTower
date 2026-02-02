@@ -480,7 +480,7 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
         return std::unexpected(VaultError::CryptoError);
     }
 
-    std::array<uint8_t, 32> final_kek;
+    std::array<uint8_t, 32> final_kek{};
     std::copy(kek_result->begin(), kek_result->end(), final_kek.begin());
 
     // Check if this user has YubiKey enrolled
@@ -822,7 +822,7 @@ KeepTower::VaultResult<> VaultManager::add_user(
         return std::unexpected(VaultError::CryptoError);
     }
 
-    std::array<uint8_t, 32> kek_array;
+    std::array<uint8_t, 32> kek_array{};
     std::copy(kek_result->begin(), kek_result->end(), kek_array.begin());
 
     // Wrap vault DEK with new user's KEK
@@ -1170,7 +1170,7 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
         return std::unexpected(VaultError::CryptoError);
     }
 
-    std::array<uint8_t, 32> old_kek_array;
+    std::array<uint8_t, 32> old_kek_array{};
     std::copy(old_kek_result->begin(), old_kek_result->end(), old_kek_array.begin());
 
     std::array<uint8_t, 32> old_final_kek = old_kek_array;
@@ -1288,7 +1288,7 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
         return std::unexpected(VaultError::CryptoError);
     }
 
-    std::array<uint8_t, 32> new_final_kek;
+    std::array<uint8_t, 32> new_final_kek{};
     std::copy(new_kek_result->begin(), new_kek_result->end(), new_final_kek.begin());
 
 #ifdef HAVE_YUBIKEY_SUPPORT
@@ -1737,7 +1737,7 @@ KeepTower::VaultResult<> VaultManager::admin_reset_user_password(
         return std::unexpected(VaultError::CryptoError);
     }
 
-    std::array<uint8_t, 32> new_kek_array;
+    std::array<uint8_t, 32> new_kek_array{};
     std::copy(new_kek_result->begin(), new_kek_result->end(), new_kek_array.begin());
 
     // Wrap DEK with new KEK (password-only, no YubiKey)
@@ -1859,7 +1859,7 @@ KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
         return std::unexpected(VaultError::CryptoError);
     }
 
-    std::array<uint8_t, 32> kek_array;
+    std::array<uint8_t, 32> kek_array{};
     std::copy(kek_result->begin(), kek_result->end(), kek_array.begin());
 
     auto verify_unwrap = KeyWrapping::unwrap_key(
@@ -1877,7 +1877,7 @@ KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
         return std::unexpected(VaultError::CryptoError);
     }
 
-    std::array<uint8_t, 20> user_challenge;
+    std::array<uint8_t, 20> user_challenge{};
     std::copy_n(challenge_salt->begin(), 20, user_challenge.begin());
 
     // Perform YubiKey challenge-response (require touch = true for enrollment security)
@@ -1939,7 +1939,7 @@ KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
     Log::info("VaultManager: Encrypting YubiKey PIN");
     std::vector<uint8_t> pin_bytes(yubikey_pin.begin(), yubikey_pin.end());
     std::vector<uint8_t> encrypted_pin;
-    std::array<uint8_t, 12> pin_iv;
+    std::array<uint8_t, 12> pin_iv{};
 
     if (!KeepTower::VaultCrypto::encrypt_data(pin_bytes, kek_array, encrypted_pin, pin_iv)) {
         Log::error("VaultManager: Failed to encrypt YubiKey PIN");
@@ -2058,7 +2058,7 @@ KeepTower::VaultResult<> VaultManager::unenroll_yubikey_for_user(
     }
 
     // Use user's enrolled challenge
-    std::array<uint8_t, 20> user_challenge;
+    std::array<uint8_t, 20> user_challenge{};
     std::copy_n(user_slot->yubikey_challenge.begin(), 20, user_challenge.begin());
 
     const YubiKeyAlgorithm algorithm = static_cast<YubiKeyAlgorithm>(m_v2_header->security_policy.yubikey_algorithm);
@@ -2070,10 +2070,10 @@ KeepTower::VaultResult<> VaultManager::unenroll_yubikey_for_user(
     }
 
     // Combine KEK with YubiKey response for verification
-    std::array<uint8_t, 32> kek_array;
+    std::array<uint8_t, 32> kek_array{};
     std::copy(kek_result->begin(), kek_result->end(), kek_array.begin());
 
-    std::array<uint8_t, 20> yk_response_array;
+    std::array<uint8_t, 20> yk_response_array{};
     std::copy_n(response.response.begin(), 20, yk_response_array.begin());
     auto current_kek = KeyWrapping::combine_with_yubikey(kek_array, yk_response_array);
 
@@ -2101,7 +2101,7 @@ KeepTower::VaultResult<> VaultManager::unenroll_yubikey_for_user(
         return std::unexpected(VaultError::CryptoError);
     }
 
-    std::array<uint8_t, 32> new_kek_array;
+    std::array<uint8_t, 32> new_kek_array{};
     std::copy(new_kek_result->begin(), new_kek_result->end(), new_kek_array.begin());
 
     // Re-wrap DEK with password-only KEK

@@ -13,6 +13,7 @@
 #include <openssl/hmac.h>
 #include <cstring>
 #include <algorithm>
+#include <array>
 #include <vector>
 
 /**
@@ -44,6 +45,17 @@ namespace YubiKeyAPDU {
         apdu.push_back(INS_SELECT);
         apdu.push_back(0x04);  // P1: Select by AID
         apdu.push_back(0x00);  // P2
+
+        // Lc + AID
+        apdu.push_back(static_cast<uint8_t>(OTP_AID.size()));
+        apdu.insert(apdu.end(), OTP_AID.begin(), OTP_AID.end());
+
+        // Le (max expected response)
+        apdu.push_back(0x00);
+
+        return apdu;
+    }
+}  // namespace YubiKeyAPDU
 
 /**
  * @brief Private implementation using PIMPL pattern
