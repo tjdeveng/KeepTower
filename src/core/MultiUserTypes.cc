@@ -63,7 +63,6 @@ std::optional<PasswordHistoryEntry> PasswordHistoryEntry::deserialize(
 
     // Bytes 40-87: hash
     std::copy(data.begin() + pos, data.begin() + pos + 48, entry.hash.begin());
-    pos += 48;
 
     return entry;
 }
@@ -378,9 +377,8 @@ std::vector<uint8_t> KeySlot::serialize() const {
     std::vector<uint8_t> result;
     result.reserve(calculate_serialized_size());
 
-    // DEBUG: Log what we're serializing
-    Log::info("KeySlot::serialize: username='{}' (length={}, active={}, hash_size={}, kek_algo=0x{:02X})",
-              username, username.length(), active, username_hash_size, kek_derivation_algorithm);
+    Log::debug("KeySlot::serialize: active={}, hash_size={}, kek_algo=0x{:02X}, yubikey_enrolled={}",
+              active, username_hash_size, kek_derivation_algorithm, yubikey_enrolled);
 
     // Byte 0: active flag
     result.push_back(active ? 1 : 0);
@@ -483,7 +481,7 @@ std::vector<uint8_t> KeySlot::serialize() const {
 std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
     const std::vector<uint8_t>& data, size_t offset) {
 
-    if (offset + 2 > data.size()) {
+    if (offset >= data.size()) {
         Log::error("KeySlot: Insufficient data for header at offset {}", offset);
         return std::nullopt;
     }
@@ -491,8 +489,13 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
     KeySlot slot;
     size_t pos = offset;
 
+    auto it = [&data](size_t idx) {
+        return data.begin() + static_cast<std::vector<uint8_t>::difference_type>(idx);
+    };
+
     // Byte 0: active flag
-    slot.active = (data[pos++] != 0);
+    slot.active = (data[pos] != 0);
+    ++pos;
 
     // Username not stored on disk (security) - will be populated in-memory after authentication
     slot.username.clear();
@@ -500,15 +503,12 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
     // Detect if this is current V2 format (with kek_derivation_algorithm field)
     // Heuristic: If next byte is 0x04 or 0x05, it's likely kek_derivation_algorithm
     // Otherwise, it's the first byte of username_hash (older V2 format)
-    bool has_kek_algorithm = false;
     if (pos < data.size() && (data[pos] == 0x04 || data[pos] == 0x05)) {
         // Current V2 format with kek_derivation_algorithm
         slot.kek_derivation_algorithm = data[pos++];
-        has_kek_algorithm = true;
     } else {
         // Older V2 format: default to PBKDF2
         slot.kek_derivation_algorithm = 0x04;  // PBKDF2-HMAC-SHA256 default
-        has_kek_algorithm = false;
     }
 
     // Next 64 bytes: username_hash
@@ -516,7 +516,7 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
         Log::error("KeySlot: Insufficient data for username_hash");
         return std::nullopt;
     }
-    std::copy(data.begin() + pos, data.begin() + pos + 64, slot.username_hash.begin());
+    std::copy(it(pos), it(pos + 64), slot.username_hash.begin());
     pos += 64;
 
     // Next byte: username_hash_size
@@ -535,7 +535,7 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
         Log::error("KeySlot: Insufficient data for username_salt");
         return std::nullopt;
     }
-    std::copy(data.begin() + pos, data.begin() + pos + 16, slot.username_salt.begin());
+    std::copy(it(pos), it(pos + 16), slot.username_salt.begin());
     pos += 16;
 
     // Check remaining data for core fields
@@ -545,11 +545,11 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
     }
 
     // Salt (32 bytes - password derivation)
-    std::copy(data.begin() + pos, data.begin() + pos + 32, slot.salt.begin());
+    std::copy(it(pos), it(pos + 32), slot.salt.begin());
     pos += 32;
 
     // Wrapped DEK (40 bytes)
-    std::copy(data.begin() + pos, data.begin() + pos + 40, slot.wrapped_dek.begin());
+    std::copy(it(pos), it(pos + 40), slot.wrapped_dek.begin());
     pos += 40;
 
     // Role
@@ -591,7 +591,7 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
     slot.yubikey_enrolled = (data[pos++] != 0);
 
     // yubikey_challenge (32 bytes)
-    std::copy(data.begin() + pos, data.begin() + pos + 32, slot.yubikey_challenge.begin());
+    std::copy(it(pos), it(pos + 32), slot.yubikey_challenge.begin());
     pos += 32;
 
     // yubikey_serial length (1 byte)
@@ -604,7 +604,7 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
     }
 
     // yubikey_serial (N bytes)
-    slot.yubikey_serial.assign(data.begin() + pos, data.begin() + pos + yubikey_serial_len);
+    slot.yubikey_serial.assign(it(pos), it(pos + yubikey_serial_len));
     pos += yubikey_serial_len;
 
     // yubikey_enrolled_at (8 bytes, big-endian)
@@ -635,7 +635,7 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
     }
 
     // yubikey_encrypted_pin (N bytes)
-    slot.yubikey_encrypted_pin.assign(data.begin() + pos, data.begin() + pos + encrypted_pin_len);
+    slot.yubikey_encrypted_pin.assign(it(pos), it(pos + encrypted_pin_len));
     pos += encrypted_pin_len;
 
     // Check if we have yubikey_credential_id field (backward compatibility)
@@ -658,7 +658,7 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
     }
 
     // yubikey_credential_id (N bytes)
-    slot.yubikey_credential_id.assign(data.begin() + pos, data.begin() + pos + credential_id_len);
+    slot.yubikey_credential_id.assign(it(pos), it(pos + credential_id_len));
     pos += credential_id_len;
 
     // Check if we have password_history field (backward compatibility)

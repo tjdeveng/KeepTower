@@ -251,6 +251,52 @@ bool test_key_slot_serialization() {
     return true;
 }
 
+bool test_key_slot_deserialize_rejects_truncated_data() {
+    KeySlot slot;
+    slot.active = true;
+    slot.username = "testuser@example.com";
+    slot.kek_derivation_algorithm = 0x04;  // PBKDF2-HMAC-SHA256
+    slot.role = UserRole::ADMINISTRATOR;
+    slot.must_change_password = false;
+    slot.password_changed_at = 1234567890;
+    slot.last_login_at = 1234567900;
+
+    // Legacy mode: no username hashing
+    slot.username_hash_size = 0;
+    slot.username_hash.fill(0);
+    slot.username_salt.fill(0);
+
+    for (size_t i = 0; i < slot.salt.size(); ++i) {
+        slot.salt[i] = static_cast<uint8_t>(i % 256);
+    }
+    for (size_t i = 0; i < slot.wrapped_dek.size(); ++i) {
+        slot.wrapped_dek[i] = static_cast<uint8_t>((i * 3) % 256);
+    }
+
+    auto serialized = slot.serialize();
+    TEST_ASSERT(!serialized.empty(), "Serialization failed");
+
+    // Offset at end must be rejected.
+    TEST_ASSERT(!KeySlot::deserialize(serialized, serialized.size()).has_value(),
+                "Deserialization should fail with offset==size");
+
+    // Truncate into required core fields; must be rejected.
+    const size_t core_min_size = 1 + 1 + 64 + 1 + 16 + 32 + 40 + 1 + 1 + 8 + 8;
+    TEST_ASSERT(serialized.size() >= core_min_size, "Unexpected serialized KeySlot size");
+    std::vector<uint8_t> truncated(serialized.begin(), serialized.begin() + (core_min_size - 1));
+    TEST_ASSERT(!KeySlot::deserialize(truncated, 0).has_value(),
+                "Deserialization should fail when core fields are truncated");
+
+    // Minimal 1-byte buffer should be rejected safely.
+    std::vector<uint8_t> one_byte{0x01};
+    TEST_ASSERT(!KeySlot::deserialize(one_byte, 0).has_value(),
+                "Deserialization should fail for 1-byte buffer");
+    TEST_ASSERT(!KeySlot::deserialize(one_byte, 1).has_value(),
+                "Deserialization should fail for offset==size on 1-byte buffer");
+
+    return true;
+}
+
 bool test_vault_header_v2_serialization() {
     VaultHeaderV2 header;
 
@@ -627,6 +673,7 @@ int main() {
     RUN_TEST(test_yubikey_combination);
     RUN_TEST(test_vault_security_policy_serialization);
     RUN_TEST(test_key_slot_serialization);
+    RUN_TEST(test_key_slot_deserialize_rejects_truncated_data);
     RUN_TEST(test_vault_header_v2_serialization);
     RUN_TEST(test_vault_format_v2_header_write_read);
     RUN_TEST(test_version_detection);
