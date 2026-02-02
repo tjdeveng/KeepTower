@@ -229,7 +229,7 @@ void VaultIOHandler::show_export_password_dialog(const std::string& current_vaul
         password_dialog->set_modal(true);
         password_dialog->set_hide_on_close(true);
 
-        password_dialog->signal_response().connect([this, password_dialog, current_vault_path, current_username, is_v2_vault](int response) {
+        password_dialog->signal_response().connect([this, password_dialog, current_vault_path](int response) {
             if (response != Gtk::ResponseType::OK) {
                 password_dialog->hide();
                 return;
@@ -237,6 +237,12 @@ void VaultIOHandler::show_export_password_dialog(const std::string& current_vaul
 
             try {
                 Glib::ustring password = password_dialog->get_password();
+
+                if (!m_vault_manager) {
+                    password_dialog->hide();
+                    m_dialog_manager->show_error_dialog("Export cancelled: vault is not open");
+                    return;
+                }
 
 #ifdef HAVE_YUBIKEY_SUPPORT
                 // Check if YubiKey is required for current user

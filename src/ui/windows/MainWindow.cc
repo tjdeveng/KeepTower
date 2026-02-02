@@ -491,7 +491,7 @@ MainWindow::MainWindow()
 
     // Connect ClipboardManager signals
     m_clipboard_manager->signal_copied().connect(
-        [this]([[maybe_unused]] const std::string& text) {
+        [this]() {
             // Update status to show password copied (don't show the password itself)
             m_status_label.set_text("Password copied to clipboard");
         });

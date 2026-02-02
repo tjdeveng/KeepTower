@@ -125,10 +125,11 @@ public:
      * @brief Set the auto-clear timeout duration
      * @param seconds Timeout in seconds (will be clamped to MIN_CLEAR_TIMEOUT..MAX_CLEAR_TIMEOUT)
      *
-     * If a clear timer is active, it will be restarted with the new timeout.
+    * If a clear timer is active, it is not restarted (to avoid extending the clear time).
+    * Copy again to start a new timer using the updated timeout.
      *
      * @post Timeout is set to clamped value
-     * @post Active clear timer (if any) is restarted with new timeout
+    * @post Active clear timer (if any) continues with its original timeout
      */
     void set_clear_timeout_seconds(int seconds);
 
@@ -147,16 +148,12 @@ public:
     /**
      * @brief Signal emitted after text is copied to clipboard
      *
-     * Parameters:
-     * - std::string: The text that was copied (for status display, NOT for storage)
+     * Signal Signature: void()
      *
-     * Use for:
-     * - Updating status bar ("Password copied to clipboard")
-     * - Showing notification
-     *
-     * @return Signal reference for connection
+     * This signal intentionally does not expose the copied text to
+     * listeners to reduce the chance of sensitive data propagation.
      */
-    [[nodiscard]] sigc::signal<void(const std::string&)>& signal_copied() { return m_signal_copied; }
+    [[nodiscard]] sigc::signal<void()>& signal_copied() { return m_signal_copied; }
 
     /**
      * @brief Signal emitted after clipboard is cleared
@@ -226,7 +223,7 @@ private:
     Glib::RefPtr<Gdk::Clipboard> m_clipboard;  ///< System clipboard reference
     int m_clear_timeout_seconds;               ///< Clear timeout in seconds
     sigc::connection m_clear_timeout_connection;  ///< Active clear timer
-    sigc::signal<void(const std::string&)> m_signal_copied;   ///< Copied signal
+    sigc::signal<void()> m_signal_copied;      ///< Copied signal
     sigc::signal<void()> m_signal_cleared;     ///< Cleared signal
 
     // Preservation state

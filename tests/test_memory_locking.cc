@@ -568,6 +568,9 @@ TEST_F(MemoryLockingTest, MemoryLockedThroughoutSession) {
  * **Verifies:** mlock() system call used correctly
  */
 TEST_F(MemoryLockingTest, LinuxMlockImplementation) {
+#if defined(__SANITIZE_ADDRESS__)
+    GTEST_SKIP() << "VmLck reporting can be unreliable under ASan";
+#endif
     VaultManager vm;
 
     ASSERT_TRUE(vm.create_vault(test_vault_path.string(), "TestPassword123"));

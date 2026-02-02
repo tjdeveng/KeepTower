@@ -94,16 +94,13 @@ TEST_F(ClipboardManagerTest, CopyTextEmitsSignal) {
     ClipboardManager manager(m_clipboard);
 
     bool signal_received = false;
-    std::string received_text;
 
-    manager.signal_copied().connect([&signal_received, &received_text](const std::string& text) {
+    manager.signal_copied().connect([&signal_received]() {
         signal_received = true;
-        received_text = text;
     });
 
     manager.copy_text("MySecretPassword");
     EXPECT_TRUE(signal_received);
-    EXPECT_EQ(received_text, "MySecretPassword");
 }
 
 TEST_F(ClipboardManagerTest, CopyTextCancelsPreviousTimer) {
@@ -156,11 +153,11 @@ TEST_F(ClipboardManagerTest, MultipleSignalConnections) {
     int callback1_count = 0;
     int callback2_count = 0;
 
-    manager.signal_copied().connect([&callback1_count](const std::string&) {
+    manager.signal_copied().connect([&callback1_count]() {
         callback1_count++;
     });
 
-    manager.signal_copied().connect([&callback2_count](const std::string&) {
+    manager.signal_copied().connect([&callback2_count]() {
         callback2_count++;
     });
 

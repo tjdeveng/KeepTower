@@ -7,6 +7,7 @@
 #include <giomm/init.h>
 #include <giomm/settings.h>
 #include <cstdlib>
+#include <filesystem>
 
 /**
  * @brief Test fixture for SettingsValidator tests
@@ -24,11 +25,37 @@ protected:
             GTEST_SKIP() << "GSETTINGS_SCHEMA_DIR not set";
         }
 
+        // Ensure compiled schema is current (defaults come from gschemas.compiled).
+        namespace fs = std::filesystem;
+        const fs::path schema_path{schema_dir};
+        const fs::path schema_xml = schema_path / "com.tjdeveng.keeptower.gschema.xml";
+        if (fs::exists(schema_xml)) {
+            // Compile unconditionally for correctness; build dirs can have stale
+            // `gschemas.compiled` even when the XML has the desired defaults.
+            const std::string cmd = "glib-compile-schemas " + schema_path.string();
+            const int rc = std::system(cmd.c_str());
+            if (rc != 0) {
+                GTEST_SKIP() << "Failed to compile GSettings schemas with: " << cmd;
+            }
+        }
+
         try {
             settings = Gio::Settings::create("com.tjdeveng.keeptower");
         } catch (const Glib::Error& e) {
             GTEST_SKIP() << "Could not create settings: " << e.what();
         }
+
+        // Ensure we start from schema defaults regardless of per-user dconf state.
+        settings->reset("clipboard-clear-timeout");
+        settings->reset("auto-lock-enabled");
+        settings->reset("auto-lock-timeout");
+        settings->reset("password-history-enabled");
+        settings->reset("password-history-limit");
+        settings->reset("fips-mode-enabled");
+        settings->reset("username-hash-algorithm");
+        settings->reset("username-pbkdf2-iterations");
+        settings->reset("username-argon2-memory-kb");
+        settings->reset("username-argon2-iterations");
     }
 
     void TearDown() override {

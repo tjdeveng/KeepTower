@@ -58,8 +58,8 @@ void ClipboardManager::copy_text(const std::string& text) {
 
     Log::info("ClipboardManager: Text copied, will clear in {} seconds", m_clear_timeout_seconds);
 
-    // Emit copied signal (pass text for status display)
-    m_signal_copied.emit(text);
+    // Emit copied signal (do not expose clipboard contents)
+    m_signal_copied.emit();
 }
 
 void ClipboardManager::clear_immediately() {

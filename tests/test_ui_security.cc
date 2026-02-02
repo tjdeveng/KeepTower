@@ -13,6 +13,7 @@
 #include <giomm/settings.h>
 #include <filesystem>
 #include <fstream>
+#include <cstdlib>
 
 namespace fs = std::filesystem;
 
@@ -33,11 +34,32 @@ protected:
             g_setenv("GSETTINGS_SCHEMA_DIR", schema_dir.c_str(), TRUE);
         }
 
+        // Ensure compiled schema is up-to-date.
+        // `gsettings` and Gio::Settings read defaults from `gschemas.compiled`,
+        // not from the XML. Meson sets GSETTINGS_SCHEMA_DIR to the build dir,
+        // but `meson test` won't necessarily rebuild `gschemas.compiled`.
+        const fs::path schema_xml = schema_dir / "com.tjdeveng.keeptower.gschema.xml";
+        if (fs::exists(schema_xml)) {
+            // Build directories can contain a stale `gschemas.compiled` even when the XML
+            // has the expected contents, so compile unconditionally for correctness.
+            const std::string cmd = "glib-compile-schemas " + schema_dir.string();
+            const int rc = std::system(cmd.c_str());
+            ASSERT_EQ(rc, 0) << "Failed to compile GSettings schemas with: " << cmd;
+        }
+
         try {
             settings = Gio::Settings::create("com.tjdeveng.keeptower");
         } catch (const Glib::Error& e) {
             FAIL() << "Failed to create settings: " << e.what();
         }
+
+        // Ensure tests are not affected by persisted per-user settings.
+        // CI typically has defaults, but developer machines may not.
+        settings->reset("clipboard-clear-timeout");
+        settings->reset("auto-lock-enabled");
+        settings->reset("auto-lock-timeout");
+        settings->reset("password-history-enabled");
+        settings->reset("password-history-limit");
     }
 
     void TearDown() override {
