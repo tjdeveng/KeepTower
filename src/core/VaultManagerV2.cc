@@ -13,10 +13,17 @@
  */
 
 #include "VaultManager.h"
+#include "VaultFormatV2.h"
 #include "crypto/VaultCrypto.h"
 #include "io/VaultIO.h"
 #include "KeyWrapping.h"
 #include "PasswordHistory.h"
+#include "managers/AccountManager.h"
+#include "managers/GroupManager.h"
+#include "managers/YubiKeyManager.h"
+#include "services/VaultCryptoService.h"
+#include "services/VaultFileService.h"
+#include "services/VaultYubiKeyService.h"
 #include "services/UsernameHashService.h"
 #include "services/KekDerivationService.h"
 #include "../utils/Log.h"

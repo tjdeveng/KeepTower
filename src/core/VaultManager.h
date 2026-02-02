@@ -12,6 +12,9 @@
 #ifndef VAULTMANAGER_H
 #define VAULTMANAGER_H
 
+#include <array>
+#include <cstdint>
+#include <functional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -24,21 +27,10 @@
 #include <glibmm.h>
 #include "record.pb.h"
 #include "VaultError.h"
-#include "ReedSolomon.h"
 #include "MultiUserTypes.h"
-#include "VaultFormatV2.h"
-#include "crypto/VaultCrypto.h"
-#include "io/VaultIO.h"
-#include "serialization/VaultSerialization.h"
-#include "format/VaultFormat.h"
-#include "managers/AccountManager.h"
-#include "managers/GroupManager.h"
 
 // Phase 2 Day 5: VaultCreationOrchestrator integration
 #include "controllers/VaultCreationOrchestrator.h"
-#include "services/VaultCryptoService.h"
-#include "services/VaultYubiKeyService.h"
-#include "services/VaultFileService.h"
 
 // Forward declare for conditional compilation
 #if __has_include("config.h")
@@ -46,8 +38,19 @@
 #endif
 
 #ifdef HAVE_YUBIKEY_SUPPORT
-#include "managers/YubiKeyManager.h"
 #endif
+
+// Forward declarations (reduce include coupling)
+class ReedSolomon;
+
+namespace KeepTower {
+struct VaultFileMetadata;
+class AccountManager;
+class GroupManager;
+class VaultCryptoService;
+class VaultYubiKeyService;
+class VaultFileService;
+}  // namespace KeepTower
 
 // Forward declarations for OpenSSL types
 /** @brief OpenSSL cipher context structure (opaque type) */

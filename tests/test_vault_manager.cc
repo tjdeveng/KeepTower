@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 #include "VaultManager.h"
 #include "VaultError.h"
+#include "managers/YubiKeyManager.h"
 #include <filesystem>
 #include <fstream>
 #include <random>

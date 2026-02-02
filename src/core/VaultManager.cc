@@ -4,7 +4,18 @@
 #include "VaultManager.h"
 #include "KeyWrapping.h"  // For V2 password verification
 #include "VaultFormatV2.h"  // For V2 vault parsing
+#include "crypto/VaultCrypto.h"
 #include "crypto/FipsProviderManager.h"
+#include "ReedSolomon.h"
+#include "format/VaultFormat.h"
+#include "io/VaultIO.h"
+#include "managers/AccountManager.h"
+#include "managers/GroupManager.h"
+#include "managers/YubiKeyManager.h"
+#include "serialization/VaultSerialization.h"
+#include "services/VaultCryptoService.h"
+#include "services/VaultFileService.h"
+#include "services/VaultYubiKeyService.h"
 #include "../utils/Log.h"
 #include "../utils/SecureMemory.h"  // For secure_clear template
 #include <openssl/evp.h>
