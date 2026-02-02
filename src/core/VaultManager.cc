@@ -4,13 +4,12 @@
 #include "VaultManager.h"
 #include "KeyWrapping.h"  // For V2 password verification
 #include "VaultFormatV2.h"  // For V2 vault parsing
+#include "crypto/FipsProviderManager.h"
 #include "../utils/Log.h"
 #include "../utils/SecureMemory.h"  // For secure_clear template
 #include <openssl/evp.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
-#include <openssl/provider.h>
-#include <openssl/crypto.h>
 #include <fstream>
 #include <sstream>
 #include <iostream>
@@ -18,6 +17,8 @@
 #include <chrono>
 #include <iomanip>
 #include <random>
+#include <mutex>
+#include <cstdlib>
 
 #ifdef __linux__
 #include <sys/mman.h>  // For mlock/munlock
@@ -219,10 +220,10 @@ bool VaultManager::create_vault(const std::string& path,
 #endif
     } else {
         // No YubiKey: use password-derived key directly
-        m_encryption_key = std::move(password_key);
+        m_encryption_key = password_key;
     }
 
-    // Clear password-derived key (either moved or no longer needed)
+    // Clear password-derived key (temporary buffer)
     secure_clear(password_key);
 
     // Lock encryption key and salt in memory (prevents swapping to disk)
@@ -596,11 +597,9 @@ bool VaultManager::save_vault(bool explicit_save) {
         // Securely clear plaintext usernames from header before serialization (security requirement)
         // Usernames are kept in memory (m_v2_header) for UI display but NOT written to disk
         // Use secure_clear_std_string to overwrite memory before clearing
-        KeepTower::Log::info("VaultManager: Clearing {} usernames before serialization (save_vault)", file_header.vault_header.key_slots.size());
+        KeepTower::Log::debug("VaultManager: Clearing {} usernames before V2 header serialization", file_header.vault_header.key_slots.size());
         for (auto& slot : file_header.vault_header.key_slots) {
-            KeepTower::Log::info("VaultManager: BEFORE clear - username: '{}' (active={})", slot.username, slot.active);
             secure_clear_std_string(slot.username);
-            KeepTower::Log::info("VaultManager: AFTER clear - username: '{}' (length={})", slot.username, slot.username.length());
         }
         std::copy(data_iv.begin(),
                   std::min(data_iv.begin() + static_cast<std::ptrdiff_t>(32), data_iv.end()),
@@ -1873,64 +1872,14 @@ bool VaultManager::init_fips_mode(bool enable) {
 
     KeepTower::Log::info("Initializing OpenSSL FIPS mode (enable={})", enable);
 
-    // Force OpenSSL to load configuration file (if OPENSSL_CONF is set)
-    // This ensures providers specified in the config are loaded before we check
-    OPENSSL_init_crypto(OPENSSL_INIT_LOAD_CONFIG, nullptr);
+    bool available = false;
+    bool enabled = false;
+    const bool ok = KeepTower::FipsProviderManager::init(enable, available, enabled);
 
-    // Check if FIPS provider is already available (e.g., loaded via OPENSSL_CONF)
-    // Use OSSL_PROVIDER_try_load which respects configuration files
-    OSSL_PROVIDER* fips_provider = OSSL_PROVIDER_try_load(nullptr, "fips", 1);
+    s_fips_mode_available.store(available);
+    s_fips_mode_enabled.store(enabled);
 
-    if (fips_provider == nullptr) {
-        KeepTower::Log::warning("FIPS provider not available - using default provider");
-        s_fips_mode_available.store(false);
-        s_fips_mode_enabled.store(false);
-
-        // Ensure default provider is available
-        // try_load returns existing provider if already loaded, or loads it
-        OSSL_PROVIDER* default_provider = OSSL_PROVIDER_try_load(nullptr, "default", 1);
-        if (default_provider == nullptr) {
-            KeepTower::Log::error("Failed to load default OpenSSL provider");
-            unsigned long err = ERR_get_error();
-            char err_buf[256];
-            ERR_error_string_n(err, err_buf, sizeof(err_buf));
-            KeepTower::Log::error("OpenSSL error: {}", err_buf);
-            return false;
-        }
-
-        return true;  // Default provider loaded successfully
-    }
-
-    // FIPS provider is available
-    s_fips_mode_available.store(true);
-    KeepTower::Log::info("FIPS provider loaded successfully");
-
-    // Enable FIPS mode if requested
-    if (enable) {
-        if (EVP_default_properties_enable_fips(nullptr, 1) != 1) {
-            KeepTower::Log::error("Failed to enable FIPS mode");
-            unsigned long err = ERR_get_error();
-            char err_buf[256];
-            ERR_error_string_n(err, err_buf, sizeof(err_buf));
-            KeepTower::Log::error("OpenSSL error: {}", err_buf);
-            return false;
-        }
-
-        s_fips_mode_enabled.store(true);
-        KeepTower::Log::info("FIPS mode enabled successfully");
-    } else {
-        // Load default provider alongside FIPS for flexibility
-        // try_load will return existing provider if already loaded
-        OSSL_PROVIDER* default_provider = OSSL_PROVIDER_try_load(nullptr, "default", 1);
-        if (default_provider == nullptr) {
-            KeepTower::Log::warning("Failed to load default provider alongside FIPS");
-        }
-
-        s_fips_mode_enabled.store(false);
-        KeepTower::Log::info("FIPS mode available but not enabled");
-    }
-
-    return true;
+    return ok;
 }
 
 /**
@@ -2149,23 +2098,25 @@ bool VaultManager::set_fips_mode(bool enable) {
         return false;
     }
 
-    if (!s_fips_mode_available.load()) {
-        KeepTower::Log::error("Cannot enable FIPS mode - FIPS provider not available");
-        return false;
-    }
-
     if (enable == s_fips_mode_enabled.load()) {
         KeepTower::Log::info("FIPS mode already in requested state ({})", enable);
         return true;
     }
 
-    // Change FIPS mode
-    if (EVP_default_properties_enable_fips(nullptr, enable ? 1 : 0) != 1) {
-        KeepTower::Log::error("Failed to {} FIPS mode", enable ? "enable" : "disable");
-        unsigned long err = ERR_get_error();
-        char err_buf[256];
-        ERR_error_string_n(err, err_buf, sizeof(err_buf));
-        KeepTower::Log::error("OpenSSL error: {}", err_buf);
+    // Only require the provider to be available when enabling.
+    if (enable && !s_fips_mode_available.load()) {
+        KeepTower::Log::error("Cannot enable FIPS mode - FIPS provider not available");
+        return false;
+    }
+
+    // If disabling and the provider isn't available, we are already on the default provider.
+    if (!enable && !s_fips_mode_available.load()) {
+        s_fips_mode_enabled.store(false);
+        KeepTower::Log::info("FIPS provider not available; FIPS mode disabled");
+        return true;
+    }
+
+    if (!KeepTower::FipsProviderManager::set_fips_default_properties(enable)) {
         return false;
     }
 

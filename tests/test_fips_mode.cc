@@ -131,8 +131,23 @@
 #include <filesystem>
 #include <fstream>
 #include <chrono>
+#include <openssl/crypto.h>
 
 namespace fs = std::filesystem;
+
+namespace {
+class OpenSSLCleanupEnvironment final : public ::testing::Environment {
+public:
+    ~OpenSSLCleanupEnvironment() override {
+        // Ensure OpenSSL provider/global allocations are released before
+        // LeakSanitizer runs at process exit.
+        OPENSSL_cleanup();
+    }
+};
+
+::testing::Environment* const openssl_cleanup_env =
+    ::testing::AddGlobalTestEnvironment(new OpenSSLCleanupEnvironment());
+}  // namespace
 
 /**
  * @brief Test fixture for FIPS mode tests

@@ -128,6 +128,7 @@ sources = files(
   'core/VaultFormatV2.cc',
   'core/PasswordHistory.cc',
   'core/crypto/VaultCrypto.cc',
+  'core/crypto/FipsProviderManager.cc',
   'core/io/VaultIO.cc',
   'core/serialization/VaultSerialization.cc',
   'core/format/VaultFormat.cc',

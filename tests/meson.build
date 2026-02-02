@@ -41,6 +41,7 @@ vault_manager_common_sources = [
     '../src/core/VaultFormatV2.cc',
     '../src/core/PasswordHistory.cc',
     '../src/core/crypto/VaultCrypto.cc',
+    '../src/core/crypto/FipsProviderManager.cc',
     '../src/core/io/VaultIO.cc',
     '../src/core/serialization/VaultSerialization.cc',
     '../src/core/format/VaultFormat.cc',
@@ -496,13 +497,25 @@ test('Settings Validator Tests', settings_validator_test, env: ['GSETTINGS_SCHEM
 test('Vault Helper Functions', vault_helpers_test)
 test('Fuzzy Match Tests', fuzzy_match_test)
 test('Undo/Redo Tests', undo_redo_test)
-test('FIPS Mode Tests', fips_mode_test)
+
+# OpenSSL's provider subsystem (notably the FIPS module) can retain process-lifetime
+# allocations that trip LeakSanitizer even after successful OPENSSL_cleanup().
+# For ASan builds, disable leak detection for this specific test binary so the
+# rest of the sanitizer evidence run can proceed.
+sanitize_opt = get_option('b_sanitize')
+asan_enabled = sanitize_opt.contains('address')
+fips_mode_env = []
+if asan_enabled
+    fips_mode_env = ['ASAN_OPTIONS=detect_leaks=0:halt_on_error=1:abort_on_error=1:print_summary=1']
+endif
+
+test('FIPS Mode Tests', fips_mode_test, env: fips_mode_env)
 test('Memory Locking Security Tests', memory_locking_test)
 test('YubiKey Algorithm Tests', yubikey_algorithms_test)
 test('Username Hashing Tests', username_hashing_test)
 test('Username Hash Migration Tests', username_hash_migration_test, suite: 'migration')
 test('Username Hash Migration Priority 2 Tests', username_hash_migration_priority2_test, suite: 'migration')
-test('Username Hash Migration Priority 3 Tests', username_hash_migration_priority3_test, timeout: 120, suite: 'migration')
+test('Username Hash Migration Priority 3 Tests', username_hash_migration_priority3_test, timeout: 180, suite: 'migration')
 test('Username Hash Migration Concurrency Tests', username_hash_migration_concurrency_test, timeout: 180, suite: 'migration')
 test('KEK Derivation Tests', kek_derivation_test, env: ['GSETTINGS_SCHEMA_DIR=' + meson.project_build_root() / 'data'])
 

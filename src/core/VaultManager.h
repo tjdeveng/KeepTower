@@ -190,7 +190,7 @@ public:
     /** @} */ // end of Vault File Format Constants
 
     VaultManager();
-    ~VaultManager();
+    ~VaultManager() noexcept;
 
     // Vault operations
 
