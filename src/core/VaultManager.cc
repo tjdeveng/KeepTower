@@ -1315,8 +1315,8 @@ std::vector<keeptower::YubiKeyEntry> VaultManager::get_yubikey_list() const {
         Log::info("VaultManager", std::format("V2 vault detected, {} key slots", m_v2_header->key_slots.size()));
         for (size_t i = 0; i < m_v2_header->key_slots.size(); ++i) {
             const auto& slot = m_v2_header->key_slots[i];
-            Log::info("VaultManager", std::format("Slot {}: active={}, enrolled={}, username={}",
-                i, slot.active, slot.yubikey_enrolled, slot.username));
+            Log::debug("VaultManager", std::format("Slot {}: active={}, enrolled={}",
+                i, slot.active, slot.yubikey_enrolled));
 
             if (slot.active && slot.yubikey_enrolled) {
                 // Safety check: ensure username and serial are valid

@@ -122,8 +122,8 @@ static KeySlot* find_slot_by_username_hash(
         if (matches) {
             // Populate username in memory for UI display (NOT serialized to disk)
             slot.username = username;
-            Log::info("find_slot_by_username_hash: Found user '{}' using current algorithm (migration_status=0x{:02x})",
-                     username, slot.migration_status);
+            Log::debug("find_slot_by_username_hash: Match using current algorithm (migration_status=0x{:02x})",
+                       slot.migration_status);
             return &slot;
         }
     }
@@ -155,8 +155,7 @@ static KeySlot* find_slot_by_username_hash(
                 // Mark this user for post-login migration
                 slot.username = username;
                 slot.migration_status = 0xFF;  // Temporary flag: "authenticated, needs migration"
-                Log::info("find_slot_by_username_hash: Found user '{}' using old algorithm - marked for migration",
-                         username);
+                Log::debug("find_slot_by_username_hash: Match using fallback algorithm - marked for migration");
                 return &slot;
             }
         }
@@ -207,18 +206,18 @@ static KeySlot* find_slot_by_username_hash(
                     // This is crucial: We found them on some random algorithm, we want them on the CURRENT one.
                     slot.migration_status = 0xFF;
 
-                    Log::warning("find_slot_by_username_hash: RESCUE! Found user '{}' using algo 0x{:02x} (Status=0x{:02x}, Expected=0x{:02x}/0x{:02x})",
-                             username, static_cast<int>(algo), slot.migration_status,
-                             static_cast<int>(current_algo),
-                             fallback_algo.has_value() ? static_cast<int>(*fallback_algo) : 0);
+                    Log::warning("find_slot_by_username_hash: RESCUE! Match using algo 0x{:02x} (Status=0x{:02x}, Expected=0x{:02x}/0x{:02x})",
+                                 static_cast<int>(algo), slot.migration_status,
+                                 static_cast<int>(current_algo),
+                                 fallback_algo.has_value() ? static_cast<int>(*fallback_algo) : 0);
                     return &slot;
                 }
             }
         }
     }
 
-    Log::warning("find_slot_by_username_hash: User '{}' not found (migration_active={}, tried {} algorithm(s))",
-                username, migration_active, fallback_algo.has_value() ? 2 : 1);
+    Log::warning("find_slot_by_username_hash: User not found (migration_active={}, tried {} algorithm(s))",
+                 migration_active, fallback_algo.has_value() ? 2 : 1);
     return nullptr;
 }
 
@@ -319,8 +318,7 @@ KeepTower::VaultResult<> VaultManager::create_vault_v2(
     m_account_manager = std::make_unique<KeepTower::AccountManager>(m_vault_data, m_modified);
     m_group_manager = std::make_unique<KeepTower::GroupManager>(m_vault_data, m_modified);
 
-    Log::info("VaultManager: V2 vault created successfully with admin user: {}",
-              admin_username.raw());
+    Log::info("VaultManager: V2 vault created successfully with admin user");
     return {};
 }
 
@@ -404,8 +402,7 @@ void VaultManager::create_vault_v2_async(
         m_account_manager = std::make_unique<KeepTower::AccountManager>(m_vault_data, m_modified);
         m_group_manager = std::make_unique<KeepTower::GroupManager>(m_vault_data, m_modified);
 
-        Log::info("VaultManager: Async V2 vault created successfully with admin user: {}",
-                  admin_username.raw());
+        Log::info("VaultManager: Async V2 vault created successfully with admin user");
 
         // Notify caller of success (empty VaultResult means success)
         completion_callback({});
@@ -458,13 +455,13 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
         file_header.vault_header.security_policy);
 
     if (!user_slot) {
-        Log::error("VaultManager: No active key slot found for user: {}", username.raw());
+        Log::error("VaultManager: No active key slot found for requested user");
         return std::unexpected(VaultError::AuthenticationFailed);
     }
 
     // Derive KEK from password using algorithm stored in KeySlot
-    Log::info("VaultManager: Deriving KEK for user: {} (password length: {} bytes, {} chars, algorithm: 0x{:02x})",
-              username.raw(), password.bytes(), password.length(), user_slot->kek_derivation_algorithm);
+    Log::debug("VaultManager: Deriving KEK (password length: {} bytes, {} chars, algorithm: 0x{:02x})",
+               password.bytes(), password.length(), user_slot->kek_derivation_algorithm);
 
     // Convert algorithm byte to enum
     auto algorithm = static_cast<KekDerivationService::Algorithm>(user_slot->kek_derivation_algorithm);
@@ -493,8 +490,7 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
     // Check if this user has YubiKey enrolled
 #ifdef HAVE_YUBIKEY_SUPPORT
     if (user_slot->yubikey_enrolled) {
-        Log::info("VaultManager: User {} has YubiKey enrolled, requiring device",
-                  username.raw());
+        Log::info("VaultManager: User has YubiKey enrolled, requiring device");
 
         YubiKeyManager yk_manager;
         if (!yk_manager.initialize(is_fips_enabled())) {
@@ -503,8 +499,7 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
         }
 
         if (!yk_manager.is_yubikey_present()) {
-            Log::error("VaultManager: YubiKey not present but required for user {}",
-                       username.raw());
+            Log::error("VaultManager: YubiKey not present but required");
             return std::unexpected(VaultError::YubiKeyNotPresent);
         }
 
@@ -550,7 +545,7 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
                                        pin_bytes.size());
             Log::info("VaultManager: Successfully decrypted YubiKey PIN from vault");
         } else {
-            Log::error("VaultManager: No encrypted PIN stored in vault for user {}", username.raw());
+            Log::error("VaultManager: No encrypted PIN stored in vault for user");
             return std::unexpected(VaultError::YubiKeyError);
         }
 
@@ -563,7 +558,7 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
             Log::info("VaultManager: Loaded FIDO2 credential ID ({} bytes)",
                      user_slot->yubikey_credential_id.size());
         } else {
-            Log::error("VaultManager: No FIDO2 credential ID stored for user {}", username.raw());
+            Log::error("VaultManager: No FIDO2 credential ID stored for user");
             return std::unexpected(VaultError::YubiKeyError);
         }
 
@@ -591,8 +586,7 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
                                               response.get_response().end());
         final_kek = KeyWrapping::combine_with_yubikey_v2(final_kek, yk_response_vec);
 
-        Log::info("VaultManager: YubiKey authentication successful for user {}",
-                  username.raw());
+        Log::info("VaultManager: YubiKey authentication successful");
     }
 #endif
 
@@ -691,17 +685,17 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
     // Status 0xFF = authenticated via old algorithm, must migrate to new
     bool migration_active = (file_header.vault_header.security_policy.migration_flags & 0x01) != 0;
     if (migration_active && user_slot_in_header->migration_status == 0xFF) {
-        Log::info("VaultManager: User {} requires username hash migration", username.raw());
+        Log::info("VaultManager: Authenticated user requires username hash migration");
 
         // Perform migration (now using the slot from m_v2_header)
         auto migrate_result = migrate_user_hash(user_slot_in_header, username.raw(), password.raw());
         if (!migrate_result) {
-            Log::error("VaultManager: Username hash migration failed for user {}: {}",
-                      username.raw(), to_string(migrate_result.error()));
+            Log::error("VaultManager: Username hash migration failed: {}",
+                       to_string(migrate_result.error()));
             // Don't fail authentication - user can try again later
             // Migration will be retried on next login
         } else {
-            Log::info("VaultManager: Username hash migration completed for user {}", username.raw());
+            Log::info("VaultManager: Username hash migration completed");
         }
     }
     m_vault_data = vault_data;
@@ -731,15 +725,14 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
     // Check if vault policy requires YubiKey but user doesn't have one enrolled
     if (m_v2_header->security_policy.require_yubikey && !user_slot->yubikey_enrolled) {
         session.requires_yubikey_enrollment = true;
-        Log::warning("VaultManager: User '{}' must enroll YubiKey (required by policy)",
-                     username.raw());
+        Log::warning("VaultManager: User must enroll YubiKey (required by policy)");
     } else {
         session.requires_yubikey_enrollment = false;
     }
 
     m_current_session = session;
 
-    Log::info("VaultManager: User authenticated successfully: {}", username.raw());
+    Log::info("VaultManager: User authenticated successfully");
     return session;
 }
 
@@ -754,7 +747,7 @@ KeepTower::VaultResult<> VaultManager::add_user(
     bool must_change_password,
     const std::optional<std::string>& yubikey_pin) {
 
-    Log::info("VaultManager: Adding user: {}", username.raw());
+    Log::info("VaultManager: Adding user");
 
     // Validate vault state
     if (!m_vault_open || !m_is_v2_vault) {
@@ -777,7 +770,7 @@ KeepTower::VaultResult<> VaultManager::add_user(
     // Check for duplicate username using hash verification
     if (find_slot_by_username_hash(m_v2_header->key_slots, username.raw(),
                                     m_v2_header->security_policy)) {
-        Log::error("VaultManager: Username already exists: {}", username.raw());
+        Log::error("VaultManager: Username already exists");
         return std::unexpected(VaultError::UserAlreadyExists);
     }
 
@@ -882,7 +875,7 @@ KeepTower::VaultResult<> VaultManager::add_user(
 
 #ifdef HAVE_YUBIKEY_SUPPORT
     if (yubikey_pin.has_value() && m_v2_header->security_policy.require_yubikey) {
-        Log::info("VaultManager: Enrolling YubiKey for new user {}", username.raw());
+        Log::info("VaultManager: Enrolling YubiKey for new user");
 
         // Generate unique challenge for this user
         auto challenge_salt = KeyWrapping::generate_random_salt();
@@ -1000,15 +993,14 @@ KeepTower::VaultResult<> VaultManager::add_user(
     }
     m_modified = true;
 
-    Log::info("VaultManager: User added successfully: {} (role: {}, slot: {})",
-              username.raw(),
+    Log::info("VaultManager: User added successfully (role: {}, slot: {})",
               role == UserRole::ADMINISTRATOR ? "admin" : "standard",
               slot_index);
     return {};
 }
 
 KeepTower::VaultResult<> VaultManager::remove_user(const Glib::ustring& username) {
-    Log::info("VaultManager: Removing user: {}", username.raw());
+    Log::info("VaultManager: Removing user");
 
     // Validate vault state
     if (!m_vault_open || !m_is_v2_vault) {
@@ -1033,7 +1025,7 @@ KeepTower::VaultResult<> VaultManager::remove_user(const Glib::ustring& username
         m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
 
     if (!user_slot) {
-        Log::error("VaultManager: User not found: {}", username.raw());
+        Log::error("VaultManager: User not found");
         return std::unexpected(VaultError::UserNotFound);
     }
 
@@ -1055,7 +1047,7 @@ KeepTower::VaultResult<> VaultManager::remove_user(const Glib::ustring& username
     user_slot->active = false;
     m_modified = true;
 
-    Log::info("VaultManager: User removed successfully: {}", username.raw());
+    Log::info("VaultManager: User removed successfully");
     return {};
 }
 
@@ -1076,7 +1068,7 @@ KeepTower::VaultResult<> VaultManager::validate_new_password(
         m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
 
     if (!user_slot) {
-        Log::error("VaultManager: User not found: {}", username.raw());
+        Log::error("VaultManager: User not found");
         return std::unexpected(VaultError::UserNotFound);
     }
 
@@ -1111,7 +1103,7 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
     const std::optional<std::string>& yubikey_pin,
     std::function<void(const std::string&)> progress_callback) {
 
-    Log::info("VaultManager: Changing password for user: {}", username.raw());
+    Log::info("VaultManager: Changing password for user");
 
     // Validate vault state
     if (!m_vault_open || !m_is_v2_vault) {
@@ -1132,7 +1124,7 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
         m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
 
     if (!user_slot) {
-        Log::error("VaultManager: User not found: {}", username.raw());
+        Log::error("VaultManager: User not found");
         return std::unexpected(VaultError::UserNotFound);
     }
 
@@ -1431,7 +1423,7 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
         m_current_session->password_change_required = false;
     }
 
-    Log::info("VaultManager: Password changed successfully for user: {}", username.raw());
+    Log::info("VaultManager: Password changed successfully for user");
     return {};
 }
 
@@ -1508,9 +1500,9 @@ KeepTower::VaultResult<> VaultManager::migrate_user_hash(
         return std::unexpected(VaultError::FileWriteError);
     }
 
-    Log::info("VaultManager: Successfully migrated user {} to algorithm 0x{:02x} (hash_size={}, timestamp={})",
-             username, m_v2_header->security_policy.username_hash_algorithm,
-             user_slot->username_hash_size, user_slot->migrated_at);
+    Log::info("VaultManager: Successfully migrated user to algorithm 0x{:02x} (hash_size={}, timestamp={})",
+              m_v2_header->security_policy.username_hash_algorithm,
+              user_slot->username_hash_size, user_slot->migrated_at);
 
     return {};  // Success
 }
@@ -1527,7 +1519,7 @@ void VaultManager::change_user_password_async(
     std::function<void(KeepTower::VaultResult<>)> completion_callback,
     const std::optional<std::string>& yubikey_pin) {
 
-    Log::info("VaultManager: Starting async password change for user: {}", username.raw());
+    Log::info("VaultManager: Starting async password change for user");
 
     // Determine if YubiKey is enrolled for this user (affects step count)
     bool yubikey_enrolled = false;
@@ -1600,7 +1592,7 @@ void VaultManager::enroll_yubikey_for_user_async(
     std::function<void(const std::string&)> progress_callback,
     std::function<void(const KeepTower::VaultResult<>&)> completion_callback) {
 
-    Log::info("VaultManager: Starting async YubiKey enrollment for user: {}", username.raw());
+    Log::info("VaultManager: Starting async YubiKey enrollment for user");
 
     // Wrap progress callback for GTK thread
     auto wrapped_progress = [progress_callback](const std::string& message) {
@@ -1638,7 +1630,7 @@ void VaultManager::enroll_yubikey_for_user_async(
 KeepTower::VaultResult<> VaultManager::clear_user_password_history(
     const Glib::ustring& username) {
 
-    Log::info("VaultManager: Clearing password history for user: {}", username.raw());
+    Log::info("VaultManager: Clearing password history for user");
 
     // Validate vault state
     if (!m_vault_open || !m_is_v2_vault) {
@@ -1659,7 +1651,7 @@ KeepTower::VaultResult<> VaultManager::clear_user_password_history(
         m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
 
     if (!user_slot) {
-        Log::error("VaultManager: User not found: {}", username.raw());
+        Log::error("VaultManager: User not found");
         return std::unexpected(VaultError::UserNotFound);
     }
 
@@ -1669,8 +1661,8 @@ KeepTower::VaultResult<> VaultManager::clear_user_password_history(
 
     m_modified = true;
 
-    Log::info("VaultManager: Cleared {} password history entries for user: {}",
-              old_size, username.raw());
+    Log::info("VaultManager: Cleared {} password history entries for user",
+              old_size);
     return {};
 }
 
@@ -1682,7 +1674,7 @@ KeepTower::VaultResult<> VaultManager::admin_reset_user_password(
     const Glib::ustring& username,
     const Glib::ustring& new_temporary_password) {
 
-    Log::info("VaultManager: Admin resetting password for user: {}", username.raw());
+    Log::info("VaultManager: Admin resetting password for user");
 
     // Validate vault state
     if (!m_vault_open || !m_is_v2_vault) {
@@ -1707,7 +1699,7 @@ KeepTower::VaultResult<> VaultManager::admin_reset_user_password(
         m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
 
     if (!user_slot) {
-        Log::error("VaultManager: User not found: {}", username.raw());
+        Log::error("VaultManager: User not found");
         return std::unexpected(VaultError::UserNotFound);
     }
 
@@ -1767,7 +1759,7 @@ KeepTower::VaultResult<> VaultManager::admin_reset_user_password(
     // IMPORTANT: Unenroll YubiKey if enrolled
     // Admin doesn't have user's YubiKey device, so reset to password-only
     if (user_slot->yubikey_enrolled) {
-        Log::info("VaultManager: Unenrolling YubiKey for user '{}' (admin reset)", username.raw());
+        Log::info("VaultManager: Unenrolling YubiKey for user (admin reset)");
         user_slot->yubikey_enrolled = false;
         user_slot->yubikey_challenge = {};
         user_slot->yubikey_serial.clear();
@@ -1781,7 +1773,7 @@ KeepTower::VaultResult<> VaultManager::admin_reset_user_password(
 
     m_modified = true;
 
-    Log::info("VaultManager: Password reset successfully for user: {}", username.raw());
+    Log::info("VaultManager: Password reset successfully for user");
     Log::info("VaultManager: User will be required to change password on next login");
     return {};
 }
@@ -1796,7 +1788,7 @@ KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
     const std::string& yubikey_pin,
     std::function<void(const std::string&)> progress_callback) {
 
-    Log::info("VaultManager: Enrolling YubiKey for user: {}", username.raw());
+    Log::info("VaultManager: Enrolling YubiKey for user");
 
     // Validate vault state
     if (!m_vault_open || !m_is_v2_vault) {
@@ -1823,7 +1815,7 @@ KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
         m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
 
     if (!user_slot) {
-        Log::error("VaultManager: User not found: {}", username.raw());
+        Log::error("VaultManager: User not found");
         return std::unexpected(VaultError::UserNotFound);
     }
 
@@ -1979,10 +1971,10 @@ KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
     // Update current session if user enrolled their own YubiKey
     if (m_current_session && m_current_session->username == username.raw()) {
         m_current_session->requires_yubikey_enrollment = false;
-        Log::info("VaultManager: Updated session for user '{}' - YubiKey enrollment complete", username.raw());
+        Log::info("VaultManager: Updated session - YubiKey enrollment complete");
     }
 
-    Log::info("VaultManager: YubiKey enrolled successfully for user: {}", username.raw());
+    Log::info("VaultManager: YubiKey enrolled successfully for user");
     return {};
 #else
     Log::error("VaultManager: YubiKey support not compiled in");
@@ -1995,7 +1987,7 @@ KeepTower::VaultResult<> VaultManager::unenroll_yubikey_for_user(
     const Glib::ustring& password,
     std::function<void(const std::string&)> progress_callback) {
 
-    Log::info("VaultManager: Unenrolling YubiKey for user: {}", username.raw());
+    Log::info("VaultManager: Unenrolling YubiKey for user");
 
     // Validate vault state
     if (!m_vault_open || !m_is_v2_vault) {
@@ -2016,7 +2008,7 @@ KeepTower::VaultResult<> VaultManager::unenroll_yubikey_for_user(
         m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
 
     if (!user_slot) {
-        Log::error("VaultManager: User not found: {}", username.raw());
+        Log::error("VaultManager: User not found");
         return std::unexpected(VaultError::UserNotFound);
     }
 
@@ -2132,11 +2124,11 @@ KeepTower::VaultResult<> VaultManager::unenroll_yubikey_for_user(
         // Check if re-enrollment will be required by policy
         if (m_v2_header->security_policy.require_yubikey) {
             m_current_session->requires_yubikey_enrollment = true;
-            Log::info("VaultManager: Updated session for user '{}' - YubiKey re-enrollment required by policy", username.raw());
+            Log::info("VaultManager: Updated session - YubiKey re-enrollment required by policy");
         }
     }
 
-    Log::info("VaultManager: YubiKey unenrolled successfully for user: {}", username.raw());
+    Log::info("VaultManager: YubiKey unenrolled successfully for user");
     return {};
 #else
     Log::error("VaultManager: YubiKey support not compiled in");
@@ -2154,7 +2146,7 @@ void VaultManager::unenroll_yubikey_for_user_async(
     std::function<void(const std::string&)> progress_callback,
     std::function<void(const KeepTower::VaultResult<>&)> completion_callback) {
 
-    Log::info("VaultManager: Starting async YubiKey unenrollment for user: {}", username.raw());
+    Log::info("VaultManager: Starting async YubiKey unenrollment for user");
 
     // Wrap progress callback for GTK thread safety
     auto wrapped_progress = [progress_callback](const std::string& message) {
@@ -2451,7 +2443,7 @@ KeepTower::VaultResult<> VaultManager::convert_v1_to_v2(
     }
 
     KeepTower::Log::info("Successfully migrated V1 vault to V2 format");
-    KeepTower::Log::info("Administrator account: {}", admin_username.raw());
+    KeepTower::Log::info("Administrator account created");
     KeepTower::Log::info("Migrated {} accounts", v1_accounts.size());
 
     return {};
