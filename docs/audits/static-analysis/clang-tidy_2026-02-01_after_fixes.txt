@@ -1,0 +1,704 @@
+[1/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManager.cc.
+172072 warnings generated.
+[2/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManager.cc.
+344144 warnings generated.
+[3/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManager.cc.
+516216 warnings generated.
+[4/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManager.cc.
+688288 warnings generated.
+[5/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManager.cc.
+860360 warnings generated.
+[6/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManager.cc.
+1032432 warnings generated.
+[7/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManager.cc.
+1204504 warnings generated.
+[8/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManager.cc.
+1376576 warnings generated.
+[9/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManager.cc.
+1548648 warnings generated.
+[10/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManager.cc.
+1720720 warnings generated.
+[11/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManager.cc.
+1892792 warnings generated.
+[12/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManager.cc.
+2064864 warnings generated.
+[13/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManager.cc.
+2236936 warnings generated.
+[14/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManager.cc.
+2409008 warnings generated.
+[15/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManager.cc.
+2581080 warnings generated.
+[16/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManager.cc.
+2753152 warnings generated.
+[17/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManager.cc.
+2925224 warnings generated.
+[18/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManager.cc.
+3097296 warnings generated.
+[19/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManager.cc.
+3269368 warnings generated.
+[20/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManager.cc.
+3441440 warnings generated.
+[21/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManager.cc.
+3613512 warnings generated.
+[22/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManager.cc.
+3785584 warnings generated.
+[23/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManager.cc.
+3957656 warnings generated.
+[24/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManager.cc.
+4129728 warnings generated.
+[25/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManager.cc.
+4301800 warnings generated.
+[26/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManagerV2.cc.
+4452728 warnings generated.
+[27/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManagerV2.cc.
+4603656 warnings generated.
+[28/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManagerV2.cc.
+4754584 warnings generated.
+[29/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManagerV2.cc.
+4905512 warnings generated.
+[30/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManagerV2.cc.
+5056440 warnings generated.
+[31/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManagerV2.cc.
+5207368 warnings generated.
+[32/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManagerV2.cc.
+5358296 warnings generated.
+[33/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManagerV2.cc.
+5509224 warnings generated.
+[34/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManagerV2.cc.
+5660152 warnings generated.
+[35/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManagerV2.cc.
+5811080 warnings generated.
+[36/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManagerV2.cc.
+5962008 warnings generated.
+[37/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManagerV2.cc.
+6112936 warnings generated.
+[38/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManagerV2.cc.
+6263864 warnings generated.
+[39/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManagerV2.cc.
+6414792 warnings generated.
+[40/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManagerV2.cc.
+6565720 warnings generated.
+[41/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManagerV2.cc.
+6716648 warnings generated.
+[42/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManagerV2.cc.
+6867576 warnings generated.
+[43/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManagerV2.cc.
+7018504 warnings generated.
+[44/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManagerV2.cc.
+7169432 warnings generated.
+[45/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManagerV2.cc.
+7320360 warnings generated.
+[46/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManagerV2.cc.
+7471288 warnings generated.
+[47/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManagerV2.cc.
+7622216 warnings generated.
+[48/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManagerV2.cc.
+7773144 warnings generated.
+[49/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManagerV2.cc.
+7924072 warnings generated.
+[50/4] Processing file /home/tjdev/Projects/KeepTower/src/core/VaultManagerV2.cc.
+8075000 warnings generated.
+[51/4] Processing file /home/tjdev/Projects/KeepTower/src/core/MultiUserTypes.cc.
+8173475 warnings generated.
+[52/4] Processing file /home/tjdev/Projects/KeepTower/src/core/MultiUserTypes.cc.
+8271950 warnings generated.
+[53/4] Processing file /home/tjdev/Projects/KeepTower/src/core/MultiUserTypes.cc.
+8370425 warnings generated.
+[54/4] Processing file /home/tjdev/Projects/KeepTower/src/core/MultiUserTypes.cc.
+8468900 warnings generated.
+[55/4] Processing file /home/tjdev/Projects/KeepTower/src/core/MultiUserTypes.cc.
+8567375 warnings generated.
+[56/4] Processing file /home/tjdev/Projects/KeepTower/src/core/MultiUserTypes.cc.
+8665850 warnings generated.
+[57/4] Processing file /home/tjdev/Projects/KeepTower/src/core/MultiUserTypes.cc.
+8764325 warnings generated.
+[58/4] Processing file /home/tjdev/Projects/KeepTower/src/core/MultiUserTypes.cc.
+8862800 warnings generated.
+[59/4] Processing file /home/tjdev/Projects/KeepTower/src/core/MultiUserTypes.cc.
+8961275 warnings generated.
+[60/4] Processing file /home/tjdev/Projects/KeepTower/src/core/MultiUserTypes.cc.
+9059750 warnings generated.
+[61/4] Processing file /home/tjdev/Projects/KeepTower/src/core/MultiUserTypes.cc.
+9158225 warnings generated.
+[62/4] Processing file /home/tjdev/Projects/KeepTower/src/core/MultiUserTypes.cc.
+9256700 warnings generated.
+[63/4] Processing file /home/tjdev/Projects/KeepTower/src/core/MultiUserTypes.cc.
+9355175 warnings generated.
+[64/4] Processing file /home/tjdev/Projects/KeepTower/src/core/MultiUserTypes.cc.
+9453650 warnings generated.
+[65/4] Processing file /home/tjdev/Projects/KeepTower/src/core/MultiUserTypes.cc.
+9552125 warnings generated.
+[66/4] Processing file /home/tjdev/Projects/KeepTower/src/core/MultiUserTypes.cc.
+9650600 warnings generated.
+[67/4] Processing file /home/tjdev/Projects/KeepTower/src/core/MultiUserTypes.cc.
+9749075 warnings generated.
+[68/4] Processing file /home/tjdev/Projects/KeepTower/src/core/MultiUserTypes.cc.
+9847550 warnings generated.
+[69/4] Processing file /home/tjdev/Projects/KeepTower/src/core/MultiUserTypes.cc.
+9946025 warnings generated.
+[70/4] Processing file /home/tjdev/Projects/KeepTower/src/core/MultiUserTypes.cc.
+10044500 warnings generated.
+[71/4] Processing file /home/tjdev/Projects/KeepTower/src/core/MultiUserTypes.cc.
+10142975 warnings generated.
+[72/4] Processing file /home/tjdev/Projects/KeepTower/src/core/MultiUserTypes.cc.
+10241450 warnings generated.
+[73/4] Processing file /home/tjdev/Projects/KeepTower/src/core/MultiUserTypes.cc.
+10339925 warnings generated.
+[74/4] Processing file /home/tjdev/Projects/KeepTower/src/core/MultiUserTypes.cc.
+10438400 warnings generated.
+[75/4] Processing file /home/tjdev/Projects/KeepTower/src/core/MultiUserTypes.cc.
+10536875 warnings generated.
+[76/4] Processing file /home/tjdev/Projects/KeepTower/src/core/MultiUserTypes.cc.
+10635350 warnings generated.
+[77/4] Processing file /home/tjdev/Projects/KeepTower/src/core/MultiUserTypes.cc.
+10733825 warnings generated.
+[78/4] Processing file /home/tjdev/Projects/KeepTower/src/core/MultiUserTypes.cc.
+10832300 warnings generated.
+[79/4] Processing file /home/tjdev/Projects/KeepTower/src/core/MultiUserTypes.cc.
+10930775 warnings generated.
+[80/4] Processing file /home/tjdev/Projects/KeepTower/src/ui/managers/VaultIOHandler.cc.
+11102090 warnings generated.
+../src/core/MultiUserTypes.cc:61:30: warning: narrowing conversion from 'size_t' (aka 'unsigned long') to signed type 'difference_type' (aka 'long') is implementation-defined [bugprone-narrowing-conversions]
+   61 |     std::copy(data.begin() + pos, data.begin() + pos + 32, entry.salt.begin());
+      |                              ^
+../src/core/MultiUserTypes.cc:61:50: warning: narrowing conversion from 'size_t' (aka 'unsigned long') to signed type 'difference_type' (aka 'long') is implementation-defined [bugprone-narrowing-conversions]
+   61 |     std::copy(data.begin() + pos, data.begin() + pos + 32, entry.salt.begin());
+      |                                                  ^
+../src/core/MultiUserTypes.cc:65:30: warning: narrowing conversion from 'size_t' (aka 'unsigned long') to signed type 'difference_type' (aka 'long') is implementation-defined [bugprone-narrowing-conversions]
+   65 |     std::copy(data.begin() + pos, data.begin() + pos + 48, entry.hash.begin());
+      |                              ^
+../src/core/MultiUserTypes.cc:65:50: warning: narrowing conversion from 'size_t' (aka 'unsigned long') to signed type 'difference_type' (aka 'long') is implementation-defined [bugprone-narrowing-conversions]
+   65 |     std::copy(data.begin() + pos, data.begin() + pos + 48, entry.hash.begin());
+      |                                                  ^
+../src/core/MultiUserTypes.cc:66:5: warning: Value stored to 'pos' is never read [clang-analyzer-deadcode.DeadStores]
+   66 |     pos += 48;
+      |     ^      ~~
+../src/core/MultiUserTypes.cc:66:5: note: Value stored to 'pos' is never read
+   66 |     pos += 48;
+      |     ^      ~~
+../src/core/MultiUserTypes.cc:272:30: warning: narrowing conversion from 'size_t' (aka 'unsigned long') to signed type 'difference_type' (aka 'long') is implementation-defined [bugprone-narrowing-conversions]
+  272 |     std::copy(data.begin() + offset, data.begin() + offset + 64, policy.yubikey_challenge.begin());
+      |                              ^
+../src/core/MultiUserTypes.cc:272:53: warning: narrowing conversion from 'size_t' (aka 'unsigned long') to signed type 'difference_type' (aka 'long') is implementation-defined [bugprone-narrowing-conversions]
+  272 |     std::copy(data.begin() + offset, data.begin() + offset + 64, policy.yubikey_challenge.begin());
+      |                                                     ^
+../src/core/MultiUserTypes.cc:297:9: warning: Value stored to 'offset' is never read [clang-analyzer-deadcode.DeadStores]
+  297 |         offset += 1;
+      |         ^         ~
+../src/core/MultiUserTypes.cc:297:9: note: Value stored to 'offset' is never read
+  297 |         offset += 1;
+      |         ^         ~
+../src/core/VaultManager.cc:156:15: warning: an exception may be thrown in function '~VaultManager' which should not throw exceptions [bugprone-exception-escape]
+  156 | VaultManager::~VaultManager() noexcept {
+      |               ^
+../src/core/VaultManager.cc:167:7: warning: empty catch statements hide issues; to handle exceptions appropriately, consider re-throwing, handling, or avoiding catch altogether [bugprone-empty-catch]
+  167 |     } catch (...) {
+      |       ^
+../src/core/VaultManager.cc:172:33: warning: 2 adjacent parameters of 'create_vault' of convertible types are easily swapped by mistake [bugprone-easily-swappable-parameters]
+  172 | bool VaultManager::create_vault(const std::string& path,
+      |                                 ^~~~~~~~~~~~~~~~~~~~~~~~
+  173 |                                  const Glib::ustring& password,
+      |                                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+../src/core/VaultManager.cc:172:52: note: the first parameter in the range is 'path'
+  172 | bool VaultManager::create_vault(const std::string& path,
+      |                                                    ^~~~
+../src/core/VaultManager.cc:173:55: note: the last parameter in the range is 'password'
+  173 |                                  const Glib::ustring& password,
+      |                                                       ^~~~~~~~
+../src/core/VaultManager.cc:172:33: note: 
+  172 | bool VaultManager::create_vault(const std::string& path,
+      |                                 ^
+../src/core/VaultManager.cc:173:34: note: 'const std::string &' and 'const Glib::ustring &' may be implicitly converted: 'const std::string &' (as 'basic_string<char>') -> 'const std::string &' -> 'const Glib::ustring &' (as 'Glib::ustring'), 'const Glib::ustring &' (as 'Glib::ustring') -> 'std::string' -> 'const std::string &' (as 'basic_string<char>')
+  173 |                                  const Glib::ustring& password,
+      |                                  ^
+/usr/include/glibmm-2.68/glibmm/ustring.h:407:14: note: the implicit conversion involves the converting constructor declared here
+  407 |   GLIBMM_API ustring(const std::string& src);
+      |              ^       ~~~~~~~~~~~~~~~~~~~~~~
+/usr/include/glibmm-2.68/glibmm/ustring.h:693:21: note: the implicit conversion involves the conversion operator declared here
+  693 |   GLIBMM_API inline operator std::string() const; // e.g. std::string str = ustring();
+      |                     ^        ~~~~~~~~~~~
+../src/core/VaultManager.cc:175:46: warning: the parameter 'yubikey_serial' is copied for each invocation but only used as a const reference; consider making it a const reference [performance-unnecessary-value-param]
+  175 |                                  std::string yubikey_serial) {
+      |                                              ^
+      |                                  const      &
+../src/core/VaultManager.cc:478:31: warning: 2 adjacent parameters of 'open_vault' of convertible types are easily swapped by mistake [bugprone-easily-swappable-parameters]
+  478 | bool VaultManager::open_vault(const std::string& path, const Glib::ustring& password) {
+      |                               ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+../src/core/VaultManager.cc:478:50: note: the first parameter in the range is 'path'
+  478 | bool VaultManager::open_vault(const std::string& path, const Glib::ustring& password) {
+      |                                                  ^~~~
+../src/core/VaultManager.cc:478:77: note: the last parameter in the range is 'password'
+  478 | bool VaultManager::open_vault(const std::string& path, const Glib::ustring& password) {
+      |                                                                             ^~~~~~~~
+../src/core/VaultManager.cc:478:31: note: 
+  478 | bool VaultManager::open_vault(const std::string& path, const Glib::ustring& password) {
+      |                               ^
+../src/core/VaultManager.cc:478:56: note: 'const std::string &' and 'const Glib::ustring &' may be implicitly converted: 'const std::string &' (as 'basic_string<char>') -> 'const std::string &' -> 'const Glib::ustring &' (as 'Glib::ustring'), 'const Glib::ustring &' (as 'Glib::ustring') -> 'std::string' -> 'const std::string &' (as 'basic_string<char>')
+  478 | bool VaultManager::open_vault(const std::string& path, const Glib::ustring& password) {
+      |                                                        ^
+/usr/include/glibmm-2.68/glibmm/ustring.h:407:14: note: the implicit conversion involves the converting constructor declared here
+  407 |   GLIBMM_API ustring(const std::string& src);
+      |              ^       ~~~~~~~~~~~~~~~~~~~~~~
+/usr/include/glibmm-2.68/glibmm/ustring.h:693:21: note: the implicit conversion involves the conversion operator declared here
+  693 |   GLIBMM_API inline operator std::string() const; // e.g. std::string str = ustring();
+      |                     ^        ~~~~~~~~~~~
+../src/core/VaultManager.cc:801:13: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+  801 |         if (m_v2_header->security_policy.require_yubikey) {
+      |             ^
+../src/core/VaultManager.cc:802:38: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+  802 |             auto& policy_challenge = m_v2_header->security_policy.yubikey_challenge;
+      |                                      ^
+../src/core/VaultManager.cc:809:27: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+  809 |         for (auto& slot : m_v2_header->key_slots) {
+      |                           ^
+../src/core/VaultManager.cc:942:35: warning: narrowing conversion from 'size_t' (aka 'unsigned long') to signed type 'int' is implementation-defined [bugprone-narrowing-conversions]
+  942 |         if (m_vault_data.accounts(i).global_display_order() >= 0) {
+      |                                   ^
+../src/core/VaultManager.cc:1493:20: warning: 'serial' is deprecated [clang-diagnostic-deprecated-declarations]
+ 1493 |     if (!yk_config.serial().empty() && yk_config.serial() == serial) {
+      |                    ^
+src/record.pb.h:2065:3: note: 'serial' has been explicitly marked deprecated here
+ 2065 |   PROTOBUF_DEPRECATED const std::string& serial() const;
+      |   ^
+/usr/include/google/protobuf/port_def.inc:310:45: note: expanded from macro 'PROTOBUF_DEPRECATED'
+  310 | # define PROTOBUF_DEPRECATED __attribute__((deprecated))
+      |                                             ^
+../src/core/VaultManager.cc:1493:50: warning: 'serial' is deprecated [clang-diagnostic-deprecated-declarations]
+ 1493 |     if (!yk_config.serial().empty() && yk_config.serial() == serial) {
+      |                                                  ^
+src/record.pb.h:2065:3: note: 'serial' has been explicitly marked deprecated here
+ 2065 |   PROTOBUF_DEPRECATED const std::string& serial() const;
+      |   ^
+/usr/include/google/protobuf/port_def.inc:310:45: note: expanded from macro 'PROTOBUF_DEPRECATED'
+  310 | # define PROTOBUF_DEPRECATED __attribute__((deprecated))
+      |                                             ^
+../src/core/VaultManager.cc:1500:39: warning: 2 adjacent parameters of 'verify_credentials' of convertible types are easily swapped by mistake [bugprone-easily-swappable-parameters]
+ 1500 | bool VaultManager::verify_credentials(const Glib::ustring& password, const std::string& serial) {
+      |                                       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+../src/core/VaultManager.cc:1500:60: note: the first parameter in the range is 'password'
+ 1500 | bool VaultManager::verify_credentials(const Glib::ustring& password, const std::string& serial) {
+      |                                                            ^~~~~~~~
+../src/core/VaultManager.cc:1500:89: note: the last parameter in the range is 'serial'
+ 1500 | bool VaultManager::verify_credentials(const Glib::ustring& password, const std::string& serial) {
+      |                                                                                         ^~~~~~
+../src/core/VaultManager.cc:1500:39: note: 
+ 1500 | bool VaultManager::verify_credentials(const Glib::ustring& password, const std::string& serial) {
+      |                                       ^
+../src/core/VaultManager.cc:1500:70: note: 'const Glib::ustring &' and 'const std::string &' may be implicitly converted: 'const Glib::ustring &' (as 'Glib::ustring') -> 'std::string' -> 'const std::string &' (as 'basic_string<char>'), 'const std::string &' (as 'basic_string<char>') -> 'const std::string &' -> 'const Glib::ustring &' (as 'Glib::ustring')
+ 1500 | bool VaultManager::verify_credentials(const Glib::ustring& password, const std::string& serial) {
+      |                                                                      ^
+/usr/include/glibmm-2.68/glibmm/ustring.h:693:21: note: the implicit conversion involves the conversion operator declared here
+  693 |   GLIBMM_API inline operator std::string() const; // e.g. std::string str = ustring();
+      |                     ^        ~~~~~~~~~~~
+/usr/include/glibmm-2.68/glibmm/ustring.h:407:14: note: the implicit conversion involves the converting constructor declared here
+  407 |   GLIBMM_API ustring(const std::string& src);
+      |              ^       ~~~~~~~~~~~~~~~~~~~~~~
+../src/core/VaultManagerV2.cc:250:5: warning: 2 adjacent parameters of 'create_vault_v2' of convertible types are easily swapped by mistake [bugprone-easily-swappable-parameters]
+  250 |     const std::string& path,
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~
+  251 |     const Glib::ustring& admin_username,
+      |     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+../src/core/VaultManagerV2.cc:250:24: note: the first parameter in the range is 'path'
+  250 |     const std::string& path,
+      |                        ^~~~
+../src/core/VaultManagerV2.cc:251:26: note: the last parameter in the range is 'admin_username'
+  251 |     const Glib::ustring& admin_username,
+      |                          ^~~~~~~~~~~~~~
+../src/core/VaultManagerV2.cc:250:5: note: 
+  250 |     const std::string& path,
+      |     ^
+../src/core/VaultManagerV2.cc:251:5: note: 'const std::string &' and 'const Glib::ustring &' may be implicitly converted: 'const std::string &' (as 'basic_string<char>') -> 'const std::string &' -> 'const Glib::ustring &' (as 'Glib::ustring'), 'const Glib::ustring &' (as 'Glib::ustring') -> 'std::string' -> 'const std::string &' (as 'basic_string<char>')
+  251 |     const Glib::ustring& admin_username,
+      |     ^
+/usr/include/glibmm-2.68/glibmm/ustring.h:407:14: note: the implicit conversion involves the converting constructor declared here
+  407 |   GLIBMM_API ustring(const std::string& src);
+      |              ^       ~~~~~~~~~~~~~~~~~~~~~~
+/usr/include/glibmm-2.68/glibmm/ustring.h:693:21: note: the implicit conversion involves the conversion operator declared here
+  693 |   GLIBMM_API inline operator std::string() const; // e.g. std::string str = ustring();
+      |                     ^        ~~~~~~~~~~~
+../src/core/VaultManagerV2.cc:330:51: warning: the parameter 'completion_callback' is copied for each invocation but only used as a const reference; consider making it a const reference [performance-unnecessary-value-param]
+  330 |     std::function<void(KeepTower::VaultResult<>)> completion_callback,
+      |                                                   ^
+      |     const                                        &
+../src/core/VaultManagerV2.cc:358:32: warning: parameter 'progress_callback' is passed by value and only copied once; consider moving it to avoid unnecessary copies [performance-unnecessary-value-param]
+   28 |     params.progress_callback = progress_callback;
+      |                                ^                
+      |                                std::move(       )
+../src/core/VaultManagerV2.cc:416:5: warning: 2 adjacent parameters of 'open_vault_v2' of convertible types are easily swapped by mistake [bugprone-easily-swappable-parameters]
+  416 |     const std::string& path,
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~
+  417 |     const Glib::ustring& username,
+      |     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+../src/core/VaultManagerV2.cc:416:24: note: the first parameter in the range is 'path'
+  416 |     const std::string& path,
+      |                        ^~~~
+../src/core/VaultManagerV2.cc:417:26: note: the last parameter in the range is 'username'
+  417 |     const Glib::ustring& username,
+      |                          ^~~~~~~~
+../src/core/VaultManagerV2.cc:416:5: note: 
+  416 |     const std::string& path,
+      |     ^
+../src/core/VaultManagerV2.cc:417:5: note: 'const std::string &' and 'const Glib::ustring &' may be implicitly converted: 'const std::string &' (as 'basic_string<char>') -> 'const std::string &' -> 'const Glib::ustring &' (as 'Glib::ustring'), 'const Glib::ustring &' (as 'Glib::ustring') -> 'std::string' -> 'const std::string &' (as 'basic_string<char>')
+  417 |     const Glib::ustring& username,
+      |     ^
+/usr/include/glibmm-2.68/glibmm/ustring.h:407:14: note: the implicit conversion involves the converting constructor declared here
+  407 |   GLIBMM_API ustring(const std::string& src);
+      |              ^       ~~~~~~~~~~~~~~~~~~~~~~
+/usr/include/glibmm-2.68/glibmm/ustring.h:693:21: note: the implicit conversion involves the conversion operator declared here
+  693 |   GLIBMM_API inline operator std::string() const; // e.g. std::string str = ustring();
+      |                     ^        ~~~~~~~~~~~
+../src/core/VaultManagerV2.cc:418:5: warning: 2 adjacent parameters of 'open_vault_v2' of convertible types are easily swapped by mistake [bugprone-easily-swappable-parameters]
+  418 |     const Glib::ustring& password,
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  419 |     const std::string& yubikey_serial) {
+      |     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+../src/core/VaultManagerV2.cc:418:26: note: the first parameter in the range is 'password'
+  418 |     const Glib::ustring& password,
+      |                          ^~~~~~~~
+../src/core/VaultManagerV2.cc:419:24: note: the last parameter in the range is 'yubikey_serial'
+  419 |     const std::string& yubikey_serial) {
+      |                        ^~~~~~~~~~~~~~
+../src/core/VaultManagerV2.cc:418:5: note: 
+  418 |     const Glib::ustring& password,
+      |     ^
+../src/core/VaultManagerV2.cc:419:5: note: 'const Glib::ustring &' and 'const std::string &' may be implicitly converted: 'const Glib::ustring &' (as 'Glib::ustring') -> 'std::string' -> 'const std::string &' (as 'basic_string<char>'), 'const std::string &' (as 'basic_string<char>') -> 'const std::string &' -> 'const Glib::ustring &' (as 'Glib::ustring')
+  419 |     const std::string& yubikey_serial) {
+      |     ^
+/usr/include/glibmm-2.68/glibmm/ustring.h:693:21: note: the implicit conversion involves the conversion operator declared here
+  693 |   GLIBMM_API inline operator std::string() const; // e.g. std::string str = ustring();
+      |                     ^        ~~~~~~~~~~~
+/usr/include/glibmm-2.68/glibmm/ustring.h:407:14: note: the implicit conversion involves the converting constructor declared here
+  407 |   GLIBMM_API ustring(const std::string& src);
+      |              ^       ~~~~~~~~~~~~~~~~~~~~~~
+../src/core/VaultManagerV2.cc:419:24: warning: unused parameter 'yubikey_serial' [clang-diagnostic-unused-parameter]
+  419 |     const std::string& yubikey_serial) {
+      |                        ^
+../src/core/VaultManagerV2.cc:636:29: warning: narrowing conversion from 'std::tuple_element<1, std::pair<KeepTower::VaultFormatV2::V2FileHeader, unsigned long>>::type' (aka 'unsigned long') to signed type 'difference_type' (aka 'long') is implementation-defined [bugprone-narrowing-conversions]
+  636 |         file_data.begin() + data_offset,
+      |                             ^
+../src/core/VaultManagerV2.cc:649:54: warning: narrowing conversion from 'size_type' (aka 'unsigned long') to signed type 'int' is implementation-defined [bugprone-narrowing-conversions]
+  649 |     if (!vault_data.ParseFromArray(plaintext.data(), plaintext.size())) {
+      |                                                      ^
+../src/core/VaultManagerV2.cc:725:9: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+  725 |     if (m_v2_header->security_policy.require_yubikey && !user_slot->yubikey_enrolled) {
+      |         ^
+../src/core/VaultManagerV2.cc:771:36: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+  771 |     if (find_slot_by_username_hash(m_v2_header->key_slots, username.raw(),
+      |                                    ^
+../src/core/VaultManagerV2.cc:772:37: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+  772 |                                     m_v2_header->security_policy)) {
+      |                                     ^
+../src/core/VaultManagerV2.cc:778:39: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+  778 |     if (temporary_password.length() < m_v2_header->security_policy.min_password_length) {
+      |                                       ^
+../src/core/VaultManagerV2.cc:780:20: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+  780 |                    m_v2_header->security_policy.min_password_length);
+      |                    ^
+../src/core/VaultManagerV2.cc:785:25: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+  785 |     size_t slot_index = m_v2_header->key_slots.size();
+      |                         ^
+../src/core/VaultManagerV2.cc:786:28: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+  786 |     for (size_t i = 0; i < m_v2_header->key_slots.size(); ++i) {
+      |                            ^
+../src/core/VaultManagerV2.cc:787:14: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+  787 |         if (!m_v2_header->key_slots[i].active) {
+      |              ^
+../src/core/VaultManagerV2.cc:810:32: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+  810 |     params.pbkdf2_iterations = m_v2_header->security_policy.pbkdf2_iterations;
+      |                                ^
+../src/core/VaultManagerV2.cc:811:31: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+  811 |     params.argon2_memory_kb = m_v2_header->security_policy.argon2_memory_kb;
+      |                               ^
+../src/core/VaultManagerV2.cc:812:31: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+  812 |     params.argon2_time_cost = m_v2_header->security_policy.argon2_iterations;
+      |                               ^
+../src/core/VaultManagerV2.cc:813:33: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+  813 |     params.argon2_parallelism = m_v2_header->security_policy.argon2_parallelism;
+      |                                 ^
+../src/core/VaultManagerV2.cc:837:9: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+  837 |         m_v2_header->security_policy.username_hash_algorithm);
+      |         ^
+../src/core/VaultManagerV2.cc:845:60: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+  845 |         username.raw(), username_hash_algo, username_salt, m_v2_header->security_policy.pbkdf2_iterations);
+      |                                                            ^
+../src/core/VaultManagerV2.cc:877:36: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+  877 |     if (yubikey_pin.has_value() && m_v2_header->security_policy.require_yubikey) {
+      |                                    ^
+../src/core/VaultManagerV2.cc:890:36: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+  890 |         const bool enforce_fips = (m_v2_header->security_policy.yubikey_algorithm != 0x01);
+      |                                    ^
+../src/core/VaultManagerV2.cc:913:13: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+  913 |             m_v2_header->security_policy.yubikey_algorithm);
+      |             ^
+../src/core/VaultManagerV2.cc:975:9: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+  975 |     if (m_v2_header->security_policy.password_history_depth > 0) {
+      |         ^
+../src/core/VaultManagerV2.cc:981:17: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+  981 |                 m_v2_header->security_policy.password_history_depth);
+      |                 ^
+../src/core/VaultManagerV2.cc:989:22: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+  989 |     if (slot_index < m_v2_header->key_slots.size()) {
+      |                      ^
+../src/core/VaultManagerV2.cc:990:9: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+  990 |         m_v2_header->key_slots[slot_index] = new_slot;
+      |         ^
+../src/core/VaultManagerV2.cc:992:9: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+  992 |         m_v2_header->key_slots.push_back(new_slot);
+      |         ^
+../src/core/VaultManagerV2.cc:1026:9: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1026 |         m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
+      |         ^
+../src/core/VaultManagerV2.cc:1026:49: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1026 |         m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
+      |                                                 ^
+../src/core/VaultManagerV2.cc:1036:33: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1036 |         for (const auto& slot : m_v2_header->key_slots) {
+      |                                 ^
+../src/core/VaultManagerV2.cc:1056:5: warning: 2 adjacent parameters of 'validate_new_password' of similar type ('const Glib::ustring &') are easily swapped by mistake [bugprone-easily-swappable-parameters]
+ 1056 |     const Glib::ustring& username,
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 1057 |     const Glib::ustring& new_password) {
+      |     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+../src/core/VaultManagerV2.cc:1056:26: note: the first parameter in the range is 'username'
+ 1056 |     const Glib::ustring& username,
+      |                          ^~~~~~~~
+../src/core/VaultManagerV2.cc:1057:26: note: the last parameter in the range is 'new_password'
+ 1057 |     const Glib::ustring& new_password) {
+      |                          ^~~~~~~~~~~~
+../src/core/VaultManagerV2.cc:1069:9: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1069 |         m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
+      |         ^
+../src/core/VaultManagerV2.cc:1069:49: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1069 |         m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
+      |                                                 ^
+../src/core/VaultManagerV2.cc:1077:33: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1077 |     if (new_password.length() < m_v2_header->security_policy.min_password_length) {
+      |                                 ^
+../src/core/VaultManagerV2.cc:1079:43: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1079 |                    new_password.length(), m_v2_header->security_policy.min_password_length);
+      |                                           ^
+../src/core/VaultManagerV2.cc:1084:9: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1084 |     if (m_v2_header->security_policy.password_history_depth > 0) {
+      |         ^
+../src/core/VaultManagerV2.cc:1086:20: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1086 |                    m_v2_header->security_policy.password_history_depth);
+      |                    ^
+../src/core/VaultManagerV2.cc:1105:45: warning: the parameter 'progress_callback' is copied for each invocation but only used as a const reference; consider making it a const reference [performance-unnecessary-value-param]
+ 1105 |     std::function<void(const std::string&)> progress_callback) {
+      |                                             ^
+      |     const                                  &
+../src/core/VaultManagerV2.cc:1125:9: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1125 |         m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
+      |         ^
+../src/core/VaultManagerV2.cc:1125:49: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1125 |         m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
+      |                                                 ^
+../src/core/VaultManagerV2.cc:1134:60: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1134 |               new_password.length(), new_password.bytes(), m_v2_header->security_policy.min_password_length);
+      |                                                            ^
+../src/core/VaultManagerV2.cc:1135:33: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1135 |     if (new_password.length() < m_v2_header->security_policy.min_password_length) {
+      |                                 ^
+../src/core/VaultManagerV2.cc:1137:43: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1137 |                    new_password.length(), m_v2_header->security_policy.min_password_length);
+      |                                           ^
+../src/core/VaultManagerV2.cc:1142:9: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1142 |     if (m_v2_header->security_policy.password_history_depth > 0) {
+      |         ^
+../src/core/VaultManagerV2.cc:1144:20: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1144 |                    m_v2_header->security_policy.password_history_depth);
+      |                    ^
+../src/core/VaultManagerV2.cc:1158:32: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1158 |     params.pbkdf2_iterations = m_v2_header->security_policy.pbkdf2_iterations;
+      |                                ^
+../src/core/VaultManagerV2.cc:1159:31: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1159 |     params.argon2_memory_kb = m_v2_header->security_policy.argon2_memory_kb;
+      |                               ^
+../src/core/VaultManagerV2.cc:1160:31: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1160 |     params.argon2_time_cost = m_v2_header->security_policy.argon2_iterations;
+      |                               ^
+../src/core/VaultManagerV2.cc:1161:33: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1161 |     params.argon2_parallelism = m_v2_header->security_policy.argon2_parallelism;
+      |                                 ^
+../src/core/VaultManagerV2.cc:1242:74: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1242 |         const YubiKeyAlgorithm algorithm = static_cast<YubiKeyAlgorithm>(m_v2_header->security_policy.yubikey_algorithm);
+      |                                                                          ^
+../src/core/VaultManagerV2.cc:1351:74: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1351 |         const YubiKeyAlgorithm algorithm = static_cast<YubiKeyAlgorithm>(m_v2_header->security_policy.yubikey_algorithm);
+      |                                                                          ^
+../src/core/VaultManagerV2.cc:1406:9: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1406 |     if (m_v2_header->security_policy.password_history_depth > 0) {
+      |         ^
+../src/core/VaultManagerV2.cc:1412:17: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1412 |                 m_v2_header->security_policy.password_history_depth);
+      |                 ^
+../src/core/VaultManagerV2.cc:1437:5: warning: 2 adjacent parameters of 'migrate_user_hash' of similar type ('const std::string &') are easily swapped by mistake [bugprone-easily-swappable-parameters]
+ 1437 |     const std::string& username,
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 1438 |     const std::string& password) {
+      |     ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+../src/core/VaultManagerV2.cc:1437:24: note: the first parameter in the range is 'username'
+ 1437 |     const std::string& username,
+      |                        ^~~~~~~~
+../src/core/VaultManagerV2.cc:1438:24: note: the last parameter in the range is 'password'
+ 1438 |     const std::string& password) {
+      |                        ^~~~~~~~
+../src/core/VaultManagerV2.cc:1438:24: warning: unused parameter 'password' [clang-diagnostic-unused-parameter]
+ 1438 |     const std::string& password) {
+      |                        ^
+../src/core/VaultManagerV2.cc:1505:24: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1505 |              username, m_v2_header->security_policy.username_hash_algorithm,
+      |                        ^
+../src/core/VaultManagerV2.cc:1519:78: warning: the parameter 'progress_callback' is copied for each invocation but only used as a const reference; consider making it a const reference [performance-unnecessary-value-param]
+ 1519 |     std::function<void(int step, int total, const std::string& description)> progress_callback,
+      |                                                                              ^
+      |     const                                                                   &
+../src/core/VaultManagerV2.cc:1520:51: warning: the parameter 'completion_callback' is copied for each invocation but only used as a const reference; consider making it a const reference [performance-unnecessary-value-param]
+ 1520 |     std::function<void(KeepTower::VaultResult<>)> completion_callback,
+      |                                                   ^
+      |     const                                        &
+../src/core/VaultManagerV2.cc:1531:13: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1531 |             m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
+      |             ^
+../src/core/VaultManagerV2.cc:1531:53: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1531 |             m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
+      |                                                     ^
+../src/core/VaultManagerV2.cc:1569:75: warning: lambda capture 'yubikey_enrolled' is not used [clang-diagnostic-unused-lambda-capture]
+ 1569 |     std::thread([this, username, old_password, new_password, yubikey_pin, yubikey_enrolled, total_steps,
+      |                                                                         ~~^~~~~~~~~~~~~~~~
+../src/core/VaultManagerV2.cc:1569:93: warning: lambda capture 'total_steps' is not used [clang-diagnostic-unused-lambda-capture]
+ 1569 |     std::thread([this, username, old_password, new_password, yubikey_pin, yubikey_enrolled, total_steps,
+      |                                                                                           ~~^~~~~~~~~~~
+../src/core/VaultManagerV2.cc:1593:45: warning: the parameter 'progress_callback' is copied for each invocation but only used as a const reference; consider making it a const reference [performance-unnecessary-value-param]
+ 1593 |     std::function<void(const std::string&)> progress_callback,
+      |                                             ^
+      |     const                                  &
+../src/core/VaultManagerV2.cc:1594:58: warning: the parameter 'completion_callback' is copied for each invocation but only used as a const reference; consider making it a const reference [performance-unnecessary-value-param]
+ 1594 |     std::function<void(const KeepTower::VaultResult<>&)> completion_callback) {
+      |                                                          ^
+      |     const                                               &
+../src/core/VaultManagerV2.cc:1652:9: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1652 |         m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
+      |         ^
+../src/core/VaultManagerV2.cc:1652:49: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1652 |         m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
+      |                                                 ^
+../src/core/VaultManagerV2.cc:1700:9: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1700 |         m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
+      |         ^
+../src/core/VaultManagerV2.cc:1700:49: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1700 |         m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
+      |                                                 ^
+../src/core/VaultManagerV2.cc:1708:43: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1708 |     if (new_temporary_password.length() < m_v2_header->security_policy.min_password_length) {
+      |                                           ^
+../src/core/VaultManagerV2.cc:1710:20: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1710 |                    m_v2_header->security_policy.min_password_length);
+      |                    ^
+../src/core/VaultManagerV2.cc:1725:32: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1725 |     params.pbkdf2_iterations = m_v2_header->security_policy.pbkdf2_iterations;
+      |                                ^
+../src/core/VaultManagerV2.cc:1726:31: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1726 |     params.argon2_memory_kb = m_v2_header->security_policy.argon2_memory_kb;
+      |                               ^
+../src/core/VaultManagerV2.cc:1727:31: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1727 |     params.argon2_time_cost = m_v2_header->security_policy.argon2_iterations;
+      |                               ^
+../src/core/VaultManagerV2.cc:1728:33: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1728 |     params.argon2_parallelism = m_v2_header->security_policy.argon2_parallelism;
+      |                                 ^
+../src/core/VaultManagerV2.cc:1770:13: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1770 |         if (m_v2_header->security_policy.require_yubikey) {
+      |             ^
+../src/core/VaultManagerV2.cc:1788:5: warning: 2 adjacent parameters of 'enroll_yubikey_for_user' of convertible types are easily swapped by mistake [bugprone-easily-swappable-parameters]
+ 1788 |     const Glib::ustring& password,
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 1789 |     const std::string& yubikey_pin,
+      |     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+../src/core/VaultManagerV2.cc:1788:26: note: the first parameter in the range is 'password'
+ 1788 |     const Glib::ustring& password,
+      |                          ^~~~~~~~
+../src/core/VaultManagerV2.cc:1789:24: note: the last parameter in the range is 'yubikey_pin'
+ 1789 |     const std::string& yubikey_pin,
+      |                        ^~~~~~~~~~~
+../src/core/VaultManagerV2.cc:1788:5: note: 
+ 1788 |     const Glib::ustring& password,
+      |     ^
+../src/core/VaultManagerV2.cc:1789:5: note: 'const Glib::ustring &' and 'const std::string &' may be implicitly converted: 'const Glib::ustring &' (as 'Glib::ustring') -> 'std::string' -> 'const std::string &' (as 'basic_string<char>'), 'const std::string &' (as 'basic_string<char>') -> 'const std::string &' -> 'const Glib::ustring &' (as 'Glib::ustring')
+ 1789 |     const std::string& yubikey_pin,
+      |     ^
+/usr/include/glibmm-2.68/glibmm/ustring.h:693:21: note: the implicit conversion involves the conversion operator declared here
+  693 |   GLIBMM_API inline operator std::string() const; // e.g. std::string str = ustring();
+      |                     ^        ~~~~~~~~~~~
+/usr/include/glibmm-2.68/glibmm/ustring.h:407:14: note: the implicit conversion involves the converting constructor declared here
+  407 |   GLIBMM_API ustring(const std::string& src);
+      |              ^       ~~~~~~~~~~~~~~~~~~~~~~
+../src/core/VaultManagerV2.cc:1790:45: warning: the parameter 'progress_callback' is copied for each invocation but only used as a const reference; consider making it a const reference [performance-unnecessary-value-param]
+ 1790 |     std::function<void(const std::string&)> progress_callback) {
+      |                                             ^
+      |     const                                  &
+../src/core/VaultManagerV2.cc:1816:9: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1816 |         m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
+      |         ^
+../src/core/VaultManagerV2.cc:1816:49: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1816 |         m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
+      |                                                 ^
+../src/core/VaultManagerV2.cc:1847:32: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1847 |     params.pbkdf2_iterations = m_v2_header->security_policy.pbkdf2_iterations;
+      |                                ^
+../src/core/VaultManagerV2.cc:1848:31: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1848 |     params.argon2_memory_kb = m_v2_header->security_policy.argon2_memory_kb;
+      |                               ^
+../src/core/VaultManagerV2.cc:1849:31: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1849 |     params.argon2_time_cost = m_v2_header->security_policy.argon2_iterations;
+      |                               ^
+../src/core/VaultManagerV2.cc:1850:33: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1850 |     params.argon2_parallelism = m_v2_header->security_policy.argon2_parallelism;
+      |                                 ^
+../src/core/VaultManagerV2.cc:1885:70: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 1885 |     const YubiKeyAlgorithm algorithm = static_cast<YubiKeyAlgorithm>(m_v2_header->security_policy.yubikey_algorithm);
+      |                                                                      ^
+../src/core/VaultManagerV2.cc:1989:45: warning: the parameter 'progress_callback' is copied for each invocation but only used as a const reference; consider making it a const reference [performance-unnecessary-value-param]
+ 1989 |     std::function<void(const std::string&)> progress_callback) {
+      |                                             ^
+      |     const                                  &
+../src/core/VaultManagerV2.cc:2009:9: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 2009 |         m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
+      |         ^
+../src/core/VaultManagerV2.cc:2009:49: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 2009 |         m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
+      |                                                 ^
+../src/core/VaultManagerV2.cc:2045:32: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 2045 |     params.pbkdf2_iterations = m_v2_header->security_policy.pbkdf2_iterations;
+      |                                ^
+../src/core/VaultManagerV2.cc:2046:31: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 2046 |     params.argon2_memory_kb = m_v2_header->security_policy.argon2_memory_kb;
+      |                               ^
+../src/core/VaultManagerV2.cc:2047:31: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 2047 |     params.argon2_time_cost = m_v2_header->security_policy.argon2_iterations;
+      |                               ^
+../src/core/VaultManagerV2.cc:2048:33: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 2048 |     params.argon2_parallelism = m_v2_header->security_policy.argon2_parallelism;
+      |                                 ^
+../src/core/VaultManagerV2.cc:2064:70: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 2064 |     const YubiKeyAlgorithm algorithm = static_cast<YubiKeyAlgorithm>(m_v2_header->security_policy.yubikey_algorithm);
+      |                                                                      ^
+../src/core/VaultManagerV2.cc:2126:13: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
+ 2126 |         if (m_v2_header->security_policy.require_yubikey) {
+      |             ^
+../src/core/VaultManagerV2.cc:2147:45: warning: the parameter 'progress_callback' is copied for each invocation but only used as a const reference; consider making it a const reference [performance-unnecessary-value-param]
+ 2147 |     std::function<void(const std::string&)> progress_callback,
+      |                                             ^
+      |     const                                  &
+../src/core/VaultManagerV2.cc:2148:58: warning: the parameter 'completion_callback' is copied for each invocation but only used as a const reference; consider making it a const reference [performance-unnecessary-value-param]
+ 2148 |     std::function<void(const KeepTower::VaultResult<>&)> completion_callback) {
+      |                                                          ^
+      |     const                                               &
+../src/core/VaultManagerV2.cc:2405:5: warning: ignoring return value of function declared with 'nodiscard' attribute [clang-diagnostic-unused-result]
+ 2405 |     close_vault();
+      |     ^~~~~~~~~~~
+../src/ui/managers/VaultIOHandler.cc:400:37: warning: narrowing conversion from 'size_t' (aka 'unsigned long') to signed type 'int' is implementation-defined [bugprone-narrowing-conversions]
+  400 |                 int account_count = m_vault_manager->get_account_count();
+      |                                     ^
+Suppressed 11099082 warnings (11099082 in non-user code).
+Use -header-filter=.* to display errors from all non-system headers. Use -system-headers to display errors from system headers as well.

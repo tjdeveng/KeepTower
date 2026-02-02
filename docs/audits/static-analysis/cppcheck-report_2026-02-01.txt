@@ -1,0 +1,636 @@
+Checking src/application/Application.cc ...
+src/ui/dialogs/PasswordDialog.h:40:5: style: Class 'PasswordDialog' has a constructor with 1 argument that is not explicit. [noExplicitConstructor]
+    PasswordDialog(Gtk::Window& parent);
+    ^
+src/core/VaultManager.h:1543:17: performance: Function 'get_current_vault_path()' should return member 'm_current_vault_path' by const reference. [returnByReference]
+    std::string get_current_vault_path() const { return m_current_vault_path; }
+                ^
+src/core/VaultManager.h:1731:31: performance: Function 'get_backup_path()' should return member 'm_backup_path' by const reference. [returnByReference]
+    [[nodiscard]] std::string get_backup_path() const { return m_backup_path; }
+                              ^
+Checking src/application/Application.cc: HAVE_YUBIKEY_SUPPORT...
+1/60 files checked 0% done
+Checking src/core/KeyWrapping.cc ...
+2/60 files checked 1% done
+Checking src/core/MultiUserTypes.cc ...
+src/core/MultiUserTypes.cc:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+src/core/MultiUserTypes.cc:495:24: warning: Either the condition 'pos<data.size()' is redundant or 'pos++' can have the value greater or equal to data.size(). Expression 'data[pos++]' causes access out of bounds. [containerOutOfBounds]
+    slot.active = (data[pos++] != 0);
+                       ^
+src/core/MultiUserTypes.cc:504:13: note: Assuming that condition 'pos<data.size()' is not redundant
+    if (pos < data.size() && (data[pos] == 0x04 || data[pos] == 0x05)) {
+            ^
+src/core/MultiUserTypes.cc:492:16: note: pos is assigned 'offset' here.
+    size_t pos = offset;
+               ^
+src/core/MultiUserTypes.cc:492:16: note: pos is assigned 'offset' here.
+    size_t pos = offset;
+               ^
+src/core/MultiUserTypes.cc:495:24: note: Access out of bounds
+    slot.active = (data[pos++] != 0);
+                       ^
+src/core/MultiUserTypes.cc:735:14: style: Consider using std::accumulate algorithm instead of a raw loop. [useStlAlgorithm]
+        size += slot.calculate_serialized_size();
+             ^
+src/core/MultiUserTypes.cc:66:9: style: Variable 'pos' is assigned a value that is never used. [unreadVariable]
+    pos += 48;
+        ^
+src/core/MultiUserTypes.cc:297:16: style: Variable 'offset' is assigned a value that is never used. [unreadVariable]
+        offset += 1;
+               ^
+src/core/MultiUserTypes.cc:507:27: style: Variable 'has_kek_algorithm' is assigned a value that is never used. [unreadVariable]
+        has_kek_algorithm = true;
+                          ^
+src/core/MultiUserTypes.cc:511:27: style: Variable 'has_kek_algorithm' is assigned a value that is never used. [unreadVariable]
+        has_kek_algorithm = false;
+                          ^
+3/60 files checked 5% done
+Checking src/core/PasswordHistory.cc ...
+4/60 files checked 5% done
+Checking src/core/ReedSolomon.cc ...
+5/60 files checked 6% done
+Checking src/core/VaultFormatV2.cc ...
+6/60 files checked 7% done
+Checking src/core/VaultManager.cc ...
+src/core/VaultManager.cc:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+src/core/VaultManager.cc:471:40: performance: Using std::move for returning object by-value from function will affect copy elision optimization. More: https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#Rf-return-move-local [returnStdMoveLocal]
+    return std::move(vault_result.value());
+                                       ^
+src/core/VaultManager.cc:177:13: style: Condition '!close_vault()' is always false [knownConditionTrueFalse]
+        if (!close_vault()) {
+            ^
+src/core/VaultManager.cc:177:25: note: Calling function 'close_vault' returns 1
+        if (!close_vault()) {
+                        ^
+src/core/VaultManager.cc:177:13: note: Condition '!close_vault()' is always false
+        if (!close_vault()) {
+            ^
+src/core/VaultManager.cc:480:25: style: Condition '!close_vault()' is always false [knownConditionTrueFalse]
+    if (m_vault_open && !close_vault()) {
+                        ^
+src/core/VaultManager.cc:480:37: note: Calling function 'close_vault' returns 1
+    if (m_vault_open && !close_vault()) {
+                                    ^
+src/core/VaultManager.cc:480:25: note: Condition '!close_vault()' is always false
+    if (m_vault_open && !close_vault()) {
+                        ^
+src/core/VaultManager.cc:175:46: performance: Function parameter 'yubikey_serial' should be passed by const reference. [passedByValue]
+                                 std::string yubikey_serial) {
+                                             ^
+src/core/VaultManager.cc:1088:54: style: Parameter 'data' can be declared as reference to const [constParameterReference]
+bool VaultManager::lock_memory(std::vector<uint8_t>& data) {
+                                                     ^
+src/core/VaultManager.cc:1144:56: style: Parameter 'data' can be declared as reference to const [constParameterReference]
+void VaultManager::unlock_memory(std::vector<uint8_t>& data) {
+                                                       ^
+src/core/VaultManager.cc:1117:38: style: Parameter 'data' can be declared as pointer to const [constParameterPointer]
+bool VaultManager::lock_memory(void* data, size_t size) {
+                                     ^
+src/core/VaultManager.cc:1159:40: style: Parameter 'data' can be declared as pointer to const [constParameterPointer]
+void VaultManager::unlock_memory(void* data, size_t size) {
+                                       ^
+src/core/VaultManager.cc:332:63: style: Consider using std::find_if algorithm instead of a raw loop. [useStlAlgorithm]
+                    if (slot.active && slot.yubikey_enrolled) {
+                                                              ^
+src/core/VaultManager.cc:2270:74: style: Consider using std::find_if algorithm instead of a raw loop. [useStlAlgorithm]
+        if (slot.active && slot.username == m_current_session->username) {
+                                                                         ^
+Checking src/core/VaultManager.cc: HAVE_YUBIKEY_SUPPORT...
+src/core/VaultManager.cc:1377:16: style: Consider using std::copy algorithm instead of a raw loop. [useStlAlgorithm]
+        result.push_back(entry);
+               ^
+src/core/VaultManager.cc:1486:5: style: Consider using std::any_of algorithm instead of a raw loop. [useStlAlgorithm]
+    for (const auto& entry : yk_config.yubikey_entries()) {
+    ^
+src/core/VaultManager.cc:1522:78: style: Consider using std::find_if algorithm instead of a raw loop. [useStlAlgorithm]
+            if (slot.active && slot.username == m_current_session->username) {
+                                                                             ^
+Checking src/core/VaultManager.cc: _WIN32...
+Checking src/core/VaultManager.cc: __linux__...
+7/60 files checked 16% done
+Checking src/core/VaultManagerV2.cc ...
+src/core/VaultManagerV2.cc:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+src/core/VaultManagerV2.cc:1488:5: error: Address of local auto-variable assigned to a function parameter. [autoVariables]
+    user_slot->username_salt = new_username_salt;
+    ^
+src/core/VaultManagerV2.cc:2405:5: warning: Return value of function close_vault() is not used. [ignoredReturnValue]
+    close_vault();
+    ^
+src/utils/SecureMemory.h:70:5: style: Class 'SecureAllocator < uint8_t >' has a constructor with 1 argument that is not explicit. [noExplicitConstructor]
+    SecureAllocator(const SecureAllocator<U>&) noexcept {}
+    ^
+src/core/VaultManagerV2.cc:969:36: style: Condition 'yubikey_enrolled' is always false [knownConditionTrueFalse]
+    new_slot.yubikey_enrolled_at = yubikey_enrolled ?
+                                   ^
+src/core/VaultManagerV2.cc:870:29: note: Assignment 'yubikey_enrolled=false', assigned value is 0
+    bool yubikey_enrolled = false;
+                            ^
+src/core/VaultManagerV2.cc:969:36: note: Condition 'yubikey_enrolled' is always false
+    new_slot.yubikey_enrolled_at = yubikey_enrolled ?
+                                   ^
+src/core/VaultManagerV2.cc:1068:14: style: Variable 'user_slot' can be declared as pointer to const [constVariablePointer]
+    KeySlot* user_slot = find_slot_by_username_hash(
+             ^
+src/core/VaultManagerV2.cc:1530:18: style: Variable 'slot' can be declared as pointer to const [constVariablePointer]
+        KeySlot* slot = find_slot_by_username_hash(
+                 ^
+src/core/VaultManagerV2.cc:1815:14: style: Variable 'user_slot' can be declared as pointer to const [constVariablePointer]
+    KeySlot* user_slot = find_slot_by_username_hash(
+             ^
+src/core/VaultManagerV2.cc:2008:14: style: Variable 'user_slot' can be declared as pointer to const [constVariablePointer]
+    KeySlot* user_slot = find_slot_by_username_hash(
+             ^
+src/core/VaultManagerV2.cc:672:71: style: Consider using std::find_if algorithm instead of a raw loop. [useStlAlgorithm]
+            slot.username_hash_size == user_slot->username_hash_size) {
+                                                                      ^
+src/core/VaultManagerV2.cc:1038:17: style: Consider using std::count_if algorithm instead of a raw loop. [useStlAlgorithm]
+                admin_count++;
+                ^
+src/core/VaultManagerV2.cc:2202:25: style: Consider using std::copy_if algorithm instead of a raw loop. [useStlAlgorithm]
+            active_users.push_back(slot);
+                        ^
+Checking src/core/VaultManagerV2.cc: ENABLE_ARGON2...
+Checking src/core/VaultManagerV2.cc: HAVE_YUBIKEY_SUPPORT...
+src/core/VaultManagerV2.cc:567:32: style: Local variable 'algorithm' shadows outer variable [shadowVariable]
+        const YubiKeyAlgorithm algorithm = static_cast<YubiKeyAlgorithm>(file_header.vault_header.security_policy.yubikey_algorithm);
+                               ^
+src/core/VaultManagerV2.cc:463:10: note: Shadowed declaration
+    auto algorithm = static_cast<KekDerivationService::Algorithm>(user_slot->kek_derivation_algorithm);
+         ^
+src/core/VaultManagerV2.cc:567:32: note: Shadow variable
+        const YubiKeyAlgorithm algorithm = static_cast<YubiKeyAlgorithm>(file_header.vault_header.security_policy.yubikey_algorithm);
+                               ^
+src/core/VaultManagerV2.cc:912:32: style: Local variable 'algorithm' shadows outer variable [shadowVariable]
+        const YubiKeyAlgorithm algorithm = static_cast<YubiKeyAlgorithm>(
+                               ^
+src/core/VaultManagerV2.cc:807:10: note: Shadowed declaration
+    auto algorithm = KekDerivationService::Algorithm::PBKDF2_HMAC_SHA256;
+         ^
+src/core/VaultManagerV2.cc:912:32: note: Shadow variable
+        const YubiKeyAlgorithm algorithm = static_cast<YubiKeyAlgorithm>(
+                               ^
+src/core/VaultManagerV2.cc:903:39: performance: Passing the result of c_str() to a function that takes std::string_view as argument no. 2 is slow and redundant. [stlcstrParam]
+        auto cred_result = yk_manager.create_credential(username.raw(), pin_str.c_str());
+                                      ^
+8/60 files checked 26% done
+Checking src/core/controllers/VaultCreationOrchestrator.cc ...
+src/core/controllers/VaultCreationOrchestrator.cc:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+Checking src/core/controllers/VaultCreationOrchestrator.cc: ENABLE_ARGON2...
+9/60 files checked 29% done
+Checking src/core/crypto/VaultCrypto.cc ...
+src/core/crypto/VaultCrypto.cc:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+10/60 files checked 29% done
+Checking src/core/format/VaultFormat.cc ...
+src/core/format/VaultFormat.cc:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+src/core/format/VaultFormat.cc:54:53: style: Condition 'data_offset<file_data.size()' is always true [knownConditionTrueFalse]
+                if (yubikey_required && data_offset < file_data.size()) {
+                                                    ^
+src/core/format/VaultFormat.cc:50:62: note: Assignment 'data_offset=SALT_LENGTH+IV_LENGTH+VAULT_HEADER_SIZE', assigned value is 50
+                size_t data_offset = SALT_LENGTH + IV_LENGTH + VAULT_HEADER_SIZE;
+                                                             ^
+src/core/format/VaultFormat.cc:30:26: note: Assuming that condition 'file_data.size()>SALT_LENGTH+IV_LENGTH+VAULT_HEADER_SIZE' is not redundant
+    if (file_data.size() > SALT_LENGTH + IV_LENGTH + VAULT_HEADER_SIZE) {
+                         ^
+src/core/format/VaultFormat.cc:54:53: note: Condition 'data_offset<file_data.size()' is always true
+                if (yubikey_required && data_offset < file_data.size()) {
+                                                    ^
+src/core/format/VaultFormat.cc:134:55: style: Condition 'ciphertext_offset<file_data.size()' is always true [knownConditionTrueFalse]
+            if (yubikey_required && ciphertext_offset < file_data.size()) {
+                                                      ^
+src/core/format/VaultFormat.cc:27:44: note: Assignment 'ciphertext_offset=SALT_LENGTH+IV_LENGTH', assigned value is 44
+    size_t ciphertext_offset = SALT_LENGTH + IV_LENGTH;
+                                           ^
+src/core/format/VaultFormat.cc:131:13: note: Compound assignment '+=', assigned value is 45
+            ciphertext_offset += 1;  // Skip flags byte
+            ^
+src/core/format/VaultFormat.cc:30:26: note: Assuming that condition 'file_data.size()>SALT_LENGTH+IV_LENGTH+VAULT_HEADER_SIZE' is not redundant
+    if (file_data.size() > SALT_LENGTH + IV_LENGTH + VAULT_HEADER_SIZE) {
+                         ^
+src/core/format/VaultFormat.cc:134:55: note: Condition 'ciphertext_offset<file_data.size()' is always true
+            if (yubikey_required && ciphertext_offset < file_data.size()) {
+                                                      ^
+11/60 files checked 30% done
+Checking src/core/io/VaultIO.cc ...
+src/core/io/VaultIO.cc:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+src/core/io/VaultIO.cc:235:17: style: The scope of the variable 'backup_dir_str' can be reduced. [variableScope]
+    std::string backup_dir_str(backup_dir);
+                ^
+src/core/io/VaultIO.cc:318:17: style: The scope of the variable 'backup_dir_str' can be reduced. [variableScope]
+    std::string backup_dir_str(backup_dir);
+                ^
+src/core/io/VaultIO.cc:322:17: style: The scope of the variable 'backup_pattern' can be reduced. [variableScope]
+    std::string backup_pattern = vault_filename + ".backup.";
+                ^
+Checking src/core/io/VaultIO.cc: _WIN32...
+Checking src/core/io/VaultIO.cc: __linux__...
+12/60 files checked 31% done
+Checking src/core/managers/AccountManager.cc ...
+src/core/managers/AccountManager.cc:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+Checking src/core/managers/AccountManager.cc: KEEPTOWER_HAS_RANGES...
+Checking src/core/managers/AccountManager.cc: __GNUC__...
+Checking src/core/managers/AccountManager.cc: __cpp_lib_constexpr_string...
+Checking src/core/managers/AccountManager.cc: __cpp_lib_constexpr_vector...
+Checking src/core/managers/AccountManager.cc: __cpp_lib_ranges...
+13/60 files checked 32% done
+Checking src/core/managers/GroupManager.cc ...
+src/core/managers/GroupManager.cc:142:5: style: Consider using std::all_of or std::none_of algorithm instead of a raw loop. [useStlAlgorithm]
+    for (const auto& existing_group : m_vault_data.groups()) {
+    ^
+src/core/managers/GroupManager.cc:193:5: style: Consider using std::any_of algorithm instead of a raw loop. [useStlAlgorithm]
+    for (const auto& membership : account->groups()) {
+    ^
+src/core/managers/GroupManager.cc:303:5: style: Consider using std::any_of algorithm instead of a raw loop. [useStlAlgorithm]
+    for (const auto& membership : account.groups()) {
+    ^
+src/core/managers/GroupManager.cc:318:16: style: Consider using std::copy algorithm instead of a raw loop. [useStlAlgorithm]
+        groups.push_back(group);
+               ^
+src/core/managers/GroupManager.cc:334:5: style: Consider using std::all_of or std::none_of algorithm instead of a raw loop. [useStlAlgorithm]
+    for (char c : name) {
+    ^
+Checking src/core/managers/GroupManager.cc: KEEPTOWER_HAS_RANGES...
+Checking src/core/managers/GroupManager.cc: __GNUC__...
+Checking src/core/managers/GroupManager.cc: __cpp_lib_constexpr_string...
+Checking src/core/managers/GroupManager.cc: __cpp_lib_constexpr_vector...
+Checking src/core/managers/GroupManager.cc: __cpp_lib_ranges...
+14/60 files checked 33% done
+Checking src/core/managers/YubiKeyManager.cc ...
+src/core/managers/YubiKeyManager.cc:949:17: performance: Function parameter 'user_name' should be passed by const reference. However it seems that 'thread_create_credential' is a callback function. [passedByValueCallback]
+    std::string user_name,
+                ^
+src/core/managers/YubiKeyManager.cc:886:26: note: Function pointer used here.
+        &YubiKeyManager::thread_create_credential,
+                         ^
+src/core/managers/YubiKeyManager.cc:949:17: note: Function parameter 'user_name' should be passed by const reference. However it seems that 'thread_create_credential' is a callback function.
+    std::string user_name,
+                ^
+src/core/managers/YubiKeyManager.cc:996:32: performance: Function parameter 'challenge' should be passed by const reference. However it seems that 'thread_challenge_response' is a callback function. [passedByValueCallback]
+    std::vector<unsigned char> challenge,
+                               ^
+src/core/managers/YubiKeyManager.cc:927:26: note: Function pointer used here.
+        &YubiKeyManager::thread_challenge_response,
+                         ^
+src/core/managers/YubiKeyManager.cc:996:32: note: Function parameter 'challenge' should be passed by const reference. However it seems that 'thread_challenge_response' is a callback function.
+    std::vector<unsigned char> challenge,
+                               ^
+Checking src/core/managers/YubiKeyManager.cc: HAVE_YUBIKEY_SUPPORT...
+src/core/managers/YubiKeyManager.cc:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+15/60 files checked 37% done
+Checking src/core/managers/YubiKeyManager_ykpers_old.cc ...
+src/core/managers/YubiKeyManager_ykpers_old.cc:41:52: error: Unmatched '{'. Configuration: ''. [syntaxError]
+    inline std::vector<uint8_t> build_select_otp() {
+                                                   ^
+Checking src/core/managers/YubiKeyManager_ykpers_old.cc: HAVE_YUBIKEY_SUPPORT...
+src/core/managers/YubiKeyManager_ykpers_old.cc:41:52: error: Unmatched '{'. Configuration: 'HAVE_YUBIKEY_SUPPORT'. [syntaxError]
+    inline std::vector<uint8_t> build_select_otp() {
+                                                   ^
+16/60 files checked 38% done
+Checking src/core/repositories/AccountRepository.cc ...
+src/core/repositories/AccountRepository.cc:206:49: style: Consider using std::find_if algorithm instead of a raw loop. [useStlAlgorithm]
+        if (all_accounts[i].id() == account_id) {
+                                                ^
+Checking src/core/repositories/AccountRepository.cc: HAVE_YUBIKEY_SUPPORT...
+17/60 files checked 39% done
+Checking src/core/repositories/GroupRepository.cc ...
+src/core/repositories/GroupRepository.cc:62:43: style: Consider using std::find_if algorithm instead of a raw loop. [useStlAlgorithm]
+        if (group.group_id() == group_id) {
+                                          ^
+src/core/repositories/GroupRepository.cc:219:5: style: Consider using std::any_of algorithm instead of a raw loop. [useStlAlgorithm]
+    for (const auto& group : all_groups) {
+    ^
+Checking src/core/repositories/GroupRepository.cc: HAVE_YUBIKEY_SUPPORT...
+18/60 files checked 40% done
+Checking src/core/serialization/VaultSerialization.cc ...
+19/60 files checked 40% done
+Checking src/core/services/AccountService.cc ...
+src/core/services/AccountService.cc:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+src/core/services/AccountService.cc:153:22: style: Consider using std::transform algorithm instead of a raw loop. [useStlAlgorithm]
+        search_lower.push_back(std::tolower(static_cast<unsigned char>(c)));
+                     ^
+src/core/services/AccountService.cc:166:29: style: Consider using std::transform algorithm instead of a raw loop. [useStlAlgorithm]
+                field_lower.push_back(std::tolower(static_cast<unsigned char>(c)));
+                            ^
+src/core/services/AccountService.cc:295:5: style: Consider using std::all_of or std::none_of algorithm instead of a raw loop. [useStlAlgorithm]
+    for (const auto& account : accounts) {
+    ^
+20/60 files checked 41% done
+Checking src/core/services/GroupService.cc ...
+src/core/services/GroupService.cc:158:5: style: Consider using std::all_of or std::none_of algorithm instead of a raw loop. [useStlAlgorithm]
+    for (const auto& group : groups) {
+    ^
+21/60 files checked 42% done
+Checking src/core/services/KekDerivationService.cc ...
+22/60 files checked 42% done
+Checking src/core/services/UsernameHashService.cc ...
+Checking src/core/services/UsernameHashService.cc: ENABLE_ARGON2...
+23/60 files checked 43% done
+Checking src/core/services/VaultCryptoService.cc ...
+src/core/services/VaultCryptoService.cc:32:31: style: Parameter 'data' can be declared as pointer to const [constParameterPointer]
+static bool lock_memory(void* data, size_t size) {
+                              ^
+Checking src/core/services/VaultCryptoService.cc: _WIN32...
+Checking src/core/services/VaultCryptoService.cc: __linux__...
+24/60 files checked 45% done
+Checking src/core/services/VaultFileService.cc ...
+Checking src/core/services/VaultFileService.cc: _WIN32...
+25/60 files checked 46% done
+Checking src/core/services/VaultYubiKeyService.cc ...
+src/core/services/VaultYubiKeyService.cc:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+26/60 files checked 47% done
+Checking src/main.cc ...
+27/60 files checked 47% done
+Checking src/ui/controllers/AccountViewController.cc ...
+Checking src/ui/controllers/AccountViewController.cc: HAVE_YUBIKEY_SUPPORT...
+28/60 files checked 48% done
+Checking src/ui/controllers/AutoLockManager.cc ...
+29/60 files checked 48% done
+Checking src/ui/controllers/ClipboardManager.cc ...
+30/60 files checked 49% done
+Checking src/ui/controllers/SearchController.cc ...
+src/ui/controllers/SearchController.cc:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+src/ui/controllers/SearchController.cc:76:9: style: Consider using std::any_of algorithm instead of a raw loop. [useStlAlgorithm]
+        for (const auto& f : all_fields) {
+        ^
+31/60 files checked 50% done
+Checking src/ui/dialogs/ChangePasswordDialog.cc ...
+src/ui/dialogs/ChangePasswordDialog.cc:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+Checking src/ui/dialogs/ChangePasswordDialog.cc: HAVE_YUBIKEY_SUPPORT...
+32/60 files checked 51% done
+Checking src/ui/dialogs/CreatePasswordDialog.cc ...
+src/ui/dialogs/CreatePasswordDialog.cc:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+src/ui/dialogs/CreatePasswordDialog.h:62:5: style: Class 'CreatePasswordDialog' has a constructor with 1 argument that is not explicit. [noExplicitConstructor]
+    CreatePasswordDialog(Gtk::Window& parent);
+    ^
+src/core/CommonPasswords.h:299:5: style: Consider using std::any_of algorithm instead of a raw loop. [useStlAlgorithm]
+    for (const auto& common : COMMON_PASSWORDS) {
+    ^
+src/core/CommonPasswords.h:307:5: style: Consider using std::any_of algorithm instead of a raw loop. [useStlAlgorithm]
+    for (const auto& common : COMMON_PASSWORDS) {
+    ^
+Checking src/ui/dialogs/CreatePasswordDialog.cc: HAVE_YUBIKEY_SUPPORT...
+33/60 files checked 53% done
+Checking src/ui/dialogs/GroupCreateDialog.cc ...
+src/ui/dialogs/GroupCreateDialog.h:23:5: style: Class 'GroupCreateDialog' has a constructor with 1 argument that is not explicit. [noExplicitConstructor]
+    GroupCreateDialog(Gtk::Window& parent);
+    ^
+34/60 files checked 53% done
+Checking src/ui/dialogs/GroupRenameDialog.cc ...
+35/60 files checked 53% done
+Checking src/ui/dialogs/PasswordDialog.cc ...
+36/60 files checked 53% done
+Checking src/ui/dialogs/PreferencesDialog.cc ...
+src/ui/dialogs/PreferencesDialog.cc:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+src/ui/dialogs/PreferencesDialog.cc:1758:49: style: Consider using std::find_if algorithm instead of a raw loop. [useStlAlgorithm]
+        if (user.username == session->username) {
+                                                ^
+Checking src/ui/dialogs/PreferencesDialog.cc: ENABLE_ARGON2...
+Checking src/ui/dialogs/PreferencesDialog.cc: HAVE_YUBIKEY_SUPPORT...
+37/60 files checked 63% done
+Checking src/ui/dialogs/UserManagementDialog.cc ...
+src/ui/dialogs/UserManagementDialog.cc:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+src/ui/dialogs/UserManagementDialog.cc:615:19: style: Consider using std::count_if algorithm instead of a raw loop. [useStlAlgorithm]
+                ++admin_count;
+                  ^
+Checking src/ui/dialogs/UserManagementDialog.cc: ENABLE_ARGON2...
+Checking src/ui/dialogs/UserManagementDialog.cc: HAVE_YUBIKEY_SUPPORT...
+38/60 files checked 65% done
+Checking src/ui/dialogs/V2UserLoginDialog.cc ...
+39/60 files checked 66% done
+Checking src/ui/dialogs/VaultMigrationDialog.cc ...
+src/ui/dialogs/VaultMigrationDialog.cc:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+40/60 files checked 67% done
+Checking src/ui/dialogs/YubiKeyManagerDialog.cc ...
+Checking src/ui/dialogs/YubiKeyManagerDialog.cc: HAVE_YUBIKEY_SUPPORT...
+src/ui/dialogs/YubiKeyManagerDialog.cc:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+src/ui/dialogs/YubiKeyManagerDialog.cc:58:70: style: Parameter 'row' can be declared as pointer to const [constParameterPointer]
+    m_key_list.signal_row_selected().connect([this](Gtk::ListBoxRow* row) {
+                                                                     ^
+src/ui/dialogs/YubiKeyManagerDialog.cc:129:26: style: Variable 'tm_ptr' can be declared as pointer to const [constVariablePointer]
+                std::tm* tm_ptr = std::localtime(&timestamp);
+                         ^
+41/60 files checked 68% done
+Checking src/ui/dialogs/YubiKeyPromptDialog.cc ...
+42/60 files checked 68% done
+Checking src/ui/managers/AccountEditHandler.cc ...
+src/ui/managers/AccountEditHandler.cc:275:0: style: Consider using std::find_if algorithm instead of a raw loop. [useStlAlgorithm]
+        if (accounts[i].id() == account_id) return static_cast<int>(i);
+^
+Checking src/ui/managers/AccountEditHandler.cc: HAVE_YUBIKEY_SUPPORT...
+43/60 files checked 69% done
+Checking src/ui/managers/AutoLockHandler.cc ...
+src/ui/managers/AutoLockHandler.cc:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+src/ui/managers/AutoLockHandler.cc:369:30: style: Unused private function: 'AutoLockHandler::get_master_password_for_lock' [unusedPrivateFunction]
+std::string AutoLockHandler::get_master_password_for_lock() {
+                             ^
+src/ui/managers/AutoLockHandler.h:122:17: note: Unused private function: 'AutoLockHandler::get_master_password_for_lock'
+    std::string get_master_password_for_lock();
+                ^
+src/ui/managers/AutoLockHandler.cc:369:30: note: Unused private function: 'AutoLockHandler::get_master_password_for_lock'
+std::string AutoLockHandler::get_master_password_for_lock() {
+                             ^
+Checking src/ui/managers/AutoLockHandler.cc: ENABLE_ARGON2...
+Checking src/ui/managers/AutoLockHandler.cc: HAVE_YUBIKEY_SUPPORT...
+44/60 files checked 71% done
+Checking src/ui/managers/DialogManager.cc ...
+Checking src/ui/managers/DialogManager.cc: HAVE_YUBIKEY_SUPPORT...
+45/60 files checked 72% done
+Checking src/ui/managers/GroupHandler.cc ...
+Checking src/ui/managers/GroupHandler.cc: HAVE_YUBIKEY_SUPPORT...
+46/60 files checked 73% done
+Checking src/ui/managers/MenuManager.cc ...
+src/ui/managers/MenuManager.cc:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+src/ui/managers/MenuManager.cc:157:54: style: Consider using std::find_if algorithm instead of a raw loop. [useStlAlgorithm]
+                        if (group.group_id() == gid) {
+                                                     ^
+Checking src/ui/managers/MenuManager.cc: HAVE_YUBIKEY_SUPPORT...
+47/60 files checked 73% done
+Checking src/ui/managers/UIStateManager.cc ...
+Checking src/ui/managers/UIStateManager.cc: HAVE_YUBIKEY_SUPPORT...
+48/60 files checked 74% done
+Checking src/ui/managers/UserAccountHandler.cc ...
+src/ui/managers/UserAccountHandler.cc:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+src/ui/managers/UserAccountHandler.cc:62:10: style: Variable 'yubikey_enrolled' is assigned a value that is never used. [unreadVariable]
+    bool yubikey_enrolled = false;
+         ^
+Checking src/ui/managers/UserAccountHandler.cc: HAVE_YUBIKEY_SUPPORT...
+src/ui/managers/UserAccountHandler.cc:66:73: style: Consider using std::any_of algorithm instead of a raw loop. [useStlAlgorithm]
+        if (user.username == session.username && user.yubikey_enrolled) {
+                                                                        ^
+src/ui/managers/UserAccountHandler.cc:118:69: style: Consider using std::any_of algorithm instead of a raw loop. [useStlAlgorithm]
+            if (user.username == username && user.yubikey_enrolled) {
+                                                                    ^
+49/60 files checked 75% done
+Checking src/ui/managers/V2AuthenticationHandler.cc ...
+src/ui/managers/V2AuthenticationHandler.cc:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+Checking src/ui/managers/V2AuthenticationHandler.cc: HAVE_YUBIKEY_SUPPORT...
+src/ui/managers/V2AuthenticationHandler.cc:211:69: style: Consider using std::any_of algorithm instead of a raw loop. [useStlAlgorithm]
+            if (user.username == username && user.yubikey_enrolled) {
+                                                                    ^
+50/60 files checked 78% done
+Checking src/ui/managers/VaultIOHandler.cc ...
+src/ui/managers/VaultIOHandler.cc:64:23: style: Variable 'accounts' can be declared as reference to const [constVariableReference]
+                auto& accounts = result.value();
+                      ^
+Checking src/ui/managers/VaultIOHandler.cc: HAVE_YUBIKEY_SUPPORT...
+src/ui/managers/VaultIOHandler.cc:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+src/ui/managers/VaultIOHandler.cc:274:21: warning: Either the condition 'touch_dialog' is redundant or there is possible null pointer dereference: touch_dialog. [nullPointerRedundantCheck]
+                    touch_dialog->present();
+                    ^
+src/ui/managers/VaultIOHandler.cc:289:25: note: Assuming that condition 'touch_dialog' is not redundant
+                    if (touch_dialog) {
+                        ^
+src/ui/managers/VaultIOHandler.cc:274:21: note: Null pointer dereference
+                    touch_dialog->present();
+                    ^
+51/60 files checked 81% done
+Checking src/ui/managers/VaultOpenHandler.cc ...
+src/ui/managers/VaultOpenHandler.cc:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+Checking src/ui/managers/VaultOpenHandler.cc: ENABLE_ARGON2...
+Checking src/ui/managers/VaultOpenHandler.cc: HAVE_YUBIKEY_SUPPORT...
+52/60 files checked 83% done
+Checking src/ui/managers/YubiKeyHandler.cc ...
+Checking src/ui/managers/YubiKeyHandler.cc: HAVE_YUBIKEY_SUPPORT...
+53/60 files checked 83% done
+Checking src/ui/widgets/AccountDetailWidget.cc ...
+src/ui/widgets/AccountDetailWidget.cc:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+54/60 files checked 85% done
+Checking src/ui/widgets/AccountRowWidget.cc ...
+src/ui/widgets/AccountRowWidget.h:60:17: performance: Function 'account_id()' should return member 'm_account_id' by const reference. [returnByReference]
+    std::string account_id() const;
+                ^
+src/ui/widgets/AccountRowWidget.cc:166:9: performance: Inefficient usage of string::find() in condition; string::starts_with() could be faster. [stlIfStrFind]
+    if (dropped_data.find("account:") == 0) {
+        ^
+55/60 files checked 86% done
+Checking src/ui/widgets/AccountTreeWidget.cc ...
+src/ui/widgets/AccountTreeWidget.cc:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+src/ui/widgets/AccountTreeWidget.cc:126:29: style: Consider using std::copy_if algorithm instead of a raw loop. [useStlAlgorithm]
+            favorite_indices.push_back(i);
+                            ^
+src/ui/widgets/AccountTreeWidget.cc:464:69: style: Consider using std::find_if algorithm instead of a raw loop. [useStlAlgorithm]
+        if (account_row && account_row->account_id() == account_id) {
+                                                                    ^
+56/60 files checked 88% done
+Checking src/ui/widgets/GroupRowWidget.cc ...
+src/ui/widgets/GroupRowWidget.h:58:17: performance: Function 'group_id()' should return member 'm_group_id' by const reference. [returnByReference]
+    std::string group_id() const;
+                ^
+src/ui/widgets/GroupRowWidget.cc:151:62: style: C-style pointer casting [cstyleCast]
+    g_debug("  Widget visible=%d, parent=%p", get_visible(), (void*)get_parent());
+                                                             ^
+src/ui/widgets/GroupRowWidget.cc:232:9: performance: Inefficient usage of string::find() in condition; string::starts_with() could be faster. [stlIfStrFind]
+    if (dropped_data.find("account:") == 0) {
+        ^
+src/ui/widgets/GroupRowWidget.cc:240:16: performance: Inefficient usage of string::find() in condition; string::starts_with() could be faster. [stlIfStrFind]
+    } else if (dropped_data.find("group:") == 0) {
+               ^
+57/60 files checked 88% done
+Checking src/ui/windows/MainWindow.cc ...
+src/ui/windows/MainWindow.cc:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+src/ui/windows/MainWindow.cc:509:14: style: Local variable 'settings' shadows outer variable [shadowVariable]
+        auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
+             ^
+src/ui/windows/MainWindow.cc:65:10: note: Shadowed declaration
+    auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
+         ^
+src/ui/windows/MainWindow.cc:509:14: note: Shadow variable
+        auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
+             ^
+src/ui/windows/MainWindow.cc:440:70: style: Consider using std::find_if algorithm instead of a raw loop. [useStlAlgorithm]
+                    if (group.group_id() == m_context_menu_group_id) {
+                                                                     ^
+src/ui/windows/MainWindow.cc:1683:0: style: Consider using std::find_if algorithm instead of a raw loop. [useStlAlgorithm]
+        if (accounts[i].id() == account_id) return static_cast<int>(i);
+^
+Checking src/ui/windows/MainWindow.cc: ENABLE_ARGON2...
+Checking src/ui/windows/MainWindow.cc: HAVE_YUBIKEY_SUPPORT...
+58/60 files checked 96% done
+Checking src/utils/ImportExport.cc ...
+src/utils/ImportExport.cc:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+src/utils/ImportExport.cc:189:27: style: Condition 'fields.size()>1' is always true [knownConditionTrueFalse]
+        if (fields.size() > 1 && !fields[1].empty()) record.set_user_name(fields[1]);
+                          ^
+src/utils/ImportExport.cc:181:27: note: Assuming that condition 'fields.size()<2' is not redundant
+        if (fields.size() < 2) {
+                          ^
+src/utils/ImportExport.cc:189:27: note: Condition 'fields.size()>1' is always true
+        if (fields.size() > 1 && !fields[1].empty()) record.set_user_name(fields[1]);
+                          ^
+src/utils/ImportExport.cc:95:17: style: The scope of the variable 'unescaped' can be reduced. [variableScope]
+    std::string unescaped;
+                ^
+src/utils/ImportExport.cc:581:30: performance: Constructing a std::string_view from the result of c_str() is slow and redundant. [stlcstrConstructor]
+            std::string_view entry{content.data() + pos, end - pos + 8};
+                             ^
+Checking src/utils/ImportExport.cc: __cpp_lib_format...
+59/60 files checked 99% done
+Checking src/utils/helpers/HelpManager.cc ...
+src/utils/helpers/HelpManager.cc:202:26: style: Unused private function: 'HelpManager::topic_to_name' [unusedPrivateFunction]
+std::string HelpManager::topic_to_name(HelpTopic topic) {
+                         ^
+src/utils/helpers/HelpManager.h:156:24: note: Unused private function: 'HelpManager::topic_to_name'
+    static std::string topic_to_name(HelpTopic topic);
+                       ^
+src/utils/helpers/HelpManager.cc:202:26: note: Unused private function: 'HelpManager::topic_to_name'
+std::string HelpManager::topic_to_name(HelpTopic topic) {
+                         ^
+src/utils/helpers/HelpManager.cc:115:41: style: Consider using std::find_if algorithm instead of a raw loop. [useStlAlgorithm]
+        if (file_exists(path.string())) {
+                                        ^
+60/60 files checked 100% done

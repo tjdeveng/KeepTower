@@ -2,7 +2,7 @@
 
 **Project:** KeepTower
 
-**Last updated:** 2026-01-26
+**Last updated:** 2026-02-01
 
 **Purpose:** Provide a repeatable audit plan to ensure the codebase complies with:
 - Repository contribution standards (root `CONTRIBUTING.md`)
@@ -18,6 +18,12 @@ This document is intentionally actionable: it lists what to check, how to check 
 
 ### In-scope
 - `src/` (core logic, crypto, vault format, I/O, UI)
+  - **Security-critical focus:**
+    - `src/core/crypto/`, `src/core/services/VaultCryptoService.cc`
+    - `src/core/io/`, `src/core/services/VaultFileService.cc`
+    - `src/core/VaultManager*.cc` (vault lifecycle + crypto orchestration)
+    - `src/core/managers/YubiKeyManager*.cc`, `src/core/services/VaultYubiKeyService.cc`
+    - `src/ui/managers/*Authentication*`, `src/ui/managers/*Vault*`, `src/ui/dialogs/PreferencesDialog.cc`
 - `tests/` (unit/integration tests, security tests)
 - Build + CI configuration (`meson.build`, `meson_options.txt`, workflows, scripts)
 - Security/FIPS docs and implementation coupling
@@ -27,11 +33,38 @@ This document is intentionally actionable: it lists what to check, how to check 
 - OS-level packaging beyond project scripts
 
 ### Pass/Fail Gates (minimum bar)
-- **Security:** no open Critical/High findings in crypto, secrets handling, or file I/O.
-- **Memory safety:** ASan/UBSan (and LeakSanitizer if available) show no actionable issues in gating test suites.
-- **FIPS-ready mode:** when FIPS mode is enabled, crypto operations are routed through OpenSSL 3.x provider APIs and use approved algorithms only.
-- **Maintainability:** critical modules have clear boundaries; no “god objects” in security-critical paths without a remediation ticket.
-- **Regression prevention:** audit produces a backlog and at least one CI gate recommendation.
+
+#### Gate A — Build (blocking)
+- `meson setup <builddir>` succeeds with project-default options.
+- `ninja -C <builddir>` succeeds with no new warnings introduced by audit-driven changes.
+
+#### Gate B — Security Test Set (blocking)
+The following Meson tests pass (use `--print-errorlogs`):
+- `"FIPS Mode Tests"`
+- `"Memory Locking Security Tests"`
+- `vault_crypto`
+- `"VaultCryptoService Unit Tests"`
+- `vault_io`
+- `"VaultFileService Unit Tests"`
+- `"UI Security Tests"`
+- `--suite migration` (Username Hash migration suite)
+
+#### Gate C — Sanitizers (blocking for audit sign-off)
+- ASan/UBSan (and LSan when available) show no actionable issues when running the Gate B test set.
+
+#### Gate D — FIPS-ready behavior (blocking)
+- When FIPS mode is enabled, the code path enforces FIPS-approved algorithms for all crypto operations (not “best effort”).
+- Behavior is explicit and test-covered:
+  - FIPS provider available + enabled → operations succeed using approved algorithms
+  - FIPS provider unavailable → app refuses to enter “FIPS enabled” state (or clearly signals degraded mode)
+
+#### Gate E — Findings threshold (blocking)
+- **Security:** no open Critical/High findings in crypto, secrets handling, file I/O, or migration/backup integrity.
+- **Maintainability:** any SRP boundary violations in critical paths have a remediation ticket with an owner + milestone (even if not fixed immediately).
+
+Deliverables for this section:
+- A filled component map: `docs/audits/COMPLIANCE_COMPONENT_MAP.md`
+- A short “gates evidence” note (commands + outputs) captured in the audit report.
 
 ---
 
