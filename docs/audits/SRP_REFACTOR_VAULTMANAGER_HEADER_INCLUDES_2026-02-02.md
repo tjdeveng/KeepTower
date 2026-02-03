@@ -22,6 +22,7 @@ This is an SRP/maintainability refactor intended to be behavior-preserving.
 
 ### Build
 - `meson compile -C build` (OK)
+- `meson compile -C build-asan` (OK) *(verification run 2026-02-03)*
 
 ### Focused Test Runs
 - `meson test -C build --print-errorlogs "FIPS Mode Tests"` (OK)
