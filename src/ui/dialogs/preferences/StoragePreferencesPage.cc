@@ -5,6 +5,7 @@
 
 #include "../../../core/VaultManager.h"
 #include "../../../utils/Log.h"
+#include "../../../utils/StringHelpers.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -205,7 +206,7 @@ void StoragePreferencesPage::load_from_model(const PreferencesModel& model) {
     m_backup_enabled_check.set_active(model.backup_enabled);
     m_backup_count_spin.set_value(std::clamp(model.backup_count, MIN_BACKUP_COUNT, MAX_BACKUP_COUNT));
 
-    m_backup_path_entry.set_text(model.backup_path);
+    m_backup_path_entry.set_text(KeepTower::make_valid_utf8(model.backup_path, "backup_path"));
 
     on_rs_enabled_toggled();
     on_backup_enabled_toggled();
@@ -285,7 +286,7 @@ void StoragePreferencesPage::on_backup_path_browse() {
         try {
             auto folder = dialog->select_folder_finish(result);
             if (folder) {
-                m_backup_path_entry.set_text(folder->get_path());
+                m_backup_path_entry.set_text(KeepTower::make_valid_utf8(folder->get_path(), "backup_path"));
             }
         } catch (const Gtk::DialogError& err) {
             if (err.code() != Gtk::DialogError::DISMISSED) {

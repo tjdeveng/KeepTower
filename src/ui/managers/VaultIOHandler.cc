@@ -5,6 +5,7 @@
 #include "VaultIOHandler.h"
 #include "DialogManager.h"
 #include "../../utils/Log.h"
+#include "../../utils/StringHelpers.h"
 #include "../../utils/ImportExport.h"
 #include "../windows/MainWindow.h"
 #include "../dialogs/PasswordDialog.h"
@@ -215,7 +216,12 @@ void VaultIOHandler::show_export_password_dialog(const std::string& current_vaul
             if (is_v2_vault) {
                 current_username = m_vault_manager->get_current_username();
                 if (!current_username.empty()) {
-                    password_dialog->set_title(std::format("Authenticate to Export (User: {})", current_username));
+                    password_dialog->set_title(
+                        KeepTower::make_valid_utf8(
+                            std::format("Authenticate to Export (User: {})", current_username),
+                            "export_dialog_title"
+                        )
+                    );
                 } else {
                     password_dialog->set_title("Authenticate to Export");
                 }

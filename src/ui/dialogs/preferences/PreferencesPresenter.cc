@@ -91,9 +91,15 @@ PreferencesModel PreferencesPresenter::load() const {
     model.rs_redundancy_percent = std::clamp(model.rs_redundancy_percent, MIN_REDUNDANCY, MAX_REDUNDANCY);
 
     // Backups
-    model.backup_enabled = m_settings->get_boolean("backup-enabled");
-    model.backup_count = std::clamp(m_settings->get_int("backup-count"), MIN_BACKUP_COUNT, MAX_BACKUP_COUNT);
-    model.backup_path = m_settings->get_string("backup-path");
+    if (model.vault_open) {
+        model.backup_enabled = m_vault_manager->is_backup_enabled();
+        model.backup_count = std::clamp(m_vault_manager->get_backup_count(), MIN_BACKUP_COUNT, MAX_BACKUP_COUNT);
+        model.backup_path = m_vault_manager->get_backup_path();
+    } else {
+        model.backup_enabled = m_settings->get_boolean("backup-enabled");
+        model.backup_count = std::clamp(m_settings->get_int("backup-count"), MIN_BACKUP_COUNT, MAX_BACKUP_COUNT);
+        model.backup_path = m_settings->get_string("backup-path");
+    }
 
     // Security
     if (model.vault_open) {

@@ -993,6 +993,27 @@ clipboard_manager_test = executable(
 
 test('clipboard_manager', clipboard_manager_test)
 
+# ThemeController tests (Issue #5 refactor)
+theme_controller_test_sources = [
+    'test_theme_controller.cc',
+    '../src/ui/controllers/ThemeController.cc'
+]
+
+theme_controller_test_deps = [
+    gtest_dep,
+    gtkmm_dep,
+    giomm_dep
+]
+
+theme_controller_test = executable(
+    'theme_controller_test',
+    theme_controller_test_sources,
+    dependencies: theme_controller_test_deps,
+    include_directories: test_inc
+)
+
+test('theme_controller', theme_controller_test, env: ['GSETTINGS_SCHEMA_DIR=' + meson.project_build_root() / 'data'])
+
 # AccountRepository tests (Phase 2 refactoring)
 account_repository_test_sources = [
     'test_account_repository.cc',

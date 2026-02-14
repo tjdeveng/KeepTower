@@ -175,7 +175,9 @@ dialog->signal_response().connect([=](int response) {
     // Removed unused 'this' capture
 ```
 
-#### UIStateManager.h + UIStateManager.cc (1 signature)
+#### UIStateManager.h + UIStateManager.cc (1 signature, later renamed)
+
+> Note: `UIStateManager` was later renamed to `VaultUiStateApplier`, and session/menu synchronization moved into `VaultUiCoordinator`. This section is retained as a historical record of the signature clean-up.
 
 **Fixed method:**
 ```cpp

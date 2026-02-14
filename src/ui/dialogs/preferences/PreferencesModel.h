@@ -30,11 +30,13 @@ struct PreferencesModel {
     bool rs_enabled = false;  ///< Enable Reed-Solomon error correction
     int rs_redundancy_percent = 10;  ///< Reed-Solomon redundancy percentage
 
-    bool backup_enabled = false;  ///< Enable automatic backups
-    int backup_count = 5;  ///< Number of backups to keep
-    std::string backup_path;  ///< Backup directory path (empty = vault directory)
+    bool backup_enabled = false;  ///< Enable automatic backups (vault-scoped when vault_open)
+    int backup_count = 5;  ///< Number of backups to keep (vault-scoped when vault_open)
+    std::string backup_path;  ///< Backup directory path (empty = vault directory). Applied to open vault when available.
 
-    // Account security (vault policy when vault open; defaults otherwise)
+    // Account security
+    // When a vault is open these are typically vault-scoped; implementations may
+    // fall back to GSettings defaults if the vault does not store the value.
     int clipboard_timeout_seconds = 30;  ///< Clipboard clear timeout in seconds
 
     bool account_password_history_enabled = false;  ///< Prevent account password reuse

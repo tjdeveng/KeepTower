@@ -15,6 +15,12 @@ namespace KeepTower::Ui {
  *
  * This page includes clipboard protection options, account password history
  * controls, and undo/redo preferences.
+ *
+ * When a vault is open, these settings are typically applied to the open vault
+ * (vault-scoped). When no vault is open, values represent application defaults.
+ *
+ * @note The owning PreferencesDialog may hide this page when a vault is open
+ *       and the current user is not an administrator.
  */
 class AccountSecurityPreferencesPage final : public Gtk::Box {
 public:

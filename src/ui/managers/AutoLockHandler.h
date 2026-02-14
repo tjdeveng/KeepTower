@@ -19,13 +19,13 @@ namespace UI {
 
 // Forward declarations
 class DialogManager;
-class UIStateManager;
+class VaultUiStateApplier;
 
 /**
  * @brief Handles auto-lock and activity monitoring functionality
  *
  * Phase 5k: Extracted from MainWindow to centralize auto-lock behavior,
- * activity monitoring, and vault locking/unlocking logic.
+class VaultUiCoordinator;
  */
 class AutoLockHandler {
 public:
@@ -57,16 +57,21 @@ public:
      *  @return Current search text from search entry */
     using GetSearchTextCallback = std::function<Glib::ustring()>;
 
+    /** @brief Callback to apply lock/unlock UI changes (coordinator-owned)
+     *  @param locked Whether the vault is locked
+     *  @param status Optional status message to display */
+    using ApplyLockUiCallback = std::function<void(bool locked, const std::string& status)>;
+
     /** @brief Construct AutoLockHandler with dependencies
      *  @param window Parent window for event monitoring
      *  @param vault_manager VaultManager instance
      *  @param auto_lock_manager AutoLockManager instance for timer management
      *  @param dialog_manager DialogManager for password dialogs
-     *  @param ui_state_manager UIStateManager for UI state updates
      *  @param vault_open_ref Reference to MainWindow vault_open flag
      *  @param is_locked_ref Reference to MainWindow is_locked flag
      *  @param current_vault_path_ref Reference to MainWindow current vault path
      *  @param cached_master_password_ref Reference to cached master password
+    *  @param apply_lock_ui_callback Callback to apply lock/unlock UI updates
      *  @param save_account_callback Callback to save current account
      *  @param close_vault_callback Callback to close vault
      *  @param update_account_list_callback Callback to refresh account list
@@ -79,11 +84,11 @@ public:
                    VaultManager* vault_manager,
                    KeepTower::AutoLockManager* auto_lock_manager,
                    DialogManager* dialog_manager,
-                   UIStateManager* ui_state_manager,
                    bool& vault_open_ref,
                    bool& is_locked_ref,
                    Glib::ustring& current_vault_path_ref,
                    std::string& cached_master_password_ref,
+                   ApplyLockUiCallback apply_lock_ui_callback,
                    SaveAccountCallback save_account_callback,
                    CloseVaultCallback close_vault_callback,
                    UpdateAccountListCallback update_account_list_callback,
@@ -125,13 +130,14 @@ private:
     VaultManager* m_vault_manager;
     KeepTower::AutoLockManager* m_auto_lock_manager;
     DialogManager* m_dialog_manager;
-    UIStateManager* m_ui_state_manager;
 
     // References to MainWindow state (to be eliminated in Phase 6)
     bool& m_vault_open;
     bool& m_is_locked;
     Glib::ustring& m_current_vault_path;
     std::string& m_cached_master_password;
+
+    ApplyLockUiCallback m_apply_lock_ui_callback;
 
     // Callbacks for MainWindow operations
     SaveAccountCallback m_save_account_callback;

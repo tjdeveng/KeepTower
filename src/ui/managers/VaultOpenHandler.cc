@@ -3,7 +3,6 @@
 
 #include "VaultOpenHandler.h"
 #include "DialogManager.h"
-#include "UIStateManager.h"
 #include "../../core/VaultManager.h"
 #include "../../utils/SettingsValidator.h"
 #include "../../utils/StringHelpers.h"
@@ -24,7 +23,6 @@ namespace UI {
 VaultOpenHandler::VaultOpenHandler(Gtk::Window& window,
                                   VaultManager* vault_manager,
                                   DialogManager* dialog_manager,
-                                  UIStateManager* ui_state_manager,
                                   bool& vault_open_ref,
                                   bool& is_locked_ref,
                                   Glib::ustring& current_vault_path_ref,
@@ -33,18 +31,10 @@ VaultOpenHandler::VaultOpenHandler(Gtk::Window& window,
                                   InfoDialogCallback info_dialog_callback,
                                   DetectVaultVersionCallback detect_vault_version_callback,
                                   HandleV2VaultOpenCallback handle_v2_vault_open_callback,
-                                  InitializeRepositoriesCallback initialize_repositories_callback,
-                                  UpdateAccountListCallback update_account_list_callback,
-                                  UpdateTagFilterCallback update_tag_filter_callback,
-                                  ClearAccountDetailsCallback clear_account_details_callback,
-                                  UpdateUndoRedoSensitivityCallback update_undo_redo_sensitivity_callback,
-                                  UpdateMenuForRoleCallback update_menu_for_role_callback,
-                                  UpdateSessionDisplayCallback update_session_display_callback,
-                                  OnUserActivityCallback on_user_activity_callback)
+                                  OnVaultOpenedCallback on_vault_opened_callback)
     : m_window(window)
     , m_vault_manager(vault_manager)
     , m_dialog_manager(dialog_manager)
-    , m_ui_state_manager(ui_state_manager)
     , m_vault_open(vault_open_ref)
     , m_is_locked(is_locked_ref)
     , m_current_vault_path(current_vault_path_ref)
@@ -53,14 +43,7 @@ VaultOpenHandler::VaultOpenHandler(Gtk::Window& window,
     , m_info_dialog_callback(std::move(info_dialog_callback))
     , m_detect_vault_version_callback(std::move(detect_vault_version_callback))
     , m_handle_v2_vault_open_callback(std::move(handle_v2_vault_open_callback))
-    , m_initialize_repositories_callback(std::move(initialize_repositories_callback))
-    , m_update_account_list_callback(std::move(update_account_list_callback))
-    , m_update_tag_filter_callback(std::move(update_tag_filter_callback))
-    , m_clear_account_details_callback(std::move(clear_account_details_callback))
-    , m_update_undo_redo_sensitivity_callback(std::move(update_undo_redo_sensitivity_callback))
-    , m_update_menu_for_role_callback(std::move(update_menu_for_role_callback))
-    , m_update_session_display_callback(std::move(update_session_display_callback))
-    , m_on_user_activity_callback(std::move(on_user_activity_callback))
+    , m_on_vault_opened_callback(std::move(on_vault_opened_callback))
 {
 }
 
@@ -165,30 +148,14 @@ void VaultOpenHandler::handle_new_vault() {
                                 KeepTower::Log::error("Failed to save vault with default preferences");
                             }
 
-                            // Phase 5: Use UIStateManager for vault opened state
-                            m_ui_state_manager->set_vault_opened(vault_path, admin_username);
-
-                            // Update MainWindow state references to mark vault as open
+                            // Update state references to mark vault as open
                             m_vault_open = true;
                             m_is_locked = false;
                             m_current_vault_path = vault_path;
 
-                            // Phase 2: Initialize repositories for data access
-                            m_initialize_repositories_callback();
-
-                            m_update_account_list_callback();
-                            m_update_tag_filter_callback();
-                            m_clear_account_details_callback();
-
-                            // Initialize undo/redo state
-                            m_update_undo_redo_sensitivity_callback(false, false);
-
-                            // Update menu for V2 vault (enable user management, etc.)
-                            m_update_menu_for_role_callback();
-                            m_update_session_display_callback();
-
-                            // Start activity monitoring for auto-lock
-                            m_on_user_activity_callback();
+                            if (m_on_vault_opened_callback) {
+                                m_on_vault_opened_callback(vault_path, std::string{admin_username});
+                            }
 
                             // Show success dialog with username reminder
                             m_info_dialog_callback(
@@ -375,28 +342,16 @@ void VaultOpenHandler::handle_open_vault() {
 #endif
 
                     if (result) {
-                        // Phase 5: Use UIStateManager for vault opened state
-                        m_ui_state_manager->set_vault_opened(vault_path);
-
-                    // Maintain local state cache for quick access without VaultManager queries
-                        // Phase 2: Initialize repositories for data access
-                        m_initialize_repositories_callback();
+                        m_vault_open = true;
+                        m_is_locked = false;
+                        m_current_vault_path = vault_path;
 
                         // Cache password for auto-lock/unlock
                         m_cached_master_password = KeepTower::safe_ustring_to_string(password, "master_password");
 
-                        m_update_account_list_callback();
-                        m_update_tag_filter_callback();
-
-                        // Initialize undo/redo state
-                        m_update_undo_redo_sensitivity_callback(false, false);
-
-                        // Update menu for V2 vault if applicable
-                        m_update_menu_for_role_callback();
-                        m_update_session_display_callback();
-
-                        // Start activity monitoring for auto-lock
-                        m_on_user_activity_callback();
+                        if (m_on_vault_opened_callback) {
+                            m_on_vault_opened_callback(vault_path, "");
+                        }
                     } else {
                         constexpr std::string_view error_msg{"Failed to open vault"};
                         auto error_dialog = Gtk::make_managed<Gtk::MessageDialog>(m_window, std::string{error_msg},

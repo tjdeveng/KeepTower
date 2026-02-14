@@ -5,6 +5,7 @@
 
 #include "../../../core/VaultManager.h"
 #include "../../../utils/Log.h"
+#include "../../../utils/StringHelpers.h"
 
 #include <algorithm>
 #include <stdexcept>
@@ -736,7 +737,9 @@ void VaultSecurityPreferencesPage::update_vault_password_history_ui() noexcept {
         return;
     }
 
-    m_current_user_label.set_text("Logged in as: " + Glib::ustring(session->username));
+    m_current_user_label.set_text(
+        KeepTower::make_valid_utf8(std::string{"Logged in as: "} + session->username, "session_username")
+    );
 
     const auto users = m_vault_manager->list_users();
     size_t history_count = 0;

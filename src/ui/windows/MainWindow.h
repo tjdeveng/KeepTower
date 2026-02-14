@@ -44,6 +44,7 @@ namespace Gtk { class Box; class HeaderBar; class Button; class MenuButton; clas
 // Phase 1: View controllers for improved maintainability
 #include "../controllers/AccountViewController.h"
 #include "../controllers/SearchController.h"
+#include "../controllers/ThemeController.h"
 #include "../controllers/AutoLockManager.h"
 #include "../controllers/ClipboardManager.h"
 
@@ -58,7 +59,7 @@ namespace Gtk { class Box; class HeaderBar; class Button; class MenuButton; clas
 // Phase 5: Manager classes for MainWindow reduction
 #include "../managers/DialogManager.h"
 #include "../managers/MenuManager.h"
-#include "../managers/UIStateManager.h"
+#include "../managers/VaultUiStateApplier.h"
 #include "../managers/V2AuthenticationHandler.h"
 #include "../managers/VaultIOHandler.h"
 #include "../managers/YubiKeyHandler.h"
@@ -66,7 +67,9 @@ namespace Gtk { class Box; class HeaderBar; class Button; class MenuButton; clas
 #include "../managers/AccountEditHandler.h"
 #include "../managers/AutoLockHandler.h"
 #include "../managers/UserAccountHandler.h"
-#include "../managers/VaultOpenHandler.h"
+
+// Coordinators
+#include "../coordinators/VaultUiCoordinator.h"
 
 /**
  * @namespace UI
@@ -343,17 +346,11 @@ protected:
     // [REMOVED] Legacy TreeModel columns (migrated to AccountTreeWidget)
 
     // State
-    bool m_vault_open;                        ///< True if a vault is currently open
     bool m_updating_selection;                ///< Prevent recursive selection change handling
-    bool m_is_locked;                         ///< Vault is locked, requires re-authentication
-    Glib::ustring m_current_vault_path;       ///< Path to currently open vault file
-    std::string m_cached_master_password;     ///< Cached for re-opening after lock (cleared on close)
     int m_selected_account_index;             ///< Currently selected account index (-1 if none)
     std::vector<int> m_filtered_indices;      ///< Indices matching current search filter
     sigc::connection m_row_inserted_conn;     ///< Connection for detecting drag-and-drop reordering
     std::vector<sigc::connection> m_signal_connections;  ///< Persistent widget signal connections
-    Glib::RefPtr<Gio::Settings> m_desktop_settings;      ///< GNOME desktop settings for theme monitoring
-    sigc::connection m_theme_changed_connection;         ///< Connection for system theme changes
 
     // Context menu state
     std::string m_context_menu_account_id;  ///< Account ID for current context menu
@@ -383,21 +380,25 @@ protected:
     // Phase 1: View controllers (reduce MainWindow complexity)
     std::unique_ptr<AccountViewController> m_account_controller;  ///< Manages account list logic
     std::unique_ptr<SearchController> m_search_controller;        ///< Manages search/filter logic
+    std::unique_ptr<ThemeController> m_theme_controller;          ///< Applies/monitors app theme preference
     std::unique_ptr<KeepTower::AutoLockManager> m_auto_lock_manager;         ///< Manages inactivity timeout
     std::unique_ptr<KeepTower::ClipboardManager> m_clipboard_manager;        ///< Manages clipboard auto-clear
 
     // Phase 5: Managers for MainWindow reduction
     std::unique_ptr<UI::DialogManager> m_dialog_manager;          ///< Centralized dialog management
     std::unique_ptr<UI::MenuManager> m_menu_manager;              ///< Centralized menu management
-    std::unique_ptr<UI::UIStateManager> m_ui_state_manager;       ///< Centralized state management
+    std::unique_ptr<UI::VaultUiStateApplier> m_vault_ui_state_applier;       ///< Applies vault UI state to widgets
     std::unique_ptr<UI::V2AuthenticationHandler> m_v2_auth_handler; ///< V2 vault authentication
     std::unique_ptr<UI::VaultIOHandler> m_vault_io_handler;       ///< Import/Export/Migration
     std::unique_ptr<UI::YubiKeyHandler> m_yubikey_handler;        ///< YubiKey operations
     std::unique_ptr<UI::GroupHandler> m_group_handler;            ///< Group management
     std::unique_ptr<UI::AccountEditHandler> m_account_edit_handler; ///< Account editing
+
+    // Coordinators (must outlive handlers that bind to coordinator-owned state)
+    std::unique_ptr<VaultUiCoordinator> m_vault_ui_coordinator;   ///< Vault lifecycle orchestration
+
     std::unique_ptr<UI::AutoLockHandler> m_auto_lock_handler;     ///< Auto-lock and activity monitoring
     std::unique_ptr<UI::UserAccountHandler> m_user_account_handler; ///< V2 user account operations
-    std::unique_ptr<UI::VaultOpenHandler> m_vault_open_handler;   ///< Vault creation and opening
 };
 
 #endif // MAINWINDOW_H

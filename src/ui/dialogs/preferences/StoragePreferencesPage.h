@@ -17,7 +17,11 @@ namespace KeepTower::Ui {
  * @brief Preferences page for storage-related settings.
  *
  * Includes Reed-Solomon error correction settings and automatic backup options.
- * When a vault is open, some controls can apply to the current vault.
+ *
+ * Scope rules:
+ * - Reed-Solomon settings can be edited as application defaults, or (when a
+ *   vault is open) applied to the currently open vault.
+ * - Backup settings are treated as vault-scoped when a vault is open.
  */
 class StoragePreferencesPage final : public Gtk::Box {
 public:

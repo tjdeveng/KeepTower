@@ -29,6 +29,12 @@ class VaultSecurityPreferencesPage;
  * loads/saves state via KeepTower::Ui::PreferencesPresenter, and manages dialog
  * level behaviors such as Apply/Cancel and temporary theme preview.
  *
+ * Vault-scoped behavior:
+ * - When a vault is open, some settings are applied to (and persisted in) the
+ *   currently open vault.
+ * - The dialog may hide privileged pages when a vault is open and the current
+ *   user is not an administrator.
+ *
  * Theme preview behavior:
  * - Changes apply immediately when the user selects a different color scheme.
  * - The new scheme is persisted only when the user clicks Apply.

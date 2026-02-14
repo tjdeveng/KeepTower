@@ -49,9 +49,7 @@ MainWindow::MainWindow()
       m_search_box(Gtk::Orientation::HORIZONTAL, 12),
       m_paned(Gtk::Orientation::HORIZONTAL),
       m_status_label("No vault open"),
-      m_vault_open(false),
       m_updating_selection(false),
-      m_is_locked(false),
       m_selected_account_index(-1),
       m_vault_manager(std::make_unique<VaultManager>()),
       m_account_controller(nullptr),  // Initialized after vault_manager
@@ -64,94 +62,9 @@ MainWindow::MainWindow()
     // Load settings from GSettings
     auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
 
-    // Apply color scheme
-    Glib::ustring color_scheme = settings->get_string("color-scheme");
-    auto gtk_settings = Gtk::Settings::get_default();
-    if (gtk_settings) {
-        if (color_scheme == "light") {
-            gtk_settings->property_gtk_application_prefer_dark_theme() = false;
-        } else if (color_scheme == "dark") {
-            gtk_settings->property_gtk_application_prefer_dark_theme() = true;
-        } else {
-            // Default: follow system preference
-            // Try to read system color scheme from GNOME desktop settings
-            bool applied = false;
-            try {
-                m_desktop_settings = Gio::Settings::create("org.gnome.desktop.interface");
-                auto system_color_scheme = m_desktop_settings->get_string("color-scheme");
-                // color-scheme can be: "default", "prefer-dark", "prefer-light"
-                gtk_settings->property_gtk_application_prefer_dark_theme() = (system_color_scheme == "prefer-dark");
-                applied = true;
-
-                // Monitor system theme changes
-                m_theme_changed_connection = m_desktop_settings->signal_changed("color-scheme").connect(
-                    [this, gtk_settings]([[maybe_unused]] const Glib::ustring& key) {
-                        auto system_color_scheme = m_desktop_settings->get_string("color-scheme");
-                        gtk_settings->property_gtk_application_prefer_dark_theme() = (system_color_scheme == "prefer-dark");
-                    }
-                );
-            } catch (const std::exception& e) {
-                KeepTower::Log::debug("MainWindow: Could not monitor theme changes: {}", e.what());
-            } catch (...) {
-                KeepTower::Log::debug("MainWindow: Could not monitor theme changes (unknown error)");
-            }
-
-            if (!applied) {
-                // Fallback: Check GTK_THEME environment variable
-                const char* gtk_theme = std::getenv("GTK_THEME");
-                if (gtk_theme && std::string(gtk_theme).find("dark") != std::string::npos) {
-                    gtk_settings->property_gtk_application_prefer_dark_theme() = true;
-                } else {
-                    // Last resort: assume light theme
-                    gtk_settings->property_gtk_application_prefer_dark_theme() = false;
-                }
-            }
-        }
-    }
-
-    // Monitor app's color-scheme setting changes (when user changes it in preferences)
-    settings->signal_changed("color-scheme").connect([this]([[maybe_unused]] const Glib::ustring& key) {
-        auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
-        Glib::ustring color_scheme = settings->get_string("color-scheme");
-        auto gtk_settings = Gtk::Settings::get_default();
-        if (!gtk_settings) return;
-
-        // Disconnect any existing system theme monitoring
-        if (m_theme_changed_connection) {
-            m_theme_changed_connection.disconnect();
-        }
-
-        if (color_scheme == "light") {
-            gtk_settings->property_gtk_application_prefer_dark_theme() = false;
-        } else if (color_scheme == "dark") {
-            gtk_settings->property_gtk_application_prefer_dark_theme() = true;
-        } else {
-            // Default: follow system preference and monitor changes
-            try {
-                if (!m_desktop_settings) {
-                    m_desktop_settings = Gio::Settings::create("org.gnome.desktop.interface");
-                }
-                auto system_color_scheme = m_desktop_settings->get_string("color-scheme");
-                gtk_settings->property_gtk_application_prefer_dark_theme() = (system_color_scheme == "prefer-dark");
-
-                // Re-establish system theme monitoring
-                m_theme_changed_connection = m_desktop_settings->signal_changed("color-scheme").connect(
-                    [gtk_settings, this](const Glib::ustring&) {
-                        auto system_color_scheme = m_desktop_settings->get_string("color-scheme");
-                        gtk_settings->property_gtk_application_prefer_dark_theme() = (system_color_scheme == "prefer-dark");
-                    }
-                );
-            } catch (...) {
-                // Fallback
-                const char* gtk_theme = std::getenv("GTK_THEME");
-                if (gtk_theme && std::string(gtk_theme).find("dark") != std::string::npos) {
-                    gtk_settings->property_gtk_application_prefer_dark_theme() = true;
-                } else {
-                    gtk_settings->property_gtk_application_prefer_dark_theme() = false;
-                }
-            }
-        }
-    });
+    // Apply and monitor theme preference
+    m_theme_controller = std::make_unique<ThemeController>(settings, Gtk::Settings::get_default());
+    m_theme_controller->start();
 
     // Load Reed-Solomon settings as defaults for NEW vaults
     // Note: Opened vaults preserve their own FEC settings
@@ -285,10 +198,12 @@ MainWindow::MainWindow()
                 m_account_tree_widget->set_data(groups, accounts);
             }
             // Update status label
-            std::string status = m_vault_open ?
-                ("Vault opened: " + m_current_vault_path + " (" + std::to_string(accounts.size()) + " accounts)") :
+            const bool vault_open = m_vault_ui_coordinator && m_vault_ui_coordinator->vault_open();
+            const Glib::ustring vault_path = (m_vault_ui_coordinator ? m_vault_ui_coordinator->current_vault_path() : Glib::ustring{});
+            std::string status = vault_open ?
+                ("Vault opened: " + vault_path + " (" + std::to_string(accounts.size()) + " accounts)") :
                 "No vault open";
-            m_status_label.set_text(status);
+            m_status_label.set_text(KeepTower::make_valid_utf8(status, "status"));
         });
 
     m_account_controller->signal_error().connect(
@@ -306,8 +221,8 @@ MainWindow::MainWindow()
     // Phase 5: Initialize MenuManager
     m_menu_manager = std::make_unique<UI::MenuManager>(*this, m_vault_manager.get());
 
-    // Phase 5: Initialize UIStateManager
-    UI::UIStateManager::UIWidgets widgets{
+    // Phase 5: Initialize VaultUiStateApplier
+    UI::VaultUiStateApplier::UIWidgets widgets{
         &m_save_button,
         &m_close_button,
         &m_add_account_button,
@@ -315,7 +230,7 @@ MainWindow::MainWindow()
         &m_status_label,
         &m_session_label
     };
-    m_ui_state_manager = std::make_unique<UI::UIStateManager>(widgets, m_vault_manager.get());
+    m_vault_ui_state_applier = std::make_unique<UI::VaultUiStateApplier>(widgets);
 
     // Phase 5: Initialize V2AuthenticationHandler
     m_v2_auth_handler = std::make_unique<UI::V2AuthenticationHandler>(
@@ -335,7 +250,7 @@ MainWindow::MainWindow()
         m_vault_manager.get(),
         m_group_service.get(),
         m_dialog_manager.get(),
-        [this](const std::string& message) { m_status_label.set_text(message); },
+        [this](const std::string& message) { m_status_label.set_text(KeepTower::make_valid_utf8(message, "status")); },
         [this]() { update_account_list(); }
     );
 
@@ -347,7 +262,7 @@ MainWindow::MainWindow()
         m_dialog_manager.get(),
         m_account_detail_widget.get(),
         &m_search_entry,
-        [this](const std::string& message) { m_status_label.set_text(message); },
+        [this](const std::string& message) { m_status_label.set_text(KeepTower::make_valid_utf8(message, "status")); },
         [this]() {
             clear_account_details();
             update_account_list();
@@ -363,17 +278,65 @@ MainWindow::MainWindow()
         }
     );
 
-    // Phase 5k: Initialize AutoLockHandler
+    // Issue #5: Vault UI coordinator (owns vault state + vault open wiring)
+    m_vault_ui_coordinator = std::make_unique<VaultUiCoordinator>(
+        *this,
+        m_vault_manager.get(),
+        m_dialog_manager.get(),
+        m_menu_manager.get(),
+        m_vault_ui_state_applier.get(),
+        m_v2_auth_handler.get(),
+        [this](const std::string& path) { return detect_vault_version(path); },
+        [this]() { return save_current_account(); },
+        [this]() { return prompt_save_if_modified(); },
+        [this]() { initialize_repositories(); },
+        [this]() { reset_repositories(); },
+        [this]() { initialize_services(); },
+        [this]() { reset_services(); },
+        [this]() { update_account_list(); },
+        [this]() { update_tag_filter_dropdown(); },
+        [this]() { clear_account_details(); },
+        [this]() {
+            if (m_account_tree_widget) {
+                m_account_tree_widget->set_data({}, {});
+            }
+        },
+        [this](bool can_undo, bool can_redo) { update_undo_redo_sensitivity(can_undo, can_redo); },
+        [this]() { m_undo_manager.clear(); },
+        [this]() { on_user_activity(); },
+        [this](const std::string& text) { m_status_label.set_text(KeepTower::make_valid_utf8(text, "status")); },
+        [this]() {
+            // Phase 1.3: Clear clipboard and stop auto-lock using controllers
+            if (m_clipboard_manager) {
+                m_clipboard_manager->clear_immediately();
+            }
+
+            if (m_auto_lock_manager) {
+                m_auto_lock_manager->stop();
+            }
+
+            // Disconnect drag-and-drop signal handlers for memory safety
+            if (m_row_inserted_conn.connected()) {
+                m_row_inserted_conn.disconnect();
+            }
+        }
+    );
+
+    // Phase 5k: Initialize AutoLockHandler (binds to coordinator-owned vault state)
     m_auto_lock_handler = std::make_unique<UI::AutoLockHandler>(
         *this,
         m_vault_manager.get(),
         m_auto_lock_manager.get(),
         m_dialog_manager.get(),
-        m_ui_state_manager.get(),
-        m_vault_open,
-        m_is_locked,
-        m_current_vault_path,
-        m_cached_master_password,
+        m_vault_ui_coordinator->vault_open_ref(),
+        m_vault_ui_coordinator->is_locked_ref(),
+        m_vault_ui_coordinator->current_vault_path_ref(),
+        m_vault_ui_coordinator->cached_master_password_ref(),
+        [this](bool locked, const std::string& status) {
+            if (m_vault_ui_coordinator) {
+                m_vault_ui_coordinator->apply_lock_state_ui(locked, status);
+            }
+        },
         [this]() { save_current_account(); },
         [this]() { on_close_vault(); },
         [this]() { update_account_list(); },
@@ -384,46 +347,20 @@ MainWindow::MainWindow()
         [this]() { return m_search_entry.get_text(); }
     );
 
-    // Phase 5l: Initialize UserAccountHandler
+    // Phase 5l: Initialize UserAccountHandler (binds to coordinator-owned vault state)
     m_user_account_handler = std::make_unique<UI::UserAccountHandler>(
         *this,
         m_vault_manager.get(),
         m_dialog_manager.get(),
         m_clipboard_manager.get(),
-        m_current_vault_path,
-        [this](const std::string& message) { m_status_label.set_text(message); },
+        m_vault_ui_coordinator->current_vault_path_ref(),
+        [this](const std::string& message) { m_status_label.set_text(KeepTower::make_valid_utf8(message, "status")); },
         [this](const std::string& message) { show_error_dialog(message); },
         [this]() { on_close_vault(); },
         [this](const std::string& path) { handle_v2_vault_open(path); },
         [this]() { return is_v2_vault_open(); },
         [this]() { return is_current_user_admin(); },
         [this]() { return prompt_save_if_modified(); }
-    );
-
-    // Phase 5l: Initialize VaultOpenHandler
-    m_vault_open_handler = std::make_unique<UI::VaultOpenHandler>(
-        *this,
-        m_vault_manager.get(),
-        m_dialog_manager.get(),
-        m_ui_state_manager.get(),
-        m_vault_open,
-        m_is_locked,
-        m_current_vault_path,
-        m_cached_master_password,
-        [this](const std::string& message) { show_error_dialog(message); },
-        [this](const std::string& message, const std::string& title) {
-            m_dialog_manager->show_info_dialog(message, title);
-        },
-        [this](const std::string& path) { return detect_vault_version(path); },
-        [this](const std::string& path) { handle_v2_vault_open(path); },
-        [this]() { initialize_repositories(); },
-        [this]() { update_account_list(); },
-        [this]() { update_tag_filter_dropdown(); },
-        [this]() { clear_account_details(); },
-        [this](bool can_undo, bool can_redo) { update_undo_redo_sensitivity(can_undo, can_redo); },
-        [this]() { update_menu_for_role(); },
-        [this]() { update_session_display(); },
-        [this]() { on_user_activity(); }
     );
 
     // Phase 5: Setup window actions via MenuManager (after MenuManager is initialized)
@@ -499,7 +436,7 @@ MainWindow::MainWindow()
     m_clipboard_manager->signal_cleared().connect(
         [this]() {
             // Update status when clipboard is cleared
-            if (m_vault_open) {
+            if (m_vault_ui_coordinator && m_vault_ui_coordinator->vault_open()) {
                 m_status_label.set_text("Clipboard cleared");
             }
         });
@@ -646,7 +583,7 @@ MainWindow::MainWindow()
             m_account_tree_widget->signal_account_selected().connect(
                 [this](const std::string& account_id) {
                     // Save current account BEFORE switching to new one
-                    if (m_selected_account_index >= 0 && m_vault_open) {
+                    if (m_selected_account_index >= 0 && m_vault_ui_coordinator && m_vault_ui_coordinator->vault_open()) {
                         save_current_account();
                     }
 
@@ -739,121 +676,41 @@ MainWindow::~MainWindow() {
         m_auto_lock_manager->stop();
     }
 
-    // Clear cached password
-    if (!m_cached_master_password.empty()) {
-        std::fill(m_cached_master_password.begin(), m_cached_master_password.end(), '\0');
-        m_cached_master_password.clear();
-    }
 }
 
 void MainWindow::on_new_vault() {
-    // Phase 5l: Delegate to VaultOpenHandler
-    if (m_vault_open_handler) {
-        m_vault_open_handler->handle_new_vault();
+    if (m_vault_ui_coordinator) {
+        m_vault_ui_coordinator->on_new_vault();
     }
 }
 
 void MainWindow::on_open_vault() {
-    // Phase 5l: Delegate to VaultOpenHandler
-    if (m_vault_open_handler) {
-        m_vault_open_handler->handle_open_vault();
+    if (m_vault_ui_coordinator) {
+        m_vault_ui_coordinator->on_open_vault();
     }
 }
 
 void MainWindow::on_save_vault() {
-    if (!m_vault_open) {
-        return;
-    }
-
-    // Save current account details before saving vault
-    save_current_account();
-
-    auto result = m_vault_manager->save_vault();
-    if (result) {
-        m_status_label.set_text("Vault saved: " + m_current_vault_path);
-    } else {
-        auto error_msg = std::string("Failed to save vault");
-        m_status_label.set_text(error_msg);
+    if (m_vault_ui_coordinator) {
+        m_vault_ui_coordinator->on_save_vault();
     }
 }
 
 void MainWindow::on_close_vault() {
-    KeepTower::Log::info("MainWindow: on_close_vault() called - m_vault_open={}", m_vault_open);
-    if (!m_vault_open) {
-        KeepTower::Log::info("MainWindow: Vault not open, returning early");
-        return;
+    if (m_vault_ui_coordinator) {
+        m_vault_ui_coordinator->on_close_vault();
     }
-
-    KeepTower::Log::info("MainWindow: Proceeding with vault close");
-
-    // Phase 1.3: Clear clipboard and stop auto-lock using controllers
-    if (m_clipboard_manager) {
-        m_clipboard_manager->clear_immediately();
-    }
-
-    if (m_auto_lock_manager) {
-        m_auto_lock_manager->stop();
-    }
-
-    // Disconnect drag-and-drop signal handlers for memory safety
-    if (m_row_inserted_conn.connected()) {
-        m_row_inserted_conn.disconnect();
-    }
-
-    // Clear cached password
-    if (!m_cached_master_password.empty()) {
-        std::fill(m_cached_master_password.begin(), m_cached_master_password.end(), '\0');
-        m_cached_master_password.clear();
-    }
-
-    // Save the current account before closing
-    save_current_account();
-
-    // Prompt to save if modified
-    if (!prompt_save_if_modified()) {
-        return;  // User cancelled
-    }
-
-    auto result = m_vault_manager->close_vault();
-    if (!result) {
-        auto error_msg = std::string("Error closing vault");
-        m_status_label.set_text(error_msg);
-        return;
-    }
-
-    // Clear undo/redo history
-    m_undo_manager.clear();
-
-    // Phase 2: Reset repositories
-    reset_repositories();
-
-    // Phase 5: Use UIStateManager for state management
-    m_ui_state_manager->set_vault_closed();
-
-    // Reset local state cache to maintain consistency
-    m_vault_open = false;
-    m_is_locked = false;
-    m_current_vault_path.clear();
-
-    // Phase 4: Reset V2 UI elements
-    update_menu_for_role();  // Disable V2-specific menu items
-
-    // Clear widget-based UI
-    if (m_account_tree_widget) {
-        m_account_tree_widget->set_data({}, {});
-    }
-    clear_account_details();
 }
 
 void MainWindow::on_migrate_v1_to_v2() {
     // Validation: Must have V1 vault open
-    if (!m_vault_open) {
+    if (!m_vault_ui_coordinator || !m_vault_ui_coordinator->vault_open()) {
         show_error_dialog("No vault is currently open.\nPlease open a vault first.");
         return;
     }
 
     // Phase 5g: Delegate to VaultIOHandler
-    m_vault_io_handler->handle_migration(m_current_vault_path, m_vault_open, [this]() {
+    m_vault_io_handler->handle_migration(std::string{m_vault_ui_coordinator->current_vault_path()}, m_vault_ui_coordinator->vault_open(), [this]() {
         update_session_display();
         if (m_manage_users_action) {
             m_manage_users_action->set_enabled(true);
@@ -862,7 +719,7 @@ void MainWindow::on_migrate_v1_to_v2() {
 }
 
 void MainWindow::on_add_account() {
-    if (!m_vault_open) {
+    if (!m_vault_ui_coordinator || !m_vault_ui_coordinator->vault_open()) {
         m_status_label.set_text("Please open or create a vault first");
         return;
     }
@@ -911,7 +768,7 @@ void MainWindow::on_star_column_clicked(const Gtk::TreeModel::Path& /*path*/) {
 }
 
 void MainWindow::on_favorite_toggled(int account_index) {
-    if (!m_vault_open) {
+    if (!m_vault_ui_coordinator || !m_vault_ui_coordinator->vault_open()) {
         return;
     }
 
@@ -1049,7 +906,7 @@ void MainWindow::display_account_details(int index) {
  */
 bool MainWindow::save_current_account() {
     // Only save if we have a valid account selected
-    if (m_selected_account_index < 0 || !m_vault_open) {
+    if (m_selected_account_index < 0 || !m_vault_ui_coordinator || !m_vault_ui_coordinator->vault_open()) {
         return true;  // Nothing to save, allow continue
     }
 
@@ -1456,7 +1313,7 @@ void MainWindow::on_preferences() {
 }
 
 void MainWindow::on_delete_account() {
-    if (!m_vault_open) {
+    if (!m_vault_ui_coordinator || !m_vault_ui_coordinator->vault_open()) {
         return;
     }
 
@@ -1468,7 +1325,7 @@ void MainWindow::on_delete_account() {
 }
 
 void MainWindow::on_import_from_csv() {
-    if (!m_vault_open) {
+    if (!m_vault_ui_coordinator || !m_vault_ui_coordinator->vault_open()) {
         show_error_dialog("Please open a vault first before importing accounts.");
         return;
     }
@@ -1481,18 +1338,21 @@ void MainWindow::on_import_from_csv() {
 }
 
 void MainWindow::on_export_to_csv() {
-    if (!m_vault_open) {
+    if (!m_vault_ui_coordinator || !m_vault_ui_coordinator->vault_open()) {
         show_error_dialog("Please open a vault first before exporting accounts.");
         return;
     }
 
     // Phase 5g: Delegate to VaultIOHandler
-    m_vault_io_handler->handle_export(m_current_vault_path, m_vault_open);
+    m_vault_io_handler->handle_export(
+        std::string{m_vault_ui_coordinator->current_vault_path()},
+        m_vault_ui_coordinator->vault_open()
+    );
 }
 
 
 void MainWindow::on_generate_password() {
-    if (!m_vault_open || m_selected_account_index < 0) {
+    if (!m_vault_ui_coordinator || !m_vault_ui_coordinator->vault_open() || m_selected_account_index < 0) {
         return;
     }
 
@@ -1534,7 +1394,7 @@ void MainWindow::on_test_yubikey() {
 #ifdef HAVE_YUBIKEY_SUPPORT
 void MainWindow::on_manage_yubikeys() {
     // Check if vault is open first
-    if (!m_vault_open) {
+    if (!m_vault_ui_coordinator || !m_vault_ui_coordinator->vault_open()) {
         auto dialog = Gtk::AlertDialog::create("No Vault Open");
         dialog->set_detail("Please open a vault first.");
         dialog->set_buttons({"OK"});
@@ -1548,26 +1408,26 @@ void MainWindow::on_manage_yubikeys() {
 #endif
 
 void MainWindow::on_undo() {
-    if (!m_vault_open) {
+    if (!m_vault_ui_coordinator || !m_vault_ui_coordinator->vault_open()) {
         return;
     }
 
     if (m_undo_manager.undo()) {
         const std::string msg = "Undid: " + m_undo_manager.get_redo_description();
-        m_status_label.set_text(msg);
+        m_status_label.set_text(KeepTower::make_valid_utf8(msg, "status"));
     } else {
         m_status_label.set_text("Nothing to undo");
     }
 }
 
 void MainWindow::on_redo() {
-    if (!m_vault_open) {
+    if (!m_vault_ui_coordinator || !m_vault_ui_coordinator->vault_open()) {
         return;
     }
 
     if (m_undo_manager.redo()) {
         const std::string msg = "Redid: " + m_undo_manager.get_undo_description();
-        m_status_label.set_text(msg);
+        m_status_label.set_text(KeepTower::make_valid_utf8(msg, "status"));
     } else {
         m_status_label.set_text("Nothing to redo");
     }
@@ -1580,14 +1440,15 @@ void MainWindow::update_undo_redo_sensitivity(bool can_undo, bool can_redo) {
 
     // Check if undo/redo is enabled in preferences
     bool undo_redo_enabled = is_undo_redo_enabled();
+    const bool vault_open = m_vault_ui_coordinator && m_vault_ui_coordinator->vault_open();
 
     if (undo_action) {
-        bool should_enable = can_undo && m_vault_open && undo_redo_enabled;
+        bool should_enable = can_undo && vault_open && undo_redo_enabled;
         undo_action->set_enabled(should_enable);
     }
 
     if (redo_action) {
-        bool should_enable = can_redo && m_vault_open && undo_redo_enabled;
+        bool should_enable = can_redo && vault_open && undo_redo_enabled;
         redo_action->set_enabled(should_enable);
     }
 }
@@ -1633,7 +1494,7 @@ bool MainWindow::is_undo_redo_enabled() const {
  * @note Does nothing if vault is not open
  */
 void MainWindow::on_create_group() {
-    if (!m_vault_open) {
+    if (!m_vault_ui_coordinator || !m_vault_ui_coordinator->vault_open()) {
         return;
     }
 
@@ -1658,7 +1519,7 @@ void MainWindow::on_create_group() {
  * @note Does nothing if vault is not open or group_id is empty
  */
 void MainWindow::on_rename_group(const std::string& group_id, const Glib::ustring& current_name) {
-    if (!m_vault_open || group_id.empty()) {
+    if (!m_vault_ui_coordinator || !m_vault_ui_coordinator->vault_open() || group_id.empty()) {
         return;
     }
 
@@ -1667,7 +1528,7 @@ void MainWindow::on_rename_group(const std::string& group_id, const Glib::ustrin
 }
 
 void MainWindow::on_delete_group(const std::string& group_id) {
-    if (!m_vault_open || group_id.empty()) {
+    if (!m_vault_ui_coordinator || !m_vault_ui_coordinator->vault_open() || group_id.empty()) {
         return;
     }
 
@@ -1853,13 +1714,9 @@ std::optional<uint32_t> MainWindow::detect_vault_version(const std::string& vaul
 }
 
 void MainWindow::handle_v2_vault_open(const std::string& vault_path) {
-    // Phase 5f: Delegate V2 authentication to handler
-    m_v2_auth_handler->handle_vault_open(vault_path, [this](const std::string& path, const std::string& username) {
-        // Save vault after successful authentication (for password changes, etc.)
-        on_save_vault();
-        // Complete vault opening
-        complete_vault_opening(path, username);
-    });
+    if (m_vault_ui_coordinator) {
+        m_vault_ui_coordinator->handle_v2_vault_open(vault_path);
+    }
 }
 
 
@@ -1867,55 +1724,15 @@ void MainWindow::handle_v2_vault_open(const std::string& vault_path) {
 
 
 void MainWindow::complete_vault_opening(const std::string& vault_path, const std::string& username) {
-    KeepTower::Log::info("MainWindow: complete_vault_opening() called - vault_path='{}', username='{}'", vault_path, username);
-
-    // Phase 5: Use UIStateManager for state management
-    KeepTower::Log::info("MainWindow: Setting vault opened state");
-    m_ui_state_manager->set_vault_opened(vault_path, username);
-
-    // Maintain local state cache for quick access without manager queries
-    m_current_vault_path = vault_path;
-    m_vault_open = true;
-    m_is_locked = false;
-
-    // Phase 2: Initialize repositories for data access
-    KeepTower::Log::info("MainWindow: Initializing repositories");
-    initialize_repositories();
-
-    // Update UI with session information
-    KeepTower::Log::info("MainWindow: About to call update_session_display()");
-    update_session_display();
-    KeepTower::Log::info("MainWindow: Returned from update_session_display()");
-
-    // Load vault data
-    KeepTower::Log::info("MainWindow: About to call update_account_list()");
-    update_account_list();
-    KeepTower::Log::info("MainWindow: About to call update_tag_filter_dropdown()");
-    update_tag_filter_dropdown();
-
-    // Initialize undo/redo state
-    KeepTower::Log::info("MainWindow: Setting undo/redo sensitivity");
-    update_undo_redo_sensitivity(false, false);
-
-    // Start activity monitoring for auto-lock
-    KeepTower::Log::info("MainWindow: Starting activity monitoring");
-    on_user_activity();
-
-    KeepTower::Log::info("MainWindow: Setting status label");
-    m_ui_state_manager->set_status("Vault opened: " + vault_path + " (User: " + username + ")");
-    KeepTower::Log::info("MainWindow: complete_vault_opening() completed successfully");
+    if (m_vault_ui_coordinator) {
+        m_vault_ui_coordinator->complete_vault_opening(vault_path, username);
+    }
 }
 
 void MainWindow::update_session_display() {
-    KeepTower::Log::info("MainWindow: update_session_display() called");
-
-    // Phase 5: Delegate to UIStateManager
-    m_ui_state_manager->update_session_display([this]() {
-        KeepTower::Log::info("MainWindow: Calling update_menu_for_role() from UIStateManager callback");
-        update_menu_for_role();
-    });
-
-    KeepTower::Log::info("MainWindow: update_session_display() completed");
+    if (m_vault_ui_coordinator) {
+        m_vault_ui_coordinator->update_session_display();
+    }
 }
 
 // ============================================================================
@@ -1944,25 +1761,33 @@ void MainWindow::on_manage_users() {
 }
 
 void MainWindow::update_menu_for_role() {
-    KeepTower::Log::info("MainWindow: update_menu_for_role() called");
+    if (m_vault_ui_coordinator) {
+        m_vault_ui_coordinator->update_menu_for_role();
+        return;
+    }
 
-    // Phase 5: Delegate to MenuManager
-    bool is_v2 = is_v2_vault_open();
-    bool is_admin = is_v2 && is_current_user_admin();
-    m_menu_manager->update_menu_for_role(is_v2, is_admin, m_vault_open);
+    KeepTower::Log::info("MainWindow: update_menu_for_role() called (fallback)");
 
-    KeepTower::Log::info("MainWindow: update_menu_for_role() completed (V2={}, Admin={})", is_v2, is_admin);
+    // Fallback: Delegate to MenuManager
+    const bool is_v2 = is_v2_vault_open();
+    const bool is_admin = is_v2 && is_current_user_admin();
+    const bool vault_open = m_vault_manager && m_vault_manager->is_vault_open();
+    m_menu_manager->update_menu_for_role(is_v2, is_admin, vault_open);
 }
 
 bool MainWindow::is_v2_vault_open() const noexcept {
-    bool has_manager = (m_vault_manager != nullptr);
-    bool vault_open_flag = m_vault_open;
-    bool is_v2 = has_manager && m_vault_manager->is_v2_vault();
+    if (m_vault_ui_coordinator) {
+        return m_vault_ui_coordinator->is_v2_vault_open();
+    }
+
+    const bool has_manager = (m_vault_manager != nullptr);
+    const bool vault_open_flag = has_manager && m_vault_manager->is_vault_open();
+    const bool is_v2 = has_manager && m_vault_manager->is_v2_vault();
 
     KeepTower::Log::info("MainWindow: is_v2_vault_open() check - manager={}, m_vault_open={}, is_v2_vault()={}",
         has_manager, vault_open_flag, is_v2);
 
-    if (!m_vault_manager || !m_vault_open) {
+    if (!m_vault_manager || !vault_open_flag) {
         return false;
     }
 
@@ -1971,6 +1796,10 @@ bool MainWindow::is_v2_vault_open() const noexcept {
 }
 
 bool MainWindow::is_current_user_admin() const noexcept {
+    if (m_vault_ui_coordinator) {
+        return m_vault_ui_coordinator->is_current_user_admin();
+    }
+
     if (!m_vault_manager) {
         return false;
     }
@@ -2020,7 +1849,7 @@ void MainWindow::initialize_repositories() {
  * no data access operations can be attempted on a closed vault.
  * Part of the Phase 2 refactoring cleanup process.
  *
- * @note Should be called before setting m_vault_open to false
+ * @note Should be called before clearing the active vault state
  */
 void MainWindow::reset_repositories() {
     KeepTower::Log::info("Resetting repositories (vault closed)");

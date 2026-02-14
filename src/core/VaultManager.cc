@@ -1170,6 +1170,7 @@ void VaultManager::set_backup_enabled(bool enable) {
     m_backup_enabled = enable;
     if (m_vault_open) {
         m_vault_data.set_backup_enabled(enable);
+        m_modified = true;
     }
 }
 
@@ -1180,6 +1181,7 @@ bool VaultManager::set_backup_count(int count) {
     m_backup_count = count;
     if (m_vault_open) {
         m_vault_data.set_backup_count(count);
+        m_modified = true;
     }
     return true;
 }

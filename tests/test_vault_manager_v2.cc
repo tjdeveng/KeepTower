@@ -129,6 +129,32 @@ TEST_F(VaultManagerV2Test, OpenV2VaultWrongPassword) {
     EXPECT_EQ(session.error(), VaultError::AuthenticationFailed);
 }
 
+TEST_F(VaultManagerV2Test, BackupEnabledPersistsAcrossReopen) {
+    // Create vault
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 8;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "alice", "validpass123", policy));
+    ASSERT_TRUE(vault_manager.close_vault());
+
+    // Open vault
+    ASSERT_TRUE(vault_manager.open_vault_v2(
+        test_vault_path.string(), "alice", "validpass123"));
+
+    // Disable backups and save
+    ASSERT_TRUE(vault_manager.set_backup_count(5));
+    vault_manager.set_backup_enabled(false);
+    EXPECT_FALSE(vault_manager.is_backup_enabled());
+    ASSERT_TRUE(vault_manager.save_vault());
+    ASSERT_TRUE(vault_manager.close_vault());
+
+    // Reopen and verify setting persisted
+    ASSERT_TRUE(vault_manager.open_vault_v2(
+        test_vault_path.string(), "alice", "validpass123"));
+    EXPECT_FALSE(vault_manager.is_backup_enabled());
+    EXPECT_EQ(vault_manager.get_backup_count(), 5);
+}
+
 TEST_F(VaultManagerV2Test, OpenV2VaultNonExistentUser) {
     // Create vault
     VaultSecurityPolicy policy;

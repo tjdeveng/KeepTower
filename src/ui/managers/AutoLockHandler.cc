@@ -3,7 +3,6 @@
 
 #include "AutoLockHandler.h"
 #include "DialogManager.h"
-#include "UIStateManager.h"
 #include "../../core/VaultManager.h"
 #include "../controllers/AutoLockManager.h"
 #include "../../utils/SettingsValidator.h"
@@ -20,11 +19,11 @@ AutoLockHandler::AutoLockHandler(Gtk::Window& window,
                                  VaultManager* vault_manager,
                                  KeepTower::AutoLockManager* auto_lock_manager,
                                  DialogManager* dialog_manager,
-                                 UIStateManager* ui_state_manager,
                                  bool& vault_open_ref,
                                  bool& is_locked_ref,
                                  Glib::ustring& current_vault_path_ref,
                                  std::string& cached_master_password_ref,
+                                 ApplyLockUiCallback apply_lock_ui_callback,
                                  SaveAccountCallback save_account_callback,
                                  CloseVaultCallback close_vault_callback,
                                  UpdateAccountListCallback update_account_list_callback,
@@ -37,11 +36,11 @@ AutoLockHandler::AutoLockHandler(Gtk::Window& window,
     , m_vault_manager(vault_manager)
     , m_auto_lock_manager(auto_lock_manager)
     , m_dialog_manager(dialog_manager)
-    , m_ui_state_manager(ui_state_manager)
     , m_vault_open(vault_open_ref)
     , m_is_locked(is_locked_ref)
     , m_current_vault_path(current_vault_path_ref)
     , m_cached_master_password(cached_master_password_ref)
+    , m_apply_lock_ui_callback(std::move(apply_lock_ui_callback))
     , m_save_account_callback(std::move(save_account_callback))
     , m_close_vault_callback(std::move(close_vault_callback))
     , m_update_account_list_callback(std::move(update_account_list_callback))
@@ -183,9 +182,9 @@ void AutoLockHandler::lock_vault() {
         g_warning("Failed to save vault before locking");
     }
 
-    // Phase 5: Use UIStateManager for state management
-    m_ui_state_manager->set_vault_locked(true);
-    m_ui_state_manager->set_status("Vault locked due to inactivity");
+    if (m_apply_lock_ui_callback) {
+        m_apply_lock_ui_callback(true, "Vault locked due to inactivity");
+    }
 
     // Cache lock state locally to avoid repeated VaultManager queries
     m_is_locked = true;
@@ -286,9 +285,9 @@ void AutoLockHandler::lock_vault() {
 #endif
 
         if (success && entered_password == m_cached_master_password) {
-            // Phase 5: Use UIStateManager for state management
-            m_ui_state_manager->set_vault_locked(false);
-            m_ui_state_manager->set_status("Vault unlocked");
+            if (m_apply_lock_ui_callback) {
+                m_apply_lock_ui_callback(false, "Vault unlocked");
+            }
 
             // Cache lock state locally to avoid repeated VaultManager queries
             m_is_locked = false;

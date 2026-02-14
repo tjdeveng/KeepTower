@@ -43,7 +43,7 @@
   - Vault open/close state
   - Permission-based UI updates
   - Status messages
-  - Move to UIStateManager class
+   - Move to VaultUiStateApplier class (formerly UIStateManager)
 
 #### 2. Code Complexity Reduction (Priority: MEDIUM)
 **Current Issues:**
@@ -119,7 +119,7 @@
    - Extract accelerator setup
    - ~250 lines extracted
 
-3. ✅ Create UIStateManager class
+3. ✅ Create VaultUiStateApplier class (formerly UIStateManager)
    - Extract state tracking logic
    - Centralize UI update methods
    - Extract status message handling

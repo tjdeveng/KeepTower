@@ -19,8 +19,12 @@ KeepTower now includes automatic timestamped backup creation to protect against 
 ### Configuration
 
 **GSettings Schema (data/com.tjdeveng.keeptower.gschema.xml)**
-- `backup-enabled` (bool): Enable/disable automatic backups (default: true)
-- `backup-count` (int): Maximum backups to retain, range 1-50 (default: 5)
+- `backup-enabled` (bool): Default enable/disable for automatic backups (default: true)
+- `backup-count` (int): Default maximum backups to retain, range 1-50 (default: 5)
+
+**Vault-scoped overrides**
+- When a vault is open, backup settings are treated as *vault-scoped* and are read from / written to the vault when the vault format supports storing them.
+- When no vault is open, the GSettings values act as application defaults (e.g., for new vaults).
 
 ### User Interface
 
@@ -32,8 +36,10 @@ KeepTower now includes automatic timestamped backup creation to protect against 
 - Sensitivity management: controls disabled when backups off
 
 **MainWindow (src/ui/windows/MainWindow.cc)**
-- Loads backup settings from GSettings on startup
-- Applies configuration to VaultManager instance
+- Preferences load/save is coordinated via the preferences presenter and applied according to scope:
+	- Vault open: read/write vault-scoped settings
+	- No vault: read/write application defaults (GSettings)
+- Vault open flows load backup settings from the vault so the UI reflects the vault's policy.
 
 ## User Experience
 
@@ -85,7 +91,9 @@ With `backup-count=5`:
 - `save_vault()`: Creates backup before writing, cleans up after
 - Atomic save operations: Backup→Save→Cleanup sequence
 - Reed-Solomon: Works independently, both features can be enabled
-- GSettings: Preferences persist across application restarts
+- Persistence:
+	- Vault open: backup policy persists in the vault
+	- No vault: defaults persist via GSettings across application restarts
 
 ## Testing
 

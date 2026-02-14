@@ -16,7 +16,6 @@ namespace UI {
 
 // Forward declarations
 class DialogManager;
-class UIStateManager;
 
 /**
  * @brief Handles vault creation and opening operations
@@ -66,11 +65,16 @@ public:
     /** @brief Callback to notify user activity (for auto-lock timer reset) */
     using OnUserActivityCallback = std::function<void()>;
 
+    /** @brief Callback invoked when a vault has been opened/created successfully
+     *  @param vault_path Opened vault path
+     *  @param username Username (V2) or empty for V1 */
+    using OnVaultOpenedCallback = std::function<void(const std::string& vault_path, const std::string& username)>;
+
     /** @brief Construct VaultOpenHandler with dependencies
      *  @param window Parent window for dialogs
      *  @param vault_manager VaultManager instance for vault operations
      *  @param dialog_manager DialogManager for file/password dialogs
-     *  @param ui_state_manager UIStateManager for UI state updates
+    *  @param ui_state_applier VaultUiStateApplier for UI updates
      *  @param vault_open_ref Reference to MainWindow vault_open flag
      *  @param is_locked_ref Reference to MainWindow is_locked flag
      *  @param current_vault_path_ref Reference to MainWindow current vault path
@@ -90,7 +94,6 @@ public:
     VaultOpenHandler(Gtk::Window& window,
                     VaultManager* vault_manager,
                     DialogManager* dialog_manager,
-                    UIStateManager* ui_state_manager,
                     bool& vault_open_ref,
                     bool& is_locked_ref,
                     Glib::ustring& current_vault_path_ref,
@@ -99,14 +102,7 @@ public:
                     InfoDialogCallback info_dialog_callback,
                     DetectVaultVersionCallback detect_vault_version_callback,
                     HandleV2VaultOpenCallback handle_v2_vault_open_callback,
-                    InitializeRepositoriesCallback initialize_repositories_callback,
-                    UpdateAccountListCallback update_account_list_callback,
-                    UpdateTagFilterCallback update_tag_filter_callback,
-                    ClearAccountDetailsCallback clear_account_details_callback,
-                    UpdateUndoRedoSensitivityCallback update_undo_redo_sensitivity_callback,
-                    UpdateMenuForRoleCallback update_menu_for_role_callback,
-                    UpdateSessionDisplayCallback update_session_display_callback,
-                    OnUserActivityCallback on_user_activity_callback);
+                    OnVaultOpenedCallback on_vault_opened_callback);
 
     /**
      * @brief Handle new vault creation
@@ -122,7 +118,6 @@ private:
     Gtk::Window& m_window;
     VaultManager* m_vault_manager;
     DialogManager* m_dialog_manager;
-    UIStateManager* m_ui_state_manager;
 
     // References to MainWindow state
     bool& m_vault_open;
@@ -135,14 +130,7 @@ private:
     InfoDialogCallback m_info_dialog_callback;
     DetectVaultVersionCallback m_detect_vault_version_callback;
     HandleV2VaultOpenCallback m_handle_v2_vault_open_callback;
-    InitializeRepositoriesCallback m_initialize_repositories_callback;
-    UpdateAccountListCallback m_update_account_list_callback;
-    UpdateTagFilterCallback m_update_tag_filter_callback;
-    ClearAccountDetailsCallback m_clear_account_details_callback;
-    UpdateUndoRedoSensitivityCallback m_update_undo_redo_sensitivity_callback;
-    UpdateMenuForRoleCallback m_update_menu_for_role_callback;
-    UpdateSessionDisplayCallback m_update_session_display_callback;
-    OnUserActivityCallback m_on_user_activity_callback;
+    OnVaultOpenedCallback m_on_vault_opened_callback;
 };
 
 }  // namespace UI

@@ -21,6 +21,14 @@ namespace KeepTower::Ui {
  * - Default policy for new vaults (password history depth)
  * - Key derivation algorithm selection for new vaults
  * - Vault-scoped information/actions when a vault is open
+ *
+ * Scope rules:
+ * - FIPS preference and "new vault" defaults are application-scoped.
+ * - When a vault is open, the page may display and modify vault-scoped settings
+ *   and show live vault/user status.
+ *
+ * @note The owning PreferencesDialog may hide this page when a vault is open
+ *       and the current user is not an administrator.
  */
 class VaultSecurityPreferencesPage final : public Gtk::Box {
 public:

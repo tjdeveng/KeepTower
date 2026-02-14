@@ -701,6 +701,17 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
     m_vault_data = vault_data;
     m_modified = true;  // Mark modified to save updated last_login_at
 
+    // Load backup settings from vault data if available (0 means not set)
+    if (m_vault_data.backup_count() > 0) {
+        m_backup_enabled = m_vault_data.backup_enabled();
+        m_backup_count = m_vault_data.backup_count();
+        Log::debug(
+            "VaultManager: Loaded backup settings from V2 vault: enabled={}, count={}",
+            m_backup_enabled,
+            m_backup_count
+        );
+    }
+
     // Extract FEC settings from V2 header
     // Note: Header always has FEC enabled (per spec), so check data FEC setting instead
     m_use_reed_solomon = file_header.fec_redundancy_percent > 0;

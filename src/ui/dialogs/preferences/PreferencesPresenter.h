@@ -16,8 +16,19 @@ namespace KeepTower::Ui {
 /**
  * @brief Loads and saves user preferences for the Preferences dialog/pages.
  *
- * Acts as the boundary between UI pages and persistent storage (GSettings) and,
- * when applicable, the currently open vault (via VaultManager).
+ * Acts as the boundary between UI pages and persistence.
+ *
+ * Persistence rules:
+ * - When a vault is open, vault-scoped settings are read from / written to the
+ *   open vault via VaultManager (and therefore persist in the vault file).
+ * - When no vault is open, defaults are read from / written to application
+ *   settings (GSettings).
+ * - Some preferences are always application-scoped (e.g., theme and FIPS
+ *   preference) and are stored in GSettings regardless of vault state.
+ *
+ * @note Calling save() may update VaultManager state; vault persistence depends
+ *       on the underlying VaultManager save behavior (the presenter may trigger
+ *       a vault save when a vault is open).
  */
 class PreferencesPresenter final {
 public:
@@ -35,12 +46,18 @@ public:
 
     /**
      * @brief Load preferences into a model.
+        *
+        * The returned model contains either vault-scoped values (when a vault is
+        * open) or application defaults (when no vault is open).
      * @return Populated PreferencesModel (with safe defaults if settings unavailable).
      */
     [[nodiscard]] PreferencesModel load() const;
 
     /**
      * @brief Persist preferences from a model.
+        *
+        * Vault-scoped values are applied to the current vault when one is open.
+        * Otherwise values are persisted as defaults in GSettings.
      * @param model Preferences state to save.
      */
     void save(const PreferencesModel& model) const;

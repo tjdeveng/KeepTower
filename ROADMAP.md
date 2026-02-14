@@ -190,6 +190,7 @@ This document outlines the planned features and improvements for KeepTower, orga
 - [ ] Code coverage tracking (Codecov)
 - [ ] Performance benchmarking suite
 - [ ] Automated security scanning (CodeQL)
+- [ ] **Logging policy (quiet-by-default):** Audit UI-layer logging (e.g., VaultOpenHandler/V2AuthenticationHandler/etc.) and standardize levels so normal runs are quiet; reserve `info` for major state transitions and use `debug` for flow tracing
 - [ ] **Consolidate secure memory handling** - Migrate VaultManager.cc's EVPCipherContext to SecureMemory.h's EVPCipherContextPtr, standardize all OPENSSL_cleanse usage
 - [ ] **Phase 2 Deferred Items:**
   - [ ] Issue #2: Consolidate secure memory utilities (SecureMemory.h vs VaultManager methods)
