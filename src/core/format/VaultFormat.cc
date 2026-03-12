@@ -52,11 +52,11 @@ VaultFormat::parse(const std::vector<uint8_t>& file_data) {
                 // Account for YubiKey metadata if present
                 size_t yk_metadata_size = 0;
                 if (yubikey_required && data_offset < file_data.size()) {
-                    uint8_t serial_len = file_data[data_offset];
-                    // Validate serial_len to prevent integer overflow in size calculations
-                    if (serial_len > 0 && serial_len <= 255 &&
-                        data_offset + 1 + serial_len + YUBIKEY_CHALLENGE_SIZE <= file_data.size()) {
-                        yk_metadata_size = 1 + serial_len + YUBIKEY_CHALLENGE_SIZE;
+                    const size_t serial_len = file_data[data_offset];  // length field is a single byte
+                    const size_t needed = 1 + serial_len + YUBIKEY_CHALLENGE_SIZE;
+                    // Validate serial_len and ensure we have enough remaining data.
+                    if (serial_len > 0 && (file_data.size() - data_offset) >= needed) {
+                        yk_metadata_size = needed;
                     } else {
                         // Invalid serial length - treat as corrupted file
                         Log::warning("VaultFormat: Invalid YubiKey serial length in FEC header ({}) or insufficient data", serial_len);
@@ -77,12 +77,11 @@ VaultFormat::parse(const std::vector<uint8_t>& file_data) {
 
                     // Read YubiKey metadata if required (comes BEFORE RS-encoded data)
                     if (yubikey_required && ciphertext_offset < file_data.size()) {
-                        uint8_t serial_len = file_data[ciphertext_offset++];
+                        const size_t serial_len = file_data[ciphertext_offset++];
+                        const size_t needed = serial_len + YUBIKEY_CHALLENGE_SIZE;
 
-                        // Validate serial_len is reasonable (max 255 bytes, but typically < 50)
-                        // and we have enough data remaining
-                        if (serial_len > 0 && serial_len <= 255 &&
-                            ciphertext_offset + serial_len + YUBIKEY_CHALLENGE_SIZE <= file_data.size()) {
+                        // Validate serial_len and ensure we have enough data remaining.
+                        if (serial_len > 0 && (file_data.size() - ciphertext_offset) >= needed) {
                             result.metadata.yubikey_serial.assign(
                                 file_data.begin() + static_cast<std::ptrdiff_t>(ciphertext_offset),
                                 file_data.begin() + static_cast<std::ptrdiff_t>(ciphertext_offset + serial_len));
@@ -132,12 +131,11 @@ VaultFormat::parse(const std::vector<uint8_t>& file_data) {
 
             // Read YubiKey metadata if required (after flags byte)
             if (yubikey_required && ciphertext_offset < file_data.size()) {
-                uint8_t serial_len = file_data[ciphertext_offset++];
+                const size_t serial_len = file_data[ciphertext_offset++];
+                const size_t needed = serial_len + YUBIKEY_CHALLENGE_SIZE;
 
-                // Validate serial_len is reasonable (max 255 bytes, but typically < 50)
-                // and we have enough data remaining
-                if (serial_len > 0 && serial_len <= 255 &&
-                    ciphertext_offset + serial_len + YUBIKEY_CHALLENGE_SIZE <= file_data.size()) {
+                // Validate serial_len and ensure we have enough data remaining.
+                if (serial_len > 0 && (file_data.size() - ciphertext_offset) >= needed) {
                     result.metadata.yubikey_serial.assign(
                         file_data.begin() + static_cast<std::ptrdiff_t>(ciphertext_offset),
                         file_data.begin() + static_cast<std::ptrdiff_t>(ciphertext_offset + serial_len));
