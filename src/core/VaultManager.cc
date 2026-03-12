@@ -355,8 +355,8 @@ bool VaultManager::check_vault_requires_yubikey(const std::string& path, std::st
     }
 
     // Read YubiKey serial
-    uint8_t serial_len = file_data[offset++];
-    if (offset + serial_len <= file_data.size()) {
+    const size_t serial_len = file_data[offset++];
+    if (offset <= file_data.size() && (file_data.size() - offset) >= serial_len) {
         serial.assign(file_data.begin() + static_cast<std::ptrdiff_t>(offset),
                       file_data.begin() + static_cast<std::ptrdiff_t>(offset + serial_len));
     }

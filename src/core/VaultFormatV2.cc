@@ -282,9 +282,10 @@ VaultFormatV2::read_header(const std::vector<uint8_t>& file_data) {
     uint32_t header_data_size = header.header_size - 1;
 
     // Check if we have enough data
-    if (offset + header_data_size + 32 + 12 > file_data.size()) {
+    const size_t required_after_offset = static_cast<size_t>(header_data_size) + 32 + 12;
+    if (offset > file_data.size() || (file_data.size() - offset) < required_after_offset) {
         Log::error("VaultFormatV2: File too small for header (need {}, have {})",
-                   offset + header_data_size + 32 + 12, file_data.size());
+                   offset + required_after_offset, file_data.size());
         return std::unexpected(VaultError::CorruptedFile);
     }
 

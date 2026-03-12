@@ -489,6 +489,14 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
     KeySlot slot;
     size_t pos = offset;
 
+    const auto require_bytes = [&data, &pos](size_t needed, std::string_view what) -> bool {
+        if (pos > data.size() || (data.size() - pos) < needed) {
+            Log::error("KeySlot: Insufficient data for {}", what);
+            return false;
+        }
+        return true;
+    };
+
     auto it = [&data](size_t idx) {
         return data.begin() + static_cast<std::vector<uint8_t>::difference_type>(idx);
     };
@@ -512,16 +520,14 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
     }
 
     // Next 64 bytes: username_hash
-    if (pos + 64 > data.size()) {
-        Log::error("KeySlot: Insufficient data for username_hash");
+    if (!require_bytes(64, "username_hash")) {
         return std::nullopt;
     }
     std::copy(it(pos), it(pos + 64), slot.username_hash.begin());
     pos += 64;
 
     // Next byte: username_hash_size
-    if (pos + 1 > data.size()) {
-        Log::error("KeySlot: Insufficient data for username_hash_size");
+    if (!require_bytes(1, "username_hash_size")) {
         return std::nullopt;
     }
     slot.username_hash_size = data[pos++];
@@ -531,16 +537,14 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
     }
 
     // Next 16 bytes: username_salt
-    if (pos + 16 > data.size()) {
-        Log::error("KeySlot: Insufficient data for username_salt");
+    if (!require_bytes(16, "username_salt")) {
         return std::nullopt;
     }
     std::copy(it(pos), it(pos + 16), slot.username_salt.begin());
     pos += 16;
 
     // Check remaining data for core fields
-    if (pos + 32 + 40 + 1 + 1 + 8 + 8 > data.size()) {
-        Log::error("KeySlot: Insufficient data for core fields");
+    if (!require_bytes(32 + 40 + 1 + 1 + 8 + 8, "core fields")) {
         return std::nullopt;
     }
 
@@ -577,7 +581,7 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
 
     // Check if we have YubiKey fields (backward compatibility)
     // If not enough data, treat as old format (no YubiKey fields)
-    if (pos + 1 + 32 + 1 > data.size()) {
+    if (pos > data.size() || (data.size() - pos) < (1 + 32 + 1)) {
         // Old format without YubiKey fields - use defaults
         slot.yubikey_enrolled = false;
         slot.yubikey_challenge = {};
@@ -598,7 +602,8 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
     uint8_t yubikey_serial_len = data[pos++];
 
     // Check if we have enough data for serial + timestamp
-    if (pos + yubikey_serial_len + 8 > data.size()) {
+    const size_t yubikey_serial_and_timestamp = static_cast<size_t>(yubikey_serial_len) + 8;
+    if (pos > data.size() || (data.size() - pos) < yubikey_serial_and_timestamp) {
         Log::error("KeySlot: Insufficient data for YubiKey serial and timestamp");
         return std::nullopt;
     }
@@ -615,7 +620,7 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
 
     // Check if we have yubikey_encrypted_pin field (backward compatibility)
     // If not enough data, treat as old format (no encrypted PIN)
-    if (pos + 2 > data.size()) {
+    if (pos > data.size() || (data.size() - pos) < 2) {
         // Old format without encrypted PIN - use empty vectors
         slot.yubikey_encrypted_pin.clear();
         slot.yubikey_credential_id.clear();
@@ -629,7 +634,7 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
     pos += 2;
 
     // Check if we have enough data for encrypted PIN
-    if (pos + encrypted_pin_len > data.size()) {
+    if (pos > data.size() || (data.size() - pos) < encrypted_pin_len) {
         Log::error("KeySlot: Insufficient data for YubiKey encrypted PIN");
         return std::nullopt;
     }
@@ -639,7 +644,7 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
     pos += encrypted_pin_len;
 
     // Check if we have yubikey_credential_id field (backward compatibility)
-    if (pos + 2 > data.size()) {
+    if (pos > data.size() || (data.size() - pos) < 2) {
         // Old format without credential ID - use empty vector
         slot.yubikey_credential_id.clear();
         slot.password_history.clear();
@@ -652,7 +657,7 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
     pos += 2;
 
     // Check if we have enough data for credential ID
-    if (pos + credential_id_len > data.size()) {
+    if (pos > data.size() || (data.size() - pos) < credential_id_len) {
         Log::error("KeySlot: Insufficient data for YubiKey credential ID");
         return std::nullopt;
     }
@@ -663,7 +668,7 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
 
     // Check if we have password_history field (backward compatibility)
     // If not enough data, treat as old format (no password history)
-    if (pos + 1 > data.size()) {
+    if (pos > data.size() || (data.size() - pos) < 1) {
         // Old format without password history - use empty vector
         slot.password_history.clear();
         size_t bytes_consumed = pos - offset;
@@ -675,7 +680,7 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
 
     // Check if we have enough data for all history entries
     size_t history_bytes_needed = history_count * PasswordHistoryEntry::SERIALIZED_SIZE;
-    if (pos + history_bytes_needed > data.size()) {
+    if (pos > data.size() || (data.size() - pos) < history_bytes_needed) {
         Log::error("KeySlot: Insufficient data for password history (need {}, have {})",
                    history_bytes_needed, data.size() - pos);
         return std::nullopt;
@@ -696,7 +701,7 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
 
     // Check if we have migration fields (backward compatibility)
     // Old format (pre-migration) won't have these fields
-    if (pos + 1 + 8 > data.size()) {
+    if (pos > data.size() || (data.size() - pos) < (1 + 8)) {
         // Old format without migration fields - use defaults
         slot.migration_status = 0x00;
         slot.migrated_at = 0;
