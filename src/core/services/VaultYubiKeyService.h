@@ -11,7 +11,7 @@
  * Responsibilities:
  * - YubiKey device detection and enumeration
  * - Two-step enrollment (policy challenge + user challenge)
- * - Challenge-response operations via HMAC-SHA1
+ * - Challenge-response operations via FIDO2 hmac-secret (HMAC-SHA256)
  * - Device information retrieval
  * - Error handling and validation
  *
@@ -45,7 +45,7 @@ namespace KeepTower {
  *
  * Thread-safety: Methods are NOT thread-safe due to libfido2 limitations.
  *                Caller must serialize access to YubiKey hardware.
- * FIPS-compliance: Uses FIPS-approved HMAC-SHA1 algorithm
+ * FIPS-compliance: Uses FIPS-approved HMAC-SHA256 via FIDO2 hmac-secret
  */
 class VaultYubiKeyService {
 public:
@@ -68,8 +68,8 @@ public:
      * @brief Result of two-step enrollment
      */
     struct EnrollmentResult {
-        std::vector<uint8_t> policy_response;  ///< Policy challenge response (20 bytes)
-        std::vector<uint8_t> user_response;    ///< User challenge response (20 bytes)
+        std::vector<uint8_t> policy_response;  ///< Policy challenge response (32 bytes for FIDO2 hmac-secret)
+        std::vector<uint8_t> user_response;    ///< User challenge response (32 bytes for FIDO2 hmac-secret)
         std::vector<uint8_t> credential_id;    ///< FIDO2 credential ID
         DeviceInfo device_info;                ///< Device used for enrollment
     };
@@ -78,7 +78,7 @@ public:
      * @brief Result of challenge-response operation
      */
     struct ChallengeResult {
-        std::vector<uint8_t> response;  ///< HMAC-SHA1 response (20 bytes)
+        std::vector<uint8_t> response;  ///< HMAC-SHA256 response (32 bytes for FIDO2 hmac-secret)
         DeviceInfo device_info;         ///< Device used
     };
 
@@ -202,7 +202,7 @@ public:
      * @brief Generate random challenge for YubiKey enrollment
      *
      * Creates cryptographically secure random challenge suitable for
-     * YubiKey HMAC-SHA1 operations.
+    * FIDO2 hmac-secret operations.
      *
      * @param size Challenge size in bytes (1-64, default 32)
      * @return Random challenge bytes or VaultError

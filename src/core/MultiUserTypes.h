@@ -275,22 +275,17 @@ struct VaultSecurityPolicy {
     uint8_t yubikey_algorithm = 0x02;  ///< YubiKeyAlgorithm enum value (0x02=SHA-256 minimum)
 
     /**
-     * @brief YubiKey challenge data (size varies by algorithm)
+     * @brief Legacy / policy-level YubiKey challenge data (compatibility)
      *
-     * Random challenge generated at vault creation.
-     * All users' YubiKeys are programmed with the SAME challenge-response secret.
+     * This 64-byte field exists for backward compatibility with earlier YubiKey
+     * challenge-response designs.
      *
-     * Challenge size: Fixed at 64 bytes (YUBIKEY_CHALLENGE_SIZE)
-     * Response size: Depends on algorithm (20-64 bytes)
+     * Current FIDO2 hmac-secret enrollment/authentication uses:
+     * - a per-user `KeySlot::yubikey_challenge` (32 bytes), and
+     * - a per-user `KeySlot::yubikey_credential_id` to select the correct credential.
      *
-     * @section shared_challenge Why Shared Challenge?
-     * - Simpler YubiKey deployment (admin programs all keys identically)
-     * - Easier backup YubiKeys (program with same secret)
-     * - Matches LUKS/dm-crypt model (one challenge per vault)
-     * - No per-user YubiKey slot management
-     *
-     * @note Only used if require_yubikey is true
-     * @note Set to zero if YubiKey not required
+     * @note Only meaningful if require_yubikey is true
+     * @note May be unused by the current FIDO2 flow
      */
     std::array<uint8_t, 64> yubikey_challenge = {};
 

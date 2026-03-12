@@ -15,10 +15,6 @@
 #include <span>
 #include <format>
 #include <functional>
-#include <thread>
-#include <atomic>
-#include <mutex>
-#include <glibmm/dispatcher.h>
 
 /**
  * @brief Manages YubiKey operations for vault encryption key derivation
@@ -305,14 +301,6 @@ private:
     bool m_initialized{false};               ///< Whether subsystem initialized
     bool m_fips_mode{false};                 ///< Whether FIPS mode enforced
 
-    // Async operation state
-    std::atomic<bool> m_is_busy{false};      ///< Whether async operation in progress
-    std::atomic<bool> m_cancel_requested{false}; ///< Whether cancellation requested
-    std::unique_ptr<std::thread> m_worker_thread; ///< Background worker thread
-    std::mutex m_callback_mutex;             ///< Protects callback storage
-    std::function<void()> m_pending_callback; ///< Pending UI thread callback
-    Glib::Dispatcher m_dispatcher;           ///< UI thread callback dispatcher
-
     /**
      * @brief Set last error message
      * @param error Error message to store
@@ -321,27 +309,6 @@ private:
         m_last_error = error;
     }
 
-    /**
-     * @brief Worker thread entry for credential creation
-     */
-    void thread_create_credential(
-        std::string user_name,
-        std::optional<std::string> pin,
-        bool require_touch,
-        CreateCredentialCallback callback
-    ) noexcept;
-
-    /**
-     * @brief Worker thread entry for challenge-response
-     */
-    void thread_challenge_response(
-        std::vector<unsigned char> challenge,
-        YubiKeyAlgorithm algorithm,
-        bool require_touch,
-        int timeout_ms,
-        std::optional<std::string> pin,
-        ChallengeResponseCallback callback
-    ) noexcept;
 };
 
 #endif // YUBIKEY_MANAGER_H

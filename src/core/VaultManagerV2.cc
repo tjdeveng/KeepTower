@@ -422,6 +422,8 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
     const Glib::ustring& password,
     const std::string& yubikey_serial) {
 
+    (void)yubikey_serial;
+
     Log::info("VaultManager: Opening V2 vault: {}", path);
 
     // Close any open vault
@@ -1447,6 +1449,8 @@ KeepTower::VaultResult<> VaultManager::migrate_user_hash(
     const std::string& username,
     const std::string& password) {
 
+    (void)password;
+
     if (!user_slot || !m_v2_header) {
         Log::error("VaultManager: migrate_user_hash called with null parameters");
         return std::unexpected(VaultError::InvalidData);
@@ -2412,7 +2416,7 @@ KeepTower::VaultResult<> VaultManager::convert_v1_to_v2(
     }
 
     // Close V1 vault
-    close_vault();
+    (void)close_vault();
 
     // Create new V2 vault with same path (overwrites V1)
     auto create_result = create_vault_v2(old_vault_path, admin_username, admin_password, policy);

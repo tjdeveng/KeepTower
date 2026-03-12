@@ -1,5 +1,13 @@
 # YubiKey Async Architecture Refactor - Complete
 
+## Update (2026-02-22)
+
+The async/threading plumbing inside `YubiKeyManager` has since been further split into SRP internal helpers:
+- Protocol operations are isolated in `Fido2Protocol`.
+- Threading + GTK main-thread dispatch is isolated in `AsyncRunner`.
+
+`YubiKeyManager` remains the stable public façade; the public API is unchanged, but the implementation no longer keeps the async state directly in the public header.
+
 ## Overview
 
 Successfully completed a full architectural refactor to implement proper async YubiKey operations following Single Responsibility Principle (SRP). This replaces the previous `YubiKeyThreadedOperations` wrapper with a proper async cascade through the architectural layers.
@@ -72,43 +80,12 @@ Implemented async cascade following SRP:
 
 ### 1. YubiKeyManager (src/core/managers/YubiKeyManager.{h,cc})
 
-#### Added to Header:
-```cpp
-// Callback types
-using CreateCredentialCallback = std::function<void(
-    const std::optional<std::vector<unsigned char>>& credential_id,
-    const std::string& error_msg)>;
+#### Current Structure
 
-using ChallengeResponseCallback = std::function<void(const ChallengeResponse& response)>;
-
-// Async methods
-void create_credential_async(
-    const std::string& rp_id,
-    const std::string& user_name,
-    std::span<const unsigned char> user_id,
-    const std::string& pin,
-    bool require_touch,
-    CreateCredentialCallback callback);
-
-void challenge_response_async(
-    std::span<const unsigned char> challenge,
-    YubiKeyAlgorithm algorithm,
-    bool require_touch,
-    uint32_t timeout_ms,
-    const std::string& pin,
-    ChallengeResponseCallback callback);
-
-bool is_busy() const noexcept;
-void cancel_async() noexcept;
-
-// Threading members
-std::atomic<bool> m_is_busy{false};
-std::atomic<bool> m_cancel_requested{false};
-std::unique_ptr<std::thread> m_worker_thread;
-std::mutex m_callback_mutex;
-std::function<void()> m_pending_callback;
-Glib::Dispatcher m_dispatcher;
-```
+The public async methods remain on `YubiKeyManager`, but the threading primitives are now encapsulated in an internal `AsyncRunner` helper. This keeps `YubiKeyManager` focused on the public contract and policy checks, while the helper focuses only on:
+- worker thread lifecycle
+- cancellation checks
+- dispatching callbacks onto the GTK main thread via `Glib::Dispatcher`
 
 #### Implementation Pattern:
 ```cpp

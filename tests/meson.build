@@ -310,6 +310,24 @@ yubikey_algorithms_test = executable(
     include_directories: test_inc
 )
 
+# YubiKeyManager characterization tests (Issue #7 refactor safety net)
+yubikey_manager_characterization_sources = [
+    'test_yubikey_manager_characterization.cc',
+    '../src/core/managers/YubiKeyManager.cc'
+]
+
+yubikey_manager_characterization_deps = [gtest_dep, openssl_dep, giomm_dep]
+if yubikey_available
+    yubikey_manager_characterization_deps += [fido2_dep]
+endif
+
+yubikey_manager_characterization_test = executable(
+    'yubikey_manager_characterization_test',
+    yubikey_manager_characterization_sources,
+    dependencies: yubikey_manager_characterization_deps,
+    include_directories: test_inc
+)
+
 # Username Hashing tests (Phase 1: Core Hashing Infrastructure)
 username_hashing_sources = [
     'test_username_hashing.cc',
@@ -512,6 +530,9 @@ endif
 test('FIPS Mode Tests', fips_mode_test, env: fips_mode_env)
 test('Memory Locking Security Tests', memory_locking_test)
 test('YubiKey Algorithm Tests', yubikey_algorithms_test)
+test('YubiKeyManager Characterization Tests', yubikey_manager_characterization_test,
+    env: {'DISABLE_YUBIKEY_DETECT': '1'}
+)
 test('Username Hashing Tests', username_hashing_test)
 test('Username Hash Migration Tests', username_hash_migration_test, suite: 'migration')
 test('Username Hash Migration Priority 2 Tests', username_hash_migration_priority2_test, suite: 'migration')

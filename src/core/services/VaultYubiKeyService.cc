@@ -61,6 +61,8 @@ VaultYubiKeyService::enroll_yubikey(
     bool enforce_fips,
     std::function<void(const std::string&)> progress_callback) {
 
+    (void)policy_challenge;
+
     // Validate PIN format
     if (!validate_pin_format(pin)) {
         Log::error("VaultYubiKeyService: Invalid PIN format");
