@@ -20,6 +20,9 @@
 #include <gtest/gtest.h>
 #include "core/services/KekDerivationService.h"
 #include "core/crypto/VaultCrypto.h"
+#include <glibmm/init.h>
+#include <giomm/init.h>
+#include <giomm/settings.h>
 #include <array>
 #include <random>
 #include <cstdlib>  // For std::setenv, std::getenv
@@ -365,6 +368,10 @@ TEST_F(KekDerivationServiceTest, AlgorithmToString_ProducesReadableNames) {
 class KekDerivationSettingsTest : public ::testing::Test {
 protected:
     void SetUp() override {
+        // Ensure GLib/Gio are initialized before using Gio::Settings.
+        Glib::init();
+        Gio::init();
+
         // Check if schema is available (needed for GSettings tests)
         const char* schema_dir = std::getenv("GSETTINGS_SCHEMA_DIR");
         if (!schema_dir || schema_dir[0] == '\0') {
@@ -392,6 +399,9 @@ protected:
         settings_->reset("username-argon2-memory-kb");
         settings_->reset("username-argon2-iterations");
         settings_->reset("fips-mode-enabled");
+
+        // Make lifetime explicit for LeakSanitizer.
+        settings_.reset();
     }
 
     Glib::RefPtr<Gio::Settings> settings_;
