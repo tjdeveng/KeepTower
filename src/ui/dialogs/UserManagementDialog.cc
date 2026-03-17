@@ -261,7 +261,7 @@ void UserManagementDialog::on_add_user() {
             auto temp_password_result = generate_temporary_password();
             if (!temp_password_result) {
                 KeepTower::Log::error("Failed to generate temporary password (error: {})",
-                                     static_cast<int>(temp_password_result.error()));
+                                     KeepTower::to_string(temp_password_result.error()));
 
                 auto* error_dlg = new Gtk::MessageDialog(
                     *this,
@@ -425,7 +425,7 @@ void UserManagementDialog::on_reset_password(std::string_view username) {
             auto temp_password_result = generate_temporary_password();
             if (!temp_password_result) {
                 KeepTower::Log::error("Failed to generate temporary password (error: {})",
-                                     static_cast<int>(temp_password_result.error()));
+                                     KeepTower::to_string(temp_password_result.error()));
 
                 auto* error_dlg = new Gtk::MessageDialog(
                     *this,

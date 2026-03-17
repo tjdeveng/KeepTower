@@ -18,10 +18,23 @@ namespace KeepTower {
 /**
  * @brief Errors that can occur during password generation.
  */
-enum class PasswordGeneratorError {
+enum class PasswordGeneratorError : int {
     INVALID_LENGTH,
     RNG_FAILURE,
 };
+
+/**
+ * @brief Convert PasswordGeneratorError to a human-readable string.
+ */
+[[nodiscard]] constexpr std::string_view to_string(PasswordGeneratorError error) noexcept {
+    switch (error) {
+        case PasswordGeneratorError::INVALID_LENGTH:
+            return "INVALID_LENGTH";
+        case PasswordGeneratorError::RNG_FAILURE:
+            return "RNG_FAILURE";
+    }
+    return "UNKNOWN";
+}
 
 /**
  * @brief Temporary password generation helper.
