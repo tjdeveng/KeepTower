@@ -2,16 +2,16 @@
 // SPDX-FileCopyrightText: 2025 tjdeveng
 
 #include "UserManagementDialog.h"
+#include "../../utils/PasswordGenerator.h"
 #include "../../utils/SettingsValidator.h"
 #include "../../utils/SecureMemory.h"
+#include "../../utils/Log.h"
 #include <gtkmm/messagedialog.h>
 #include <gtkmm/grid.h>
 #include <gtkmm/separator.h>
 #include <giomm/settings.h>
 #include <glibmm/markup.h>
-#include <openssl/rand.h>
 #include <algorithm>
-#include <array>
 #include <format>
 #include <functional>
 #include <memory>
@@ -258,7 +258,27 @@ void UserManagementDialog::on_add_user() {
                 : KeepTower::UserRole::STANDARD_USER;
 
             // Generate temporary password (use Glib::ustring to preserve encoding)
-            Glib::ustring temp_password = generate_temporary_password();
+            auto temp_password_result = generate_temporary_password();
+            if (!temp_password_result) {
+                KeepTower::Log::error("Failed to generate temporary password (error: {})",
+                                     static_cast<int>(temp_password_result.error()));
+
+                auto* error_dlg = new Gtk::MessageDialog(
+                    *this,
+                    "Failed to generate temporary password. Please try again.",
+                    false,
+                    Gtk::MessageType::ERROR
+                );
+                error_dlg->set_modal(true);
+                error_dlg->signal_response().connect([error_dlg](int) {
+                    error_dlg->hide();
+                    delete error_dlg;
+                });
+                error_dlg->show();
+                return;
+            }
+
+            Glib::ustring temp_password = temp_password_result.value();
 
             // Add user to vault
             auto result = m_vault_manager.add_user(username, temp_password, role);
@@ -402,7 +422,30 @@ void UserManagementDialog::on_reset_password(std::string_view username) {
     confirm_dlg->signal_response().connect([this, confirm_dlg, username = std::string(username)](int response) {
         if (response == Gtk::ResponseType::YES) {
             // Generate temporary password (use Glib::ustring to preserve encoding)
-            Glib::ustring temp_password = generate_temporary_password();
+            auto temp_password_result = generate_temporary_password();
+            if (!temp_password_result) {
+                KeepTower::Log::error("Failed to generate temporary password (error: {})",
+                                     static_cast<int>(temp_password_result.error()));
+
+                auto* error_dlg = new Gtk::MessageDialog(
+                    *this,
+                    "Failed to generate temporary password. Please try again.",
+                    false,
+                    Gtk::MessageType::ERROR
+                );
+                error_dlg->set_modal(true);
+                error_dlg->signal_response().connect([error_dlg](int) {
+                    error_dlg->hide();
+                    delete error_dlg;
+                });
+                error_dlg->show();
+
+                confirm_dlg->hide();
+                delete confirm_dlg;
+                return;
+            }
+
+            Glib::ustring temp_password = temp_password_result.value();
 
             // Reset user password
             auto result = m_vault_manager.admin_reset_user_password(username, temp_password);
@@ -537,54 +580,19 @@ void UserManagementDialog::show_temporary_password(std::string_view username, co
     dialog->show();
 }
 
-Glib::ustring UserManagementDialog::generate_temporary_password() {
+std::expected<Glib::ustring, KeepTower::PasswordGeneratorError>
+UserManagementDialog::generate_temporary_password() {
     // Get vault security policy for password requirements
     auto policy_opt = m_vault_manager.get_vault_security_policy();
     const uint32_t min_required = policy_opt ? policy_opt->min_password_length : 12;
-    const uint32_t password_length = std::max(16u, min_required);  // Use max(16, policy min)
+    const size_t password_length = std::max<size_t>(16, static_cast<size_t>(min_required));
 
-    // Character sets for password generation
-    constexpr std::string_view uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    constexpr std::string_view lowercase = "abcdefghijklmnopqrstuvwxyz";
-    constexpr std::string_view digits = "0123456789";
-    constexpr std::string_view symbols = "!@#$%^&*-_=+";
-    constexpr std::string_view all_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*-_=+";
-
-    std::string password;
-    password.reserve(password_length);
-
-    // Ensure at least one character from each set
-    std::array<std::string_view, 4> required_sets = {uppercase, lowercase, digits, symbols};
-    std::array<unsigned char, 4> random_bytes;
-
-    for (auto charset : required_sets) {
-        if (RAND_bytes(random_bytes.data(), 1) != 1) {
-            throw std::runtime_error("Failed to generate random bytes");
-        }
-        size_t index = random_bytes[0] % charset.size();
-        password += charset[index];
+    auto password = KeepTower::PasswordGenerator::generate_temporary_password(password_length);
+    if (!password) {
+        return std::unexpected(password.error());
     }
 
-    // Fill remaining characters randomly
-    for (uint32_t i = password.size(); i < password_length; ++i) {
-        if (RAND_bytes(random_bytes.data(), 1) != 1) {
-            throw std::runtime_error("Failed to generate random bytes");
-        }
-        size_t index = random_bytes[0] % all_chars.size();
-        password += all_chars[index];
-    }
-
-    // Shuffle password to mix required characters
-    for (size_t i = password.size() - 1; i > 0; --i) {
-        if (RAND_bytes(random_bytes.data(), 1) != 1) {
-            throw std::runtime_error("Failed to generate random bytes");
-        }
-        size_t j = random_bytes[0] % (i + 1);
-        std::swap(password[i], password[j]);
-    }
-
-    // Return as Glib::ustring to preserve encoding
-    return Glib::ustring(password);
+    return Glib::ustring(password.value());
 }
 
 std::string UserManagementDialog::get_role_display_name(KeepTower::UserRole role) noexcept {

@@ -31,12 +31,17 @@
 #include <gtkmm/entry.h>
 #include <gtkmm/dropdown.h>
 #include <gtkmm/stringlist.h>
+#include <expected>
 #include <string>
 #include <string_view>
 #include <vector>
 #include "../../core/VaultManager.h"
 #include "../../core/MultiUserTypes.h"
 #include "../controllers/ClipboardManager.h"
+
+namespace KeepTower {
+enum class PasswordGeneratorError : int;
+} // namespace KeepTower
 
 /**
  * @brief User management dialog for administrators
@@ -141,14 +146,14 @@ private:
 
     /**
      * @brief Generate random temporary password
-     * @return Random password meeting vault security policy
+        * @return Random password meeting vault security policy, or error
      *
      * Generates password with:
      * - Minimum length from vault policy
      * - Mix of uppercase, lowercase, digits, symbols
      * - Cryptographically random (OpenSSL RAND_bytes)
      */
-    [[nodiscard]] Glib::ustring generate_temporary_password();
+        [[nodiscard]] std::expected<Glib::ustring, KeepTower::PasswordGeneratorError> generate_temporary_password();
 
     /**
      * @brief Get role display name
