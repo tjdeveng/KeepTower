@@ -11,7 +11,7 @@
  * - Remove users (with safety checks)
  * - Reset user passwords
  *
- * @section security Security Considerations
+ * @section user_management_security Security Considerations
  * - Only accessible by ADMINISTRATOR role users
  * - Prevents removal of last administrator
  * - Prevents self-removal of administrators
@@ -145,15 +145,21 @@ private:
     void show_temporary_password(std::string_view username, const Glib::ustring& temp_password, std::function<void()> on_closed = nullptr);
 
     /**
-     * @brief Generate random temporary password
-        * @return Random password meeting vault security policy, or error
+      * @brief Generate a random temporary password.
+      *
+      * Uses the vault's password policy (minimum length) and delegates
+      * cryptographically secure generation to KeepTower::PasswordGenerator.
+      *
+      * @return Random password meeting vault security policy, or an error.
      *
-     * Generates password with:
-     * - Minimum length from vault policy
-     * - Mix of uppercase, lowercase, digits, symbols
-     * - Cryptographically random (OpenSSL RAND_bytes)
+      * The generated password includes at least one uppercase letter, one
+      * lowercase letter, one digit, and one symbol.
+      *
+      * @retval KeepTower::PasswordGeneratorError::INVALID_LENGTH if the vault's
+      * policy minimum is too small for the generator.
+      * @retval KeepTower::PasswordGeneratorError::RNG_FAILURE if the RNG fails.
      */
-        [[nodiscard]] std::expected<Glib::ustring, KeepTower::PasswordGeneratorError> generate_temporary_password();
+     [[nodiscard]] std::expected<Glib::ustring, KeepTower::PasswordGeneratorError> generate_temporary_password();
 
     /**
      * @brief Get role display name
