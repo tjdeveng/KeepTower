@@ -142,6 +142,7 @@ sources = files(
   'core/managers/AccountManager.cc',
   'core/managers/GroupManager.cc',
   'utils/ImportExport.cc',
+  'utils/PasswordGenerator.cc',
   'utils/helpers/HelpManager.cc',
 )
 
