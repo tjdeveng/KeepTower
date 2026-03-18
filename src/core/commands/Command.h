@@ -18,7 +18,7 @@
  * Implements the Command pattern for vault operations. Each command
  * encapsulates an operation and its inverse, enabling undo/redo functionality.
  *
- * @section usage Usage Example
+ * @section command_usage Usage Example
  * @code
  * auto cmd = std::make_unique<AddAccountCommand>(vault_manager, account_data);
  * cmd->execute();  // Perform the operation
@@ -27,7 +27,7 @@
  * cmd->redo();     // Re-apply the operation
  * @endcode
  *
- * @section thread_safety Thread Safety
+ * @section command_thread_safety Thread Safety
  * Commands are NOT thread-safe. The UndoManager is responsible for
  * serializing command execution.
  */

@@ -46,20 +46,20 @@ struct PasswordChangeRequest {
  * - **Voluntary change**: User provides current password + new password
  * - **Forced change**: New user must change temporary password (on_first_login)
  *
- * @section validation Password Validation
+ * @section change_password_dialog_validation Password Validation
  * - Current password must not be empty (except forced mode)
  * - New password must meet minimum length requirement
  * - New password must match confirmation field
  * - New password must differ from current password
  *
- * @section security Security Features
+ * @section change_password_dialog_security Security Features
  * - All password fields masked by default
  * - Passwords cleared on dialog close
  * - Optional show password toggle
  * - Real-time validation feedback
  * - No password caching
  *
- * @section usage Usage Example
+ * @section change_password_dialog_usage Usage Example
  * @code
  * ChangePasswordDialog dialog(*parent, 12, false);  // min_length=12, not forced
  * if (dialog.run() == Gtk::ResponseType::OK) {

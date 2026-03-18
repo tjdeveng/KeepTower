@@ -24,16 +24,16 @@
  */
 namespace YubiKeyAPDU {
     // YubiKey OTP Application AID
-    constexpr std::array<uint8_t, 8> OTP_AID = {0xA0, 0x00, 0x00, 0x05, 0x27, 0x20, 0x01, 0x01};
+    constexpr std::array<uint8_t, 8> OTP_AID = {0xA0, 0x00, 0x00, 0x05, 0x27, 0x20, 0x01, 0x01};  ///< YubiKey OTP application AID
 
     // APDU Command codes
-    constexpr uint8_t CLA = 0x00;           // Class byte
-    constexpr uint8_t INS_SELECT = 0xA4;    // SELECT instruction
-    constexpr uint8_t INS_CHALLENGE = 0x01; // HMAC-SHA1 Challenge
+    constexpr uint8_t CLA = 0x00;           ///< APDU class byte
+    constexpr uint8_t INS_SELECT = 0xA4;    ///< SELECT instruction
+    constexpr uint8_t INS_CHALLENGE = 0x01; ///< HMAC-SHA1 challenge-response instruction
 
     // Slot selection (P1 byte for challenge command)
-    constexpr uint8_t SLOT_1 = 0x20;        // Slot 1 challenge-response
-    constexpr uint8_t SLOT_2 = 0x38;        // Slot 2 challenge-response (we use this)
+    constexpr uint8_t SLOT_1 = 0x20;        ///< Slot 1 challenge-response selector
+    constexpr uint8_t SLOT_2 = 0x38;        ///< Slot 2 challenge-response selector
 
     /**
      * @brief Build SELECT application APDU

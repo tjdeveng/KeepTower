@@ -42,7 +42,7 @@ struct V2LoginCredentials {
  * enabling OK button. Supports password visibility toggle and
  * vault-specific security policy hints.
  *
- * @section usage Usage Example
+ * @section v2_user_login_dialog_usage Usage Example
  * @code
  * V2UserLoginDialog dialog(*parent_window, vault_requires_yubikey);
  * if (dialog.run() == Gtk::ResponseType::OK) {
@@ -52,7 +52,7 @@ struct V2LoginCredentials {
  * }
  * @endcode
  *
- * @section security Security Features
+ * @section v2_user_login_dialog_security Security Features
  * - Password masked by default
  * - Credentials cleared on dialog close
  * - Empty username/password validation

@@ -9,7 +9,7 @@
  * std::expected-based error handling. This enables type-safe error propagation
  * without exceptions, with clear error semantics.
  *
- * @section usage Usage Example
+ * @section vault_error_usage Usage Example
  * @code
  * VaultResult<std::string> result = vault_manager->get_account_name(idx);
  * if (result.has_value()) {
@@ -20,7 +20,7 @@
  * }
  * @endcode
  *
- * @section categories Error Categories
+ * @section vault_error_categories Error Categories
  * - **File Operations:** File I/O and permission errors
  * - **Vault Operations:** Vault lifecycle and corruption errors
  * - **Cryptography:** Encryption, decryption, and key derivation errors

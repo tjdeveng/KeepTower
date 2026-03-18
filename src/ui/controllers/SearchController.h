@@ -62,7 +62,7 @@ struct SearchCriteria {
  * This class separates search logic from MainWindow,
  * making it testable and reusable.
  *
- * @section usage Usage Example
+ * @section search_controller_usage Usage Example
  * @code
  * SearchController controller;
  *

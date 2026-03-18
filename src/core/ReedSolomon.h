@@ -22,7 +22,7 @@
  * recovery from partial file corruption. Uses Reed-Solomon codes to add
  * redundant parity data that enables reconstruction of corrupted blocks.
  *
- * @section usage Usage Example
+ * @section reed_solomon_usage Usage Example
  * @code
  * ReedSolomon rs(10); // 10% redundancy
  *
@@ -40,7 +40,7 @@
  * }
  * @endcode
  *
- * @section format Encoded Data Format
+ * @section reed_solomon_format Encoded Data Format
  * - Original data blocks
  * - Parity blocks (size based on redundancy percentage)
  *

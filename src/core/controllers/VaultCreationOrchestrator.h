@@ -69,7 +69,7 @@ class VaultFileService;
  * - Step description
  * - Progress percentage (0-100)
  *
- * @section usage Usage Example
+ * @section vault_creation_orchestrator_usage Usage Example
  *
  * @code
  * // Create services

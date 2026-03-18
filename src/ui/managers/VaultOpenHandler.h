@@ -74,7 +74,6 @@ public:
      *  @param window Parent window for dialogs
      *  @param vault_manager VaultManager instance for vault operations
      *  @param dialog_manager DialogManager for file/password dialogs
-    *  @param ui_state_applier VaultUiStateApplier for UI updates
      *  @param vault_open_ref Reference to MainWindow vault_open flag
      *  @param is_locked_ref Reference to MainWindow is_locked flag
      *  @param current_vault_path_ref Reference to MainWindow current vault path
@@ -83,14 +82,7 @@ public:
      *  @param info_dialog_callback Callback to show info dialogs
      *  @param detect_vault_version_callback Callback to detect vault version
      *  @param handle_v2_vault_open_callback Callback to handle V2 authentication
-     *  @param initialize_repositories_callback Callback to initialize repositories
-     *  @param update_account_list_callback Callback to refresh account list
-     *  @param update_tag_filter_callback Callback to refresh tag filter
-     *  @param clear_account_details_callback Callback to clear account details
-     *  @param update_undo_redo_sensitivity_callback Callback to update undo/redo
-     *  @param update_menu_for_role_callback Callback to update menu for user role
-     *  @param update_session_display_callback Callback to update session display
-     *  @param on_user_activity_callback Callback to notify user activity */
+        *  @param on_vault_opened_callback Callback invoked after a vault is opened/created */
     VaultOpenHandler(Gtk::Window& window,
                     VaultManager* vault_manager,
                     DialogManager* dialog_manager,

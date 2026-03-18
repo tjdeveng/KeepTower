@@ -9,13 +9,13 @@
  * data breaches and security research. Used to prevent users from selecting weak
  * passwords that appear in breach databases.
  *
- * @section sources Data Sources
+ * @section common_passwords_sources Data Sources
  * - **Have I Been Pwned** (Troy Hunt's breach database)
  * - **SplashData** annual worst passwords report
  * - **NordPass** annual most common passwords report
  * - **NIST SP 800-63B** guidelines
  *
- * @section categories Password Categories
+ * @section common_passwords_categories Password Categories
  * - Top 20 most breached passwords
  * - Sequential numbers and patterns
  * - Keyboard walking patterns
@@ -25,14 +25,14 @@
  * - Leet speak variations
  * - Date and year patterns
  *
- * @section security Security Considerations
+ * @section common_passwords_security Security Considerations
  * This list is intentionally kept in memory (not loaded from file) to ensure
  * password checks work even if the filesystem is compromised. The list is
  * compiled into the binary at build time.
  *
  * @warning Do not remove passwords from this list without security review
  *
- * @section usage Usage
+ * @section common_passwords_usage Usage
  * Used by PasswordStrengthValidator during password creation and change operations.
  * Passwords matching any entry in this list are rejected as too weak.
  */

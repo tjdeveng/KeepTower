@@ -12,7 +12,7 @@
  * that have varying support across compiler versions. Ubuntu 22.04/24.04 LTS
  * ships with GCC 13, while newer systems have GCC 14+ with better C++23 support.
  *
- * @section features Detected Features
+ * @section cpp23_compat_features Detected Features
  * - KEEPTOWER_HAS_RANGES: std::ranges support (GCC 13+)
  * - KEEPTOWER_HAS_FULL_FORMAT: Complete std::format support (GCC 14+)
  * - KEEPTOWER_HAS_CONSTEXPR_STRING: constexpr std::string (GCC 13+)
@@ -22,6 +22,10 @@
 #include <cstddef>  // For size_t
 
 // Detect GCC version
+/**
+ * @def KEEPTOWER_GCC_VERSION
+ * @brief Encoded GCC version number (major*10000 + minor*100 + patch).
+ */
 #ifdef __GNUC__
 #define KEEPTOWER_GCC_VERSION (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
 #else

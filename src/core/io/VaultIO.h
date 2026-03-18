@@ -27,25 +27,25 @@ namespace KeepTower {
  * VaultIO provides static methods for reading, writing, and managing vault files
  * with atomic operations, backup creation/rotation, and secure permissions.
  *
- * @section features Features
+ * @section vault_io_features Features
  * - Atomic file writes using temporary files and rename
  * - Secure file permissions (0600 on Unix systems)
  * - Timestamped backup creation and management
  * - Directory synchronization for durability
  * - Support for both V1 and V2 vault formats
  *
- * @section security Security Considerations
+ * @section vault_io_security Security Considerations
  * - Files written with owner-only read/write permissions
  * - Atomic rename ensures no partial writes visible
  * - Directory fsync ensures durability on power loss
  * - Backup files automatically rotated to prevent disk exhaustion
  *
- * @section limitations Limitations
+ * @section vault_io_limitations Limitations
  * - No file locking mechanism implemented. Concurrent writes from multiple processes
  *   or threads may result in "Last Writer Wins" race conditions.
  *   TODO: Implement file locking (flock/fcntl) to prevent data loss during concurrent access.
  *
- * @section usage Usage Example
+ * @section vault_io_usage Usage Example
  * @code
  * std::vector<uint8_t> data = {...};
  *
@@ -156,7 +156,7 @@ public:
     /**
      * @brief Create a timestamped backup of a vault file
      *
-     * Creates a backup with format: <path>.backup.<timestamp>
+        * Creates a backup with format: `path.backup.timestamp`
      * Timestamp format: YYYYmmdd_HHMMSS_milliseconds
      *
      * @param path Path to the vault file to backup
@@ -206,7 +206,7 @@ public:
     /**
      * @brief List all backup files for a vault, sorted newest first
      *
-     * Searches for files matching the pattern: <path>.backup.*
+        * Searches for files matching the pattern: `path.backup.*`
      * Returns paths sorted by timestamp (newest first).
      *
      * @param path Path to the vault file

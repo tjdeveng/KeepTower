@@ -103,13 +103,13 @@ namespace UI {
  * Provides the primary user interface for managing encrypted password vaults.
  * Supports creating, opening, and managing multiple account records within vaults.
  *
- * @section architecture Architecture
+ * @section main_window_architecture Architecture
  * MainWindow uses a layered architecture:
  * - Controllers: Handle specific UI concerns (AccountViewController, SearchController)
  * - Repositories: Provide data access abstraction (AccountRepository, GroupRepository)
  * - VaultManager: Handles vault-level operations (open, close, save, encryption)
  *
- * @section features Window Features
+ * @section main_window_features Window Features
  * - Split pane with account list and detail view
  * - Search/filter accounts
  * - Password visibility toggle
@@ -118,14 +118,14 @@ namespace UI {
  * - Real-time account updates
  * - Undo/redo support for account operations
  *
- * @section security Security Features
+ * @section main_window_security Security Features
  * - Field length validation
  * - Clipboard auto-clear (30 seconds)
  * - Password masking by default
  * - Auto-lock on inactivity
  * - Multi-user support with role-based permissions (V2 vaults)
  *
- * @section refactoring Refactoring Progress
+ * @section main_window_refactoring Refactoring Progress
  * - Phase 1 (Complete): Extracted controllers from MainWindow
  * - Phase 2 (Complete): Integrated Repository Pattern
  * - Phase 3 (Pending): Service layer for business logic

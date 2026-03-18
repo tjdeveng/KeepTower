@@ -47,7 +47,7 @@ namespace KeepTower {
  * Thread-safety: All methods are thread-safe (no shared mutable state)
  * FIPS-compliance: Uses OpenSSL FIPS-approved algorithms (SHA-3, PBKDF2)
  *
- * @section usage Usage Example
+ * @section username_hash_service_usage Usage Example
  * @code
  * // Generate random salt
  * std::array<uint8_t, 16> salt = generate_random_salt();

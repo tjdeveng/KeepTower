@@ -12,7 +12,9 @@
 // Forward declare SecureVector to avoid pulling in OpenSSL headers
 namespace KeepTower {
     template<typename T> class SecureAllocator;
-    template<typename T> using SecureVector = std::vector<T, SecureAllocator<T>>;
+    /// \cond
+    template<typename T> using SecureVector = ::std::vector<T, SecureAllocator<T>>;
+    /// \endcond
 }
 
 namespace KeepTower {
@@ -27,7 +29,7 @@ namespace KeepTower {
  *
  * This class is stateless and thread-safe. All methods are static.
  *
- * @section security Security Features
+ * @section vault_crypto_security Security Features
  * - NIST SP 800-132 compliant key derivation
  * - NIST SP 800-38D compliant AEAD encryption (GCM mode)
  * - Configurable PBKDF2 iterations (default: 600,000)
@@ -35,7 +37,7 @@ namespace KeepTower {
  * - 96-bit IV for GCM (recommended size)
  * - 128-bit authentication tag
  *
- * @section usage Usage Example
+ * @section vault_crypto_usage Usage Example
  * @code
  * // Key derivation
  * std::vector<uint8_t> salt = VaultCrypto::generate_random_bytes(16);

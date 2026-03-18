@@ -18,17 +18,41 @@
 #include <gtkmm/settings.h>
 #include <glibmm/ustring.h>
 
+/**
+ * @brief Applies the application theme preference and optionally follows the system theme.
+ *
+ * ThemeController centralizes theme behavior for the UI layer:
+ * - Applies an explicit app preference (light/dark)
+ * - When set to "default", follows the desktop color-scheme if available
+ */
 class ThemeController {
 public:
+    /**
+     * @brief Callback used to apply the computed prefer-dark setting.
+     */
     using ApplyPreferDarkFn = std::function<void(bool)>;
 
+    /** @brief Construct with no settings objects (no-op until configured). */
     ThemeController();
+
+    /**
+     * @brief Construct with explicit settings objects.
+     * @param app_settings Application Gio settings (stores app preference)
+     * @param gtk_settings GTK settings to apply theme hints to
+     * @param desktop_settings Optional desktop settings for system theme tracking
+     */
     ThemeController(
         Glib::RefPtr<Gio::Settings> app_settings,
         Glib::RefPtr<Gtk::Settings> gtk_settings,
         Glib::RefPtr<Gio::Settings> desktop_settings = {}
     );
 
+    /**
+     * @brief Construct with explicit settings and a custom apply callback.
+     * @param app_settings Application Gio settings
+     * @param apply_prefer_dark Callback invoked with computed prefer-dark state
+     * @param desktop_settings Optional desktop settings for system theme tracking
+     */
     ThemeController(
         Glib::RefPtr<Gio::Settings> app_settings,
         ApplyPreferDarkFn apply_prefer_dark,

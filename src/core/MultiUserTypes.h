@@ -192,7 +192,7 @@ struct VaultSecurityPolicy {
      * - **4**: PBKDF2-SHA256 (FIPS-approved, 32-byte hash, configurable iterations)
      * - **5**: Argon2id (NOT FIPS-approved, 32-byte hash, memory-hard)
      *
-     * @section fips_compliance FIPS Mode Enforcement
+    * @section username_hash_algorithm_fips_compliance FIPS Mode Enforcement
      * - FIPS mode blocks Argon2id (value 5) and Plaintext (value 0)
      * - Enforced at SettingsValidator level before vault creation
      *
@@ -209,7 +209,7 @@ struct VaultSecurityPolicy {
      * Memory consumption for Argon2id key derivation.
      * Higher values increase security but consume more RAM.
      *
-     * @section recommendations Memory Recommendations
+    * @section argon2_memory_recommendations Memory Recommendations
      * - **8192 KB (8 MB)**: Minimum, fast unlock (~300ms)
      * - **65536 KB (64 MB)**: Default, balanced security/performance (~500ms)
      * - **262144 KB (256 MB)**: High security, slower unlock (~2s)
@@ -227,7 +227,7 @@ struct VaultSecurityPolicy {
      * Number of iterations for Argon2id algorithm.
      * Higher values increase security but slow down authentication.
      *
-     * @section recommendations Time Cost Recommendations
+    * @section argon2_time_recommendations Time Cost Recommendations
      * - **1**: Minimum, very fast (~200ms with 64MB)
      * - **3**: Default, balanced (~500ms with 64MB)
      * - **5**: High security (~800ms with 64MB)
@@ -245,7 +245,7 @@ struct VaultSecurityPolicy {
      * Number of parallel threads for Argon2id computation.
      * Higher values can improve performance on multi-core systems.
      *
-     * @section recommendations Parallelism Recommendations
+    * @section argon2_parallelism_recommendations Parallelism Recommendations
      * - **1**: Single-threaded (slower but deterministic)
      * - **4**: Default, good for most systems
      * - **8**: High-end systems with 8+ cores
@@ -307,7 +307,7 @@ struct VaultSecurityPolicy {
      * 5. After authentication, system migrates user to new algorithm
      * 6. When all users migrated, admin clears migration flags
      *
-     * @section security_guarantee Security Guarantee
+    * @section username_hash_migration_security_guarantee Security Guarantee
      * Migration ONLY occurs after successful authentication. If authentication
      * fails, no migration happens. This ensures only legitimate users with
      * correct passwords can trigger migration.
@@ -758,7 +758,7 @@ struct KeySlot {
      * 5. System saves vault → status permanently set to 0x01
      * 6. Next login → user authenticates with new algo (migration complete)
      *
-     * @section security_guarantee Security Guarantee
+    * @section migration_status_security_guarantee Security Guarantee
      * Status is only changed from 0x00→0x01 AFTER successful authentication.
      * Failed authentication attempts never trigger migration or status changes.
      *

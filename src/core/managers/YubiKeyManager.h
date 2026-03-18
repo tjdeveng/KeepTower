@@ -108,7 +108,9 @@ public:
     static inline constexpr int DEFAULT_TIMEOUT_MS{15000};     ///< Default timeout (15 seconds)
 
     // Use constants from YubiKeyAlgorithm.h
+    /** @brief Challenge size in bytes (compile-time constant). */
     using CHALLENGE_SIZE = std::integral_constant<size_t, YUBIKEY_CHALLENGE_SIZE>;
+    /** @brief Maximum response size in bytes (compile-time constant). */
     using MAX_RESPONSE_SIZE = std::integral_constant<size_t, YUBIKEY_MAX_RESPONSE_SIZE>;
 
     YubiKeyManager() noexcept;
@@ -154,6 +156,7 @@ public:
      * @param algorithm HMAC algorithm to use (default: HMAC-SHA256 for FIPS)
      * @param require_touch Whether to require physical touch (true = more secure)
      * @param timeout_ms Timeout in milliseconds (default 15 seconds)
+    * @param pin Optional YubiKey PIN (used when the device requires user verification)
      * @return ChallengeResponse with response data or error
      *
      * @note The challenge is automatically padded with zeros if < 64 bytes

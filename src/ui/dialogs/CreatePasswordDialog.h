@@ -8,7 +8,7 @@
  * Provides a comprehensive password creation interface with real-time strength
  * feedback, NIST SP 800-63B compliance checking, and optional YubiKey integration.
  *
- * @section features Features
+ * @section create_password_dialog_features Features
  * - Real-time password strength indicator
  * - NIST SP 800-63B password requirements enforcement
  * - Common password blacklist checking
@@ -17,13 +17,13 @@
  * - Optional YubiKey hardware token protection
  * - V2 vault username entry
  *
- * @section security Security Requirements
+ * @section create_password_dialog_security Security Requirements
  * - Minimum 8 characters (NIST guideline)
  * - Must not appear in common password blacklist
  * - Visual strength feedback (weak/moderate/strong)
  * - Passwords cleared from memory after dialog closes
  *
- * @section usage Usage Example
+ * @section create_password_dialog_usage Usage Example
  * @code
  * CreatePasswordDialog dialog(main_window);
  * int response = dialog.run();

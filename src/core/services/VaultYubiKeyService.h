@@ -146,6 +146,7 @@ public:
      * @param challenge Challenge bytes (1-64 bytes, typically 32)
      * @param pin YubiKey PIN for authentication
      * @param slot HMAC slot to use (1 or 2)
+    * @param enforce_fips If true, enforce FIPS-approved operation only
      * @return ChallengeResult with HMAC response, or VaultError
      *
      * @note Requires user to touch YubiKey
@@ -165,6 +166,7 @@ public:
      * Useful for displaying device selection UI.
      *
      * @param device_path Device path from detect_devices()
+    * @param enforce_fips If true, enforce FIPS-approved operation only
      * @return DeviceInfo or VaultError
      *
      * @note Device must still be connected

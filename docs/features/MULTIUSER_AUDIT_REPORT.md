@@ -476,16 +476,15 @@ namespace KeepTower {
 **Location:**
 - [src/ui/dialogs/UserManagementDialog.cc](src/ui/dialogs/UserManagementDialog.cc#L576)
 
-**Current Implementation:**
-```cpp
-Glib::ustring UserManagementDialog::generate_temporary_password() {
-    constexpr uint32_t password_length = 16;
-    // ... 80 lines of generation logic ...
-}
-```
+**Status:** ✅ Implemented
 
-**Recommendation:**
-Move to `src/utils/PasswordGenerator.h` for reuse in testing and potential future features.
+**Current Implementation (as of March 2026):**
+- Password generation is implemented in `src/utils/PasswordGenerator.{h,cc}`.
+- The UI delegates generation and handles failures via `std::expected`.
+
+**Notes:**
+- Extracted for reuse and direct unit testing.
+- Uses OpenSSL `RAND_bytes()` for cryptographic randomness.
 
 ### ✅ C++23 Best Practices
 
@@ -743,7 +742,7 @@ dialog->signal_response().connect([dialog](int response) {
 
 4. 🔄 **Extract password utilities**
    - `PasswordValidator::calculate_strength()`
-   - `PasswordGenerator::generate_temporary()`
+    - ✅ `PasswordGenerator::generate_temporary_password()`
 5. 🔄 **Add rate limiting** - Prevent brute-force attacks
 
 ### Long Term (v0.4.0)

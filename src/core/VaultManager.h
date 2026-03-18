@@ -95,21 +95,21 @@ private:
  * VaultManager provides secure storage and retrieval of password records
  * using industry-standard encryption and key derivation.
  *
- * @section features Features
+ * @section vault_manager_features Features
  * - AES-256-GCM authenticated encryption
  * - PBKDF2-SHA256 key derivation (100,000 iterations default)
  * - Atomic file operations with automatic backups
  * - Memory protection with mlock() and secure erasure
  * - File format versioning for future compatibility
  *
- * @section security Security
+ * @section vault_manager_security Security
  * - Encryption keys derived from user password using PBKDF2
  * - Random salt (32 bytes) per vault
  * - Random IV (12 bytes) per encryption operation
  * - Authentication tags verify data integrity
  * - Sensitive data cleared with OPENSSL_cleanse()
  *
- * @section usage Usage Example
+ * @section vault_manager_usage Usage Example
  * @code
  * VaultManager vm;
  *
@@ -281,6 +281,7 @@ public:
      * @param admin_username Initial administrator username
      * @param admin_password Initial administrator password
      * @param policy Security policy for vault (YubiKey requirements, password rules)
+        * @param yubikey_pin Optional YubiKey PIN used during initial enrollment (if required by policy)
      * @return Expected void or VaultError
      *
      * Creates V2 vault with:
@@ -416,6 +417,7 @@ public:
      * @param temporary_password Temporary password for first login
      * @param role User role (ADMINISTRATOR or STANDARD_USER)
      * @param must_change_password Force password change on first login (default: true)
+        * @param yubikey_pin Optional YubiKey PIN used when enrolling YubiKey as part of user creation
      * @return Expected void or VaultError
      *
      * Requirements:
@@ -508,6 +510,8 @@ public:
      * @param username Username whose password to change
      * @param old_password Current password (for verification)
      * @param new_password New password
+        * @param yubikey_pin Optional YubiKey PIN (required for some YubiKey-backed flows)
+        * @param progress_callback Optional progress callback for multi-step operations (e.g., YubiKey touches)
      * @return Expected void or VaultError
      *
      * Requirements:
@@ -625,7 +629,7 @@ public:
      * 2. User authenticated successfully (password verified)
      * 3. User's migration_status = 0xFF (authenticated with old algorithm)
      *
-     * @section security_guarantee Security Guarantee
+    * @section vault_manager_security_guarantee Security Guarantee
      * This function is ONLY called after successful authentication. Failed
      * authentication attempts never reach this code. The plaintext password
      * is already validated, so we have cryptographic proof of user identity.
@@ -734,6 +738,8 @@ public:
      * @brief Enroll YubiKey for a user account (two-factor authentication)
      * @param username Username to enroll YubiKey for
      * @param password User's current password (for verification)
+        * @param yubikey_pin YubiKey PIN (required for FIDO2 hmac-secret enrollment)
+        * @param progress_callback Optional callback for multi-step progress (e.g., touch prompts)
      * @return Expected void or VaultError
      *
      * Requirements:
@@ -794,6 +800,7 @@ public:
      * @brief Remove YubiKey enrollment from a user account
      * @param username Username to unenroll YubiKey from
      * @param password User's current password (for verification)
+        * @param progress_callback Optional callback for touch progress when verification requires user presence
      * @return Expected void or VaultError
      *
      * Requirements:
@@ -1114,8 +1121,7 @@ public:
      * @param enable If true, attempts to enable FIPS mode; if false, uses default provider
      *
      * @return true if initialization successful (provider loaded), false on error
-     * @retval true FIPS provider loaded successfully (if requested and available)
-     * @retval true Default provider loaded (fallback or when FIPS not requested)
+    * @retval true Provider initialization succeeded (FIPS provider loaded when requested and available, otherwise default provider)
      * @retval false Provider loading failed (rare, indicates OpenSSL corruption)
      *
      * @note **Process Lifetime:** Can only be called once per process. Subsequent
@@ -1146,9 +1152,9 @@ public:
      * }
      * @endcode
      *
-     * @security **FIPS-140-3 Compliance:** Applications requiring FIPS compliance
-     *           must enable FIPS mode and verify `is_fips_enabled()` returns true.
-     *           Operating without FIPS mode when required violates compliance.
+    * @par Security
+    * Applications requiring FIPS compliance must enable FIPS mode and verify
+    * is_fips_enabled() returns true.
      */
     [[nodiscard]] static bool init_fips_mode(bool enable = false);
 
@@ -1245,8 +1251,9 @@ public:
      * about_dialog->set_comments(status);
      * @endcode
      *
-     * @security Applications under FIPS compliance requirements must verify
-     *           this returns true before processing sensitive data.
+    * @par Security
+    * Applications under FIPS compliance requirements must verify this returns
+    * true before processing sensitive data.
      */
     [[nodiscard]] static bool is_fips_enabled();
 
@@ -1275,12 +1282,9 @@ public:
      *
      * @param enable If true, enable FIPS mode; if false, use default provider
      *
-     * @return true if mode change successful, false on error
-     * @retval true FIPS mode successfully changed to requested state
-     * @retval true Already in requested state (no-op, success)
-     * @retval false FIPS not initialized (call init_fips_mode() first)
-     * @retval false FIPS provider unavailable (when trying to enable)
-     * @retval false OpenSSL provider switch failed
+    * @return true if mode change successful, false on error
+    * @retval true Mode changed to requested state, or already in requested state (no-op)
+    * @retval false Mode change failed (not initialized, provider unavailable, or OpenSSL provider switch failed)
      *
      * @pre init_fips_mode() must have been called
      * @pre FIPS provider must be available (for enable = true)
@@ -1317,9 +1321,10 @@ public:
      * }
      * @endcode
      *
-     * @security **Compliance Impact:** Disabling FIPS mode in a compliance-required
-     *           environment may violate security policy. Implement appropriate
-     *           access controls and audit logging for FIPS mode changes.
+    * @par Security
+    * Disabling FIPS mode in a compliance-required environment may violate
+    * security policy. Implement appropriate access controls and audit logging
+    * for FIPS mode changes.
      */
     [[nodiscard]] static bool set_fips_mode(bool enable);
 
@@ -1512,7 +1517,8 @@ public:
      *
      * @note Phase 5 feature
      * @note System groups (e.g., "Favorites") cannot be renamed
-     * @security Validates new name (length, special characters)
+    * @par Security
+    * Validates the new name (length, allowed characters).
      */
     [[nodiscard]] bool rename_group(std::string_view group_id, std::string_view new_name);
 

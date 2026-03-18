@@ -8,7 +8,7 @@
  * Provides visual feedback during YubiKey operations, guiding users through
  * the challenge-response authentication process.
  *
- * @section usage Usage Example
+ * @section yubikey_prompt_dialog_usage Usage Example
  * @code
  * YubiKeyPromptDialog dialog(window,
  *                            YubiKeyPromptDialog::PromptType::TOUCH,
@@ -46,6 +46,7 @@ public:
      * @param parent Parent window for modal display
      * @param type Type of prompt (INSERT or TOUCH)
      * @param serial Optional YubiKey serial number to display
+        * @param custom_message Optional custom prompt message (overrides the default text)
      */
     YubiKeyPromptDialog(Gtk::Window& parent, PromptType type, const std::string& serial = "", const std::string& custom_message = "");
 

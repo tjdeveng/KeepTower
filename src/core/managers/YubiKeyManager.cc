@@ -31,8 +31,8 @@
  */
 class YubiKeyManager::Impl final {
 public:
-    KeepTower::YubiKeyInternal::Fido2Protocol protocol{};
-    KeepTower::YubiKeyInternal::AsyncRunner async{};
+    KeepTower::YubiKeyInternal::Fido2Protocol protocol{};  ///< FIDO2 protocol helper (credential + hmac-secret operations)
+    KeepTower::YubiKeyInternal::AsyncRunner async{};        ///< Background runner for blocking device operations
 
     Impl() noexcept = default;
 

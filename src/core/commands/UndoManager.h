@@ -25,7 +25,7 @@
  * prevent unbounded memory growth. Oldest commands are discarded when the
  * limit is reached.
  *
- * @section thread_safety Thread Safety
+ * @section undo_manager_thread_safety Thread Safety
  * NOT thread-safe. All operations must be called from the UI thread.
  *
  * @section example Usage Example

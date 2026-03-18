@@ -61,7 +61,7 @@ namespace KeepTower {
  * | Argon2id 64MB   | ~0.5s | 64 MB  | No   |
  * | Argon2id 256MB  | ~2.0s | 256 MB | No   |
  *
- * @section usage Usage Example
+ * @section kek_derivation_service_usage Usage Example
  * @code
  * // Generate random salt
  * std::array<uint8_t, 16> salt = VaultCrypto::generate_random_bytes(16);

@@ -43,7 +43,7 @@ struct EVPCipherContextDeleter {
  *
  * @tparam T Type of elements (typically uint8_t for crypto buffers)
  *
- * @section usage Usage Example
+ * @section secure_memory_usage Usage Example
  * @code
  * // Use with std::vector for automatic zeroization
  * std::vector<uint8_t, SecureAllocator<uint8_t>> key(32);
@@ -57,16 +57,24 @@ struct EVPCipherContextDeleter {
  * @endcode
  */
 template<typename T>
-class SecureAllocator : public std::allocator<T> {
+class SecureAllocator : public ::std::allocator<T> {
 public:
     template<typename U>
+    /**
+     * @brief Allocator rebind helper (required by std::allocator interface)
+     * @tparam U The new element type for the rebound allocator
+     */
     struct rebind {
-        using other = SecureAllocator<U>;
+        using other = SecureAllocator<U>;  ///< Rebound allocator type
     };
 
     SecureAllocator() noexcept = default;
 
     template<typename U>
+    /**
+     * @brief Converting copy constructor for allocator rebind.
+     * @tparam U Source allocator element type
+     */
     SecureAllocator(const SecureAllocator<U>&) noexcept {}
 
     /**
@@ -78,21 +86,18 @@ public:
         if (p) {
             // Securely zero memory before deallocation
             OPENSSL_cleanse(p, n * sizeof(T));
-            std::allocator<T>::deallocate(p, n);
+            ::std::allocator<T>::deallocate(p, n);
         }
     }
 };
 
+// Convenience alias for automatically-zeroized vectors.
 /**
- * @brief Convenience alias for std::vector with secure allocator
- *
- * Use this for any sensitive data that should be automatically
- * zeroized on deallocation (keys, plaintext, passwords, etc.)
- *
- * @tparam T Type of elements (typically uint8_t)
+ * @brief Convenience alias for a std::vector that is securely zeroized on deallocation.
+ * @tparam T Element type
  */
 template<typename T>
-using SecureVector = std::vector<T, SecureAllocator<T>>;
+using SecureVector = ::std::vector<T, SecureAllocator<T>>;
 
 /**
  * @brief RAII wrapper for EVP_CIPHER_CTX

@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file AsyncRunner.h
+ * @brief Internal helper to run YubiKey work off the GTK thread.
+ */
+
 #include "../../utils/Log.h"
 
 #include <atomic>
@@ -13,8 +18,15 @@
 
 namespace KeepTower::YubiKeyInternal {
 
+/**
+ * @brief Runs a background task and posts the result back to the UI thread.
+ *
+ * This helper owns a single worker thread at a time and uses Glib::Dispatcher
+ * to invoke the completion callback on the GTK main thread.
+ */
 class AsyncRunner final {
 public:
+    /** @brief Construct runner and wire dispatcher callback. */
     AsyncRunner() noexcept {
         m_dispatcher.connect([this]() {
             std::function<void()> callback;
@@ -28,6 +40,7 @@ public:
         });
     }
 
+    /** @brief Destructor; cancels and joins any running work. */
     ~AsyncRunner() noexcept {
         shutdown();
     }
@@ -37,10 +50,12 @@ public:
     AsyncRunner(AsyncRunner&&) = delete;
     AsyncRunner& operator=(AsyncRunner&&) = delete;
 
+    /** @brief Check whether a task is currently running. */
     [[nodiscard]] bool is_busy() const noexcept {
         return m_is_busy.load(std::memory_order_acquire);
     }
 
+    /** @brief Request cancellation for the running task (best-effort). */
     void cancel() noexcept {
         if (is_busy()) {
             KeepTower::Log::warning("YubiKeyManager: Cancellation requested");
@@ -48,11 +63,13 @@ public:
         }
     }
 
+    /** @brief Cancel and join the worker thread. */
     void shutdown() noexcept {
         cancel();
         join();
     }
 
+    /** @brief Join the worker thread if one exists. */
     void join() noexcept {
         if (m_worker_thread && m_worker_thread->joinable()) {
             m_worker_thread->join();
@@ -60,6 +77,15 @@ public:
     }
 
     template <typename WorkFn, typename UiFn>
+    /**
+     * @brief Start a background task and invoke the UI callback on completion.
+     *
+     * @tparam WorkFn Callable executed on the worker thread (returns a movable result)
+     * @tparam UiFn Callable executed on the GTK main thread (receives the WorkFn result)
+     * @param work Work function executed on the worker thread
+     * @param ui_callback Completion callback invoked on the UI thread
+     * @return true if the task was started, false if already busy
+     */
     bool start(WorkFn&& work, UiFn&& ui_callback) {
         if (is_busy()) {
             return false;

@@ -41,7 +41,7 @@
  * - Uses GroupRepository for group operations
  * - Delegates to repositories instead of direct VaultManager access
  *
- * @section usage Usage Example
+ * @section account_view_controller_usage Usage Example
  * @code
  * AccountViewController controller(vault_manager.get());
  *

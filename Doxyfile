@@ -140,10 +140,9 @@ REFERENCES_LINK_SOURCE = YES
 SOURCE_TOOLTIPS        = YES
 USE_HTAGS              = NO
 VERBATIM_HEADERS       = YES
-CLANG_ASSISTED_PARSING = NO
-CLANG_ADD_INC_PATHS    = YES
-CLANG_OPTIONS          =
-CLANG_DATABASE_PATH    =
+## The CLANG_* options are only available when Doxygen is built with
+## Clang-assisted parsing enabled. Keeping them in the config causes warnings
+## on systems where Doxygen was compiled without that feature.
 
 #---------------------------------------------------------------------------
 # Configuration options related to the alphabetical class index

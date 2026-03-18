@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file Fido2Protocol.h
+ * @brief Internal FIDO2 (hmac-secret) operations for YubiKey-backed authentication.
+ */
+
 #include "../YubiKeyManager.h"
 #include "../../utils/Log.h"
 
@@ -23,19 +28,41 @@
 
 namespace FIDO2 {
     // FIDO2 constants
-    constexpr size_t SALT_SIZE = 32;        // Salt for hmac-secret (SHA-256 input)
-    constexpr size_t SECRET_SIZE = 32;      // Output secret size (SHA-256 output)
-    constexpr size_t CRED_ID_MAX = 1024;    // Maximum credential ID size
-    constexpr int DEFAULT_TIMEOUT_MS = 30000; // 30 seconds for user interaction
+    /** @brief Salt size in bytes for hmac-secret inputs (SHA-256). */
+    constexpr size_t SALT_SIZE = 32;
+
+    /** @brief Output secret size in bytes for hmac-secret (SHA-256). */
+    constexpr size_t SECRET_SIZE = 32;
+
+    /** @brief Maximum supported credential ID size in bytes. */
+    constexpr size_t CRED_ID_MAX = 1024;
+
+    /** @brief Default timeout for user interaction (PIN/touch), in milliseconds. */
+    constexpr int DEFAULT_TIMEOUT_MS = 30000;
 
     // Relying Party (RP) information for KeepTower
+    /** @brief Relying party identifier used for FIDO2 credential scoping. */
     constexpr const char* RP_ID = "keeptower.local";
+
+    /** @brief Human-readable relying party name. */
     constexpr const char* RP_NAME = "KeepTower Password Manager";
 
+    /**
+     * @brief Generate a random salt for hmac-secret.
+     * @param salt Output buffer of SALT_SIZE bytes.
+     * @return true on success, false on failure.
+     */
     inline bool generate_salt(unsigned char* salt) noexcept {
         return RAND_bytes(salt, SALT_SIZE) == 1;
     }
 
+    /**
+     * @brief Derive a deterministic salt from user data using SHA-256.
+     * @param user_data Input bytes.
+     * @param user_data_len Number of bytes in user_data.
+     * @param salt Output buffer of SALT_SIZE bytes.
+     * @return true on success, false on failure.
+     */
     inline bool derive_salt_from_data(
         const unsigned char* user_data,
         size_t user_data_len,
@@ -49,17 +76,41 @@ namespace FIDO2 {
 
 namespace KeepTower::YubiKeyInternal {
 
+/**
+ * @brief Minimal FIDO2 protocol wrapper for creating and using hmac-secret credentials.
+ *
+ * This is an internal helper used by the YubiKey manager flows. It is responsible for:
+ * - Opening a FIDO2 device
+ * - Creating a credential with the `hmac-secret` extension
+ * - Performing an `hmac-secret` assertion to derive a per-challenge secret
+ */
 class Fido2Protocol {
 public:
+    /**
+     * @brief Result of credential creation.
+     */
     struct CredentialResult {
+        /** @brief Credential ID bytes on success. */
         std::optional<std::vector<unsigned char>> credential_id{};
+
+        /** @brief Human-readable error message on failure. */
         std::string error{};
     };
 
+    /**
+     * @brief Result of hmac-secret assertion.
+     */
     struct HmacSecretResult {
+        /** @brief True on success. */
         bool success{false};
+
+        /** @brief hmac-secret response bytes (SECRET_SIZE on success). */
         std::array<unsigned char, FIDO2::SECRET_SIZE> response{};
+
+        /** @brief Number of valid bytes in response. */
         size_t response_size{0};
+
+        /** @brief Human-readable error message on failure. */
         std::string error{};
     };
 
@@ -72,12 +123,15 @@ public:
     bool has_credential{false};
 #endif
 
+    /** @brief Construct protocol wrapper. */
     Fido2Protocol() noexcept = default;
 
+    /** @brief Destructor; frees any allocated FIDO2 resources. */
     ~Fido2Protocol() noexcept {
         cleanup();
     }
 
+    /** @brief Free any allocated FIDO2 objects and close the device (nullptr-safe). */
     void cleanup() noexcept {
 #ifdef HAVE_YUBIKEY_SUPPORT
         if (assert_) {
@@ -98,6 +152,11 @@ public:
     }
 
 #ifdef HAVE_YUBIKEY_SUPPORT
+    /**
+     * @brief Open a FIDO2 device at the given path.
+     * @param path Device path used by libfido2.
+     * @return true on success, false on failure.
+     */
     bool open_device(const std::string& path) noexcept {
         if (dev) {
             return true;
@@ -123,6 +182,11 @@ public:
         return true;
     }
 
+    /**
+     * @brief Populate basic device info used by UI/policy decisions.
+     * @param info Output struct filled on success.
+     * @return true on success, false on failure.
+     */
     bool get_device_info(YubiKeyManager::YubiKeyInfo& info) noexcept {
         if (!dev) {
             return false;
@@ -178,6 +242,12 @@ public:
         return true;
     }
 
+    /**
+     * @brief Create a new hmac-secret credential for a user.
+     * @param user_id Application user identifier (used to derive a stable user handle).
+     * @param pin FIDO2 PIN for the device.
+     * @return CredentialResult with credential_id on success, or error message on failure.
+     */
     CredentialResult create_credential(std::string_view user_id, std::string_view pin) noexcept {
         CredentialResult result{};
 
@@ -310,6 +380,13 @@ public:
         return result;
     }
 
+    /**
+     * @brief Perform an hmac-secret assertion for the given credential.
+     * @param credential_id Credential ID returned by create_credential().
+     * @param challenge Application challenge bytes.
+     * @param pin FIDO2 PIN for the device.
+     * @return HmacSecretResult containing response bytes on success.
+     */
     HmacSecretResult perform_hmac_secret(
         std::span<const unsigned char> challenge,
         std::string_view pin

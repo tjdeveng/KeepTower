@@ -75,7 +75,7 @@ namespace KeepTower {
  * - Example: `myvault.vault.2026-01-10T18-30-45.backup`
  * - Automatic cleanup keeps only N most recent backups
  *
- * @section security Security Considerations
+ * @section vault_file_service_security Security Considerations
  *
  * - Files written with 0600 permissions (owner read/write only)
  * - Atomic rename ensures no partial writes visible
@@ -83,7 +83,7 @@ namespace KeepTower {
  * - No sensitive data cached in memory
  * - All errors properly propagated
  *
- * @section usage Usage Example
+ * @section vault_file_service_usage Usage Example
  *
  * @code
  * // Read vault file

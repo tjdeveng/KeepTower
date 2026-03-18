@@ -8,7 +8,7 @@
  * Provides a minimal password entry interface for opening existing vaults.
  * Supports optional password visibility toggle for user convenience.
  *
- * @section usage Usage Example
+ * @section password_dialog_usage Usage Example
  * @code
  * PasswordDialog dialog(main_window);
  * int response = dialog.run();

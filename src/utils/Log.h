@@ -9,7 +9,7 @@
  * and std::source_location for automatic file/line tracking. Supports multiple
  * log levels with runtime filtering.
  *
- * @section features Features
+ * @section log_features Features
  * - Compile-time format string validation
  * - Automatic timestamp generation (millisecond precision)
  * - Source location tracking (file:line)
@@ -17,7 +17,7 @@
  * - Zero-overhead when log level is disabled
  * - Thread-safe output via std::cerr
  *
- * @section usage Usage Example
+ * @section log_usage Usage Example
  * @code
  * // Set minimum log level
  * KeepTower::Log::set_level(KeepTower::Log::Level::Debug);
@@ -29,7 +29,7 @@
  * KeepTower::Log::error("Failed to decrypt: {}", error_msg);
  * @endcode
  *
- * @section thread_safety Thread Safety
+ * @section log_thread_safety Thread Safety
  * Output via std::cerr is thread-safe. Multiple threads can log simultaneously
  * without interleaved output lines.
  *

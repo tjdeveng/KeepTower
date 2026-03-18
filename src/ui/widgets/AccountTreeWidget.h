@@ -41,7 +41,7 @@ enum class SortDirection {
  * Main tree widget that orchestrates the display of all accounts and groups.
  * Manages filtering, sorting, drag-and-drop, and event propagation.
  *
- * @section features Features
+ * @section account_tree_widget_features Features
  * - Group-based hierarchical organization
  * - Real-time search filtering (name, username, email, website, tags)
  * - Tag-based filtering

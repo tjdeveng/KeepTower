@@ -30,21 +30,21 @@ namespace KeepTower {
  * (RFC 3394, NIST SP 800-38F). This protects the vault's Data Encryption
  * Key (DEK) by encrypting it with each user's Key Encryption Key (KEK).
  *
- * @section algorithm Algorithm Details
+ * @section key_wrapping_algorithm Algorithm Details
  * - Key Encryption Key (KEK): 32 bytes (256 bits), derived from user password
  * - Data Encryption Key (DEK): 32 bytes (256 bits), encrypts vault data
  * - Wrapped output: 40 bytes (DEK + 8-byte integrity tag)
  * - Mode: AES-256-KW (RFC 3394)
  * - Integrity: Built-in verification (unwrap fails if KEK is wrong)
  *
- * @section security Security Properties
+ * @section key_wrapping_security Security Properties
  * - FIPS-140-3 approved (NIST SP 800-38F)
  * - Authenticated encryption (integrity + confidentiality)
  * - Deterministic (same KEK + DEK = same wrapped output)
  * - No IV required (uses internal constant)
  * - Fails safely (unwrap returns error if tampered)
  *
- * @section usage Usage Example
+ * @section key_wrapping_usage Usage Example
  * @code
  * // Key wrapping (when adding user or changing password)
  * std::array<uint8_t, 32> kek = derive_kek_from_password(password, salt);
