@@ -16,6 +16,7 @@
 #include "../src/core/MultiUserTypes.h"
 #include <filesystem>
 #include <memory>
+#include <unistd.h>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -24,7 +25,8 @@ using namespace KeepTower;
 class VaultCreationOrchestratorIntegrationTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        test_dir = fs::temp_directory_path() / "keeptower_orchestrator_integration";
+        test_dir = fs::temp_directory_path() /
+                   ("keeptower_orchestrator_integration_" + std::to_string(::getpid()));
         fs::create_directories(test_dir);
 
         crypto_service = std::make_shared<VaultCryptoService>();
@@ -106,7 +108,6 @@ TEST_F(VaultCreationOrchestratorIntegrationTest, CreateVault_FileExists) {
 
     // Verify file exists
     EXPECT_TRUE(fs::exists(params.path));
-    auto size1 = fs::file_size(params.path);
 
     // Create again (should overwrite)
     auto result2 = orchestrator->create_vault_v2_sync(params);
