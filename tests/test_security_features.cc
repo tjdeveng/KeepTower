@@ -12,6 +12,7 @@
 #include <filesystem>
 #include <fstream>
 #include "../src/core/VaultManager.h"
+#include "../src/core/io/VaultIO.h"
 #include "record.pb.h"  // Include protobuf definitions
 
 namespace fs = std::filesystem;
@@ -50,11 +51,13 @@ bool test_magic_header() {
     file.read(reinterpret_cast<char*>(&version), sizeof(version));
     file.read(reinterpret_cast<char*>(&iterations), sizeof(iterations));
 
-    std::cout << "Magic:      0x" << std::hex << magic << " (expected 0x4B505457 'KPTW')\n";
-    std::cout << "Version:    " << std::dec << version << " (expected 1)\n";
-    std::cout << "Iterations: " << iterations << " (expected 100000)\n";
+    std::cout << "Magic:      0x" << std::hex << magic << " (expected 0x" << KeepTower::VaultIO::VAULT_MAGIC << ")\n";
+    std::cout << "Version:    " << std::dec << version << " (expected " << KeepTower::VaultIO::VAULT_VERSION << ")\n";
+    std::cout << "Iterations: " << iterations << " (expected " << VaultManager::DEFAULT_PBKDF2_ITERATIONS << ")\n";
 
-    bool success = (magic == 0x4B505457 && version == 1 && iterations == 100000);
+    bool success = (magic == KeepTower::VaultIO::VAULT_MAGIC &&
+                    version == KeepTower::VaultIO::VAULT_VERSION &&
+                    iterations == static_cast<uint32_t>(VaultManager::DEFAULT_PBKDF2_ITERATIONS));
     std::cout << "Result: " << (success ? "✓ PASS" : "✗ FAIL") << "\n";
 
     fs::remove(vault_path);
@@ -65,10 +68,29 @@ bool test_backup_mechanism() {
     std::cout << "\n=== Test 2: Backup Mechanism ===\n";
 
     const std::string vault_path = "/tmp/test_backup.vault";
-    const std::string backup_path = vault_path + ".backup";
+    const fs::path vault_dir = fs::path(vault_path).parent_path();
+    const std::string backup_prefix = fs::path(vault_path).filename().string() + ".backup.";
+
+    auto list_backups = [&]() {
+        std::vector<fs::path> backups;
+        std::error_code ec;
+        for (const auto& entry : fs::directory_iterator(vault_dir, ec)) {
+            if (ec) {
+                break;
+            }
+
+            const auto name = entry.path().filename().string();
+            if (name.starts_with(backup_prefix)) {
+                backups.push_back(entry.path());
+            }
+        }
+        return backups;
+    };
 
     fs::remove(vault_path);
-    fs::remove(backup_path);
+    for (const auto& p : list_backups()) {
+        fs::remove(p);
+    }
 
     // Create vault and add data
     VaultManager vm;
@@ -90,8 +112,9 @@ bool test_backup_mechanism() {
         return false;
     }
 
+    const auto backups_after_first_save = list_backups();
     std::cout << "Backup exists after first save: "
-              << (fs::exists(backup_path) ? "YES" : "NO (expected)") << "\n";
+              << (!backups_after_first_save.empty() ? "YES" : "NO (expected)") << "\n";
 
     // Modify and save again - backup should be created this time
     account.set_account_name("Modified Account");
@@ -102,13 +125,14 @@ bool test_backup_mechanism() {
         return false;
     }
 
-    bool backup_exists = fs::exists(backup_path);
+    const auto backups_after_second_save = list_backups();
+    bool backup_exists = !backups_after_second_save.empty();
     std::cout << "Backup exists after second save: "
               << (backup_exists ? "YES ✓" : "NO ✗") << "\n";
 
     if (backup_exists) {
         auto vault_size = fs::file_size(vault_path);
-        auto backup_size = fs::file_size(backup_path);
+        auto backup_size = fs::file_size(backups_after_second_save.front());
         std::cout << "Vault size:  " << vault_size << " bytes\n";
         std::cout << "Backup size: " << backup_size << " bytes\n";
     }
@@ -116,7 +140,9 @@ bool test_backup_mechanism() {
     (void)vm.close_vault();
 
     fs::remove(vault_path);
-    fs::remove(backup_path);
+    for (const auto& p : list_backups()) {
+        fs::remove(p);
+    }
 
     return backup_exists;
 }
@@ -186,7 +212,7 @@ bool test_memory_locking() {
 
     std::cout << "Result: ✓ PASS (implementation present)\n";
 
-(void)vm.close_vault();
+    (void)vm.close_vault();
     fs::remove(vault_path);
     return true;
 }

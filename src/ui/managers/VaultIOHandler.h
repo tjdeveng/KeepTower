@@ -15,6 +15,10 @@
 #include <string>
 #include <functional>
 
+#include "../controllers/flows/ExportFlowController.h"
+#include "../controllers/flows/ImportFlowController.h"
+#include "../controllers/flows/MigrationFlowController.h"
+
 // Forward declarations
 class VaultManager;
 class MainWindow;
@@ -91,17 +95,9 @@ private:
     VaultManager* m_vault_manager;
     DialogManager* m_dialog_manager;
 
-    /**
-     * @brief Show password dialog for export authentication
-     * @param current_vault_path Path to current vault
-     */
-    void show_export_password_dialog(const std::string& current_vault_path);
-
-    /**
-     * @brief Show file save dialog for export
-     * @param current_vault_path Path to current vault
-     */
-    void show_export_file_dialog(const std::string& current_vault_path);
+    Flows::ImportFlowController m_import_flow;
+    Flows::ExportFlowController m_export_flow;
+    Flows::MigrationFlowController m_migration_flow;
 };
 
 } // namespace UI

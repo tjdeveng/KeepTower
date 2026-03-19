@@ -20,14 +20,12 @@ test_inc = [
 ]
 
 # Generate protobuf sources for tests (same as in src/meson.build)
-fs = import('fs')
-protoc = find_program('protoc', required: true)
 
 proto_file = meson.project_source_root() / 'src' / 'record.proto'
 proto_gen = custom_target('record_proto_test',
   input: files('../src/record.proto'),
   output: ['record.pb.cc', 'record.pb.h'],
-  command: [protoc, '--proto_path=' + meson.project_source_root() / 'src', '--cpp_out=@OUTDIR@', '@PLAINNAME@'],
+    command: [find_program('protoc', required: true), '--proto_path=' + meson.project_source_root() / 'src', '--cpp_out=@OUTDIR@', '@PLAINNAME@'],
   depend_files: files('../src/record.proto')
 )
 
@@ -164,6 +162,8 @@ security_features_test = executable(
     include_directories: test_inc
 )
 
+test('Security Features Tests', security_features_test, timeout: 60)
+
 # Input validation tests
 input_validation_test = executable(
     'input_validation_test',
@@ -230,6 +230,23 @@ ui_features_test = executable(
     'test_ui_features.cc',
     dependencies: [
         gtest_dep
+    ],
+    include_directories: test_inc
+)
+
+# VaultIO flow controller tests (SRP/DIP refactor validation)
+vault_io_flow_controllers_sources = [
+    'test_vault_io_flow_controllers.cc',
+    '../src/ui/controllers/flows/ExportFlowController.cc',
+    '../src/ui/controllers/flows/ImportFlowController.cc',
+    '../src/ui/controllers/flows/MigrationFlowController.cc',
+]
+
+vault_io_flow_controllers_test = executable(
+    'vault_io_flow_controllers_test',
+    vault_io_flow_controllers_sources,
+    dependencies: [
+        gtest_dep,
     ],
     include_directories: test_inc
 )
@@ -521,6 +538,7 @@ test('Reed-Solomon Tests', reed_solomon_test)
 test('Vault Reed-Solomon Integration', vault_reed_solomon_test)
 test('FEC Preferences Tests', fec_preferences_test)
 test('UI Features Tests', ui_features_test)
+test('VaultIO Flow Controller Tests', vault_io_flow_controllers_test)
 test('Password Generator Tests', password_generator_test)
 test('UI Security Tests', ui_security_test, env: ['GSETTINGS_SCHEMA_DIR=' + meson.project_build_root() / 'data'])
 test('Settings Validator Tests', settings_validator_test, env: ['GSETTINGS_SCHEMA_DIR=' + meson.project_build_root() / 'data'])
@@ -801,42 +819,6 @@ v2_auth_test = executable(
 )
 
 test('V2 Authentication Integration Tests', v2_auth_test, timeout: 60)
-
-# Migration test (manual execution)
-migration_test_sources = [
-    'test_migration_manual.cc',
-    '../src/core/VaultManagerV2.cc',
-] + vault_manager_common_sources
-migration_test_deps = [protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep]
-if yubikey_available
-    migration_test_sources += files('../src/core/managers/YubiKeyManager.cc')
-    migration_test_deps += [fido2_dep]
-endif
-
-migration_test = executable(
-    'migration_test',
-    migration_test_sources,
-    dependencies: migration_test_deps,
-    include_directories: test_inc
-)
-
-# V2 creation test (manual execution)
-v2_creation_test_sources = [
-    'test_v2_creation.cc',
-    '../src/core/VaultManagerV2.cc',
-] + vault_manager_common_sources
-v2_creation_test_deps = [protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep]
-if yubikey_available
-    v2_creation_test_sources += files('../src/core/managers/YubiKeyManager.cc')
-    v2_creation_test_deps += [fido2_dep]
-endif
-
-v2_creation_test = executable(
-    'v2_creation_test',
-    v2_creation_test_sources,
-    dependencies: v2_creation_test_deps,
-    include_directories: test_inc
-)
 
 # Password history tests (Phase 9)
 password_history_test_sources = [

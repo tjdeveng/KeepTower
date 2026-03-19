@@ -55,9 +55,8 @@ appdata_file_final = configure_file(
 
 # Skip translations for appdata for now - causes issues with msgfmt
 install_data(
-  appdata_file_in,
+  appdata_file_final,
   install_dir: get_option('datadir') / 'metainfo',
-  rename: appdata_file,
 )
 
 # Commented out for now - translation issues
@@ -74,7 +73,7 @@ appstreamcli = find_program('appstreamcli', required: false)
 if appstreamcli.found()
   test('Validate appdata file',
     appstreamcli,
-    args: ['validate', '--no-net', '--pedantic', meson.current_build_dir() / appdata_file],
+    args: ['validate', '--no-net', '--pedantic', appdata_file_final],
   )
 endif
 
