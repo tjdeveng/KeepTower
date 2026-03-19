@@ -260,6 +260,69 @@ password_generator_test = executable(
     include_directories: test_inc
 )
 
+# Import/Export CSV edge-case tests
+import_export_csv_sources = [
+    'test_import_export_csv.cc',
+    '../src/utils/ImportExport.cc',
+    '../src/utils/import_export/ImportExportDetail.cc',
+    '../src/utils/import_export/ImportExportCsv.cc',
+    proto_gen,
+]
+
+import_export_csv_test = executable(
+    'import_export_csv_test',
+    import_export_csv_sources,
+    dependencies: [
+        gtest_dep,
+        protobuf_dep,
+    ],
+    include_directories: test_inc
+)
+
+test('ImportExport CSV Tests', import_export_csv_test)
+
+# Import/Export KeePass XML tests
+import_export_keepass_xml_sources = [
+    'test_import_export_keepass_xml.cc',
+    '../src/utils/ImportExport.cc',
+    '../src/utils/import_export/ImportExportDetail.cc',
+    '../src/utils/import_export/ImportExportKeePassXml.cc',
+    proto_gen,
+]
+
+import_export_keepass_xml_test = executable(
+    'import_export_keepass_xml_test',
+    import_export_keepass_xml_sources,
+    dependencies: [
+        gtest_dep,
+        protobuf_dep,
+    ],
+    include_directories: test_inc
+)
+
+test('ImportExport KeePass XML Tests', import_export_keepass_xml_test)
+
+# Import/Export 1Password 1PIF tests
+import_export_1pif_sources = [
+    'test_import_export_1pif.cc',
+    '../src/utils/ImportExport.cc',
+    '../src/utils/import_export/ImportExportDetail.cc',
+    '../src/utils/import_export/ImportExport1Password1pif.cc',
+    proto_gen,
+]
+
+import_export_1pif_test = executable(
+    'import_export_1pif_test',
+    import_export_1pif_sources,
+    dependencies: [
+        gtest_dep,
+        protobuf_dep,
+    ],
+    include_directories: test_inc
+)
+
+test('ImportExport 1PIF Tests', import_export_1pif_test)
+
 # UI security tests (GSettings security configuration)
 ui_security_test = executable(
     'ui_security_test',
