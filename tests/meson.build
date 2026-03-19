@@ -20,8 +20,6 @@ test_inc = [
 ]
 
 # Generate protobuf sources for tests (same as in src/meson.build)
-
-proto_file = meson.project_source_root() / 'src' / 'record.proto'
 proto_gen = custom_target('record_proto_test',
   input: files('../src/record.proto'),
   output: ['record.pb.cc', 'record.pb.h'],

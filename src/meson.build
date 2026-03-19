@@ -65,7 +65,6 @@ proto_headers = []
 
 foreach proto : proto_files
   proto_base = fs.stem(proto)
-  proto_dir = fs.parent(proto)
 
   proto_gen = custom_target(proto_base + '_proto',
     input: proto,
