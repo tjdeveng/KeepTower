@@ -349,7 +349,24 @@ TEST_F(VaultCreationOrchestratorIntegrationTest, EndToEnd_CompleteWorkflow) {
 // Performance Tests
 // ============================================================================
 
+#if defined(__SANITIZE_ADDRESS__) || defined(__SANITIZE_UNDEFINED__) || defined(__SANITIZE_THREAD__) || defined(__SANITIZE_MEMORY__)
+    #define KEEPTOWER_TESTS_UNDER_SANITIZER 1
+#elif defined(__clang__)
+    #if defined(__has_feature)
+        #if __has_feature(address_sanitizer) || __has_feature(undefined_behavior_sanitizer) || __has_feature(thread_sanitizer) || __has_feature(memory_sanitizer)
+            #define KEEPTOWER_TESTS_UNDER_SANITIZER 1
+        #endif
+    #endif
+#endif
+
+#ifndef KEEPTOWER_TESTS_UNDER_SANITIZER
+    #define KEEPTOWER_TESTS_UNDER_SANITIZER 0
+#endif
+
 TEST_F(VaultCreationOrchestratorIntegrationTest, Performance_ReasonableTime) {
+#if KEEPTOWER_TESTS_UNDER_SANITIZER
+    GTEST_SKIP() << "Wall-clock performance checks are unreliable under sanitizers";
+#endif
     auto start = std::chrono::steady_clock::now();
 
     auto result = orchestrator->create_vault_v2_sync(params);
@@ -364,6 +381,9 @@ TEST_F(VaultCreationOrchestratorIntegrationTest, Performance_ReasonableTime) {
 }
 
 TEST_F(VaultCreationOrchestratorIntegrationTest, Performance_ProgressOverhead) {
+#if KEEPTOWER_TESTS_UNDER_SANITIZER
+    GTEST_SKIP() << "Wall-clock performance checks are unreliable under sanitizers";
+#endif
     // Without callback
     auto start1 = std::chrono::steady_clock::now();
     auto result1 = orchestrator->create_vault_v2_sync(params);

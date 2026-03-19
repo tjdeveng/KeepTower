@@ -3,6 +3,8 @@
 
 # Build directories
 build/
+build-*/
+build*/
 builddir/
 _build/
 

@@ -60,8 +60,8 @@ public:
         std::string serial;           ///< Device serial number
         std::string manufacturer;     ///< Manufacturer name
         std::string product;          ///< Product name
-        uint8_t slot;                 ///< HMAC slot (1 or 2)
-        bool is_fips;                 ///< True if FIPS-capable device
+        uint8_t slot = 0;             ///< HMAC slot (1 or 2)
+        bool is_fips = false;         ///< True if FIPS-capable device
     };
 
     /**
