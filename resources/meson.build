@@ -4,7 +4,7 @@
 # Compile GResources
 gnome = import('gnome')
 
-gresources = gnome.compile_resources(
+gnome.compile_resources(
   'keeptower-resources',
   'gresource.xml',
   source_dir: '.',

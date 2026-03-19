@@ -223,6 +223,7 @@ configure_file(
 
 # Add project root to include directories
 root_inc = include_directories('.')
+set_variable('root_inc', root_inc)
 
 # Subdirectories
 subdir('src')
