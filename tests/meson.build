@@ -233,6 +233,16 @@ ui_features_test = executable(
     include_directories: test_inc
 )
 
+# File dialog extension normalization tests (regression coverage for export save dialog)
+file_dialog_extension_test = executable(
+    'file_dialog_extension_test',
+    'test_file_dialog_extension.cc',
+    dependencies: [
+        gtest_dep,
+    ],
+    include_directories: test_inc
+)
+
 # VaultIO flow controller tests (SRP/DIP refactor validation)
 vault_io_flow_controllers_sources = [
     'test_vault_io_flow_controllers.cc',
@@ -600,6 +610,7 @@ test('Reed-Solomon Tests', reed_solomon_test)
 test('Vault Reed-Solomon Integration', vault_reed_solomon_test)
 test('FEC Preferences Tests', fec_preferences_test)
 test('UI Features Tests', ui_features_test)
+test('File Dialog Extension Tests', file_dialog_extension_test)
 test('VaultIO Flow Controller Tests', vault_io_flow_controllers_test)
 test('Password Generator Tests', password_generator_test)
 test('UI Security Tests', ui_security_test, env: ['GSETTINGS_SCHEMA_DIR=' + meson.project_build_root() / 'data'])
