@@ -14,6 +14,7 @@
 #include "../src/core/services/VaultYubiKeyService.h"
 #include "../src/core/services/VaultFileService.h"
 #include "../src/core/MultiUserTypes.h"
+#include <cstdlib>
 #include <filesystem>
 #include <memory>
 #include <unistd.h>
@@ -363,10 +364,15 @@ TEST_F(VaultCreationOrchestratorIntegrationTest, EndToEnd_CompleteWorkflow) {
     #define KEEPTOWER_TESTS_UNDER_SANITIZER 0
 #endif
 
+static bool keeptower_tests_running_under_ci() {
+    // Common CI env vars used by GitHub Actions and others.
+    return std::getenv("CI") != nullptr || std::getenv("GITHUB_ACTIONS") != nullptr;
+}
+
 TEST_F(VaultCreationOrchestratorIntegrationTest, Performance_ReasonableTime) {
-#if KEEPTOWER_TESTS_UNDER_SANITIZER
-    GTEST_SKIP() << "Wall-clock performance checks are unreliable under sanitizers";
-#endif
+    if (KEEPTOWER_TESTS_UNDER_SANITIZER || keeptower_tests_running_under_ci()) {
+        GTEST_SKIP() << "Wall-clock performance checks are unreliable under sanitizers/CI";
+    }
     auto start = std::chrono::steady_clock::now();
 
     auto result = orchestrator->create_vault_v2_sync(params);
@@ -381,9 +387,9 @@ TEST_F(VaultCreationOrchestratorIntegrationTest, Performance_ReasonableTime) {
 }
 
 TEST_F(VaultCreationOrchestratorIntegrationTest, Performance_ProgressOverhead) {
-#if KEEPTOWER_TESTS_UNDER_SANITIZER
-    GTEST_SKIP() << "Wall-clock performance checks are unreliable under sanitizers";
-#endif
+    if (KEEPTOWER_TESTS_UNDER_SANITIZER || keeptower_tests_running_under_ci()) {
+        GTEST_SKIP() << "Wall-clock performance checks are unreliable under sanitizers/CI";
+    }
     // Without callback
     auto start1 = std::chrono::steady_clock::now();
     auto result1 = orchestrator->create_vault_v2_sync(params);
