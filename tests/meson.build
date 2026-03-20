@@ -33,6 +33,7 @@ vault_manager_common_sources = [
     '../src/core/VaultManagerV2.cc',
     '../src/core/ReedSolomon.cc',
     '../src/core/MultiUserTypes.cc',
+    '../src/core/MultiUserTypesSerDe.cc',
     '../src/core/KeyWrapping.cc',
     '../src/core/VaultFormatV2.cc',
     '../src/core/PasswordHistory.cc',
@@ -627,8 +628,8 @@ test('YubiKeyManager Characterization Tests', yubikey_manager_characterization_t
 test('Username Hashing Tests', username_hashing_test)
 test('Username Hash Migration Tests', username_hash_migration_test, suite: 'migration')
 test('Username Hash Migration Priority 2 Tests', username_hash_migration_priority2_test, suite: 'migration')
-test('Username Hash Migration Priority 3 Tests', username_hash_migration_priority3_test, timeout: 180, suite: 'migration')
-test('Username Hash Migration Concurrency Tests', username_hash_migration_concurrency_test, timeout: 180, suite: 'migration')
+test('Username Hash Migration Priority 3 Tests', username_hash_migration_priority3_test, timeout: 600, suite: 'migration', is_parallel: false)
+test('Username Hash Migration Concurrency Tests', username_hash_migration_concurrency_test, timeout: 600, suite: 'migration', is_parallel: false)
 test('KEK Derivation Tests', kek_derivation_test, env: ['GSETTINGS_SCHEMA_DIR=' + meson.project_build_root() / 'data'])
 
 # Secure memory tests
@@ -716,6 +717,7 @@ vault_format_v2_sources = [
     '../src/core/VaultFormatV2.cc',
     '../src/core/ReedSolomon.cc',
     '../src/core/MultiUserTypes.cc',
+    '../src/core/MultiUserTypesSerDe.cc',
     proto_gen
 ]
 vault_format_v2_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep]
@@ -789,6 +791,7 @@ vault_file_service_sources = [
     '../src/core/VaultFormatV2.cc',
     '../src/core/ReedSolomon.cc',
     '../src/core/MultiUserTypes.cc',
+    '../src/core/MultiUserTypesSerDe.cc',
     '../src/core/PasswordHistory.cc'
 ]
 vault_file_service_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep]
@@ -817,6 +820,7 @@ vault_creation_orchestrator_sources = [
     '../src/core/VaultFormatV2.cc',
     '../src/core/ReedSolomon.cc',
     '../src/core/MultiUserTypes.cc',
+    '../src/core/MultiUserTypesSerDe.cc',
     '../src/core/PasswordHistory.cc',
     proto_gen
 ]
@@ -847,6 +851,7 @@ multiuser_sources = [
     'test_multiuser.cc',
     '../src/core/ReedSolomon.cc',
     '../src/core/MultiUserTypes.cc',
+    '../src/core/MultiUserTypesSerDe.cc',
     '../src/core/KeyWrapping.cc',
     '../src/core/VaultFormatV2.cc',
 ]

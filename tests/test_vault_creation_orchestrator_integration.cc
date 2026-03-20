@@ -14,6 +14,7 @@
 #include "../src/core/services/VaultYubiKeyService.h"
 #include "../src/core/services/VaultFileService.h"
 #include "../src/core/MultiUserTypes.h"
+#include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <memory>
@@ -390,30 +391,53 @@ TEST_F(VaultCreationOrchestratorIntegrationTest, Performance_ProgressOverhead) {
     if (KEEPTOWER_TESTS_UNDER_SANITIZER || keeptower_tests_running_under_ci()) {
         GTEST_SKIP() << "Wall-clock performance checks are unreliable under sanitizers/CI";
     }
-    // Without callback
-    auto start1 = std::chrono::steady_clock::now();
-    auto result1 = orchestrator->create_vault_v2_sync(params);
-    auto end1 = std::chrono::steady_clock::now();
-    auto ms1 = std::chrono::duration_cast<std::chrono::milliseconds>(end1 - start1).count();
 
-    ASSERT_TRUE(result1.has_value());
+    // Warm up to reduce cold-start / cache effects.
+    params.progress_callback = nullptr;
+    params.path = (test_dir / "warmup_baseline.vault").string();
+    ASSERT_TRUE(orchestrator->create_vault_v2_sync(params).has_value());
 
-    // With callback
-    params.path = (test_dir / "v2.vault").string();
-    int count = 0;
-    params.progress_callback = [&](int, int, const std::string&) { count++; };
+    params.path = (test_dir / "warmup_progress.vault").string();
+    params.progress_callback = [&](int, int, const std::string&) {};
+    ASSERT_TRUE(orchestrator->create_vault_v2_sync(params).has_value());
 
-    auto start2 = std::chrono::steady_clock::now();
-    auto result2 = orchestrator->create_vault_v2_sync(params);
-    auto end2 = std::chrono::steady_clock::now();
-    auto ms2 = std::chrono::duration_cast<std::chrono::milliseconds>(end2 - start2).count();
+    // Measure multiple samples and use the median overhead to avoid flakiness.
+    std::vector<double> overhead_samples;
+    overhead_samples.reserve(5);
 
-    ASSERT_TRUE(result2.has_value());
-    EXPECT_GT(count, 0);
+    for (int i = 0; i < 5; ++i) {
+        params.progress_callback = nullptr;
+        params.path = (test_dir / ("baseline_" + std::to_string(i) + ".vault")).string();
 
-    double overhead = 100.0 * (ms2 - ms1) / ms1;
-    std::cout << "Progress overhead: " << overhead << "%" << std::endl;
-    EXPECT_LT(std::abs(overhead), 20.0);
+        auto start1 = std::chrono::steady_clock::now();
+        auto result1 = orchestrator->create_vault_v2_sync(params);
+        auto end1 = std::chrono::steady_clock::now();
+        auto us1 = std::chrono::duration_cast<std::chrono::microseconds>(end1 - start1).count();
+
+        ASSERT_TRUE(result1.has_value());
+        ASSERT_GT(us1, 0);
+
+        params.path = (test_dir / ("progress_" + std::to_string(i) + ".vault")).string();
+        int count = 0;
+        params.progress_callback = [&](int, int, const std::string&) { count++; };
+
+        auto start2 = std::chrono::steady_clock::now();
+        auto result2 = orchestrator->create_vault_v2_sync(params);
+        auto end2 = std::chrono::steady_clock::now();
+        auto us2 = std::chrono::duration_cast<std::chrono::microseconds>(end2 - start2).count();
+
+        ASSERT_TRUE(result2.has_value());
+        EXPECT_GT(count, 0);
+
+        double overhead = 100.0 * static_cast<double>(us2 - us1) / static_cast<double>(us1);
+        overhead_samples.push_back(overhead);
+    }
+
+    std::sort(overhead_samples.begin(), overhead_samples.end());
+    const double median_overhead = overhead_samples[overhead_samples.size() / 2];
+
+    std::cout << "Progress overhead (median of 5): " << median_overhead << "%" << std::endl;
+    EXPECT_LT(std::abs(median_overhead), 20.0);
 }
 
 // ============================================================================

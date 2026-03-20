@@ -133,6 +133,7 @@ sources = files(
   'core/controllers/VaultCreationOrchestrator.cc',
   'core/ReedSolomon.cc',
   'core/MultiUserTypes.cc',
+  'core/MultiUserTypesSerDe.cc',
   'core/KeyWrapping.cc',
   'core/VaultFormatV2.cc',
   'core/PasswordHistory.cc',
