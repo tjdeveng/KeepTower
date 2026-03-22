@@ -350,7 +350,7 @@ bool VaultManager::check_vault_requires_yubikey(const std::string& path, std::st
     }
 
     // Check if we have enough data for YubiKey metadata
-    if (offset + 1 > file_data.size()) {
+    if (offset > file_data.size() || (file_data.size() - offset) < 1) {
         return true;  // YubiKey required but no serial available
     }
 

@@ -78,6 +78,60 @@ TEST_F(VaultManagerTest, OpenVault_WithCorrectPassword_Success) {
     EXPECT_TRUE(vault_manager->is_vault_open());
 }
 
+TEST_F(VaultManagerTest, CheckVaultRequiresYubiKey_TruncatedAfterRSMetadata_NoSerial) {
+    const auto path = (test_dir / "test_truncated_yubikey_rs_metadata.vault").string();
+
+    std::vector<uint8_t> file_data(
+        VaultManager::SALT_LENGTH + VaultManager::IV_LENGTH + 1,
+        0);
+    file_data[VaultManager::SALT_LENGTH + VaultManager::IV_LENGTH] =
+        static_cast<uint8_t>(VaultManager::FLAG_YUBIKEY_REQUIRED | VaultManager::FLAG_RS_ENABLED);
+
+    // RS metadata: redundancy (1) + original_size (4). Flags byte already accounted for.
+    file_data.insert(file_data.end(), VaultManager::VAULT_HEADER_SIZE - 1, 0);
+
+    {
+        std::ofstream out(path, std::ios::binary);
+        ASSERT_TRUE(out.is_open());
+        out.write(reinterpret_cast<const char*>(file_data.data()), static_cast<std::streamsize>(file_data.size()));
+    }
+    fs::permissions(path,
+                    fs::perms::owner_read | fs::perms::owner_write,
+                    fs::perm_options::replace);
+
+    std::string serial;
+    EXPECT_TRUE(vault_manager->check_vault_requires_yubikey(path, serial));
+    EXPECT_TRUE(serial.empty());
+}
+
+TEST_F(VaultManagerTest, CheckVaultRequiresYubiKey_ShortSerialBytes_NoSerial) {
+    const auto path = (test_dir / "test_short_yubikey_serial.vault").string();
+
+    std::vector<uint8_t> file_data(
+        VaultManager::SALT_LENGTH + VaultManager::IV_LENGTH + 1,
+        0);
+    file_data[VaultManager::SALT_LENGTH + VaultManager::IV_LENGTH] =
+        static_cast<uint8_t>(VaultManager::FLAG_YUBIKEY_REQUIRED | VaultManager::FLAG_RS_ENABLED);
+    file_data.insert(file_data.end(), VaultManager::VAULT_HEADER_SIZE - 1, 0);
+
+    // serial_len byte present, but not enough serial bytes after it.
+    file_data.push_back(10);
+    file_data.insert(file_data.end(), 5, 0xAA);
+
+    {
+        std::ofstream out(path, std::ios::binary);
+        ASSERT_TRUE(out.is_open());
+        out.write(reinterpret_cast<const char*>(file_data.data()), static_cast<std::streamsize>(file_data.size()));
+    }
+    fs::permissions(path,
+                    fs::perms::owner_read | fs::perms::owner_write,
+                    fs::perm_options::replace);
+
+    std::string serial;
+    EXPECT_TRUE(vault_manager->check_vault_requires_yubikey(path, serial));
+    EXPECT_TRUE(serial.empty());
+}
+
 TEST_F(VaultManagerTest, OpenVault_WithWrongPassword_Fails) {
     // Create vault
     ASSERT_TRUE(vault_manager->create_vault(test_vault_path, test_password));

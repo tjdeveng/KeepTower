@@ -267,7 +267,8 @@ VaultFormatV2::read_header(const std::vector<uint8_t>& file_data) {
     // Validate header size
     if (header.header_size == 0 ||
         header.header_size > MAX_HEADER_SIZE ||
-        header.header_size > file_data.size() - offset) {
+        offset > file_data.size() ||
+        static_cast<size_t>(header.header_size) > (file_data.size() - offset)) {
         Log::error("VaultFormatV2: Invalid header size: {} (max: {})",
                    header.header_size, MAX_HEADER_SIZE);
         return std::unexpected(VaultError::CorruptedFile);
