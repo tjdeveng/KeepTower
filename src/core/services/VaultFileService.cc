@@ -14,6 +14,7 @@
 #include <fstream>
 #include <iomanip>
 #include <sstream>
+#include <limits>
 
 #ifndef _WIN32
 #include <fcntl.h>
@@ -57,6 +58,18 @@ VaultResult<> VaultFileService::read_vault_file(
         const std::streamsize file_size = file.tellg();
         if (file_size <= 0) {
             Log::error("VaultFileService: Empty or invalid file: {}", path);
+            return std::unexpected(VaultError::InvalidData);
+        }
+
+        // Prevent excessive allocations on corrupted/hostile inputs.
+        constexpr std::streamsize MAX_VAULT_FILE_SIZE = 1024LL * 1024 * 1024;  // 1 GiB
+        if (file_size > MAX_VAULT_FILE_SIZE) {
+            Log::error("VaultFileService: Vault file too large: {} ({} bytes)", path, file_size);
+            return std::unexpected(VaultError::InvalidData);
+        }
+
+        if (static_cast<std::uintmax_t>(file_size) > std::numeric_limits<size_t>::max()) {
+            Log::error("VaultFileService: Vault file size overflows addressable memory: {}", path);
             return std::unexpected(VaultError::InvalidData);
         }
 

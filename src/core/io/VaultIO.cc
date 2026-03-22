@@ -16,6 +16,7 @@
 #include <iomanip>
 #include <sstream>
 #include <algorithm>
+#include <limits>
 
 // Platform-specific headers for file operations
 #ifdef __linux__
@@ -84,6 +85,19 @@ bool VaultIO::read_file(
             return false;
         }
 
+        // Prevent excessive allocations on corrupted/hostile inputs.
+        // This is a coarse safety check; format-specific limits are validated elsewhere.
+        constexpr std::streamsize MAX_VAULT_FILE_SIZE = 1024LL * 1024 * 1024;  // 1 GiB
+        if (size > MAX_VAULT_FILE_SIZE) {
+            std::cerr << "Vault file too large: " << size << " bytes" << '\n';
+            return false;
+        }
+
+        if (static_cast<std::uintmax_t>(size) > std::numeric_limits<size_t>::max()) {
+            std::cerr << "Vault file size overflows addressable memory" << '\n';
+            return false;
+        }
+
         file.seekg(0, std::ios::beg);
 
         // Check if file has the new format with magic header
@@ -91,10 +105,22 @@ bool VaultIO::read_file(
         pbkdf2_iterations = DEFAULT_PBKDF2_ITERATIONS;
 
         if (size >= static_cast<std::streamsize>(HEADER_SIZE)) {
-            uint32_t magic, version, iterations;
-            file.read(reinterpret_cast<char*>(&magic), sizeof(magic));
-            file.read(reinterpret_cast<char*>(&version), sizeof(version));
-            file.read(reinterpret_cast<char*>(&iterations), sizeof(iterations));
+            uint32_t magic = 0;
+            uint32_t version = 0;
+            uint32_t iterations = 0;
+
+            if (!file.read(reinterpret_cast<char*>(&magic), sizeof(magic)) ||
+                !file.read(reinterpret_cast<char*>(&version), sizeof(version)) ||
+                !file.read(reinterpret_cast<char*>(&iterations), sizeof(iterations))) {
+                // If the header can't be read (I/O error, concurrent truncation, etc.),
+                // fall back to legacy handling and read the full file from the start.
+                std::cerr << "Failed to read vault header" << '\n';
+                file.clear();
+                file.seekg(0, std::ios::beg);
+                magic = 0;
+                version = 0;
+                iterations = 0;
+            }
 
             if (magic == VAULT_MAGIC) {
                 pbkdf2_iterations = static_cast<int>(iterations);
