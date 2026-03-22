@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <fstream>
 #include <vector>
+#include <cstdint>
 
 using namespace KeepTower;
 namespace fs = std::filesystem;
@@ -137,6 +138,23 @@ TEST_F(VaultFileServiceTest, ReadVaultFile_InvalidFormat) {
     auto result = VaultFileService::read_vault_file(test_vault_path.string(), data, iterations);
 
     ASSERT_FALSE(result.has_value()) << "Should reject invalid format";
+    EXPECT_EQ(result.error(), VaultError::InvalidData);
+}
+
+TEST_F(VaultFileServiceTest, ReadVaultFile_RejectsExcessiveSize) {
+    // Create a sparse file larger than the safety limit (1 GiB).
+    std::ofstream file(test_vault_path, std::ios::binary);
+    file.put('\0');
+    file.close();
+
+    const std::uintmax_t too_large_size = (1024ULL * 1024 * 1024) + 1;
+    fs::resize_file(test_vault_path, too_large_size);
+
+    std::vector<uint8_t> data;
+    int iterations = 0;
+    auto result = VaultFileService::read_vault_file(test_vault_path.string(), data, iterations);
+
+    ASSERT_FALSE(result.has_value());
     EXPECT_EQ(result.error(), VaultError::InvalidData);
 }
 

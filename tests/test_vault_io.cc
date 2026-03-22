@@ -15,6 +15,7 @@
 #include <fstream>
 #include <chrono>
 #include <thread>
+#include <cstdint>
 
 #ifdef __linux__
 #include <sys/stat.h>
@@ -216,6 +217,26 @@ TEST_F(VaultIOTest, ReadFileRejectsInsecurePermissions) {
     bool result = VaultIO::read_file(test_file.string(), read_data, false, iterations);
 
     EXPECT_FALSE(result);  // Should reject insecure file
+}
+
+TEST_F(VaultIOTest, ReadFileRejectsExcessiveSize) {
+    // Create a sparse file larger than the safety limit (1 GiB).
+    std::ofstream file(test_file, std::ios::binary);
+    file.put('\0');
+    file.close();
+
+    const std::uintmax_t too_large_size = (1024ULL * 1024 * 1024) + 1;
+    std::filesystem::resize_file(test_file, too_large_size);
+
+    // Set secure permissions (owner read/write only)
+    chmod(test_file.c_str(), S_IRUSR | S_IWUSR);
+
+    std::vector<uint8_t> read_data;
+    int iterations = 0;
+
+    bool result = VaultIO::read_file(test_file.string(), read_data, false, iterations);
+
+    EXPECT_FALSE(result);
 }
 #endif
 
