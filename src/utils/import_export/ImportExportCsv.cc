@@ -101,6 +101,7 @@ static std::vector<std::string> parse_csv_line(const std::string& line) {
     return fields;
 }
 
+/** @brief Remove UTF-8 BOM prefix from first CSV line when present. */
 static void strip_utf8_bom(std::string& s) {
     if (s.size() >= 3 && static_cast<unsigned char>(s[0]) == 0xEF &&
         static_cast<unsigned char>(s[1]) == 0xBB && static_cast<unsigned char>(s[2]) == 0xBF) {

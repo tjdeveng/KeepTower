@@ -23,7 +23,6 @@
 #include <expected>
 #include <optional>
 #include <mutex>
-#include <atomic>
 #include <glibmm.h>
 #include "record.pb.h"
 #include "VaultError.h"
@@ -1817,57 +1816,7 @@ private:
     // Current vault PBKDF2 iterations (configurable per vault)
     int m_pbkdf2_iterations;
 
-    /** @name FIPS-140-3 Global State (Thread-Safe)
-     * @brief Process-wide FIPS mode tracking with atomic thread safety
-     *
-     * These static members track the FIPS provider state across all VaultManager
-     * instances. They use std::atomic<bool> for lock-free, thread-safe access.
-     *
-     * **Thread Safety Guarantees:**
-     * - Atomic loads/stores prevent data races
-     * - Compare-exchange ensures single initialization
-     * - Memory ordering: sequential consistency (default)
-     *
-     * **Initialization State Machine:**
-     * 1. **Uninitialized:** All false, init_fips_mode() not called
-     * 2. **Default Provider:** initialized=true, available=false, enabled=false
-     * 3. **FIPS Available:** initialized=true, available=true, enabled=false
-     * 4. **FIPS Enabled:** initialized=true, available=true, enabled=true
-     *
-     * @{
-     */
-
-    /**
-     * @brief Tracks whether FIPS initialization has been performed
-     *
-     * Set to true after first successful call to init_fips_mode().
-     * Used with compare_exchange to ensure single initialization.
-     *
-     * @invariant Once true, remains true for process lifetime
-     */
-    static std::atomic<bool> s_fips_mode_initialized;
-
-    /**
-     * @brief Tracks whether OpenSSL FIPS provider is available
-     *
-     * Set to true if FIPS provider loads successfully during init_fips_mode().
-     * Remains false if FIPS module not installed or load fails.
-     *
-     * @invariant Can only be true if s_fips_mode_initialized is true
-     */
-    static std::atomic<bool> s_fips_mode_available;
-
-    /**
-     * @brief Tracks whether FIPS mode is currently active
-     *
-     * Set to true when FIPS provider is loaded and enabled.
-     * Can be toggled via set_fips_mode() if provider is available.
-     *
-     * @invariant Can only be true if s_fips_mode_available is true
-     */
-    static std::atomic<bool> s_fips_mode_enabled;
-
-    /** @} */ // end of FIPS-140-3 global state
+    // Process-global FIPS state is owned by KeepTower::FipsProviderManager.
 };
 
 #endif // VAULTMANAGER_H

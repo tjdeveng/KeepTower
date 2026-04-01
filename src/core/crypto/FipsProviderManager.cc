@@ -16,6 +16,10 @@
 
 namespace KeepTower {
 
+std::atomic<bool> FipsProviderManager::s_fips_mode_initialized{false};
+std::atomic<bool> FipsProviderManager::s_fips_mode_available{false};
+std::atomic<bool> FipsProviderManager::s_fips_mode_enabled{false};
+
 namespace {
 std::once_flag g_openssl_cleanup_registered;
 OSSL_PROVIDER* g_fips_provider{nullptr};
@@ -54,6 +58,71 @@ void register_openssl_cleanup_once() {
 }
 
 }  // namespace
+
+bool FipsProviderManager::init_fips_mode(bool enable) {
+    bool expected = false;
+    if (!s_fips_mode_initialized.compare_exchange_strong(expected, true)) {
+        KeepTower::Log::warning("FIPS mode already initialized");
+        return true;
+    }
+
+    KeepTower::Log::info("Initializing OpenSSL FIPS mode (enable={})", enable);
+
+    bool available = false;
+    bool enabled = false;
+    const bool ok = init(enable, available, enabled);
+
+    s_fips_mode_available.store(available);
+    s_fips_mode_enabled.store(enabled);
+    return ok;
+}
+
+bool FipsProviderManager::is_fips_available() {
+    if (!s_fips_mode_initialized.load()) {
+        KeepTower::Log::warning("FIPS mode not initialized - call init_fips_mode() first");
+        return false;
+    }
+    return s_fips_mode_available.load();
+}
+
+bool FipsProviderManager::is_fips_enabled() {
+    if (!s_fips_mode_initialized.load()) {
+        KeepTower::Log::warning("FIPS mode not initialized - call init_fips_mode() first");
+        return false;
+    }
+    return s_fips_mode_enabled.load();
+}
+
+bool FipsProviderManager::set_fips_mode(bool enable) {
+    if (!s_fips_mode_initialized.load()) {
+        KeepTower::Log::error("FIPS mode not initialized - call init_fips_mode() first");
+        return false;
+    }
+
+    if (enable == s_fips_mode_enabled.load()) {
+        KeepTower::Log::info("FIPS mode already in requested state ({})", enable);
+        return true;
+    }
+
+    if (enable && !s_fips_mode_available.load()) {
+        KeepTower::Log::error("Cannot enable FIPS mode - FIPS provider not available");
+        return false;
+    }
+
+    if (!enable && !s_fips_mode_available.load()) {
+        s_fips_mode_enabled.store(false);
+        KeepTower::Log::info("FIPS provider not available; FIPS mode disabled");
+        return true;
+    }
+
+    if (!set_fips_default_properties(enable)) {
+        return false;
+    }
+
+    s_fips_mode_enabled.store(enable);
+    KeepTower::Log::info("FIPS mode {} successfully", enable ? "enabled" : "disabled");
+    return true;
+}
 
 bool FipsProviderManager::init(bool enable, bool& out_available, bool& out_enabled) {
     out_available = false;

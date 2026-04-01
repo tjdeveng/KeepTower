@@ -42,37 +42,6 @@
 
 using namespace KeepTower;
 
-// ============================================================================
-// FIPS-140-3 Mode State Initialization
-// ============================================================================
-
-/**
- * @brief Static initialization of FIPS mode state variables
- *
- * All three atomic booleans initialize to false, representing the
- * uninitialized state. Thread-safe initialization occurs on first
- * access (guaranteed by C++11 static initialization rules).
- *
- * @section fips_state_machine FIPS State Machine
- *
- * Valid state transitions:
- * 1. All false (startup) → initialized=true, available=false (default provider loaded)
- * 2. All false (startup) → initialized=true, available=true, enabled=false (FIPS loaded but not enabled)
- * 3. All false (startup) → initialized=true, available=true, enabled=true (FIPS loaded and enabled)
- * 4. available=true, enabled=false → enabled=true (runtime FIPS activation)
- * 5. available=true, enabled=true → enabled=false (runtime FIPS deactivation)
- *
- * Invalid transitions (prevented by code):
- * - initialized false → true more than once (compare_exchange prevents)
- * - available false → enabled true (set_fips_mode() checks availability)
- * - Any state → initialized false (never reset once initialized)
- *
- * @note These are zero-initialized by default for std::atomic<bool>
- */
-std::atomic<bool> VaultManager::s_fips_mode_initialized{false};
-std::atomic<bool> VaultManager::s_fips_mode_available{false};
-std::atomic<bool> VaultManager::s_fips_mode_enabled{false};
-
 // EVPCipherContext implementation
 EVPCipherContext::EVPCipherContext() : ctx_(EVP_CIPHER_CTX_new()) {}
 
@@ -1296,9 +1265,9 @@ bool VaultManager::verify_credentials(const Glib::ustring& password, const std::
 /**
  * @brief Initialize OpenSSL FIPS provider for FIPS-140-3 compliant cryptography
  *
- * This method initializes the OpenSSL 3.5+ provider system and optionally loads
- * the FIPS cryptographic module. It uses atomic compare-and-exchange to ensure
- * single initialization even when called from multiple threads simultaneously.
+ * This method delegates process-global provider/FIPS initialization to
+ * KeepTower::FipsProviderManager and preserves VaultManager as a stable public
+ * API surface.
  *
  * @section fips_init_process Initialization Process
  *
@@ -1315,13 +1284,10 @@ bool VaultManager::verify_credentials(const Glib::ustring& password, const std::
  *
  * @section fips_init_concurrency Thread Safety
  *
- * Uses atomic compare-and-exchange pattern:
+ * Delegation pattern:
  * @code
- * bool expected = false;
- * if (!s_fips_mode_initialized.compare_exchange_strong(expected, true)) {
- *     return true;  // Already initialized by another thread
- * }
- * // ... perform initialization (only one thread gets here)
+ * // VaultManager remains facade-only
+ * return KeepTower::FipsProviderManager::init_fips_mode(enable);
  * @endcode
  *
  * This guarantees:
@@ -1353,9 +1319,8 @@ bool VaultManager::verify_credentials(const Glib::ustring& password, const std::
  * @param enable If true, attempts to load FIPS provider; if false, uses default provider
  * @return true if initialization successful, false only on catastrophic OpenSSL failure
  *
- * @post s_fips_mode_initialized == true
- * @post s_fips_mode_available reflects FIPS provider load status
- * @post s_fips_mode_enabled == true only if FIPS provider loaded successfully
+ * @post FipsProviderManager global FIPS state is initialized
+ * @post FipsProviderManager availability/enabled state reflects provider result
  *
  * @note **Single Initialization:** Subsequent calls return true without re-initializing
  * @note **Process-Wide Effect:** Affects all OpenSSL operations in the process
@@ -1365,36 +1330,15 @@ bool VaultManager::verify_credentials(const Glib::ustring& password, const std::
  * @see VaultManager::set_fips_mode() to toggle FIPS mode after initialization
  *
  * @par Implementation Details:
- * - Uses OSSL_PROVIDER_load() from OpenSSL 3.5 provider API
- * - Relies on OpenSSL configuration files for FIPS module location
- * - Does not explicitly configure provider properties (uses OpenSSL defaults)
+ * - Delegates all provider operations to KeepTower::FipsProviderManager
+ * - Preserves existing caller-facing API and behavior
  * - Logs all state transitions with KeepTower::Log for debugging
  *
  * @warning Do not call after any cryptographic operations have been performed.
  *          Provider initialization must happen before first crypto operation.
  */
 bool VaultManager::init_fips_mode(bool enable) {
-    // Thread-safe single initialization using atomic compare-exchange
-    // Only the first thread to call this will perform initialization
-    bool expected = false;
-    if (!s_fips_mode_initialized.compare_exchange_strong(expected, true)) {
-        KeepTower::Log::warning("FIPS mode already initialized");
-        // Return true = initialization already succeeded (we have a working provider)
-        // Don't return s_fips_mode_available because that indicates FIPS provider
-        // availability, not whether initialization succeeded overall
-        return true;
-    }
-
-    KeepTower::Log::info("Initializing OpenSSL FIPS mode (enable={})", enable);
-
-    bool available = false;
-    bool enabled = false;
-    const bool ok = KeepTower::FipsProviderManager::init(enable, available, enabled);
-
-    s_fips_mode_available.store(available);
-    s_fips_mode_enabled.store(enabled);
-
-    return ok;
+    return KeepTower::FipsProviderManager::init_fips_mode(enable);
 }
 
 /**
@@ -1442,11 +1386,7 @@ bool VaultManager::init_fips_mode(bool enable) {
  * @see is_fips_enabled() to check if FIPS mode is currently active
  */
 bool VaultManager::is_fips_available() {
-    if (!s_fips_mode_initialized.load()) {
-        KeepTower::Log::warning("FIPS mode not initialized - call init_fips_mode() first");
-        return false;
-    }
-    return s_fips_mode_available.load();
+    return KeepTower::FipsProviderManager::is_fips_available();
 }
 
 /**
@@ -1510,11 +1450,7 @@ bool VaultManager::is_fips_available() {
  * @see set_fips_mode() to toggle FIPS mode at runtime
  */
 bool VaultManager::is_fips_enabled() {
-    if (!s_fips_mode_initialized.load()) {
-        KeepTower::Log::warning("FIPS mode not initialized - call init_fips_mode() first");
-        return false;
-    }
-    return s_fips_mode_enabled.load();
+    return KeepTower::FipsProviderManager::is_fips_enabled();
 }
 
 /**
@@ -1529,12 +1465,12 @@ bool VaultManager::is_fips_enabled() {
  * **To Enable FIPS (enable = true):**
  * 1. Verify FIPS provider is available
  * 2. Call EVP_default_properties_enable_fips(NULL, 1)
- * 3. Update s_fips_mode_enabled to true
+ * 3. FipsProviderManager updates enabled state to true
  * 4. All new crypto operations use FIPS provider
  *
  * **To Disable FIPS (enable = false):**
  * 1. Call EVP_default_properties_enable_fips(NULL, 0)
- * 2. Update s_fips_mode_enabled to false
+ * 2. FipsProviderManager updates enabled state to false
  * 3. All new crypto operations use default provider
  *
  * @section fips_set_limitations Runtime Switching Limitations
@@ -1559,7 +1495,7 @@ bool VaultManager::is_fips_enabled() {
  * @section fips_set_validation Input Validation
  *
  * **Method fails (returns false) when:**
- * - init_fips_mode() not called (s_fips_mode_initialized == false)
+ * - init_fips_mode() not called (FipsProviderManager not initialized)
  * - Trying to enable FIPS when provider not available
  * - OpenSSL provider switching API fails
  *
@@ -1608,36 +1544,7 @@ bool VaultManager::is_fips_enabled() {
  *          Recommend application restart for guaranteed consistency.
  */
 bool VaultManager::set_fips_mode(bool enable) {
-    if (!s_fips_mode_initialized.load()) {
-        KeepTower::Log::error("FIPS mode not initialized - call init_fips_mode() first");
-        return false;
-    }
-
-    if (enable == s_fips_mode_enabled.load()) {
-        KeepTower::Log::info("FIPS mode already in requested state ({})", enable);
-        return true;
-    }
-
-    // Only require the provider to be available when enabling.
-    if (enable && !s_fips_mode_available.load()) {
-        KeepTower::Log::error("Cannot enable FIPS mode - FIPS provider not available");
-        return false;
-    }
-
-    // If disabling and the provider isn't available, we are already on the default provider.
-    if (!enable && !s_fips_mode_available.load()) {
-        s_fips_mode_enabled.store(false);
-        KeepTower::Log::info("FIPS provider not available; FIPS mode disabled");
-        return true;
-    }
-
-    if (!KeepTower::FipsProviderManager::set_fips_default_properties(enable)) {
-        return false;
-    }
-
-    s_fips_mode_enabled.store(enable);
-    KeepTower::Log::info("FIPS mode {} successfully", enable ? "enabled" : "disabled");
-    return true;
+    return KeepTower::FipsProviderManager::set_fips_mode(enable);
 }
 #endif
 

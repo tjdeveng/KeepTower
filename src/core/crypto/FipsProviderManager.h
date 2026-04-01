@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <atomic>
+
 namespace KeepTower {
 
 /**
@@ -14,6 +16,32 @@ namespace KeepTower {
 class FipsProviderManager {
 public:
     FipsProviderManager() = delete;
+
+    /**
+     * Initialize process-global OpenSSL provider/FIPS state once.
+     */
+    [[nodiscard]] static bool init_fips_mode(bool enable = false);
+
+    /**
+     * Query whether FIPS provider is available after initialization.
+     */
+    [[nodiscard]] static bool is_fips_available();
+
+    /**
+     * Query whether FIPS mode is currently enabled.
+     */
+    [[nodiscard]] static bool is_fips_enabled();
+
+    /**
+     * Toggle FIPS mode at runtime.
+     */
+    [[nodiscard]] static bool set_fips_mode(bool enable);
+
+private:
+    // Process-global state (OpenSSL providers/default properties are process-wide).
+    static std::atomic<bool> s_fips_mode_initialized;
+    static std::atomic<bool> s_fips_mode_available;
+    static std::atomic<bool> s_fips_mode_enabled;
 
     /**
      * Initialize OpenSSL provider system and attempt to load the FIPS provider.
