@@ -50,8 +50,8 @@ static std::string unescape_csv_field(const std::string& field) {
         return field;
     }
 
-    std::string unescaped;
     if (field.front() == '"' && field.back() == '"') {
+        std::string unescaped;
         // Remove surrounding quotes
         std::string content = field.substr(1, field.length() - 2);
         // Replace double quotes with single quotes

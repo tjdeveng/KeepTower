@@ -163,7 +163,7 @@ bool AccountRowWidget::on_drop(const Glib::ValueBase& value, [[maybe_unused]] do
     std::string dropped_data = str_value;
 
     // Check if it's an account or group being dropped
-    if (dropped_data.find("account:") == 0) {
+    if (dropped_data.starts_with("account:")) {
         // An account is being dropped onto this account
         std::string dropped_account_id = dropped_data.substr(8);  // Skip "account:"
 

@@ -606,14 +606,14 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
     }
 
     // yubikey_enrolled (1 byte)
-    slot.yubikey_enrolled = (data[pos++] != 0);
+    slot.yubikey_enrolled = (data[pos++] != 0); // cppcheck-suppress containerOutOfBounds -- guarded above
 
     // yubikey_challenge (32 bytes)
     std::copy(it(pos), it(pos + 32), slot.yubikey_challenge.begin());
     pos += 32;
 
     // yubikey_serial length (1 byte)
-    uint8_t yubikey_serial_len = data[pos++];
+    uint8_t yubikey_serial_len = data[pos++]; // cppcheck-suppress containerOutOfBounds -- guarded above
 
     // Check if we have enough data for serial + timestamp
     const size_t yubikey_serial_and_timestamp = static_cast<size_t>(yubikey_serial_len) + 8;
@@ -644,6 +644,7 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
     }
 
     // yubikey_encrypted_pin length (2 bytes, big-endian uint16_t)
+    // cppcheck-suppress containerOutOfBounds -- guarded by (data.size()-pos) >= 2 check above
     uint16_t encrypted_pin_len = (static_cast<uint16_t>(data[pos]) << 8) | data[pos + 1];
     pos += 2;
 
@@ -667,6 +668,7 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
     }
 
     // yubikey_credential_id length (2 bytes, big-endian uint16_t)
+    // cppcheck-suppress containerOutOfBounds -- guarded by (data.size()-pos) >= 2 check above
     uint16_t credential_id_len = (static_cast<uint16_t>(data[pos]) << 8) | data[pos + 1];
     pos += 2;
 
@@ -690,7 +692,7 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
     }
 
     // password_history count (1 byte)
-    uint8_t history_count = data[pos++];
+    uint8_t history_count = data[pos++]; // cppcheck-suppress containerOutOfBounds -- guarded above
 
     // Check if we have enough data for all history entries
     size_t history_bytes_needed = history_count * PasswordHistoryEntry::SERIALIZED_SIZE;
@@ -724,7 +726,7 @@ std::optional<std::pair<KeySlot, size_t>> KeySlot::deserialize(
     }
 
     // migration_status (1 byte)
-    slot.migration_status = data[pos++];
+    slot.migration_status = data[pos++]; // cppcheck-suppress containerOutOfBounds -- guarded above
 
     // Validate migration_status (only 0x00, 0x01, 0xFF are valid)
     if (slot.migration_status != 0x00 && slot.migration_status != 0x01 && slot.migration_status != 0xFF) {

@@ -441,8 +441,8 @@ MainWindow::MainWindow()
 
     // Load and apply sort direction from settings
     {
-        auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
-        Glib::ustring sort_dir = settings->get_string("sort-direction");
+        auto sort_settings = Gio::Settings::create("com.tjdeveng.keeptower");
+        Glib::ustring sort_dir = sort_settings->get_string("sort-direction");
         SortDirection direction = (sort_dir == "descending")
             ? SortDirection::DESCENDING : SortDirection::ASCENDING;
         m_account_tree_widget->set_sort_direction(direction);

@@ -148,7 +148,7 @@ void GroupRowWidget::on_header_clicked(int n_press, double x, double y) {
     // Selection should only happen on double-click or via another mechanism
     g_debug("GroupRowWidget::on_header_clicked - group '%s', current expanded=%d",
             m_group_id.c_str(), m_expanded);
-    g_debug("  Widget visible=%d, parent=%p", get_visible(), (void*)get_parent());
+    g_debug("  Widget visible=%d, parent=%p", get_visible(), static_cast<void*>(get_parent()));
 
     set_expanded(!m_expanded);
     g_debug("  After toggle: expanded=%d", m_expanded);
@@ -229,7 +229,7 @@ bool GroupRowWidget::on_drop(const Glib::ValueBase& value, [[maybe_unused]] doub
     std::string dropped_data = str_value;
 
     // Check if it's an account or group being dropped
-    if (dropped_data.find("account:") == 0) {
+    if (dropped_data.starts_with("account:")) {
         // An account is being dropped into this group
         std::string dropped_account_id = dropped_data.substr(8);  // Skip "account:"
 
@@ -237,7 +237,7 @@ bool GroupRowWidget::on_drop(const Glib::ValueBase& value, [[maybe_unused]] doub
         m_signal_account_dropped.emit(dropped_account_id, m_group_id);
         return true;
 
-    } else if (dropped_data.find("group:") == 0) {
+    } else if (dropped_data.starts_with("group:")) {
         // A group is being dropped onto this group (reorder groups)
         std::string dropped_group_id = dropped_data.substr(6);  // Skip "group:"
 

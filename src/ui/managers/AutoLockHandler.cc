@@ -190,48 +190,4 @@ void AutoLockHandler::lock_vault() {
     }
 }
 
-std::string AutoLockHandler::get_master_password_for_lock() {
-    // We need to get the master password to cache it for unlock
-    // This is called when locking, so we prompt the user
-    auto* dialog = Gtk::make_managed<Gtk::MessageDialog>(
-        m_window,
-        "Verify Password for Auto-Lock",
-        false,
-        Gtk::MessageType::QUESTION,
-        Gtk::ButtonsType::OK_CANCEL
-    );
-    dialog->set_secondary_text("Enter your master password to verify your identity.\nThis allows the vault to auto-lock after inactivity and be unlocked with the same password.");
-    dialog->set_modal(true);
-    dialog->set_hide_on_close(true);
-
-    auto* content = dialog->get_message_area();
-    auto* password_entry = Gtk::make_managed<Gtk::Entry>();
-    password_entry->set_visibility(false);
-    password_entry->set_placeholder_text("Enter master password");
-    password_entry->set_margin_start(12);
-    password_entry->set_margin_end(12);
-    password_entry->set_margin_top(12);
-    password_entry->set_activates_default(true);
-    content->append(*password_entry);
-
-    dialog->set_default_response(Gtk::ResponseType::OK);
-
-    std::string result;
-    dialog->signal_response().connect([&result, password_entry](const int response) {
-        if (response == Gtk::ResponseType::OK) {
-            result = std::string{password_entry->get_text()};
-        }
-    });
-
-    dialog->set_hide_on_close(true);
-    dialog->show();
-
-    // Wait for dialog to close (use modern GTK4 pattern)
-    while (dialog->get_visible()) {
-        g_main_context_iteration(nullptr, true);
-    }
-
-    return result;
-}
-
 }  // namespace UI

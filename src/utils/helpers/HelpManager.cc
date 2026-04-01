@@ -199,25 +199,4 @@ std::string HelpManager::topic_to_filename(HelpTopic topic) {
     return "00-home.html";
 }
 
-std::string HelpManager::topic_to_name(HelpTopic topic) {
-    switch (topic) {
-        case HelpTopic::Home:
-            return "Home";
-        case HelpTopic::GettingStarted:
-            return "Getting Started";
-        case HelpTopic::Installation:
-            return "Installation";
-        case HelpTopic::UserGuide:
-            return "User Guide";
-        case HelpTopic::FAQ:
-            return "FAQ";
-        case HelpTopic::Security:
-            return "Security";
-        case HelpTopic::SecurityBestPractices:
-            return "Security Best Practices";
-        default:
-            return "Help";
-    }
-}
-
 } // namespace Utils

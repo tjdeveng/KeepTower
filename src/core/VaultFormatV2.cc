@@ -274,7 +274,8 @@ VaultFormatV2::read_header(const std::vector<uint8_t>& file_data) {
         return std::unexpected(VaultError::CorruptedFile);
     }
 
-    // Read header flags (1 byte)
+    // Read header flags (1 byte) -- guarded above: header_size >= 1 implies file_data[offset] is in-bounds
+    // cppcheck-suppress containerOutOfBounds
     header.header_flags = file_data[offset++];
 
     bool fec_enabled = (header.header_flags & HEADER_FLAG_FEC_ENABLED) != 0;

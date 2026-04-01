@@ -341,10 +341,10 @@ std::vector<std::string> VaultIO::list_backups(std::string_view path, std::strin
     namespace fs = std::filesystem;
     std::vector<std::string> backups;
     std::string path_str(path);
-    std::string backup_dir_str(backup_dir);
 
     fs::path vault_path(path_str);
     std::string vault_filename = vault_path.filename().string();
+    std::string backup_dir_str(backup_dir);
     std::string backup_pattern = vault_filename + ".backup.";
 
     try {

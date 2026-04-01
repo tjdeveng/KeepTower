@@ -148,13 +148,6 @@ private:
      */
     static std::string topic_to_filename(HelpTopic topic);
 
-    /**
-     * @brief Get human-readable name for a help topic
-     * @param topic Help topic
-     * @return Display name (e.g., "User Guide")
-     */
-    static std::string topic_to_name(HelpTopic topic);
-
     // Topic to filename mapping
     static const std::map<HelpTopic, std::string> topic_filenames_;
 };

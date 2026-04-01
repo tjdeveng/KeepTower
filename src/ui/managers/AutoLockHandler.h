@@ -120,12 +120,6 @@ public:
     void lock_vault();
 
 private:
-    /**
-     * @brief Get master password for locking (verification dialog)
-     * @return Master password string (empty if cancelled)
-     */
-    std::string get_master_password_for_lock();
-
     Gtk::Window& m_window;
     VaultManager* m_vault_manager;
     KeepTower::AutoLockManager* m_auto_lock_manager;

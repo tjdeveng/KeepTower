@@ -568,10 +568,10 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
         const auto& challenge = user_slot->yubikey_challenge;
 
         // Perform challenge-response with decrypted PIN
-        const YubiKeyAlgorithm algorithm = static_cast<YubiKeyAlgorithm>(file_header.vault_header.security_policy.yubikey_algorithm);
+        const YubiKeyAlgorithm yk_algorithm = static_cast<YubiKeyAlgorithm>(file_header.vault_header.security_policy.yubikey_algorithm);
         auto response = yk_manager.challenge_response(
             std::span<const unsigned char>(challenge.data(), challenge.size()),
-            algorithm,
+            yk_algorithm,
             false,  // don't require touch for vault access (usability)
             5000,   // 5 second timeout
             decrypted_pin  // Use decrypted PIN for authentication
@@ -913,7 +913,7 @@ KeepTower::VaultResult<> VaultManager::add_user(
 
         // Create credential for this user (use username as identifier)
         const std::string& pin_str = yubikey_pin.value();
-        auto cred_result = yk_manager.create_credential(username.raw(), pin_str.c_str());
+        auto cred_result = yk_manager.create_credential(username.raw(), pin_str);
         if (!cred_result) {
             Log::error("VaultManager: Failed to create FIDO2 credential: {}",
                       yk_manager.get_last_error());
@@ -922,11 +922,11 @@ KeepTower::VaultResult<> VaultManager::add_user(
         credential_id = std::move(cred_result.value());
 
         // Test challenge-response
-        const YubiKeyAlgorithm algorithm = static_cast<YubiKeyAlgorithm>(
+        const YubiKeyAlgorithm yk_algorithm = static_cast<YubiKeyAlgorithm>(
             m_v2_header->security_policy.yubikey_algorithm);
         auto response = yk_manager.challenge_response(
             std::span<const unsigned char>(yubikey_challenge.data(), yubikey_challenge.size()),
-            algorithm, false, 5000);
+            yk_algorithm, false, 5000);
 
         if (!response.success) {
             Log::error("VaultManager: YubiKey challenge-response failed: {}",
@@ -976,9 +976,11 @@ KeepTower::VaultResult<> VaultManager::add_user(
 #endif
 
     // YubiKey fields: Use enrollment data if available
+    // cppcheck-suppress knownConditionTrueFalse -- yubikey_enrolled is set to true inside #ifdef HAVE_YUBIKEY_SUPPORT
     new_slot.yubikey_enrolled = yubikey_enrolled;
     new_slot.yubikey_challenge = yubikey_challenge;
     new_slot.yubikey_serial = yubikey_serial;
+    // cppcheck-suppress knownConditionTrueFalse
     new_slot.yubikey_enrolled_at = yubikey_enrolled ?
         std::chrono::system_clock::now().time_since_epoch().count() : 0;
     new_slot.yubikey_encrypted_pin = std::move(encrypted_pin);
@@ -1499,7 +1501,7 @@ KeepTower::VaultResult<> VaultManager::migrate_user_hash(
                 std::min(new_hash_vec.size(), size_t(64)),
                 user_slot->username_hash.begin());
     user_slot->username_hash_size = static_cast<uint8_t>(new_hash_vec.size());
-    user_slot->username_salt = new_username_salt;
+    user_slot->username_salt = new_username_salt; // cppcheck-suppress autoVariables -- std::array value copy, not address escape
 
     // Mark as migrated with timestamp
     user_slot->migration_status = 0x01;  // Migrated
