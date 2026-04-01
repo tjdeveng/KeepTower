@@ -210,6 +210,10 @@ int main() {
     std::cout << "║  KeepTower Advanced Security Features Test Suite  ║\n";
     std::cout << "╚════════════════════════════════════════════════════╝\n";
 
+    // Match application startup: initialize FIPS provider state once, before any crypto.
+    // This avoids noisy warnings from is_fips_available()/is_fips_enabled() callers.
+    (void)VaultManager::init_fips_mode(false);
+
     int passed = 0;
     int total = 3;
 
