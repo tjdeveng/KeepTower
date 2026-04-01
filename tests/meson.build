@@ -48,6 +48,7 @@ vault_manager_common_sources = [
     '../src/core/services/VaultCryptoService.cc',
     '../src/core/services/VaultYubiKeyService.cc',
     '../src/core/services/VaultFileService.cc',
+    '../src/core/services/VaultBackupPolicy.cc',
     '../src/core/services/UsernameHashService.cc',  # Username hashing service
     '../src/core/services/KekDerivationService.cc',  # KEK derivation service (Phase 3)
     proto_gen

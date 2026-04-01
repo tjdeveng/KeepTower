@@ -126,6 +126,7 @@ sources = files(
   'core/services/VaultCryptoService.cc',
   'core/services/VaultYubiKeyService.cc',
   'core/services/VaultFileService.cc',
+  'core/services/VaultBackupPolicy.cc',
   'core/services/UsernameHashService.cc',
   'core/services/KekDerivationService.cc',
   'core/controllers/VaultCreationOrchestrator.cc',

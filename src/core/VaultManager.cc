@@ -15,6 +15,7 @@
 #include "services/VaultCryptoService.h"
 #include "services/VaultFileService.h"
 #include "services/VaultYubiKeyService.h"
+#include "services/VaultBackupPolicy.h"
 #include "../utils/Log.h"
 #include "../utils/SecureMemory.h"  // For secure_clear template
 #include <openssl/evp.h>
@@ -61,12 +62,11 @@ VaultManager::VaultManager()
       m_use_reed_solomon(false),
       m_rs_redundancy_percent(DEFAULT_RS_REDUNDANCY),
       m_fec_loaded_from_file(false),
-      m_backup_enabled(true),
-      m_backup_count(DEFAULT_BACKUP_COUNT),
-      m_backup_path(""),  // Empty = same directory as vault
       m_memory_locked(false),
       m_yubikey_required(false),
       m_pbkdf2_iterations(DEFAULT_PBKDF2_ITERATIONS) {
+        m_backup_policy = std::make_unique<KeepTower::VaultBackupPolicy>(
+                true, DEFAULT_BACKUP_COUNT, "");
 
 #ifdef __linux__
     // Check if we need to increase RLIMIT_MEMLOCK for sensitive memory locking
@@ -226,14 +226,8 @@ bool VaultManager::save_vault(bool explicit_save) {
         file_data.insert(file_data.end(), ciphertext.begin(), ciphertext.end());
 
         // Create backup before saving (only on explicit save, non-fatal if it fails)
-        if (explicit_save && m_backup_enabled) {
-            auto backup_result = KeepTower::VaultIO::create_backup(m_current_vault_path, m_backup_path);
-            if (!backup_result) {
-                KeepTower::Log::warning("VaultManager: Failed to create backup: {}", static_cast<int>(backup_result.error()));
-            } else {
-                // Cleanup old backups after successful creation
-                KeepTower::VaultIO::cleanup_old_backups(m_current_vault_path, m_backup_count, m_backup_path);
-            }
+        if (m_backup_policy) {
+            m_backup_policy->maybe_create_backup(m_current_vault_path, explicit_save);
         }
 
         // Write to file
@@ -638,7 +632,9 @@ bool VaultManager::set_rs_redundancy_percent(uint8_t percent) {
 }
 
 void VaultManager::set_backup_enabled(bool enable) {
-    m_backup_enabled = enable;
+    if (m_backup_policy) {
+        m_backup_policy->set_enabled(enable);
+    }
     if (m_vault_open) {
         m_vault_data.set_backup_enabled(enable);
         m_modified = true;
@@ -646,10 +642,9 @@ void VaultManager::set_backup_enabled(bool enable) {
 }
 
 bool VaultManager::set_backup_count(int count) {
-    if (count < 1 || count > 50) [[unlikely]] {
+    if (!m_backup_policy || !m_backup_policy->set_max_backups(count)) [[unlikely]] {
         return false;
     }
-    m_backup_count = count;
     if (m_vault_open) {
         m_vault_data.set_backup_count(count);
         m_modified = true;
@@ -1550,36 +1545,37 @@ bool VaultManager::set_fips_mode(bool enable) {
 
 // Backup path management
 void VaultManager::set_backup_path(const std::string& path) {
-    m_backup_path = path;
+    if (m_backup_policy) {
+        m_backup_policy->set_backup_path(path);
+    }
+}
+
+bool VaultManager::is_backup_enabled() const {
+    return m_backup_policy && m_backup_policy->is_enabled();
+}
+
+int VaultManager::get_backup_count() const {
+    return m_backup_policy ? m_backup_policy->max_backups() : DEFAULT_BACKUP_COUNT;
+}
+
+const std::string& VaultManager::get_backup_path() const {
+    static const std::string kEmpty;
+    return m_backup_policy ? m_backup_policy->backup_path() : kEmpty;
 }
 
 // Restore from most recent backup
 KeepTower::VaultResult<> VaultManager::restore_from_most_recent_backup(const std::string& vault_path) {
-    namespace fs = std::filesystem;
-
     if (m_vault_open) {
         KeepTower::Log::error("VaultManager: Cannot restore while vault is open");
         return std::unexpected(KeepTower::VaultError::VaultAlreadyOpen);
     }
 
-    // Get list of backups (respects m_backup_path)
-    auto backups = KeepTower::VaultIO::list_backups(vault_path, m_backup_path);
-
-    if (backups.empty()) {
-        KeepTower::Log::error("VaultManager: No backups found for vault");
-        return std::unexpected(KeepTower::VaultError::FileNotFound);
+    if (!m_backup_policy) {
+        KeepTower::Log::error("VaultManager: Backup policy not initialized");
+        return std::unexpected(KeepTower::VaultError::InvalidData);
     }
 
-    try {
-        // Backups are sorted newest first
-        const std::string& most_recent_backup = backups[0];
-        fs::copy_file(most_recent_backup, vault_path, fs::copy_options::overwrite_existing);
-        KeepTower::Log::info("VaultManager: Restored vault from backup: {}", most_recent_backup);
-        return {};
-    } catch (const fs::filesystem_error& e) {
-        KeepTower::Log::error("VaultManager: Failed to restore from backup: {}", e.what());
-        return std::unexpected(KeepTower::VaultError::FileReadFailed);
-    }
+    return m_backup_policy->restore_from_most_recent_backup(vault_path);
 }
 
 std::string VaultManager::get_current_username() const {

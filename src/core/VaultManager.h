@@ -45,6 +45,7 @@ class ReedSolomon;
 namespace KeepTower {
 class AccountManager;
 class GroupManager;
+class VaultBackupPolicy;
 class VaultCryptoService;
 class VaultYubiKeyService;
 class VaultFileService;
@@ -1630,7 +1631,7 @@ public:
      * @brief Check if automatic backups are enabled
      * @return true if backups are enabled
      */
-    bool is_backup_enabled() const { return m_backup_enabled; }
+    bool is_backup_enabled() const;
 
     /**
      * @brief Set maximum number of backups to maintain
@@ -1643,7 +1644,7 @@ public:
      * @brief Get maximum number of backups to maintain
      * @return Maximum backup count
      */
-    int get_backup_count() const { return m_backup_count; }
+    int get_backup_count() const;
 
     /**
      * @brief Set custom backup directory path
@@ -1655,7 +1656,7 @@ public:
      * @brief Get custom backup directory path
      * @return Backup directory path (empty if same as vault)
      */
-    [[nodiscard]] const std::string& get_backup_path() const { return m_backup_path; }
+    [[nodiscard]] const std::string& get_backup_path() const;
 
     /**
      * @brief Restore vault from most recent backup
@@ -1773,9 +1774,7 @@ private:
     bool m_fec_loaded_from_file;  // Track if FEC settings came from opened file
 
     // Backup configuration
-    bool m_backup_enabled;
-    int m_backup_count;
-    std::string m_backup_path;  // Custom backup directory (empty=same as vault)
+    std::unique_ptr<KeepTower::VaultBackupPolicy> m_backup_policy;
 
     bool m_memory_locked;  // Track if sensitive memory is locked
 
