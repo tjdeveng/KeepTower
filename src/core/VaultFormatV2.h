@@ -57,7 +57,6 @@ namespace KeepTower {
  * Manages reading and writing of V2 vault files with:
  * - Multi-user key slots
  * - FEC-protected headers
- * - Backward compatibility with V1 format
  */
 class VaultFormatV2 {
 public:
@@ -66,9 +65,6 @@ public:
 
     /** @brief Vault format version 2 (multi-user) */
     static constexpr uint32_t VAULT_VERSION_V2 = 2;
-
-    /** @brief Vault format version 1 (legacy, single-user) */
-    static constexpr uint32_t VAULT_VERSION_V1 = 1;
 
     /** @brief FEC enabled flag for header */
     static constexpr uint8_t HEADER_FLAG_FEC_ENABLED = 0x01;

@@ -76,25 +76,4 @@ struct ImportOperationPort {
     std::function<std::expected<Summary, std::string>(const std::string& source_path)> import_into_vault;
 };
 
-struct MigrationDialogPort {
-    struct Params {
-        std::string admin_username;
-        std::string admin_password;
-        int min_password_length = 12;
-        int pbkdf2_iterations = 100000;
-    };
-
-    std::function<void(const std::string& current_vault_path,
-                       std::function<void(std::optional<Params>)>)>
-        prompt_migration;
-};
-
-struct MigrationOperationPort {
-    std::function<bool()> is_already_v2;
-
-    std::function<std::expected<void, std::string>(const MigrationDialogPort::Params& params,
-                                                  const std::string& current_vault_path)>
-        migrate_v1_to_v2;
-};
-
 }  // namespace UI::Flows

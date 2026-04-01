@@ -8,15 +8,10 @@
 #include "../../utils/StringHelpers.h"
 #include "../../utils/Log.h"
 #include "../dialogs/CreatePasswordDialog.h"
-#include "../dialogs/PasswordDialog.h"
 
 #ifdef HAVE_YUBIKEY_SUPPORT
 #include "../dialogs/YubiKeyPromptDialog.h"
-#include "../../core/managers/YubiKeyManager.h"
 #endif
-
-#include <thread>
-#include <atomic>
 
 namespace UI {
 
@@ -260,111 +255,13 @@ void VaultOpenHandler::handle_open_vault() {
             uint32_t version = *version_opt;
 
             // STEP 2: Route to appropriate authentication method
-            if (version == 2) {
-                // V2 multi-user vault - use new authentication flow
-                m_handle_v2_vault_open_callback(vault_path_str);
+            if (version != 2) {
+                m_error_dialog_callback("Unsupported vault version (V2 vaults only)");
                 return;
             }
 
-            // STEP 3: V1 vault - use legacy password dialog authentication
-            // (Original code path below)
-
-#ifdef HAVE_YUBIKEY_SUPPORT
-            // Check if vault requires YubiKey
-            std::string yubikey_serial;
-            bool yubikey_required = m_vault_manager->check_vault_requires_yubikey(KeepTower::safe_ustring_to_string(Glib::ustring(vault_path), "vault_path"), yubikey_serial);
-
-            if (yubikey_required) {
-                // Check if YubiKey is present
-                YubiKeyManager yk_manager;
-                [[maybe_unused]] bool yk_init = yk_manager.initialize();
-
-                if (!yk_manager.is_yubikey_present()) {
-                    // Show "Insert YubiKey" dialog
-                    auto yk_dialog = Gtk::make_managed<YubiKeyPromptDialog>(m_window,
-                        YubiKeyPromptDialog::PromptType::INSERT, yubikey_serial);
-
-                    yk_dialog->signal_response().connect([this, yk_dialog](int yk_response) {
-                        if (yk_response == Gtk::ResponseType::OK) {
-                            // User clicked Retry - try opening again
-                            yk_dialog->hide();
-                            handle_open_vault();  // Restart the process
-                            return;
-                        }
-                        yk_dialog->hide();
-                    });
-
-                    yk_dialog->show();
-                    return;
-                }
-            }
-#endif
-
-            // Show password dialog to decrypt vault
-            auto pwd_dialog = Gtk::make_managed<PasswordDialog>(m_window);
-            pwd_dialog->signal_response().connect([this, pwd_dialog, vault_path](int pwd_response) {
-                if (pwd_response == Gtk::ResponseType::OK) {
-                    Glib::ustring password = pwd_dialog->get_password();
-
-#ifdef HAVE_YUBIKEY_SUPPORT
-                    // Check again if YubiKey is required (for touch prompt)
-                    std::string yubikey_serial;
-                    bool yubikey_required = m_vault_manager->check_vault_requires_yubikey(KeepTower::safe_ustring_to_string(Glib::ustring(vault_path), "vault_path"), yubikey_serial);
-
-                    YubiKeyPromptDialog* touch_dialog = nullptr;
-                    if (yubikey_required) {
-                        // Hide password dialog to show touch prompt
-                        pwd_dialog->hide();
-
-                        // Show touch prompt dialog
-                        touch_dialog = Gtk::make_managed<YubiKeyPromptDialog>(m_window,
-                            YubiKeyPromptDialog::PromptType::TOUCH);
-                        touch_dialog->present();
-
-                        // Force GTK to process events and render the dialog
-                        auto context = Glib::MainContext::get_default();
-                        while (context->pending()) {
-                            context->iteration(false);
-                        }
-
-                        // Additional small delay to ensure dialog is fully rendered
-                        g_usleep(150000);  // 150ms
-                    }
-#endif
-
-                    auto result = m_vault_manager->open_vault(KeepTower::safe_ustring_to_string(Glib::ustring(vault_path), "vault_path"), password);
-
-#ifdef HAVE_YUBIKEY_SUPPORT
-                    // Hide touch prompt if it was shown
-                    if (touch_dialog) {
-                        touch_dialog->hide();
-                    }
-#endif
-
-                    if (result) {
-                        m_vault_open = true;
-                        m_is_locked = false;
-                        m_current_vault_path = vault_path;
-
-                        // Cache password for auto-lock/unlock
-                        m_cached_master_password = KeepTower::safe_ustring_to_string(password, "master_password");
-
-                        if (m_on_vault_opened_callback) {
-                            m_on_vault_opened_callback(vault_path, "");
-                        }
-                    } else {
-                        constexpr std::string_view error_msg{"Failed to open vault"};
-                        auto error_dialog = Gtk::make_managed<Gtk::MessageDialog>(m_window, std::string{error_msg},
-                            false, Gtk::MessageType::ERROR, Gtk::ButtonsType::OK, true);
-                        error_dialog->signal_response().connect([=](int) {
-                            error_dialog->hide();
-                        });
-                        error_dialog->show();
-                    }
-                }
-                pwd_dialog->hide();
-            });
-            pwd_dialog->show();
+            // V2 multi-user vault - use new authentication flow
+            m_handle_v2_vault_open_callback(vault_path_str);
         },
         filters
     );

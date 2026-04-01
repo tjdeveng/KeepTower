@@ -4,10 +4,13 @@
 
 #include <gtest/gtest.h>
 #include "../src/core/services/VaultFileService.h"
+#include "../src/core/VaultFormatV2.h"
 #include <filesystem>
 #include <fstream>
 #include <vector>
 #include <cstdint>
+#include <chrono>
+#include <thread>
 
 using namespace KeepTower;
 namespace fs = std::filesystem;
@@ -44,43 +47,25 @@ protected:
         }
     }
 
-    // Helper: Create a V1 vault file with proper header
-    void create_v1_vault_file(const fs::path& path, int pbkdf2_iterations = 100000) {
-        std::ofstream file(path, std::ios::binary);
-
-        // V1 Header: [Magic: "KPT\0"] [Version: 1] [Iterations: uint32_t]
-        const uint8_t header[] = {
-            'K', 'P', 'T', 0x00,                                    // Magic
-            0x01, 0x00, 0x00, 0x00,                                 // Version 1
-            static_cast<uint8_t>(pbkdf2_iterations & 0xFF),         // Iterations (LE)
-            static_cast<uint8_t>((pbkdf2_iterations >> 8) & 0xFF),
-            static_cast<uint8_t>((pbkdf2_iterations >> 16) & 0xFF),
-            static_cast<uint8_t>((pbkdf2_iterations >> 24) & 0xFF)
-        };
-
-        file.write(reinterpret_cast<const char*>(header), sizeof(header));
-
-        // Add some dummy data
-        const std::string dummy_data = "encrypted_vault_data_v1";
-        file.write(dummy_data.c_str(), static_cast<std::streamsize>(dummy_data.size()));
-    }
-
     // Helper: Create a V2 vault file with proper header
     void create_v2_vault_file(const fs::path& path) {
         std::ofstream file(path, std::ios::binary);
 
-        // V2 Header magic: "KPTV2" (simplified for testing)
-        // Real V2 has complex header with FEC, using minimal valid V2 structure
-        const uint8_t header[] = {
-            'K', 'P', 'T', 'V',  '2', 0x00, 0x00, 0x00,  // Magic + version
-            0x02, 0x00, 0x00, 0x00                       // Version 2
-        };
+        // Minimal valid V2 header for version detection:
+        // [magic(uint32_le)][version(uint32_le)]
+        const uint32_t magic = KeepTower::VaultFormatV2::VAULT_MAGIC;
+        const uint32_t version = KeepTower::VaultFormatV2::VAULT_VERSION_V2;
+        file.write(reinterpret_cast<const char*>(&magic), sizeof(magic));
+        file.write(reinterpret_cast<const char*>(&version), sizeof(version));
 
-        file.write(reinterpret_cast<const char*>(header), sizeof(header));
-
-        // Add dummy V2 data
-        const std::string dummy_data = "encrypted_vault_data_v2_multi_user";
+        // Add some dummy data so the file isn't header-only
+        const std::string dummy_data = "encrypted_vault_data_v2";
         file.write(dummy_data.c_str(), static_cast<std::streamsize>(dummy_data.size()));
+    }
+
+    static std::vector<uint8_t> read_all_bytes(const fs::path& path) {
+        std::ifstream file(path, std::ios::binary);
+        return std::vector<uint8_t>(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
     }
 
     fs::path test_dir;
@@ -92,16 +77,16 @@ protected:
 // File Reading Tests
 // ============================================================================
 
-TEST_F(VaultFileServiceTest, ReadVaultFile_ValidV1File) {
-    create_v1_vault_file(test_vault_path, 150000);
+TEST_F(VaultFileServiceTest, ReadVaultFile_ValidV2File) {
+    create_v2_vault_file(test_vault_path);
 
     std::vector<uint8_t> data;
     int iterations;
     auto result = VaultFileService::read_vault_file(test_vault_path.string(), data, iterations);
 
-    ASSERT_TRUE(result.has_value()) << "Should read V1 vault successfully";
-    EXPECT_EQ(iterations, 150000) << "Should extract correct PBKDF2 iterations";
-    EXPECT_GT(data.size(), 12) << "Should read complete file";
+    ASSERT_TRUE(result.has_value()) << "Should read V2 vault successfully";
+    EXPECT_EQ(iterations, 0) << "V2 iterations are handled by VaultFormatV2";
+    EXPECT_GE(data.size(), 8u) << "Should read complete file";
 }
 
 TEST_F(VaultFileServiceTest, ReadVaultFile_FileNotFound) {
@@ -162,26 +147,15 @@ TEST_F(VaultFileServiceTest, ReadVaultFile_RejectsExcessiveSize) {
 // File Writing Tests
 // ============================================================================
 
-TEST_F(VaultFileServiceTest, WriteVaultFile_V1Format) {
+TEST_F(VaultFileServiceTest, WriteVaultFile_V1FormatRejected) {
     std::vector<uint8_t> data = {0x01, 0x02, 0x03, 0x04, 0x05};
     const int iterations = 200000;
 
     auto result = VaultFileService::write_vault_file(
         test_vault_path.string(), data, false, iterations);
 
-    ASSERT_TRUE(result.has_value()) << "Should write V1 vault successfully";
-    ASSERT_TRUE(fs::exists(test_vault_path)) << "File should exist";
-
-    // Verify header was prepended
-    std::ifstream file(test_vault_path, std::ios::binary);
-    uint8_t header[12];
-    file.read(reinterpret_cast<char*>(header), 12);
-
-    EXPECT_EQ(header[0], 'K');
-    EXPECT_EQ(header[1], 'P');
-    EXPECT_EQ(header[2], 'T');
-    EXPECT_EQ(header[3], 0x00);
-    EXPECT_EQ(header[4], 0x01);  // Version 1
+    ASSERT_FALSE(result.has_value()) << "V1 vault format is no longer supported";
+    EXPECT_EQ(result.error(), VaultError::UnsupportedVersion);
 }
 
 TEST_F(VaultFileServiceTest, WriteVaultFile_V2Format) {
@@ -256,8 +230,8 @@ TEST_F(VaultFileServiceTest, WriteVaultFile_SecurePermissions) {
 // Format Detection Tests
 // ============================================================================
 
-TEST_F(VaultFileServiceTest, DetectVaultVersion_V1Format) {
-    create_v1_vault_file(test_vault_path);
+TEST_F(VaultFileServiceTest, DetectVaultVersion_V2Format) {
+    create_v2_vault_file(test_vault_path);
 
     std::vector<uint8_t> data;
     int iterations;
@@ -266,7 +240,7 @@ TEST_F(VaultFileServiceTest, DetectVaultVersion_V1Format) {
 
     auto version = VaultFileService::detect_vault_version(data);
     ASSERT_TRUE(version.has_value()) << "Should detect format";
-    EXPECT_EQ(*version, 1) << "Should detect V1 format";
+    EXPECT_EQ(*version, 2) << "Should detect V2 format";
 }
 
 TEST_F(VaultFileServiceTest, DetectVaultVersion_InvalidMagic) {
@@ -284,11 +258,11 @@ TEST_F(VaultFileServiceTest, DetectVaultVersion_TooShort) {
 }
 
 TEST_F(VaultFileServiceTest, DetectVaultVersionFromFile_Valid) {
-    create_v1_vault_file(test_vault_path);
+    create_v2_vault_file(test_vault_path);
 
     auto version = VaultFileService::detect_vault_version_from_file(test_vault_path.string());
     ASSERT_TRUE(version.has_value()) << "Should detect version from file";
-    EXPECT_EQ(*version, 1);
+    EXPECT_EQ(*version, 2);
 }
 
 TEST_F(VaultFileServiceTest, DetectVaultVersionFromFile_FileNotFound) {
@@ -301,7 +275,7 @@ TEST_F(VaultFileServiceTest, DetectVaultVersionFromFile_FileNotFound) {
 // ============================================================================
 
 TEST_F(VaultFileServiceTest, CreateBackup_Success) {
-    create_v1_vault_file(test_vault_path);
+    create_v2_vault_file(test_vault_path);
 
     auto result = VaultFileService::create_backup(test_vault_path.string());
 
@@ -314,7 +288,7 @@ TEST_F(VaultFileServiceTest, CreateBackup_Success) {
 }
 
 TEST_F(VaultFileServiceTest, CreateBackup_CustomDirectory) {
-    create_v1_vault_file(test_vault_path);
+    create_v2_vault_file(test_vault_path);
     fs::create_directories(test_backup_dir);
 
     auto result = VaultFileService::create_backup(
@@ -335,7 +309,7 @@ TEST_F(VaultFileServiceTest, CreateBackup_SourceNotFound) {
 }
 
 TEST_F(VaultFileServiceTest, CreateBackup_MultipleBackups) {
-    create_v1_vault_file(test_vault_path);
+    create_v2_vault_file(test_vault_path);
 
     // Create multiple backups
     auto backup1 = VaultFileService::create_backup(test_vault_path.string());
@@ -352,14 +326,14 @@ TEST_F(VaultFileServiceTest, CreateBackup_MultipleBackups) {
 }
 
 TEST_F(VaultFileServiceTest, ListBackups_Empty) {
-    create_v1_vault_file(test_vault_path);
+    create_v2_vault_file(test_vault_path);
 
     auto backups = VaultFileService::list_backups(test_vault_path.string());
     EXPECT_TRUE(backups.empty()) << "Should return empty list when no backups exist";
 }
 
 TEST_F(VaultFileServiceTest, ListBackups_MultipleBackups) {
-    create_v1_vault_file(test_vault_path);
+    create_v2_vault_file(test_vault_path);
 
     // Create 3 backups
     for (int i = 0; i < 3; ++i) {
@@ -379,30 +353,31 @@ TEST_F(VaultFileServiceTest, ListBackups_MultipleBackups) {
 }
 
 TEST_F(VaultFileServiceTest, RestoreFromBackup_Success) {
-    // Create original vault
-    create_v1_vault_file(test_vault_path, 100000);
+    // Create original vault and capture its exact bytes
+    create_v2_vault_file(test_vault_path);
+    const auto original_bytes = read_all_bytes(test_vault_path);
 
     // Create backup
     auto backup_result = VaultFileService::create_backup(test_vault_path.string());
     ASSERT_TRUE(backup_result.has_value());
 
-    // Modify vault
-    create_v1_vault_file(test_vault_path, 200000);
+    // Modify vault (different contents)
+    {
+        std::ofstream file(test_vault_path, std::ios::binary | std::ios::trunc);
+        file << "This vault was modified";
+    }
 
     // Restore from backup
     auto restore_result = VaultFileService::restore_from_backup(test_vault_path.string());
     ASSERT_TRUE(restore_result.has_value()) << "Should restore successfully";
 
-    // Verify restored content
-    std::vector<uint8_t> data;
-    int iterations;
-    auto read_result = VaultFileService::read_vault_file(test_vault_path.string(), data, iterations);
-    ASSERT_TRUE(read_result.has_value());
-    EXPECT_EQ(iterations, 100000) << "Should restore original iterations value";
+    // Verify restored content matches original bytes
+    const auto restored_bytes = read_all_bytes(test_vault_path);
+    EXPECT_EQ(restored_bytes, original_bytes) << "Should restore original vault bytes";
 }
 
 TEST_F(VaultFileServiceTest, RestoreFromBackup_NoBackups) {
-    create_v1_vault_file(test_vault_path);
+    create_v2_vault_file(test_vault_path);
 
     auto result = VaultFileService::restore_from_backup(test_vault_path.string());
 
@@ -411,7 +386,7 @@ TEST_F(VaultFileServiceTest, RestoreFromBackup_NoBackups) {
 }
 
 TEST_F(VaultFileServiceTest, CleanupOldBackups_KeepsMax) {
-    create_v1_vault_file(test_vault_path);
+    create_v2_vault_file(test_vault_path);
 
     // Create 5 backups with 1-second delays to ensure unique timestamps
     // (backup filenames use YYYY-MM-DDTHH-MM-SS format with second-level precision)
@@ -434,7 +409,7 @@ TEST_F(VaultFileServiceTest, CleanupOldBackups_KeepsMax) {
 }
 
 TEST_F(VaultFileServiceTest, CleanupOldBackups_KeepsNewest) {
-    create_v1_vault_file(test_vault_path);
+    create_v2_vault_file(test_vault_path);
 
     // Create 3 backups
     auto backup1 = VaultFileService::create_backup(test_vault_path.string());
@@ -452,7 +427,7 @@ TEST_F(VaultFileServiceTest, CleanupOldBackups_KeepsNewest) {
 }
 
 TEST_F(VaultFileServiceTest, CleanupOldBackups_InvalidMax) {
-    create_v1_vault_file(test_vault_path);
+    create_v2_vault_file(test_vault_path);
     auto backup_result = VaultFileService::create_backup(test_vault_path.string());
     ASSERT_TRUE(backup_result.has_value());
 
@@ -470,7 +445,7 @@ TEST_F(VaultFileServiceTest, CleanupOldBackups_InvalidMax) {
 // ============================================================================
 
 TEST_F(VaultFileServiceTest, FileExists_ExistingFile) {
-    create_v1_vault_file(test_vault_path);
+    create_v2_vault_file(test_vault_path);
     EXPECT_TRUE(VaultFileService::file_exists(test_vault_path.string()));
 }
 
@@ -485,11 +460,11 @@ TEST_F(VaultFileServiceTest, FileExists_Directory) {
 }
 
 TEST_F(VaultFileServiceTest, GetFileSize_ValidFile) {
-    create_v1_vault_file(test_vault_path);
+    create_v2_vault_file(test_vault_path);
 
     size_t size = VaultFileService::get_file_size(test_vault_path.string());
     EXPECT_GT(size, 0) << "Should return non-zero size for valid file";
-    EXPECT_GE(size, 12) << "V1 vault should be at least 12 bytes (header)";
+    EXPECT_GE(size, 8) << "V2 vault should be at least 8 bytes (magic+version)";
 }
 
 TEST_F(VaultFileServiceTest, GetFileSize_NonExistentFile) {
@@ -538,7 +513,7 @@ TEST_F(VaultFileServiceTest, BackupOperations_LongFilenames) {
     long_name += ".vault";
     fs::path long_path = test_dir / long_name;
 
-    create_v1_vault_file(long_path);
+    create_v2_vault_file(long_path);
 
     auto backup_result = VaultFileService::create_backup(long_path.string());
     EXPECT_TRUE(backup_result.has_value())

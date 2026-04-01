@@ -12,6 +12,7 @@
 #include <giomm/settings.h>
 #include <memory>
 #include "../src/core/VaultManager.h"
+#include "../src/core/MultiUserTypes.h"
 #include "../src/core/commands/AccountCommands.h"
 #include "../src/core/commands/UndoManager.h"
 #include "record.pb.h"
@@ -35,16 +36,24 @@ protected:
 
         // Create and open a test vault
         const std::string vault_path = "/tmp/test_undo_prefs.vault";
-        const std::string password = "TestPassword123!";
+        const Glib::ustring username = "admin";
+        const Glib::ustring password = "TestPassword123!";
+
+        KeepTower::VaultSecurityPolicy policy;
+        policy.require_yubikey = false;
+        policy.min_password_length = 12;
+        policy.pbkdf2_iterations = 100000;
+        policy.password_history_depth = 0;
 
         // Clean up if vault exists
         std::remove(vault_path.c_str());
 
-bool result = m_vault_manager->create_vault(vault_path, password);
-        ASSERT_TRUE(result) << "Failed to create vault";
+        auto create_result = m_vault_manager->create_vault_v2(vault_path, username, password, policy);
+        ASSERT_TRUE(create_result) << "Failed to create vault";
+        ASSERT_TRUE(m_vault_manager->close_vault()) << "Failed to close vault";
 
-        result = m_vault_manager->open_vault(vault_path, password);
-        ASSERT_TRUE(result) << "Failed to open vault";
+        auto open_result = m_vault_manager->open_vault_v2(vault_path, username, password);
+        ASSERT_TRUE(open_result) << "Failed to open vault";
 
         m_undo_manager = std::make_unique<UndoManager>();
     }

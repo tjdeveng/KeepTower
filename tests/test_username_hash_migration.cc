@@ -20,7 +20,6 @@
 #include "../src/core/services/UsernameHashService.h"
 #include "../src/core/crypto/VaultCrypto.h"
 #include "../src/core/io/VaultIO.h"
-#include "../src/core/format/VaultFormat.h"
 #include "../src/core/VaultFormatV2.h"
 #include <filesystem>
 #include <fstream>

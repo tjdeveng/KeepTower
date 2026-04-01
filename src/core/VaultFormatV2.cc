@@ -29,12 +29,12 @@ KeepTower::VaultResult<uint32_t> VaultFormatV2::detect_version(const std::vector
     uint32_t version = 0;
     std::memcpy(&version, file_data.data() + 4, sizeof(version));
 
-    if (version != VAULT_VERSION_V1 && version != VAULT_VERSION_V2) {
+    if (version != VAULT_VERSION_V2) {
         Log::error("VaultFormatV2: Unsupported vault version: {}", version);
         return std::unexpected(VaultError::UnsupportedVersion);
     }
 
-    return version;
+    return VAULT_VERSION_V2;
 }
 
 bool VaultFormatV2::is_valid_v2_vault(const std::vector<uint8_t>& file_data) {

@@ -17,6 +17,7 @@
 #include "../src/core/services/GroupService.h"
 #include "../src/core/repositories/GroupRepository.h"
 #include "../src/core/VaultManager.h"
+#include "../src/core/MultiUserTypes.h"
 #include <filesystem>
 #include <chrono>
 
@@ -29,7 +30,8 @@ protected:
     std::unique_ptr<GroupRepository> group_repo;
     std::unique_ptr<GroupService> group_service;
     std::string test_vault_path;
-    const std::string test_password = "TestPassword123!";
+    const Glib::ustring test_username = "admin";
+    const Glib::ustring test_password = "TestPassword123!";
 
     void SetUp() override {
         // Create unique vault for each test
@@ -38,7 +40,13 @@ protected:
                          std::to_string(std::chrono::system_clock::now().time_since_epoch().count()) +
                          ".vault";
 
-        ASSERT_TRUE(vault_manager->create_vault(test_vault_path, test_password))
+        KeepTower::VaultSecurityPolicy policy;
+        policy.require_yubikey = false;
+        policy.min_password_length = 12;
+        policy.pbkdf2_iterations = 100000;
+        policy.password_history_depth = 0;
+
+        ASSERT_TRUE(vault_manager->create_vault_v2(test_vault_path, test_username, test_password, policy))
             << "Failed to create test vault";
 
         // Initialize repository and service

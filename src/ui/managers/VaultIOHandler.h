@@ -3,7 +3,7 @@
 
 /**
  * @file VaultIOHandler.h
- * @brief Handles vault import/export/migration operations
+ * @brief Handles vault import/export operations
  *
  * Part of Phase 5 refactoring: MainWindow size reduction
  * Extracts vault I/O operations from MainWindow
@@ -17,7 +17,6 @@
 
 #include "../controllers/flows/ExportFlowController.h"
 #include "../controllers/flows/ImportFlowController.h"
-#include "../controllers/flows/MigrationFlowController.h"
 
 // Forward declarations
 class VaultManager;
@@ -31,13 +30,12 @@ class DialogManager;
  * @brief Manages vault I/O operations
  *
  * Handles import from CSV/KeePass/1Password, export to CSV/KeePass/1Password,
- * and V1→V2 migration workflows.
+ * and related authentication/confirmation workflows.
  *
  * Design Goals:
  * - Reduce MainWindow size by ~300-350 lines
  * - Centralize import/export logic
  * - Handle complex authentication flows for export
- * - Simplify migration workflow
  */
 class VaultIOHandler {
 public:
@@ -79,17 +77,6 @@ public:
      * @param vault_open Whether vault is currently open
      */
     void handle_export(const std::string& current_vault_path, bool vault_open);
-
-    /**
-     * @brief Migrate V1 vault to V2 format
-     * @param current_vault_path Path to current vault
-     * @param vault_open Whether vault is currently open
-     * @param on_success Callback when migration succeeds
-     */
-    void handle_migration(const std::string& current_vault_path,
-                         bool vault_open,
-                         const UpdateCallback& on_success);
-
 private:
     MainWindow& m_window;
     VaultManager* m_vault_manager;
@@ -97,7 +84,6 @@ private:
 
     Flows::ImportFlowController m_import_flow;
     Flows::ExportFlowController m_export_flow;
-    Flows::MigrationFlowController m_migration_flow;
 };
 
 } // namespace UI

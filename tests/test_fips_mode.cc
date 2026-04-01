@@ -128,6 +128,7 @@
 
 #include <gtest/gtest.h>
 #include "VaultManager.h"
+#include "MultiUserTypes.h"
 #include <filesystem>
 #include <fstream>
 #include <chrono>
@@ -193,6 +194,12 @@ protected:
         fs::create_directories(test_dir);
         test_vault_path = (test_dir / "fips_test_vault.vault").string();
         test_password = "SecureTestPassword123!@#";
+        test_username = "admin";
+
+        policy.require_yubikey = false;
+        policy.min_password_length = 12;
+        policy.pbkdf2_iterations = 100000;
+        policy.password_history_depth = 0;
     }
 
     /**
@@ -212,7 +219,9 @@ protected:
 
     fs::path test_dir;              ///< Temporary directory for test files
     std::string test_vault_path;    ///< Path to test vault file
+    Glib::ustring test_username;    ///< Test admin username
     Glib::ustring test_password;    ///< Test password for vault encryption
+    KeepTower::VaultSecurityPolicy policy;
 };
 
 // ============================================================================
@@ -363,7 +372,7 @@ TEST_F(FIPSModeTest, VaultOperations_DefaultMode_CreateAndOpen) {
     vault.set_reed_solomon_enabled(false);
 
     // Create vault
-    ASSERT_TRUE(vault.create_vault(test_vault_path, test_password));
+    ASSERT_TRUE(vault.create_vault_v2(test_vault_path, test_username, test_password, policy));
     EXPECT_TRUE(vault.is_vault_open());
 
     // Add test data
@@ -378,7 +387,7 @@ TEST_F(FIPSModeTest, VaultOperations_DefaultMode_CreateAndOpen) {
     ASSERT_TRUE(vault.close_vault());
 
     // Reopen vault
-    ASSERT_TRUE(vault.open_vault(test_vault_path, test_password));
+    ASSERT_TRUE(vault.open_vault_v2(test_vault_path, test_username, test_password));
     EXPECT_EQ(vault.get_account_count(), 1);
 
     auto accounts = vault.get_all_accounts();
@@ -396,7 +405,7 @@ TEST_F(FIPSModeTest, VaultOperations_DefaultMode_Encryption) {
     vault.set_reed_solomon_enabled(false);
 
     // Create and save vault with data
-    ASSERT_TRUE(vault.create_vault(test_vault_path, test_password));
+    ASSERT_TRUE(vault.create_vault_v2(test_vault_path, test_username, test_password, policy));
 
     keeptower::AccountRecord account;
     account.set_account_name("Sensitive Data");
@@ -423,11 +432,11 @@ TEST_F(FIPSModeTest, VaultOperations_DefaultMode_WrongPassword) {
     vault.set_reed_solomon_enabled(false);
 
     // Create vault
-    ASSERT_TRUE(vault.create_vault(test_vault_path, test_password));
+    ASSERT_TRUE(vault.create_vault_v2(test_vault_path, test_username, test_password, policy));
     ASSERT_TRUE(vault.close_vault());
 
     // Try to open with wrong password
-    EXPECT_FALSE(vault.open_vault(test_vault_path, "WrongPassword123!"));
+    EXPECT_FALSE(vault.open_vault_v2(test_vault_path, test_username, "WrongPassword123!"));
     EXPECT_FALSE(vault.is_vault_open());
 }
 
@@ -450,7 +459,7 @@ TEST_F(FIPSModeTest, FIPSMode_EnabledMode_IfAvailable) {
         vault.set_backup_enabled(false);
         vault.set_reed_solomon_enabled(false);
 
-        ASSERT_TRUE(vault.create_vault(test_vault_path, test_password));
+        ASSERT_TRUE(vault.create_vault_v2(test_vault_path, test_username, test_password, policy));
 
         keeptower::AccountRecord account;
         account.set_account_name("FIPS Test Account");
@@ -461,7 +470,7 @@ TEST_F(FIPSModeTest, FIPSMode_EnabledMode_IfAvailable) {
         ASSERT_TRUE(vault.close_vault());
 
         // Reopen in FIPS mode
-        ASSERT_TRUE(vault.open_vault(test_vault_path, test_password));
+        ASSERT_TRUE(vault.open_vault_v2(test_vault_path, test_username, test_password));
         EXPECT_EQ(vault.get_account_count(), 1);
 
         // Clean up: disable FIPS for subsequent tests
@@ -506,7 +515,7 @@ TEST_F(FIPSModeTest, CrossMode_VaultCreatedInDefault_OpenableRegardless) {
     vault1.set_backup_enabled(false);
     vault1.set_reed_solomon_enabled(false);
 
-    ASSERT_TRUE(vault1.create_vault(test_vault_path, test_password));
+    ASSERT_TRUE(vault1.create_vault_v2(test_vault_path, test_username, test_password, policy));
 
     keeptower::AccountRecord account;
     account.set_account_name("Cross-Mode Test");
@@ -517,7 +526,7 @@ TEST_F(FIPSModeTest, CrossMode_VaultCreatedInDefault_OpenableRegardless) {
 
     // Open vault in same process (should work)
     VaultManager vault2;
-    ASSERT_TRUE(vault2.open_vault(test_vault_path, test_password));
+    ASSERT_TRUE(vault2.open_vault_v2(test_vault_path, test_username, test_password));
     EXPECT_EQ(vault2.get_account_count(), 1);
 
     auto accounts = vault2.get_all_accounts();
@@ -536,7 +545,7 @@ TEST_F(FIPSModeTest, Performance_DefaultMode_EncryptionSpeed) {
     vault.set_backup_enabled(false);
     vault.set_reed_solomon_enabled(false);
 
-    ASSERT_TRUE(vault.create_vault(test_vault_path, test_password));
+    ASSERT_TRUE(vault.create_vault_v2(test_vault_path, test_username, test_password, policy));
 
     // Add multiple accounts and measure time
     auto start = std::chrono::high_resolution_clock::now();
@@ -586,7 +595,7 @@ TEST_F(FIPSModeTest, ErrorHandling_CorruptedVault_FailsGracefully) {
     vault.set_reed_solomon_enabled(false);
 
     // Create valid vault
-    ASSERT_TRUE(vault.create_vault(test_vault_path, test_password));
+    ASSERT_TRUE(vault.create_vault_v2(test_vault_path, test_username, test_password, policy));
     ASSERT_TRUE(vault.save_vault());
     ASSERT_TRUE(vault.close_vault());
 
@@ -597,6 +606,6 @@ TEST_F(FIPSModeTest, ErrorHandling_CorruptedVault_FailsGracefully) {
 
     // Try to open corrupted vault
     VaultManager vault2;
-    EXPECT_FALSE(vault2.open_vault(test_vault_path, test_password));
+    EXPECT_FALSE(vault2.open_vault_v2(test_vault_path, test_username, test_password));
     EXPECT_FALSE(vault2.is_vault_open());
 }

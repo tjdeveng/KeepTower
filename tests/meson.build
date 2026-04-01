@@ -41,7 +41,6 @@ vault_manager_common_sources = [
     '../src/core/crypto/FipsProviderManager.cc',
     '../src/core/io/VaultIO.cc',
     '../src/core/serialization/VaultSerialization.cc',
-    '../src/core/format/VaultFormat.cc',
     '../src/core/managers/AccountManager.cc',
     '../src/core/managers/GroupManager.cc',
     # Phase 2 Day 5: Add orchestrator and services
@@ -248,7 +247,6 @@ vault_io_flow_controllers_sources = [
     'test_vault_io_flow_controllers.cc',
     '../src/ui/controllers/flows/ExportFlowController.cc',
     '../src/ui/controllers/flows/ImportFlowController.cc',
-    '../src/ui/controllers/flows/MigrationFlowController.cc',
 ]
 
 vault_io_flow_controllers_test = executable(
@@ -798,7 +796,6 @@ test('VaultYubiKeyService Unit Tests', vault_yubikey_service_test)
 vault_file_service_sources = [
     'test_vault_file_service.cc',
     '../src/core/services/VaultFileService.cc',
-    '../src/core/format/VaultFormat.cc',
     '../src/core/VaultFormatV2.cc',
     '../src/core/ReedSolomon.cc',
     '../src/core/MultiUserTypes.cc',
@@ -827,7 +824,6 @@ vault_creation_orchestrator_sources = [
     '../src/core/KeyWrapping.cc',
     '../src/core/crypto/VaultCrypto.cc',
     '../src/core/managers/YubiKeyManager.cc',
-    '../src/core/format/VaultFormat.cc',
     '../src/core/VaultFormatV2.cc',
     '../src/core/ReedSolomon.cc',
     '../src/core/MultiUserTypes.cc',

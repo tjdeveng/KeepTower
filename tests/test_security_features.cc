@@ -12,7 +12,8 @@
 #include <filesystem>
 #include <fstream>
 #include "../src/core/VaultManager.h"
-#include "../src/core/io/VaultIO.h"
+#include "../src/core/VaultFormatV2.h"
+#include "../src/core/MultiUserTypes.h"
 #include "record.pb.h"  // Include protobuf definitions
 
 namespace fs = std::filesystem;
@@ -28,12 +29,18 @@ void print_hex(const std::vector<uint8_t>& data, size_t max_bytes = 32) {
 bool test_magic_header() {
     std::cout << "\n=== Test 1: Magic Header and Version ===\n";
 
-    const std::string vault_path = "/tmp/test_magic.vault";
+    const std::string vault_path = "/tmp/test_magic.v2";
     fs::remove(vault_path);
 
     // Create vault
     VaultManager vm;
-    if (!vm.create_vault(vault_path, "TestPassword123")) {
+    KeepTower::VaultSecurityPolicy policy;
+    policy.require_yubikey = false;
+    policy.min_password_length = 12;
+    policy.pbkdf2_iterations = 100000;
+    policy.password_history_depth = 0;
+
+    if (!vm.create_vault_v2(vault_path, "admin", "TestPassword123!", policy)) {
         std::cerr << "Failed to create vault\n";
         return false;
     }
@@ -46,18 +53,24 @@ bool test_magic_header() {
         return false;
     }
 
-    uint32_t magic, version, iterations;
+    uint32_t magic = 0;
+    uint32_t version = 0;
+    uint32_t iterations = 0;
+    uint32_t header_size = 0;
     file.read(reinterpret_cast<char*>(&magic), sizeof(magic));
     file.read(reinterpret_cast<char*>(&version), sizeof(version));
     file.read(reinterpret_cast<char*>(&iterations), sizeof(iterations));
+    file.read(reinterpret_cast<char*>(&header_size), sizeof(header_size));
 
-    std::cout << "Magic:      0x" << std::hex << magic << " (expected 0x" << KeepTower::VaultIO::VAULT_MAGIC << ")\n";
-    std::cout << "Version:    " << std::dec << version << " (expected " << KeepTower::VaultIO::VAULT_VERSION << ")\n";
-    std::cout << "Iterations: " << iterations << " (expected " << VaultManager::DEFAULT_PBKDF2_ITERATIONS << ")\n";
+    std::cout << "Magic:      0x" << std::hex << magic << " (expected 0x" << KeepTower::VaultFormatV2::VAULT_MAGIC << ")\n";
+    std::cout << "Version:    " << std::dec << version << " (expected " << KeepTower::VaultFormatV2::VAULT_VERSION_V2 << ")\n";
+    std::cout << "Iterations: " << iterations << " (expected " << policy.pbkdf2_iterations << ")\n";
+    std::cout << "HeaderSize: " << header_size << " (expected > 0)\n";
 
-    bool success = (magic == KeepTower::VaultIO::VAULT_MAGIC &&
-                    version == KeepTower::VaultIO::VAULT_VERSION &&
-                    iterations == static_cast<uint32_t>(VaultManager::DEFAULT_PBKDF2_ITERATIONS));
+    bool success = (magic == KeepTower::VaultFormatV2::VAULT_MAGIC &&
+                    version == KeepTower::VaultFormatV2::VAULT_VERSION_V2 &&
+                    iterations == policy.pbkdf2_iterations &&
+                    header_size > 0);
     std::cout << "Result: " << (success ? "✓ PASS" : "✗ FAIL") << "\n";
 
     fs::remove(vault_path);
@@ -67,7 +80,7 @@ bool test_magic_header() {
 bool test_backup_mechanism() {
     std::cout << "\n=== Test 2: Backup Mechanism ===\n";
 
-    const std::string vault_path = "/tmp/test_backup.vault";
+    const std::string vault_path = "/tmp/test_backup.v2";
     const fs::path vault_dir = fs::path(vault_path).parent_path();
     const std::string backup_prefix = fs::path(vault_path).filename().string() + ".backup.";
 
@@ -94,7 +107,15 @@ bool test_backup_mechanism() {
 
     // Create vault and add data
     VaultManager vm;
-    if (!vm.create_vault(vault_path, "TestPassword123")) {
+    vm.set_backup_enabled(true);
+
+    KeepTower::VaultSecurityPolicy policy;
+    policy.require_yubikey = false;
+    policy.min_password_length = 12;
+    policy.pbkdf2_iterations = 100000;
+    policy.password_history_depth = 0;
+
+    if (!vm.create_vault_v2(vault_path, "admin", "TestPassword123!", policy)) {
         std::cerr << "Failed to create vault\n";
         return false;
     }
@@ -114,7 +135,7 @@ bool test_backup_mechanism() {
 
     const auto backups_after_first_save = list_backups();
     std::cout << "Backup exists after first save: "
-              << (!backups_after_first_save.empty() ? "YES" : "NO (expected)") << "\n";
+              << (!backups_after_first_save.empty() ? "YES" : "NO") << "\n";
 
     // Modify and save again - backup should be created this time
     account.set_account_name("Modified Account");
@@ -147,53 +168,20 @@ bool test_backup_mechanism() {
     return backup_exists;
 }
 
-bool test_backward_compatibility() {
-    std::cout << "\n=== Test 3: Backward Compatibility ===\n";
-
-    const std::string vault_path = "/tmp/test_legacy.vault";
-    fs::remove(vault_path);
-
-    // Create a "legacy" vault file (without header)
-    std::vector<uint8_t> legacy_data;
-
-    // Generate salt (32 bytes)
-    for (int i = 0; i < 32; ++i) {
-        legacy_data.push_back(static_cast<uint8_t>(i));
-    }
-
-    // Add some dummy IV and ciphertext
-    for (int i = 0; i < 60; ++i) {
-        legacy_data.push_back(0xFF);
-    }
-
-    // Write legacy format (no header)
-    std::ofstream file(vault_path, std::ios::binary);
-    file.write(reinterpret_cast<const char*>(legacy_data.data()), legacy_data.size());
-    file.close();
-
-    std::cout << "Created legacy vault file (" << legacy_data.size() << " bytes, no header)\n";
-
-    // Try to open (will fail authentication but should detect format)
-    VaultManager vm;
-    auto result = vm.open_vault(vault_path, "WrongPassword");
-    bool opened = result;
-
-    std::cout << "Legacy format detected and processed: "
-              << (opened ? "UNEXPECTED" : "EXPECTED (auth fails but format OK)") << "\n";
-    std::cout << "Result: ✓ PASS (backward compatibility maintained)\n";
-
-    fs::remove(vault_path);
-    return true;
-}
-
 bool test_memory_locking() {
-    std::cout << "\n=== Test 4: Memory Locking ===\n";
+    std::cout << "\n=== Test 3: Memory Locking ===\n";
 
-    const std::string vault_path = "/tmp/test_mlock.vault";
+    const std::string vault_path = "/tmp/test_mlock.v2";
     fs::remove(vault_path);
 
     VaultManager vm;
-    if (!vm.create_vault(vault_path, "TestPassword123")) {
+    KeepTower::VaultSecurityPolicy policy;
+    policy.require_yubikey = false;
+    policy.min_password_length = 12;
+    policy.pbkdf2_iterations = 100000;
+    policy.password_history_depth = 0;
+
+    if (!vm.create_vault_v2(vault_path, "admin", "TestPassword123!", policy)) {
         std::cerr << "Failed to create vault\n";
         return false;
     }
@@ -223,11 +211,10 @@ int main() {
     std::cout << "╚════════════════════════════════════════════════════╝\n";
 
     int passed = 0;
-    int total = 4;
+    int total = 3;
 
     if (test_magic_header()) passed++;
     if (test_backup_mechanism()) passed++;
-    if (test_backward_compatibility()) passed++;
     if (test_memory_locking()) passed++;
 
     std::cout << "\n" << std::string(52, '=') << "\n";

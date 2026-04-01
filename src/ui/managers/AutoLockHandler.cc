@@ -163,206 +163,31 @@ void AutoLockHandler::lock_vault() {
         return;
     }
 
-    // This should only be called for V1 vaults
-    if (m_is_v2_vault_open_callback()) {
-        KeepTower::Log::warning("AutoLockHandler: lock_vault() called for V2 vault, use logout instead");
-        return;
+    // V2-only behavior: lock == force logout and require re-authentication.
+    KeepTower::Log::info("AutoLockHandler: lock_vault() triggered, forcing logout");
+
+    bool had_unsaved_changes = false;
+    if (m_is_vault_modified_callback()) {
+        had_unsaved_changes = true;
+        m_save_account_callback();
+        if (!m_vault_manager->save_vault()) {
+            KeepTower::Log::warning("Failed to save vault before lock/logout");
+        }
     }
 
-    // Password should already be cached from when vault was opened
-    if (m_cached_master_password.empty()) {
-        // Can't lock without being able to unlock
-        g_warning("Cannot lock vault - master password not cached! This shouldn't happen.");
-        return;
+    std::string vault_path{m_current_vault_path};
+    m_close_vault_callback();
+
+    const std::string message = had_unsaved_changes
+        ? "Your session has been locked. Any unsaved changes have been saved.\nPlease sign in again to continue."
+        : "Your session has been locked. Please sign in again to continue.";
+    m_dialog_manager->show_info_dialog(message, "Vault Locked");
+
+    if (!vault_path.empty()) {
+        Glib::signal_idle().connect_once([this, vault_path]() {
+            m_handle_v2_vault_open_callback(vault_path);
+        });
     }
-
-    // Save any unsaved changes
-    m_save_account_callback();
-    if (!m_vault_manager->save_vault()) {
-        g_warning("Failed to save vault before locking");
-    }
-
-    if (m_apply_lock_ui_callback) {
-        m_apply_lock_ui_callback(true, "Vault locked due to inactivity");
-    }
-
-    // Cache lock state locally to avoid repeated VaultManager queries
-    m_is_locked = true;
-
-    // Clear account details (via callback which calls clear_account_details())
-    // This will clear fields and set m_selected_account_index = -1
-    m_update_account_list_callback();  // Clear the list
-
-    // Create unlock dialog using Gtk::Window for full control
-    auto* dialog = Gtk::make_managed<Gtk::Window>();
-    dialog->set_transient_for(m_window);
-    dialog->set_modal(true);
-    dialog->set_title("Vault Locked - Authentication Required");
-    dialog->set_default_size(450, 200);
-    dialog->set_resizable(false);
-
-    // Create main layout
-    auto* main_box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 0);
-
-    // Content area
-    auto* content_box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 12);
-    content_box->set_margin_start(24);
-    content_box->set_margin_end(24);
-    content_box->set_margin_top(24);
-    content_box->set_margin_bottom(24);
-
-    auto* message_label = Gtk::make_managed<Gtk::Label>();
-    message_label->set_markup("<b>Your vault has been locked due to inactivity.</b>");
-    message_label->set_wrap(true);
-    message_label->set_xalign(0.0);
-    content_box->append(*message_label);
-
-    auto* instruction_label = Gtk::make_managed<Gtk::Label>("Enter your master password to unlock and continue working.");
-    instruction_label->set_wrap(true);
-    instruction_label->set_xalign(0.0);
-    content_box->append(*instruction_label);
-
-    auto* password_entry = Gtk::make_managed<Gtk::Entry>();
-    password_entry->set_visibility(false);
-    password_entry->set_placeholder_text("Enter master password to unlock");
-    content_box->append(*password_entry);
-
-    main_box->append(*content_box);
-
-    // Button area
-    auto* button_box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 6);
-    button_box->set_margin_start(24);
-    button_box->set_margin_end(24);
-    button_box->set_margin_bottom(24);
-    button_box->set_halign(Gtk::Align::END);
-
-    auto* cancel_button = Gtk::make_managed<Gtk::Button>("_Cancel");
-    cancel_button->set_use_underline(true);
-    button_box->append(*cancel_button);
-
-    auto* ok_button = Gtk::make_managed<Gtk::Button>("_OK");
-    ok_button->set_use_underline(true);
-    ok_button->add_css_class("suggested-action");
-    button_box->append(*ok_button);
-
-    main_box->append(*button_box);
-    dialog->set_child(*main_box);
-
-    // Handle OK button
-    ok_button->signal_clicked().connect([this, dialog, password_entry]() {
-        const std::string entered_password{KeepTower::safe_ustring_to_string(password_entry->get_text(), "unlock_password")};
-
-#ifdef HAVE_YUBIKEY_SUPPORT
-        // Check if YubiKey is required for this vault
-        std::string yubikey_serial;
-        bool yubikey_required = m_vault_manager->check_vault_requires_yubikey(std::string{m_current_vault_path}, yubikey_serial);
-
-        YubiKeyPromptDialog* touch_dialog = nullptr;
-        if (yubikey_required) {
-            // Show touch prompt dialog
-            touch_dialog = Gtk::make_managed<YubiKeyPromptDialog>(*dialog,
-                YubiKeyPromptDialog::PromptType::TOUCH);
-            touch_dialog->present();
-
-            // Force GTK to process events and render the dialog
-            auto context = Glib::MainContext::get_default();
-            while (context->pending()) {
-                context->iteration(false);
-            }
-            g_usleep(150000);  // 150ms delay for rendering
-        }
-#endif
-
-        // Verify password by attempting to open vault
-        const auto temp_vault = std::make_unique<VaultManager>();
-        const bool success = temp_vault->open_vault(std::string{m_current_vault_path}, entered_password);
-
-#ifdef HAVE_YUBIKEY_SUPPORT
-        // Hide touch prompt if it was shown
-        if (touch_dialog) {
-            touch_dialog->hide();
-        }
-#endif
-
-        if (success && entered_password == m_cached_master_password) {
-            if (m_apply_lock_ui_callback) {
-                m_apply_lock_ui_callback(false, "Vault unlocked");
-            }
-
-            // Cache lock state locally to avoid repeated VaultManager queries
-            m_is_locked = false;
-
-            // Restore account list and selection
-            m_update_account_list_callback();
-            m_filter_accounts_callback(m_get_search_text_callback());
-
-            // Reset activity monitoring
-            handle_user_activity();
-
-            delete dialog;
-        } else {
-            // Unlock failed - could be wrong password or missing YubiKey
-            password_entry->set_text("");
-            password_entry->grab_focus();
-
-#ifdef HAVE_YUBIKEY_SUPPORT
-            // Provide more specific error message if YubiKey is required
-            const char* error_message = "Unlock Failed";
-            const char* error_detail;
-            if (yubikey_required) {
-                error_detail = "Unable to unlock vault. This could be due to:\n"
-                              "• Incorrect password\n"
-                              "• YubiKey not inserted\n"
-                              "• YubiKey not touched in time\n"
-                              "• Wrong YubiKey inserted\n\n"
-                              "Please verify your password and ensure the correct YubiKey is connected.";
-            } else {
-                error_detail = "The password you entered is incorrect. Please try again.";
-            }
-#else
-            const char* error_message = "Incorrect Password";
-            const char* error_detail = "The password you entered is incorrect. Please try again.";
-#endif
-
-            auto* error_dialog = Gtk::make_managed<Gtk::MessageDialog>(
-                *dialog,
-                error_message,
-                false,
-                Gtk::MessageType::ERROR,
-                Gtk::ButtonsType::OK,
-                true
-            );
-            error_dialog->set_secondary_text(error_detail);
-            error_dialog->signal_response().connect([error_dialog, password_entry](int) {
-                error_dialog->hide();
-                password_entry->grab_focus();
-            });
-            error_dialog->show();
-        }
-    });
-
-    // Handle Cancel button
-    cancel_button->signal_clicked().connect([this, dialog]() {
-        // Save and close application
-        if (m_vault_open) {
-            m_save_account_callback();
-            if (!m_vault_manager->save_vault()) {
-                g_warning("Failed to save vault before closing locked application");
-            }
-        }
-
-        delete dialog;
-        m_window.close();
-    });
-
-    // Handle Enter key in password entry
-    password_entry->signal_activate().connect([ok_button]() {
-        ok_button->activate();
-    });
-
-    // Show the unlock dialog and set focus
-    dialog->present();
-    password_entry->grab_focus();
 }
 
 std::string AutoLockHandler::get_master_password_for_lock() {

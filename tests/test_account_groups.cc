@@ -3,6 +3,7 @@
 
 #include <gtest/gtest.h>
 #include "../src/core/VaultManager.h"
+#include "../src/core/MultiUserTypes.h"
 #include <filesystem>
 #include <chrono>
 #include <thread>
@@ -14,7 +15,8 @@ class AccountGroupsTest : public ::testing::Test {
 protected:
     std::unique_ptr<VaultManager> vault_manager;
     std::string test_vault_path;
-    const std::string test_password = "TestPassword123!";
+    const Glib::ustring test_username = "admin";
+    const Glib::ustring test_password = "TestPassword123!";
 
     void SetUp() override {
         vault_manager = std::make_unique<VaultManager>();
@@ -23,7 +25,13 @@ protected:
                          ".vault";
 
         // Create a new vault
-        ASSERT_TRUE(vault_manager->create_vault(test_vault_path, test_password))
+        VaultSecurityPolicy policy;
+        policy.require_yubikey = false;
+        policy.min_password_length = 12;
+        policy.pbkdf2_iterations = 100000;
+        policy.password_history_depth = 0;
+
+        ASSERT_TRUE(vault_manager->create_vault_v2(test_vault_path, test_username, test_password, policy))
             << "Failed to create test vault";
 
         // Add some test accounts
@@ -229,7 +237,7 @@ TEST_F(AccountGroupsTest, GroupsPersistAcrossVaultReopen) {
 
     // Close and reopen vault
     ASSERT_TRUE(vault_manager->close_vault());
-    ASSERT_TRUE(vault_manager->open_vault(test_vault_path, test_password));
+    ASSERT_TRUE(vault_manager->open_vault_v2(test_vault_path, test_username, test_password));
 
     // Verify accounts are still in group
     EXPECT_TRUE(vault_manager->is_account_in_group(0, group_id));
@@ -244,7 +252,7 @@ TEST_F(AccountGroupsTest, FavoritesGroupPersists) {
 
     // Close and reopen
     ASSERT_TRUE(vault_manager->close_vault());
-    ASSERT_TRUE(vault_manager->open_vault(test_vault_path, test_password));
+    ASSERT_TRUE(vault_manager->open_vault_v2(test_vault_path, test_username, test_password));
 
     // Should get same Favorites group
     std::string favorites_id2 = vault_manager->get_favorites_group_id();
@@ -380,7 +388,7 @@ TEST_F(AccountGroupsTest, RenameGroupPersistence) {
 
     // Close and reopen vault
     ASSERT_TRUE(vault_manager->close_vault());
-    ASSERT_TRUE(vault_manager->open_vault(test_vault_path, test_password));
+    ASSERT_TRUE(vault_manager->open_vault_v2(test_vault_path, test_username, test_password));
 
     // Verify renamed group persisted
     auto groups = vault_manager->get_all_groups();
@@ -441,7 +449,7 @@ TEST_F(AccountGroupsTest, ReorderGroupPersistence) {
 
     // Close and reopen vault
     ASSERT_TRUE(vault_manager->close_vault());
-    ASSERT_TRUE(vault_manager->open_vault(test_vault_path, test_password));
+    ASSERT_TRUE(vault_manager->open_vault_v2(test_vault_path, test_username, test_password));
 
     // Verify reorder persisted
     auto groups = vault_manager->get_all_groups();
@@ -512,7 +520,7 @@ TEST_F(AccountGroupsTest, ReorderAccountInGroupPersistence) {
 
     // Close and reopen vault
     ASSERT_TRUE(vault_manager->close_vault());
-    ASSERT_TRUE(vault_manager->open_vault(test_vault_path, test_password));
+    ASSERT_TRUE(vault_manager->open_vault_v2(test_vault_path, test_username, test_password));
 
     // Verify reorder persisted
     const auto* account = vault_manager->get_account(0);

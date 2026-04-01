@@ -141,7 +141,6 @@ protected:
     void on_open_vault();     ///< Open existing vault
     void on_save_vault();     ///< Save current vault
     void on_close_vault();    ///< Close current vault
-    void on_migrate_v1_to_v2(); ///< Migrate V1 vault to V2 multi-user format (Phase 8)
     void on_add_account();    ///< Add new account
     void on_delete_account(); ///< Delete selected account
     void on_preferences();    ///< Show preferences dialog
@@ -389,7 +388,7 @@ protected:
     std::unique_ptr<UI::MenuManager> m_menu_manager;              ///< Centralized menu management
     std::unique_ptr<UI::VaultUiStateApplier> m_vault_ui_state_applier;       ///< Applies vault UI state to widgets
     std::unique_ptr<UI::V2AuthenticationHandler> m_v2_auth_handler; ///< V2 vault authentication
-    std::unique_ptr<UI::VaultIOHandler> m_vault_io_handler;       ///< Import/Export/Migration
+    std::unique_ptr<UI::VaultIOHandler> m_vault_io_handler;       ///< Import/Export
     std::unique_ptr<UI::YubiKeyHandler> m_yubikey_handler;        ///< YubiKey operations
     std::unique_ptr<UI::GroupHandler> m_group_handler;            ///< Group management
     std::unique_ptr<UI::AccountEditHandler> m_account_edit_handler; ///< Account editing

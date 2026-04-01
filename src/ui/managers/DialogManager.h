@@ -23,7 +23,6 @@ class PreferencesDialog;
 class CreatePasswordDialog;
 class PasswordDialog;
 class YubiKeyPromptDialog;
-class VaultMigrationDialog;
 
 namespace UI {
 
@@ -146,14 +145,6 @@ public:
      * @brief Show preferences dialog
      */
     void show_preferences_dialog();
-
-    /**
-     * @brief Show vault migration dialog for V1→V2 upgrade
-     * @param vault_path Path to vault being migrated
-     * @param callback Function to call with result (true = migrated)
-     */
-    void show_vault_migration_dialog(const std::string& vault_path,
-                                    std::function<void(bool)> callback);
 
     /**
      * @brief Show validation error dialog with details

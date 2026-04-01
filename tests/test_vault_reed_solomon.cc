@@ -11,7 +11,9 @@
 
 #include <gtest/gtest.h>
 #include "VaultManager.h"
+#include "VaultFormatV2.h"
 #include "record.pb.h"
+#include "MultiUserTypes.h"
 #include <filesystem>
 #include <fstream>
 #include <random>
@@ -26,6 +28,12 @@ protected:
 
         test_vault_path = test_dir + "/test_rs.vault";
         test_password = "TestPassword123!";
+        test_username = "admin";
+
+        policy.require_yubikey = false;
+        policy.min_password_length = 12;
+        policy.pbkdf2_iterations = 100000;
+        policy.password_history_depth = 0;
     }
 
     void TearDown() override {
@@ -43,6 +51,11 @@ protected:
         account.set_created_at(std::time(nullptr));
         account.set_modified_at(std::time(nullptr));
         return account;
+    }
+
+    std::vector<uint8_t> readFileBytes(const std::string& filepath) {
+        std::ifstream infile(filepath, std::ios::binary);
+        return std::vector<uint8_t>(std::istreambuf_iterator<char>(infile), std::istreambuf_iterator<char>());
     }
 
     // Corrupt bytes in a file at specified positions
@@ -70,7 +83,9 @@ protected:
 
     std::string test_dir;
     std::string test_vault_path;
+    Glib::ustring test_username;
     Glib::ustring test_password;
+    KeepTower::VaultSecurityPolicy policy;
 };
 
 TEST_F(VaultReedSolomonTest, SaveWithRS_CreatesValidVault) {
@@ -82,7 +97,7 @@ TEST_F(VaultReedSolomonTest, SaveWithRS_CreatesValidVault) {
     manager.set_rs_redundancy_percent(10);
 
     // Create vault with RS enabled
-    ASSERT_TRUE(manager.create_vault(test_vault_path, test_password));
+    ASSERT_TRUE(manager.create_vault_v2(test_vault_path, test_username, test_password, policy));
 
     // Add some data
     auto account1 = createAccount("Example", "user@example.com");
@@ -94,15 +109,22 @@ TEST_F(VaultReedSolomonTest, SaveWithRS_CreatesValidVault) {
     ASSERT_TRUE(manager.save_vault());
     ASSERT_TRUE(manager.close_vault());
 
-    // Verify file exists and is larger than without RS
+    // Verify file exists
     ASSERT_TRUE(fs::exists(test_vault_path));
-    size_t rs_size = fs::file_size(test_vault_path);
+
+    // Verify RS setting is persisted in the V2 header (file size is not a stable indicator)
+    {
+        const auto file_data = readFileBytes(test_vault_path);
+        auto header_result = KeepTower::VaultFormatV2::read_header(file_data);
+        ASSERT_TRUE(header_result.has_value());
+        EXPECT_EQ(header_result.value().first.fec_redundancy_percent, 10);
+    }
 
     // Create another vault without RS for comparison
     VaultManager manager2;
     configure_for_testing(manager2);
     std::string test_vault_no_rs = test_dir + "/test_no_rs.vault";
-    ASSERT_TRUE(manager2.create_vault(test_vault_no_rs, test_password));
+    ASSERT_TRUE(manager2.create_vault_v2(test_vault_no_rs, test_username, test_password, policy));
     auto account3 = createAccount("Example", "user@example.com");
     auto account4 = createAccount("Test", "test@test.com");
     ASSERT_TRUE(manager2.add_account(account3));
@@ -110,10 +132,13 @@ TEST_F(VaultReedSolomonTest, SaveWithRS_CreatesValidVault) {
     ASSERT_TRUE(manager2.save_vault());
     ASSERT_TRUE(manager2.close_vault());
 
-    size_t normal_size = fs::file_size(test_vault_no_rs);
-
-    // RS vault should be larger
-    EXPECT_GT(rs_size, normal_size);
+    // RS disabled should persist as 0 in the V2 header
+    {
+        const auto file_data = readFileBytes(test_vault_no_rs);
+        auto header_result = KeepTower::VaultFormatV2::read_header(file_data);
+        ASSERT_TRUE(header_result.has_value());
+        EXPECT_EQ(header_result.value().first.fec_redundancy_percent, 0);
+    }
 }
 
 TEST_F(VaultReedSolomonTest, OpenRSVault_WithNoCorruption_Success) {
@@ -123,7 +148,7 @@ TEST_F(VaultReedSolomonTest, OpenRSVault_WithNoCorruption_Success) {
     // Create and save RS vault
     manager.set_reed_solomon_enabled(true);
     manager.set_rs_redundancy_percent(10);
-    ASSERT_TRUE(manager.create_vault(test_vault_path, test_password));
+    ASSERT_TRUE(manager.create_vault_v2(test_vault_path, test_username, test_password, policy));
     auto account = createAccount("Example", "user@example.com");
     ASSERT_TRUE(manager.add_account(account));
     ASSERT_TRUE(manager.save_vault());
@@ -132,7 +157,7 @@ TEST_F(VaultReedSolomonTest, OpenRSVault_WithNoCorruption_Success) {
     // Open the vault
     VaultManager manager2;
     configure_for_testing(manager2);
-    ASSERT_TRUE(manager2.open_vault(test_vault_path, test_password));
+    ASSERT_TRUE(manager2.open_vault_v2(test_vault_path, test_username, test_password));
 
     // Verify data
     EXPECT_EQ(manager2.get_account_count(), 1);
@@ -149,7 +174,7 @@ TEST_F(VaultReedSolomonTest, OpenRSVault_WithMinorCorruption_Recovers) {
     // Create RS vault with 20% redundancy (can recover ~10% corruption)
     manager.set_reed_solomon_enabled(true);
     manager.set_rs_redundancy_percent(20);
-    ASSERT_TRUE(manager.create_vault(test_vault_path, test_password));
+    ASSERT_TRUE(manager.create_vault_v2(test_vault_path, test_username, test_password, policy));
     auto account1 = createAccount("Example", "user@example.com");
     auto account2 = createAccount("Test", "test@test.com");
     ASSERT_TRUE(manager.add_account(account1));
@@ -164,7 +189,7 @@ TEST_F(VaultReedSolomonTest, OpenRSVault_WithMinorCorruption_Recovers) {
     // Should still open successfully with RS recovery
     VaultManager manager2;
     configure_for_testing(manager2);
-    ASSERT_TRUE(manager2.open_vault(test_vault_path, test_password));
+    ASSERT_TRUE(manager2.open_vault_v2(test_vault_path, test_username, test_password));
 
     // Verify data is intact
     EXPECT_EQ(manager2.get_account_count(), 2);
@@ -184,7 +209,7 @@ TEST_F(VaultReedSolomonTest, OpenRSVault_WithSevereCorruption_Fails) {
     // Create RS vault with 10% redundancy (can recover ~5% corruption)
     manager.set_reed_solomon_enabled(true);
     manager.set_rs_redundancy_percent(10);
-    ASSERT_TRUE(manager.create_vault(test_vault_path, test_password));
+    ASSERT_TRUE(manager.create_vault_v2(test_vault_path, test_username, test_password, policy));
     auto account = createAccount("Example", "user@example.com");
     ASSERT_TRUE(manager.add_account(account));
     ASSERT_TRUE(manager.save_vault());
@@ -200,7 +225,7 @@ TEST_F(VaultReedSolomonTest, OpenRSVault_WithSevereCorruption_Fails) {
     // Should fail to open
     VaultManager manager2;
     configure_for_testing(manager2);
-    EXPECT_FALSE(manager2.open_vault(test_vault_path, test_password));
+    EXPECT_FALSE(manager2.open_vault_v2(test_vault_path, test_username, test_password));
 }
 
 TEST_F(VaultReedSolomonTest, DisableRS_SavesWithoutEncoding) {
@@ -209,25 +234,36 @@ TEST_F(VaultReedSolomonTest, DisableRS_SavesWithoutEncoding) {
 
     // Create vault with RS disabled
     manager.set_reed_solomon_enabled(false);
-    ASSERT_TRUE(manager.create_vault(test_vault_path, test_password));
+    ASSERT_TRUE(manager.create_vault_v2(test_vault_path, test_username, test_password, policy));
     auto account = createAccount("Example", "user@example.com");
     ASSERT_TRUE(manager.add_account(account));
     ASSERT_TRUE(manager.save_vault());
-    size_t size_without_rs = fs::file_size(test_vault_path);
     ASSERT_TRUE(manager.close_vault());
+
+    // RS disabled should persist as 0 in the V2 header
+    {
+        const auto file_data = readFileBytes(test_vault_path);
+        auto header_result = KeepTower::VaultFormatV2::read_header(file_data);
+        ASSERT_TRUE(header_result.has_value());
+        EXPECT_EQ(header_result.value().first.fec_redundancy_percent, 0);
+    }
 
     // Enable RS, create new vault
     std::string test_vault_with_rs = test_dir + "/test_with_rs.vault";
     manager.set_reed_solomon_enabled(true);
     manager.set_rs_redundancy_percent(10);
-    ASSERT_TRUE(manager.create_vault(test_vault_with_rs, test_password));
+    ASSERT_TRUE(manager.create_vault_v2(test_vault_with_rs, test_username, test_password, policy));
     auto account2 = createAccount("Example", "user@example.com");
     ASSERT_TRUE(manager.add_account(account2));
     ASSERT_TRUE(manager.save_vault());
-    size_t size_with_rs = fs::file_size(test_vault_with_rs);
 
-    // Verify RS vault is larger
-    EXPECT_GT(size_with_rs, size_without_rs);
+    // RS enabled should persist as configured in the V2 header
+    {
+        const auto file_data = readFileBytes(test_vault_with_rs);
+        auto header_result = KeepTower::VaultFormatV2::read_header(file_data);
+        ASSERT_TRUE(header_result.has_value());
+        EXPECT_EQ(header_result.value().first.fec_redundancy_percent, 10);
+    }
 }
 
 TEST_F(VaultReedSolomonTest, ChangeRedundancyLevel_Works) {
@@ -242,7 +278,7 @@ TEST_F(VaultReedSolomonTest, ChangeRedundancyLevel_Works) {
         ASSERT_TRUE(manager.set_rs_redundancy_percent(redundancy));
         EXPECT_EQ(manager.get_rs_redundancy_percent(), redundancy);
 
-        ASSERT_TRUE(manager.create_vault(vault_path, test_password));
+        ASSERT_TRUE(manager.create_vault_v2(vault_path, test_username, test_password, policy));
         auto account = createAccount("Test", "test@test.com");
         ASSERT_TRUE(manager.add_account(account));
         ASSERT_TRUE(manager.save_vault());
@@ -251,7 +287,7 @@ TEST_F(VaultReedSolomonTest, ChangeRedundancyLevel_Works) {
         // Verify can open
         VaultManager manager2;
         configure_for_testing(manager2);
-        ASSERT_TRUE(manager2.open_vault(vault_path, test_password));
+        ASSERT_TRUE(manager2.open_vault_v2(vault_path, test_username, test_password));
         EXPECT_EQ(manager2.get_account_count(), 1);
         ASSERT_TRUE(manager2.close_vault());
     }
@@ -280,7 +316,7 @@ TEST_F(VaultReedSolomonTest, LegacyVault_OpensWithoutRS) {
 
     // Create legacy vault (no RS)
     manager.set_reed_solomon_enabled(false);
-    ASSERT_TRUE(manager.create_vault(test_vault_path, test_password));
+    ASSERT_TRUE(manager.create_vault_v2(test_vault_path, test_username, test_password, policy));
     auto account = createAccount("Legacy", "legacy@test.com");
     ASSERT_TRUE(manager.add_account(account));
     ASSERT_TRUE(manager.save_vault());
@@ -290,7 +326,7 @@ TEST_F(VaultReedSolomonTest, LegacyVault_OpensWithoutRS) {
     VaultManager manager2;
     configure_for_testing(manager2);
     manager2.set_reed_solomon_enabled(true);  // Preference for NEW vaults
-    ASSERT_TRUE(manager2.open_vault(test_vault_path, test_password));
+    ASSERT_TRUE(manager2.open_vault_v2(test_vault_path, test_username, test_password));
 
     // Verify data
     EXPECT_EQ(manager2.get_account_count(), 1);

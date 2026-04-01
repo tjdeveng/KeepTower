@@ -9,6 +9,7 @@
 #include <gtest/gtest.h>
 #include "../src/core/repositories/AccountRepository.h"
 #include "../src/core/VaultManager.h"
+#include "../src/core/MultiUserTypes.h"
 #include <memory>
 #include <cstdio>
 
@@ -26,8 +27,15 @@ protected:
         temp_vault_path = "/tmp/test_account_repository_vault.ktv";
 
         // Create and open a test vault
-        ASSERT_TRUE(vault_manager->create_vault(temp_vault_path, "test_password"));
-        ASSERT_TRUE(vault_manager->open_vault(temp_vault_path, "test_password"));
+        KeepTower::VaultSecurityPolicy policy;
+        policy.require_yubikey = false;
+        policy.min_password_length = 12;
+        policy.pbkdf2_iterations = 100000;
+        policy.password_history_depth = 0;
+
+        ASSERT_TRUE(vault_manager->create_vault_v2(temp_vault_path, "admin", "test_password", policy));
+        ASSERT_TRUE(vault_manager->close_vault());
+        ASSERT_TRUE(vault_manager->open_vault_v2(temp_vault_path, "admin", "test_password"));
 
         // Create repository
         repository = std::make_unique<AccountRepository>(vault_manager.get());

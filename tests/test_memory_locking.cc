@@ -46,6 +46,7 @@
 #include <gtest/gtest.h>
 #include "../src/core/VaultManager.h"
 #include "../src/core/MultiUserTypes.h"
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <vector>
@@ -172,9 +173,15 @@ TEST_F(MemoryLockingTest, RLimitMemlockIncreasedOnStartup) {
 TEST_F(MemoryLockingTest, V1EncryptionKeyLockedAfterCreation) {
     VaultManager vm;
 
-    // Create V1 vault - should lock m_encryption_key, m_salt
-    ASSERT_TRUE(vm.create_vault(test_vault_path.string(), "TestPassword123"))
-        << "Failed to create V1 vault";
+    // Create V2 vault - should lock sensitive key material
+    VaultSecurityPolicy policy;
+    policy.require_yubikey = false;
+    policy.min_password_length = 12;
+    policy.pbkdf2_iterations = 100000;
+    policy.password_history_depth = 0;
+
+    ASSERT_TRUE(vm.create_vault_v2(test_vault_path.string(), "admin", "TestPassword123", policy))
+        << "Failed to create V2 vault";
 
     EXPECT_TRUE(vm.is_vault_open()) << "Vault should be open";
 
@@ -200,7 +207,13 @@ TEST_F(MemoryLockingTest, V1EncryptionKeyLockedAfterCreation) {
 TEST_F(MemoryLockingTest, V1VaultOperationsWorkWithLockedMemory) {
     VaultManager vm;
 
-    ASSERT_TRUE(vm.create_vault(test_vault_path.string(), "TestPassword123"));
+    VaultSecurityPolicy policy;
+    policy.require_yubikey = false;
+    policy.min_password_length = 12;
+    policy.pbkdf2_iterations = 100000;
+    policy.password_history_depth = 0;
+
+    ASSERT_TRUE(vm.create_vault_v2(test_vault_path.string(), "admin", "TestPassword123", policy));
 
     // Add account - requires access to locked encryption key
     keeptower::AccountRecord new_account;
@@ -216,7 +229,7 @@ TEST_F(MemoryLockingTest, V1VaultOperationsWorkWithLockedMemory) {
     EXPECT_TRUE(vm.close_vault());
 
     // Reopen - decryption with locked keys
-    ASSERT_TRUE(vm.open_vault(test_vault_path.string(), "TestPassword123"))
+    ASSERT_TRUE(vm.open_vault_v2(test_vault_path.string(), "admin", "TestPassword123"))
         << "Failed to reopen vault";
 
     ASSERT_EQ(vm.get_account_count(), 1) << "Account not preserved";
@@ -236,7 +249,13 @@ TEST_F(MemoryLockingTest, V1VaultOperationsWorkWithLockedMemory) {
 TEST_F(MemoryLockingTest, MemoryUnlockedAfterVaultClose) {
     VaultManager vm;
 
-    ASSERT_TRUE(vm.create_vault(test_vault_path.string(), "TestPassword123"));
+    VaultSecurityPolicy policy;
+    policy.require_yubikey = false;
+    policy.min_password_length = 12;
+    policy.pbkdf2_iterations = 100000;
+    policy.password_history_depth = 0;
+
+    ASSERT_TRUE(vm.create_vault_v2(test_vault_path.string(), "admin", "TestPassword123", policy));
 
     long locked_before = get_locked_memory_kb();
 
@@ -457,7 +476,13 @@ TEST_F(MemoryLockingTest, GracefulDegradationWithoutPermissions) {
     VaultManager vm;
 
     // Should succeed even if mlock fails (logged as warning)
-    EXPECT_TRUE(vm.create_vault(test_vault_path.string(), "TestPassword123"))
+    VaultSecurityPolicy policy;
+    policy.require_yubikey = false;
+    policy.min_password_length = 12;
+    policy.pbkdf2_iterations = 100000;
+    policy.password_history_depth = 0;
+
+    EXPECT_TRUE(vm.create_vault_v2(test_vault_path.string(), "admin", "TestPassword123", policy))
         << "Vault creation should work without mlock";
 
     EXPECT_TRUE(vm.is_vault_open());
@@ -482,7 +507,13 @@ TEST_F(MemoryLockingTest, MemoryLockingStatusLogged) {
     // This test verifies logging occurs (check test output)
     VaultManager vm;
 
-    ASSERT_TRUE(vm.create_vault(test_vault_path.string(), "TestPassword123"));
+    VaultSecurityPolicy policy;
+    policy.require_yubikey = false;
+    policy.min_password_length = 12;
+    policy.pbkdf2_iterations = 100000;
+    policy.password_history_depth = 0;
+
+    ASSERT_TRUE(vm.create_vault_v2(test_vault_path.string(), "admin", "TestPassword123", policy));
 
     // Check test output for one of:
     // "Locked N bytes of sensitive memory" (success)
@@ -510,11 +541,17 @@ TEST_F(MemoryLockingTest, FIPSCompliantZeroization) {
     // Functional test - zeroization happens in close_vault()
     VaultManager vm;
 
-    ASSERT_TRUE(vm.create_vault(test_vault_path.string(), "TestPassword123"));
+    VaultSecurityPolicy policy;
+    policy.require_yubikey = false;
+    policy.min_password_length = 12;
+    policy.pbkdf2_iterations = 100000;
+    policy.password_history_depth = 0;
+
+    ASSERT_TRUE(vm.create_vault_v2(test_vault_path.string(), "admin", "TestPassword123", policy));
     ASSERT_TRUE(vm.close_vault());
 
     // Verify vault can be opened again (not corrupted by zeroization)
-    ASSERT_TRUE(vm.open_vault(test_vault_path.string(), "TestPassword123"));
+    ASSERT_TRUE(vm.open_vault_v2(test_vault_path.string(), "admin", "TestPassword123"));
 
     EXPECT_TRUE(vm.close_vault());
 
@@ -533,7 +570,13 @@ TEST_F(MemoryLockingTest, FIPSCompliantZeroization) {
 TEST_F(MemoryLockingTest, MemoryLockedThroughoutSession) {
     VaultManager vm;
 
-    ASSERT_TRUE(vm.create_vault(test_vault_path.string(), "TestPassword123"));
+    VaultSecurityPolicy policy;
+    policy.require_yubikey = false;
+    policy.min_password_length = 12;
+    policy.pbkdf2_iterations = 100000;
+    policy.password_history_depth = 0;
+
+    ASSERT_TRUE(vm.create_vault_v2(test_vault_path.string(), "admin", "TestPassword123", policy));
 
     long locked_initial = get_locked_memory_kb();
 
@@ -572,8 +615,13 @@ TEST_F(MemoryLockingTest, LinuxMlockImplementation) {
     GTEST_SKIP() << "VmLck reporting can be unreliable under ASan";
 #endif
     VaultManager vm;
+    VaultSecurityPolicy policy;
+    policy.require_yubikey = false;
+    policy.min_password_length = 12;
+    policy.pbkdf2_iterations = 100000;
+    policy.password_history_depth = 0;
 
-    ASSERT_TRUE(vm.create_vault(test_vault_path.string(), "TestPassword123"));
+    ASSERT_TRUE(vm.create_vault_v2(test_vault_path.string(), "admin", "TestPassword123", policy));
 
     // On Linux, check /proc/self/status for VmLck
     long locked_kb = get_locked_memory_kb();
@@ -600,7 +648,13 @@ TEST_F(MemoryLockingTest, LinuxMlockImplementation) {
 TEST_F(MemoryLockingTest, WindowsVirtualLockImplementation) {
     VaultManager vm;
 
-    ASSERT_TRUE(vm.create_vault(test_vault_path.string(), "TestPassword123"));
+    VaultSecurityPolicy policy;
+    policy.require_yubikey = false;
+    policy.min_password_length = 12;
+    policy.pbkdf2_iterations = 100000;
+    policy.password_history_depth = 0;
+
+    ASSERT_TRUE(vm.create_vault_v2(test_vault_path.string(), "admin", "TestPassword123", policy));
 
     // On Windows, VirtualLock should succeed (no special permissions)
     // Verification requires Windows-specific APIs
@@ -624,7 +678,13 @@ TEST_F(MemoryLockingTest, MemoryLockingPerformance) {
     auto start = std::chrono::high_resolution_clock::now();
 
     VaultManager vm;
-    ASSERT_TRUE(vm.create_vault(test_vault_path.string(), "TestPassword123"));
+    VaultSecurityPolicy policy;
+    policy.require_yubikey = false;
+    policy.min_password_length = 12;
+    policy.pbkdf2_iterations = 100000;
+    policy.password_history_depth = 0;
+
+    ASSERT_TRUE(vm.create_vault_v2(test_vault_path.string(), "admin", "TestPassword123", policy));
 
     // Add accounts
     for (int i = 0; i < 100; ++i) {

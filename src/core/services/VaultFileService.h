@@ -32,7 +32,7 @@ namespace KeepTower {
  * **Responsibilities:**
  * 1. Reading vault files from disk (with FEC recovery)
  * 2. Writing vault files atomically (temp file + rename)
- * 3. Format version detection (V1 vs V2)
+ * 3. Format version detection (V2)
  * 4. Backup creation and restoration
  * 5. Backup rotation and cleanup
  * 6. Secure file permissions (0600 on Unix)
@@ -44,12 +44,6 @@ namespace KeepTower {
  * - Business logic (VaultManager)
  *
  * @section file_formats File Formats
- *
- * **V1 Format:**
- * ```
- * [Magic: 4 bytes] [Version: 4 bytes] [PBKDF2 Iterations: 4 bytes]
- * [Encryption Data: variable]
- * ```
  *
  * **V2 Format:**
  * ```
@@ -143,16 +137,14 @@ public:
     /**
      * @brief Read vault file from disk
      *
-     * Reads a complete vault file into memory. For V1 vaults, extracts the
-     * PBKDF2 iteration count from the header. For V2 vaults, reads the entire
-     * file including FEC-protected header.
+    * Reads a complete vault file into memory (V2 only).
      *
      * @param path Absolute path to vault file
      * @param data Output buffer for file contents
-     * @param pbkdf2_iterations Output for V1 PBKDF2 iterations (0 for V2)
+    * @param pbkdf2_iterations Reserved (always set to 0 for V2)
      * @return VaultResult<void> Success or VaultError
      *
-     * @note For V2 vaults, pbkdf2_iterations is set to 0 (not used)
+    * @note V1 vault files are no longer supported and will return UnsupportedVersion.
      * @note data will contain complete file contents (including headers)
      */
     [[nodiscard]] static VaultResult<> read_vault_file(
@@ -168,13 +160,12 @@ public:
      * @brief Write vault file atomically to disk
      *
      * Performs an atomic write operation using temporary file + rename.
-     * For V1 vaults, prepends file header. For V2 vaults, writes data
-     * directly (header already included).
+    * Writes a V2 vault file atomically. V1 vault files are not supported.
      *
      * @param path Absolute path to target vault file
      * @param data Complete vault data to write
-     * @param is_v2_vault true if V2 format, false if V1
-     * @param pbkdf2_iterations PBKDF2 iterations for V1 header (ignored for V2)
+    * @param is_v2_vault Must be true (V2). If false, returns UnsupportedVersion.
+    * @param pbkdf2_iterations Reserved (ignored)
      * @return VaultResult<void> Success or VaultError
      *
      * @note Automatically sets file permissions to 0600 (owner only)

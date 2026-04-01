@@ -94,21 +94,21 @@ TEST_F(VaultFormatV2Test, DetectVersionUnsupportedVersion) {
     EXPECT_EQ(result.error(), VaultError::UnsupportedVersion);
 }
 
-TEST_F(VaultFormatV2Test, DetectVersionV1) {
+TEST_F(VaultFormatV2Test, DetectVersionV1IsUnsupported) {
     std::vector<uint8_t> data(8, 0);
 
     // Write valid magic
     uint32_t magic = VaultFormatV2::VAULT_MAGIC;
     std::memcpy(data.data(), &magic, sizeof(magic));
 
-    // Write V1 version
-    uint32_t version = VaultFormatV2::VAULT_VERSION_V1;
+    // Write non-V2 version
+    uint32_t version = 1;
     std::memcpy(data.data() + 4, &version, sizeof(version));
 
     auto result = VaultFormatV2::detect_version(data);
 
-    ASSERT_TRUE(result.has_value());
-    EXPECT_EQ(result.value(), VaultFormatV2::VAULT_VERSION_V1);
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), VaultError::UnsupportedVersion);
 }
 
 TEST_F(VaultFormatV2Test, DetectVersionV2) {
@@ -140,7 +140,7 @@ TEST_F(VaultFormatV2Test, IsValidV2VaultReturnsFalseForV1) {
     uint32_t magic = VaultFormatV2::VAULT_MAGIC;
     std::memcpy(data.data(), &magic, sizeof(magic));
 
-    uint32_t version = VaultFormatV2::VAULT_VERSION_V1;
+    uint32_t version = 1;
     std::memcpy(data.data() + 4, &version, sizeof(version));
 
     EXPECT_FALSE(VaultFormatV2::is_valid_v2_vault(data));
@@ -335,8 +335,8 @@ TEST_F(VaultFormatV2Test, ReadHeaderWrongVersion) {
     uint32_t magic = VaultFormatV2::VAULT_MAGIC;
     std::memcpy(data.data(), &magic, sizeof(magic));
 
-    // Write V1 version
-    uint32_t version = VaultFormatV2::VAULT_VERSION_V1;
+    // Write non-V2 version
+    uint32_t version = 1;
     std::memcpy(data.data() + 4, &version, sizeof(version));
 
     auto result = VaultFormatV2::read_header(data);

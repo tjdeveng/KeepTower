@@ -11,6 +11,7 @@
 #include "../src/core/commands/AccountCommands.h"
 #include "../src/core/commands/UndoManager.h"
 #include "../src/core/VaultManager.h"
+#include "../src/core/MultiUserTypes.h"
 #include <filesystem>
 #include <fstream>
 
@@ -26,12 +27,18 @@ protected:
     void SetUp() override {
         // Create temporary test vault
         test_vault_path = "/tmp/test_undo_vault.vault";
+        test_username = "admin";
         test_password = "test_password_123";
+
+        policy.require_yubikey = false;
+        policy.min_password_length = 12;
+        policy.pbkdf2_iterations = 100000;
+        policy.password_history_depth = 0;
 
         vault_manager = std::make_unique<VaultManager>();
 
         // Create new vault
-        bool create_result = vault_manager->create_vault(test_vault_path, test_password);
+        auto create_result = vault_manager->create_vault_v2(test_vault_path, test_username, test_password, policy);
         ASSERT_TRUE(create_result) << "Failed to create test vault";
 
         undo_manager = std::make_unique<UndoManager>();
@@ -57,7 +64,9 @@ protected:
     }
 
     std::string test_vault_path;
-    std::string test_password;
+    Glib::ustring test_username;
+    Glib::ustring test_password;
+    KeepTower::VaultSecurityPolicy policy;
     std::unique_ptr<VaultManager> vault_manager;
     std::unique_ptr<UndoManager> undo_manager;
 };

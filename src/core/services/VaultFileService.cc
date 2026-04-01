@@ -3,7 +3,6 @@
 // File: src/core/services/VaultFileService.cc
 
 #include "VaultFileService.h"
-#include "../format/VaultFormat.h"
 #include "../VaultFormatV2.h"
 #include "../../utils/Log.h"
 
@@ -82,35 +81,20 @@ VaultResult<> VaultFileService::read_vault_file(
             return std::unexpected(VaultError::FileReadError);
         }
 
-        // Detect format and extract PBKDF2 iterations for V1
+        // Detect format (V2 only)
         auto version = detect_vault_version(data);
         if (!version) {
             Log::error("VaultFileService: Invalid vault format: {}", path);
             return std::unexpected(VaultError::InvalidData);
         }
-
-        if (*version == 1) {
-            // V1 format: Extract PBKDF2 iterations from header
-            // Header: [Magic: 4] [Version: 4] [Iterations: 4]
-            if (data.size() < 12) {
-                Log::error("VaultFileService: V1 header too short");
-                return std::unexpected(VaultError::InvalidData);
-            }
-
-            // Read iterations (bytes 8-11, little-endian)
-            pbkdf2_iterations = static_cast<int>(
-                static_cast<uint32_t>(data[8]) |
-                (static_cast<uint32_t>(data[9]) << 8) |
-                (static_cast<uint32_t>(data[10]) << 16) |
-                (static_cast<uint32_t>(data[11]) << 24)
-            );
-
-            Log::debug("VaultFileService: Read V1 vault (PBKDF2: {})", pbkdf2_iterations);
-        } else {
-            // V2 format: No PBKDF2 iterations in file header (per-user in key slots)
-            pbkdf2_iterations = 0;
-            Log::debug("VaultFileService: Read V2 vault ({} bytes)", data.size());
+        if (*version != 2) {
+            Log::error("VaultFileService: Unsupported vault version {}: {}", *version, path);
+            return std::unexpected(VaultError::UnsupportedVersion);
         }
+
+        // V2 format: PBKDF2 iterations are stored in the V2 header and handled by VaultFormatV2.
+        pbkdf2_iterations = 0;
+        Log::debug("VaultFileService: Read V2 vault ({} bytes)", data.size());
 
         return {};
 
@@ -149,26 +133,16 @@ VaultResult<> VaultFileService::write_vault_file(
                 return std::unexpected(VaultError::FileWriteError);
             }
 
-            if (is_v2_vault) {
-                // V2: Data already contains full header, write directly
-                file.write(reinterpret_cast<const char*>(data.data()),
-                          static_cast<std::streamsize>(data.size()));
-            } else {
-                // V1: Prepend file header
-                // Header: [Magic: "KPT"] [Padding: 0x00] [Version: 1] [Iterations: uint32_t]
-                const uint8_t header[] = {
-                    'K', 'P', 'T', 0x00,                                    // Magic
-                    0x01, 0x00, 0x00, 0x00,                                 // Version 1
-                    static_cast<uint8_t>(pbkdf2_iterations & 0xFF),         // Iterations (LE)
-                    static_cast<uint8_t>((pbkdf2_iterations >> 8) & 0xFF),
-                    static_cast<uint8_t>((pbkdf2_iterations >> 16) & 0xFF),
-                    static_cast<uint8_t>((pbkdf2_iterations >> 24) & 0xFF)
-                };
+            (void)pbkdf2_iterations;
 
-                file.write(reinterpret_cast<const char*>(header), sizeof(header));
-                file.write(reinterpret_cast<const char*>(data.data()),
-                          static_cast<std::streamsize>(data.size()));
+            if (!is_v2_vault) {
+                Log::error("VaultFileService: V1 vault format is no longer supported");
+                return std::unexpected(VaultError::UnsupportedVersion);
             }
+
+            // V2: Data already contains full header, write directly
+            file.write(reinterpret_cast<const char*>(data.data()),
+                      static_cast<std::streamsize>(data.size()));
 
             // Flush and sync to disk
             file.flush();
@@ -201,8 +175,7 @@ VaultResult<> VaultFileService::write_vault_file(
         }
 #endif
 
-        Log::debug("VaultFileService: Wrote {} vault ({} bytes)",
-                  is_v2_vault ? "V2" : "V1", data.size());
+        Log::debug("VaultFileService: Wrote V2 vault ({} bytes)", data.size());
 
         return {};
 
@@ -234,22 +207,7 @@ std::optional<uint32_t> VaultFileService::detect_vault_version(
         return std::nullopt;
     }
 
-    // Check V1 magic: "KPT\0"
-    if (data[0] == 'K' && data[1] == 'P' && data[2] == 'T' && data[3] == 0x00) {
-        // V1 format detected
-        // Read version (bytes 4-7, little-endian)
-        const uint32_t version =
-            static_cast<uint32_t>(data[4]) |
-            (static_cast<uint32_t>(data[5]) << 8) |
-            (static_cast<uint32_t>(data[6]) << 16) |
-            (static_cast<uint32_t>(data[7]) << 24);
-
-        if (version == 1) {
-            return 1;
-        }
-    }
-
-    // Try V2 format detection (delegate to VaultFormatV2)
+    // V2 format detection (delegate to VaultFormatV2)
     auto v2_result = VaultFormatV2::detect_version(data);
     if (v2_result && v2_result.value() == 2) {
         return 2;

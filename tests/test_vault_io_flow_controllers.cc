@@ -5,7 +5,6 @@
 
 #include "ui/controllers/flows/ExportFlowController.h"
 #include "ui/controllers/flows/ImportFlowController.h"
-#include "ui/controllers/flows/MigrationFlowController.h"
 
 #include <optional>
 #include <string>
@@ -236,42 +235,4 @@ TEST(ImportFlowController, SuccessShowsInfoAndCallsUpdate) {
 
     EXPECT_TRUE(updated);
     EXPECT_EQ(log.calls, (std::vector<std::string>{"open_file", "import", "update", "info"}));
-}
-
-TEST(MigrationFlowController, SuccessCallsMigrateThenSuccessCallbackThenInfo) {
-    CallLog log;
-    bool success = false;
-
-    UI::Flows::MigrationFlowController controller(UI::Flows::MigrationFlowController::Ports{
-        UI::Flows::MessagePort{
-            [&](const std::string&, const std::string&) { log.push("info"); },
-            [&](const std::string&, const std::string&) { log.push("warning_msg"); },
-            [&](const std::string&, const std::string&) { log.push("error"); },
-        },
-        UI::Flows::MigrationDialogPort{
-            [&](const std::string&, std::function<void(std::optional<UI::Flows::MigrationDialogPort::Params>)> cb) {
-                log.push("prompt_migration");
-                cb(UI::Flows::MigrationDialogPort::Params{.admin_username = "admin", .admin_password = "pw"});
-            },
-        },
-        UI::Flows::MigrationOperationPort{
-            [&]() {
-                log.push("is_already_v2");
-                return false;
-            },
-            [&](const UI::Flows::MigrationDialogPort::Params& params, const std::string&) {
-                log.push(std::string("migrate:") + params.admin_username);
-                return std::expected<void, std::string>{};
-            },
-        },
-    });
-
-    controller.start_migration("/vault.vault", true, [&]() {
-        log.push("on_success");
-        success = true;
-    });
-
-    EXPECT_TRUE(success);
-    EXPECT_EQ(log.calls,
-              (std::vector<std::string>{"is_already_v2", "prompt_migration", "migrate:admin", "on_success", "info"}));
 }

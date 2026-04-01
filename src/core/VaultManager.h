@@ -44,7 +44,6 @@
 class ReedSolomon;
 
 namespace KeepTower {
-struct VaultFileMetadata;
 class AccountManager;
 class GroupManager;
 class VaultCryptoService;
@@ -114,8 +113,13 @@ private:
  * VaultManager vm;
  *
  * // Create new vault
- * if (!vm.create_vault("/path/to/vault.vault", "strong_password")) {
- *     // Handle error
+ * KeepTower::VaultSecurityPolicy policy;
+ * policy.min_password_length = 12;
+ * policy.pbkdf2_iterations = 600000;
+ *
+ * auto create_result = vm.create_vault_v2("/path/to/vault.v2", "admin", "strong_password", policy);
+ * if (!create_result) {
+ *     // Handle error: create_result.error()
  * }
  *
  * // Add account
@@ -198,30 +202,6 @@ public:
     // Vault operations
 
     /**
-     * @brief Create a new encrypted vault
-     * @param path Filesystem path where vault will be created
-     * @param password Master password for vault encryption
-     * @param require_yubikey Optional: require YubiKey for vault access
-     * @param yubikey_serial Optional: specific YubiKey serial number
-     * @return true if vault created successfully, false on error
-     *
-     * Creates a new vault file with:
-     * - Magic header (0x5641554C / "VAUL")
-     * - Version number (1)
-     * - PBKDF2 iteration count
-     * - Random salt (32 bytes)
-     * - Optional: YubiKey challenge and serial
-     * - Empty encrypted data
-     *
-     * @note File permissions set to 0600 (owner read/write only)
-     * @warning Overwrites existing file at path
-     */
-    [[nodiscard]] bool create_vault(const std::string& path,
-                                     const Glib::ustring& password,
-                                     bool require_yubikey = false,
-                                     std::string yubikey_serial = "");
-
-    /**
      * @brief Check if a vault requires YubiKey authentication
      * @param path Filesystem path to vault file
      * @param serial Output parameter for YubiKey serial number (if available)
@@ -230,19 +210,6 @@ public:
      * Peeks at vault file flags without opening or decrypting.
      */
     [[nodiscard]] bool check_vault_requires_yubikey(const std::string& path, std::string& serial);
-
-    /**
-     * @brief Open and decrypt an existing vault
-     * @param path Filesystem path to vault file
-     * @param password Master password for vault decryption
-     * @return true if vault opened successfully, false on error
-     *
-     * Validates file format, verifies authentication tag, and loads accounts.
-     *
-     * @note Fails if vault is already open
-     * @note Password verification is implicit through decryption success
-     */
-    [[nodiscard]] bool open_vault(const std::string& path, const Glib::ustring& password);
 
     /**
      * @brief Save vault to disk
@@ -305,12 +272,12 @@ public:
      * }
      * @endcode
      */
-    [[nodiscard]] KeepTower::VaultResult<> create_vault_v2(
-        const std::string& path,
-        const Glib::ustring& admin_username,
-        const Glib::ustring& admin_password,
-        const KeepTower::VaultSecurityPolicy& policy,
-        const std::optional<std::string>& yubikey_pin = std::nullopt);
+     [[nodiscard]] KeepTower::VaultResult<> create_vault_v2(
+         const std::string& path,
+         const Glib::ustring& admin_username,
+         const Glib::ustring& admin_password,
+         const KeepTower::VaultSecurityPolicy& policy,
+         const std::optional<std::string>& yubikey_pin = std::nullopt);
 
     /**
      * @brief Create V2 vault asynchronously (non-blocking)
@@ -899,54 +866,6 @@ public:
      * @note Requires vault to be open
      */
     [[nodiscard]] std::vector<KeepTower::KeySlot> list_users() const;
-
-    /**
-     * @brief Convert V1 vault to V2 multi-user format
-     * @param admin_username Username for the administrator account
-     * @param admin_password Password for the administrator account
-     * @param policy Security policy for the new V2 vault
-     * @return VaultResult with success or error
-     *
-     * Migrates a legacy single-user vault (V1) to the modern multi-user format (V2).
-     * This operation:
-     * 1. Creates automatic backup of V1 vault
-     * 2. Converts vault structure to V2 format
-     * 3. Creates first administrator account with provided credentials
-     * 4. Applies security policy (min password length, iterations)
-     * 5. Preserves all existing accounts and metadata
-     *
-     * Migration is irreversible - V1 clients cannot open migrated vaults.
-     *
-     * Requirements:
-     * - Vault must be currently open (V1 format)
-     * - Admin password must meet security policy requirements
-     * - Sufficient disk space for backup
-     *
-     * @code
-     * VaultManager vm;
-     * vm.open_vault("/path/vault.v1", "old_password");
-     *
-     * KeepTower::VaultSecurityPolicy policy;
-     * policy.min_password_length = 12;
-     * policy.pbkdf2_iterations = 600000;
-     *
-     * auto result = vm.convert_v1_to_v2("admin", "secure_password", policy);
-     * if (!result) {
-     *     // Handle error: result.error()
-     * }
-     * @endcode
-     *
-     * @note Creates backup at {vault_path}.v1.backup before migration
-     * @note Vault remains open after successful migration (as admin)
-     * @note All accounts preserve their IDs, timestamps, and data
-     *
-     * @see create_vault_v2() for V2 vault creation from scratch
-     * @see open_vault_v2() for opening existing V2 vaults
-     */
-    [[nodiscard]] KeepTower::VaultResult<> convert_v1_to_v2(
-        const Glib::ustring& admin_username,
-        const Glib::ustring& admin_password,
-        const KeepTower::VaultSecurityPolicy& policy);
 
     /**
      * @brief Get vault security policy
@@ -1802,7 +1721,7 @@ public:
     /**
      * @brief Check if current user requires YubiKey authentication
      * @return true if current user's key slot requires YubiKey, false otherwise
-     * @note For V2 vaults, checks current user's key slot. For V1 vaults, checks m_yubikey_required flag.
+     * @note For V2 vaults, checks current user's key slot.
      */
     [[nodiscard]] bool current_user_requires_yubikey() const;
 #endif
@@ -1824,17 +1743,6 @@ public:
     [[nodiscard]] std::string get_current_username() const;
 
 private:
-    // Helper methods for open_vault() refactoring
-#ifdef HAVE_YUBIKEY_SUPPORT
-    KeepTower::VaultResult<> authenticate_yubikey(
-        const KeepTower::VaultFileMetadata& metadata,
-        std::vector<uint8_t>& encryption_key);
-#endif
-    KeepTower::VaultResult<keeptower::VaultData> decrypt_and_parse_vault(
-        const std::vector<uint8_t>& ciphertext,
-        const std::vector<uint8_t>& key,
-        const std::vector<uint8_t>& iv);
-
     // Secure memory clearing and locking
     void secure_clear(std::vector<uint8_t>& data);
     void secure_clear(std::string& data);

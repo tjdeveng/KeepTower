@@ -9,7 +9,6 @@
 #include "../../utils/ImportExport.h"
 #include "../windows/MainWindow.h"
 #include "../dialogs/PasswordDialog.h"
-#include "../dialogs/VaultMigrationDialog.h"
 
 // Forward declare OPENSSL_cleanse to avoid OpenSSL UI type conflict with our UI namespace
 extern "C" {
@@ -412,111 +411,7 @@ VaultIOHandler::VaultIOHandler(MainWindow& window,
                   };
               },
           },
-      })
-    , m_migration_flow(Flows::MigrationFlowController::Ports{
-          Flows::MessagePort{
-              [this](const std::string& message, const std::string& title) {
-                  m_dialog_manager->show_info_dialog(message, title);
-              },
-              [this](const std::string& message, const std::string& title) {
-                  m_dialog_manager->show_warning_dialog(message, title);
-              },
-              [this](const std::string& message, const std::string& title) {
-                  m_dialog_manager->show_error_dialog(message, title);
-              },
-          },
-          Flows::MigrationDialogPort{
-              [this](const std::string& current_vault_path,
-                     std::function<void(std::optional<Flows::MigrationDialogPort::Params>)> cb) {
-                  auto* migration_dialog =
-                      Gtk::make_managed<VaultMigrationDialog>(m_window, current_vault_path);
-
-                  migration_dialog->signal_response().connect(
-                      [migration_dialog,
-                       cb = std::move(cb)](int response) mutable {
-                          if (response == Gtk::ResponseType::OK) {
-                              Flows::MigrationDialogPort::Params p;
-                              p.admin_username = migration_dialog->get_admin_username().raw();
-                              p.admin_password = migration_dialog->get_admin_password().raw();
-                              p.min_password_length = migration_dialog->get_min_password_length();
-                              p.pbkdf2_iterations = migration_dialog->get_pbkdf2_iterations();
-                              migration_dialog->hide();
-                              cb(std::move(p));
-                              return;
-                          }
-
-                          migration_dialog->hide();
-                          cb(std::nullopt);
-                      });
-
-                  migration_dialog->show();
-              },
-          },
-          Flows::MigrationOperationPort{
-              [this]() {
-                  if (!m_vault_manager) {
-                      return false;
-                  }
-                  auto session = m_vault_manager->get_current_user_session();
-                  return session.has_value();
-              },
-              [this](const Flows::MigrationDialogPort::Params& params,
-                     const std::string& current_vault_path) -> std::expected<void, std::string> {
-                  if (!m_vault_manager) {
-                      return std::unexpected("Failed to migrate vault to V2 format.\n\nVault is not open.");
-                  }
-
-                  auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
-                  int vault_password_history_depth =
-                      settings->get_int("vault-user-password-history-depth");
-                  vault_password_history_depth = std::clamp(vault_password_history_depth, 0, 24);
-
-                  KeepTower::VaultSecurityPolicy policy;
-                  policy.min_password_length = params.min_password_length;
-                  policy.pbkdf2_iterations = params.pbkdf2_iterations;
-                  policy.password_history_depth = vault_password_history_depth;
-                  policy.require_yubikey = false;
-
-                  auto result = m_vault_manager->convert_v1_to_v2(
-                      params.admin_username,
-                      params.admin_password,
-                      policy);
-
-                  if (result) {
-                      return {};
-                  }
-
-                  std::string error_message = "Failed to migrate vault to V2 format.\n\n";
-
-                  switch (result.error()) {
-                      case KeepTower::VaultError::VaultNotOpen:
-                          error_message += "Vault is not open.";
-                          break;
-                      case KeepTower::VaultError::InvalidUsername:
-                          error_message += "Invalid username format.";
-                          break;
-                      case KeepTower::VaultError::InvalidPassword:
-                          error_message += "Invalid password format.";
-                          break;
-                      case KeepTower::VaultError::WeakPassword:
-                          error_message += "Password does not meet minimum length requirement.";
-                          break;
-                      case KeepTower::VaultError::FileWriteError:
-                          error_message += "Failed to create backup file.";
-                          break;
-                      case KeepTower::VaultError::CryptoError:
-                          error_message += "Cryptographic operation failed.";
-                          break;
-                      default:
-                          error_message += "Unknown error occurred.";
-                          break;
-                  }
-
-                  (void)current_vault_path;
-                  return std::unexpected(std::move(error_message));
-              },
-          },
-      }) {
+    }) {
 }
 
 void VaultIOHandler::handle_import(const UpdateCallback& on_update) {
@@ -525,12 +420,6 @@ void VaultIOHandler::handle_import(const UpdateCallback& on_update) {
 
 void VaultIOHandler::handle_export(const std::string& current_vault_path, bool vault_open) {
     m_export_flow.start_export(current_vault_path, vault_open);
-}
-
-void VaultIOHandler::handle_migration(const std::string& current_vault_path,
-                                      bool vault_open,
-                                      const UpdateCallback& on_success) {
-    m_migration_flow.start_migration(current_vault_path, vault_open, on_success);
 }
 
 } // namespace UI

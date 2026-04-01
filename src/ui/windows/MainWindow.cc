@@ -10,7 +10,6 @@
 #include "../dialogs/V2UserLoginDialog.h"
 #include "../dialogs/ChangePasswordDialog.h"
 #include "../dialogs/UserManagementDialog.h"
-#include "../dialogs/VaultMigrationDialog.h"
 #include "../dialogs/PreferencesDialog.h"
 #include "../dialogs/GroupCreateDialog.h"
 #include "../dialogs/GroupRenameDialog.h"
@@ -367,7 +366,6 @@ MainWindow::MainWindow()
     std::map<std::string, std::function<void()>> action_callbacks = {
         {"preferences", [this]() { on_preferences(); }},
         {"import-csv", [this]() { on_import_from_csv(); }},
-        {"migrate-v1-to-v2", [this]() { on_migrate_v1_to_v2(); }},
         {"delete-account", [this]() { on_delete_account(); }},
         {"create-group", [this]() { on_create_group(); }},
         {"rename-group", [this]() {
@@ -700,22 +698,6 @@ void MainWindow::on_close_vault() {
     if (m_vault_ui_coordinator) {
         m_vault_ui_coordinator->on_close_vault();
     }
-}
-
-void MainWindow::on_migrate_v1_to_v2() {
-    // Validation: Must have V1 vault open
-    if (!m_vault_ui_coordinator || !m_vault_ui_coordinator->vault_open()) {
-        show_error_dialog("No vault is currently open.\nPlease open a vault first.");
-        return;
-    }
-
-    // Phase 5g: Delegate to VaultIOHandler
-    m_vault_io_handler->handle_migration(std::string{m_vault_ui_coordinator->current_vault_path()}, m_vault_ui_coordinator->vault_open(), [this]() {
-        update_session_display();
-        if (m_manage_users_action) {
-            m_manage_users_action->set_enabled(true);
-        }
-    });
 }
 
 void MainWindow::on_add_account() {

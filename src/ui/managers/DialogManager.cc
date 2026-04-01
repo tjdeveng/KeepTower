@@ -7,7 +7,6 @@
 #include "../dialogs/CreatePasswordDialog.h"
 #include "../dialogs/PasswordDialog.h"
 #include "../dialogs/YubiKeyPromptDialog.h"
-#include "../dialogs/VaultMigrationDialog.h"
 
 #include "../../utils/FileDialogExtension.h"
 
