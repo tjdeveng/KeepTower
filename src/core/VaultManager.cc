@@ -619,6 +619,49 @@ void VaultManager::unlock_memory(void* data, size_t size) {
 
 // Backup management methods are coordinated through VaultBackupPolicy.
 
+bool VaultManager::apply_backup_settings(const BackupSettings& settings) {
+    if (!m_backup_policy) [[unlikely]] {
+        return false;
+    }
+
+    bool persisted_settings_changed = false;
+
+    if (m_backup_policy->is_enabled() != settings.enabled) {
+        m_backup_policy->set_enabled(settings.enabled);
+        persisted_settings_changed = true;
+    }
+
+    if (m_backup_policy->max_backups() != settings.count) {
+        if (!m_backup_policy->set_max_backups(settings.count)) [[unlikely]] {
+            return false;
+        }
+        persisted_settings_changed = true;
+    }
+
+    if (m_backup_policy->backup_path() != settings.path) {
+        m_backup_policy->set_backup_path(settings.path);
+    }
+
+    if (m_vault_open && persisted_settings_changed) {
+        m_backup_policy->store_to_vault_data(m_vault_data);
+        m_modified = true;
+    }
+
+    return true;
+}
+
+VaultManager::BackupSettings VaultManager::get_backup_settings() const {
+    BackupSettings settings;
+    if (!m_backup_policy) {
+        return settings;
+    }
+
+    settings.enabled = m_backup_policy->is_enabled();
+    settings.count = m_backup_policy->max_backups();
+    settings.path = m_backup_policy->backup_path();
+    return settings;
+}
+
 bool VaultManager::set_rs_redundancy_percent(uint8_t percent) {
     if (percent < 5 || percent > 50) {
         return false;
@@ -632,38 +675,15 @@ bool VaultManager::set_rs_redundancy_percent(uint8_t percent) {
 }
 
 void VaultManager::set_backup_enabled(bool enable) {
-    if (!m_backup_policy) {
-        return;
-    }
-
-    if (m_backup_policy->is_enabled() == enable) {
-        return;
-    }
-
-    m_backup_policy->set_enabled(enable);
-    if (m_vault_open) {
-        m_backup_policy->store_to_vault_data(m_vault_data);
-        m_modified = true;
-    }
+    BackupSettings settings = get_backup_settings();
+    settings.enabled = enable;
+    (void)apply_backup_settings(settings);
 }
 
 bool VaultManager::set_backup_count(int count) {
-    if (!m_backup_policy) [[unlikely]] {
-        return false;
-    }
-
-    if (m_backup_policy->max_backups() == count) {
-        return true;
-    }
-
-    if (!m_backup_policy->set_max_backups(count)) [[unlikely]] {
-        return false;
-    }
-    if (m_vault_open) {
-        m_backup_policy->store_to_vault_data(m_vault_data);
-        m_modified = true;
-    }
-    return true;
+    BackupSettings settings = get_backup_settings();
+    settings.count = count;
+    return apply_backup_settings(settings);
 }
 
 void VaultManager::set_clipboard_timeout(int timeout_seconds) {
@@ -1559,17 +1579,17 @@ bool VaultManager::set_fips_mode(bool enable) {
 
 // Backup path management
 void VaultManager::set_backup_path(const std::string& path) {
-    if (m_backup_policy) {
-        m_backup_policy->set_backup_path(path);
-    }
+    BackupSettings settings = get_backup_settings();
+    settings.path = path;
+    (void)apply_backup_settings(settings);
 }
 
 bool VaultManager::is_backup_enabled() const {
-    return m_backup_policy && m_backup_policy->is_enabled();
+    return get_backup_settings().enabled;
 }
 
 int VaultManager::get_backup_count() const {
-    return m_backup_policy ? m_backup_policy->max_backups() : DEFAULT_BACKUP_COUNT;
+    return get_backup_settings().count;
 }
 
 const std::string& VaultManager::get_backup_path() const {

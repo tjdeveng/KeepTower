@@ -706,10 +706,11 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
 
     // Load backup settings from vault data if available.
     if (m_backup_policy && m_backup_policy->load_from_vault_data(m_vault_data)) {
+        const VaultManager::BackupSettings backup_settings = get_backup_settings();
         Log::debug(
             "VaultManager: Loaded backup settings from V2 vault: enabled={}, count={}",
-            is_backup_enabled(),
-            get_backup_count()
+            backup_settings.enabled,
+            backup_settings.count
         );
     }
 

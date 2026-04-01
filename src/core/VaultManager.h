@@ -1622,6 +1622,24 @@ public:
     // Backup configuration
 
     /**
+     * @brief Aggregate backup configuration values used by UI and startup wiring.
+     */
+    struct BackupSettings {
+        bool enabled{true};
+        int count{DEFAULT_BACKUP_COUNT};
+        std::string path;
+    };
+
+    /**
+     * @brief Apply backup settings in one operation.
+     * @return false if count is out of supported range.
+     */
+    [[nodiscard]] bool apply_backup_settings(const BackupSettings& settings);
+
+    /** @brief Get current backup settings snapshot. */
+    [[nodiscard]] BackupSettings get_backup_settings() const;
+
+    /**
      * @brief Enable or disable automatic timestamped backups
      * @param enable true to enable backups, false to disable
      */

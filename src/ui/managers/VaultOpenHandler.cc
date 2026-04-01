@@ -135,8 +135,11 @@ void VaultOpenHandler::handle_new_vault() {
                             // Apply backup settings to vault manager
                             bool backup_enabled = settings->get_boolean("backup-enabled");
                             int backup_count = settings->get_int("backup-count");
-                            m_vault_manager->set_backup_enabled(backup_enabled);
-                            m_vault_manager->set_backup_count(backup_count);
+                            const std::string backup_path = settings->get_string("backup-path");
+                            const VaultManager::BackupSettings backup_settings{backup_enabled, backup_count, backup_path};
+                            if (!m_vault_manager->apply_backup_settings(backup_settings)) {
+                                KeepTower::Log::warning("VaultOpenHandler: Invalid backup defaults; using policy defaults");
+                            }
 
                             // Save vault to persist all default preferences
                             if (!m_vault_manager->save_vault()) {

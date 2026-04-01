@@ -92,9 +92,10 @@ PreferencesModel PreferencesPresenter::load() const {
 
     // Backups
     if (model.vault_open) {
-        model.backup_enabled = m_vault_manager->is_backup_enabled();
-        model.backup_count = std::clamp(m_vault_manager->get_backup_count(), MIN_BACKUP_COUNT, MAX_BACKUP_COUNT);
-        model.backup_path = m_vault_manager->get_backup_path();
+        const VaultManager::BackupSettings backup_settings = m_vault_manager->get_backup_settings();
+        model.backup_enabled = backup_settings.enabled;
+        model.backup_count = std::clamp(backup_settings.count, MIN_BACKUP_COUNT, MAX_BACKUP_COUNT);
+        model.backup_path = backup_settings.path;
     } else {
         model.backup_enabled = m_settings->get_boolean("backup-enabled");
         model.backup_count = std::clamp(m_settings->get_int("backup-count"), MIN_BACKUP_COUNT, MAX_BACKUP_COUNT);
@@ -199,15 +200,17 @@ void PreferencesPresenter::save(const PreferencesModel& model) const {
     const int backup_count = std::clamp(model.backup_count, MIN_BACKUP_COUNT, MAX_BACKUP_COUNT);
 
     if (vault_open) {
-        m_vault_manager->set_backup_enabled(backup_enabled);
-        m_vault_manager->set_backup_count(backup_count);
+        const VaultManager::BackupSettings backup_settings{backup_enabled, backup_count, model.backup_path};
+        if (!m_vault_manager->apply_backup_settings(backup_settings)) {
+            KeepTower::Log::warning("PreferencesPresenter: Ignoring invalid backup count in preferences dialog");
+        }
     } else {
         m_settings->set_boolean("backup-enabled", backup_enabled);
         m_settings->set_int("backup-count", backup_count);
     }
 
     m_settings->set_string("backup-path", model.backup_path);
-    if (m_vault_manager) {
+    if (m_vault_manager && !vault_open) {
         m_vault_manager->set_backup_path(model.backup_path);
     }
 

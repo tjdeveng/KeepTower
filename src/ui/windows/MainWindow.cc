@@ -74,8 +74,11 @@ MainWindow::MainWindow()
     // Load backup settings and apply to VaultManager
     bool backup_enabled = settings->get_boolean("backup-enabled");
     int backup_count = settings->get_int("backup-count");
-    m_vault_manager->set_backup_enabled(backup_enabled);
-    m_vault_manager->set_backup_count(backup_count);
+    const std::string backup_path = settings->get_string("backup-path");
+    const VaultManager::BackupSettings backup_settings{backup_enabled, backup_count, backup_path};
+    if (!m_vault_manager->apply_backup_settings(backup_settings)) {
+        KeepTower::Log::warning("MainWindow: Invalid backup settings in preferences; using policy defaults");
+    }
 
     // Setup undo/redo state change callback
     m_undo_manager.set_state_changed_callback([this](bool can_undo, bool can_redo) {
