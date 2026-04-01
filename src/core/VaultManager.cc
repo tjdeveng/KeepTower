@@ -25,6 +25,8 @@
 #include <sstream>
 #include <iostream>
 #include <filesystem>
+#include <google/protobuf/descriptor.h>
+#include <google/protobuf/message.h>
 #include <chrono>
 #include <iomanip>
 #include <random>
@@ -42,6 +44,29 @@
 #endif
 
 using namespace KeepTower;
+
+namespace {
+
+std::string read_legacy_yubikey_serial(const keeptower::YubiKeyConfig& yk_config) {
+    const google::protobuf::Descriptor* descriptor = yk_config.GetDescriptor();
+    const google::protobuf::Reflection* reflection = yk_config.GetReflection();
+    if (!descriptor || !reflection) {
+        return {};
+    }
+
+    const google::protobuf::FieldDescriptor* serial_field = descriptor->FindFieldByName("serial");
+    if (!serial_field || serial_field->cpp_type() != google::protobuf::FieldDescriptor::CPPTYPE_STRING) {
+        return {};
+    }
+
+    if (!reflection->HasField(yk_config, serial_field)) {
+        return {};
+    }
+
+    return reflection->GetString(yk_config, serial_field);
+}
+
+}  // namespace
 
 // EVPCipherContext implementation
 EVPCipherContext::EVPCipherContext() : ctx_(EVP_CIPHER_CTX_new()) {}
@@ -972,8 +997,9 @@ bool VaultManager::is_yubikey_authorized(const std::string& serial) const {
         }
     }
 
-    // Backward compatibility: also check deprecated serial field
-    if (!yk_config.serial().empty() && yk_config.serial() == serial) {
+    // Backward compatibility: check legacy single-key serial without calling deprecated accessor.
+    const std::string legacy_serial = read_legacy_yubikey_serial(yk_config);
+    if (!legacy_serial.empty() && legacy_serial == serial) {
         return true;
     }
 
