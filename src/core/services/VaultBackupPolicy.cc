@@ -4,6 +4,7 @@
 #include "VaultBackupPolicy.h"
 
 #include "../io/VaultIO.h"
+#include "record.pb.h"
 #include "../../utils/Log.h"
 
 #include <filesystem>
@@ -45,6 +46,27 @@ void VaultBackupPolicy::set_backup_path(std::string path) {
 
 const std::string& VaultBackupPolicy::backup_path() const {
     return m_backup_path;
+}
+
+bool VaultBackupPolicy::load_from_vault_data(const keeptower::VaultData& vault_data) {
+    if (vault_data.backup_count() <= 0) {
+        return false;
+    }
+
+    const int backup_count = vault_data.backup_count();
+    if (!set_max_backups(backup_count)) {
+        Log::warning("VaultBackupPolicy: Ignoring invalid backup_count from vault: {}",
+                     backup_count);
+        return false;
+    }
+
+    set_enabled(vault_data.backup_enabled());
+    return true;
+}
+
+void VaultBackupPolicy::store_to_vault_data(keeptower::VaultData& vault_data) const {
+    vault_data.set_backup_enabled(is_enabled());
+    vault_data.set_backup_count(max_backups());
 }
 
 void VaultBackupPolicy::maybe_create_backup(std::string_view vault_path, bool explicit_save) const {

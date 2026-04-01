@@ -148,6 +148,10 @@ TEST_F(VaultManagerV2Test, BackupEnabledPersistsAcrossReopen) {
     ASSERT_TRUE(vault_manager.save_vault());
     ASSERT_TRUE(vault_manager.close_vault());
 
+    // Change in-memory defaults before reopen so open_vault_v2 must reload from disk.
+    ASSERT_TRUE(vault_manager.set_backup_count(3));
+    vault_manager.set_backup_enabled(true);
+
     // Reopen and verify setting persisted
     ASSERT_TRUE(vault_manager.open_vault_v2(
         test_vault_path.string(), "alice", "validpass123"));

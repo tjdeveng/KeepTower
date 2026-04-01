@@ -8,6 +8,10 @@
 
 #include "../VaultError.h"
 
+namespace keeptower {
+class VaultData;
+}
+
 namespace KeepTower {
 
 /**
@@ -45,6 +49,12 @@ public:
 
     /** @brief Get configured backup directory path. */
     [[nodiscard]] const std::string& backup_path() const;
+
+    /** @brief Load persisted backup settings from vault data if present and valid. */
+    [[nodiscard]] bool load_from_vault_data(const keeptower::VaultData& vault_data);
+
+    /** @brief Persist current backup settings back into vault data. */
+    void store_to_vault_data(keeptower::VaultData& vault_data) const;
 
     /**
      * @brief Create and rotate backups if policy allows for this save.

@@ -619,37 +619,6 @@ void VaultManager::unlock_memory(void* data, size_t size) {
 
 // Backup management methods are coordinated through VaultBackupPolicy.
 
-void VaultManager::sync_backup_policy_from_vault_data() {
-    if (!m_backup_policy) {
-        return;
-    }
-
-    if (m_vault_data.backup_count() <= 0) {
-        return;
-    }
-
-    const bool backup_enabled = m_vault_data.backup_enabled();
-    const int backup_count = m_vault_data.backup_count();
-
-    if (!m_backup_policy->set_max_backups(backup_count)) {
-        KeepTower::Log::warning(
-            "VaultManager: Ignoring invalid backup_count from vault: {}",
-            backup_count);
-        return;
-    }
-
-    m_backup_policy->set_enabled(backup_enabled);
-}
-
-void VaultManager::sync_backup_policy_to_vault_data() {
-    if (!m_vault_open) {
-        return;
-    }
-
-    m_vault_data.set_backup_enabled(is_backup_enabled());
-    m_vault_data.set_backup_count(get_backup_count());
-}
-
 bool VaultManager::set_rs_redundancy_percent(uint8_t percent) {
     if (percent < 5 || percent > 50) {
         return false;
@@ -673,7 +642,7 @@ void VaultManager::set_backup_enabled(bool enable) {
 
     m_backup_policy->set_enabled(enable);
     if (m_vault_open) {
-        sync_backup_policy_to_vault_data();
+        m_backup_policy->store_to_vault_data(m_vault_data);
         m_modified = true;
     }
 }
@@ -691,7 +660,7 @@ bool VaultManager::set_backup_count(int count) {
         return false;
     }
     if (m_vault_open) {
-        sync_backup_policy_to_vault_data();
+        m_backup_policy->store_to_vault_data(m_vault_data);
         m_modified = true;
     }
     return true;

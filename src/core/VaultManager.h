@@ -1754,10 +1754,6 @@ private:
     // Schema migration
     bool migrate_vault_schema();
 
-    // Backup policy synchronization helpers
-    void sync_backup_policy_from_vault_data();
-    void sync_backup_policy_to_vault_data();
-
     // State
     bool m_vault_open;
     bool m_modified;
