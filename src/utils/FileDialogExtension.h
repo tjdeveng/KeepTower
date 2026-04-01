@@ -37,7 +37,7 @@ inline bool ends_with_any(std::string_view text,
 inline bool last_segment_has_extension(std::string_view filename) {
     // Filename (no directory) heuristic: treat any '.' not at position 0 as an extension marker.
     const auto pos = filename.rfind('.');
-    return pos != std::string_view::npos && pos != 0 && pos + 1 < filename.size();
+    return pos != std::string_view::npos && pos != 0 && (filename.size() - pos) > 1;
 }
 
 inline std::string ensure_filename_extension(std::string filename,

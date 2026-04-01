@@ -4,6 +4,7 @@
 #include "VaultSerialization.h"
 #include "../utils/Log.h"
 #include <ctime>
+#include <limits>
 
 namespace KeepTower {
 
@@ -30,6 +31,12 @@ VaultSerialization::deserialize(const std::vector<uint8_t>& data) {
     if (data.size() > MAX_VAULT_SIZE) {
         Log::error("VaultSerialization: Vault data exceeds maximum size ({} bytes > {} bytes)",
                    data.size(), MAX_VAULT_SIZE);
+        return std::unexpected(VaultError::InvalidProtobuf);
+    }
+
+    if (data.size() > static_cast<size_t>(std::numeric_limits<int>::max())) {
+        Log::error("VaultSerialization: Vault data size exceeds protobuf ParseFromArray limit ({} bytes)",
+                   data.size());
         return std::unexpected(VaultError::InvalidProtobuf);
     }
 

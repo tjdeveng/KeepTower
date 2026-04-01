@@ -3,6 +3,8 @@
 
 #include "../ImportExport.h"
 
+#include "ImportExportDetail.h"
+
 #include <ctime>
 #include <fstream>
 #include <string>
@@ -112,6 +114,10 @@ std::expected<std::vector<keeptower::AccountRecord>, ImportError> import_from_cs
         std::ifstream file(filepath);
         if (!file.is_open()) {
             return std::unexpected(ImportError::FILE_NOT_FOUND);
+        }
+
+        if (!detail::file_within_size_limit(file, detail::MAX_IMPORT_FILE_SIZE_BYTES)) {
+            return std::unexpected(ImportError::INVALID_FORMAT);
         }
 
         std::vector<keeptower::AccountRecord> accounts;

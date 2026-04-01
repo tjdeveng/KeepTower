@@ -18,6 +18,7 @@ protected:
         fs::create_directories(test_dir);
         csv_path = (test_dir / "in.csv").string();
         out_path = (test_dir / "out.csv").string();
+        big_path = (test_dir / "big.csv").string();
     }
 
     void TearDown() override {
@@ -34,9 +35,19 @@ protected:
         f.close();
     }
 
+    static void write_sparse_file_over_100mb(const std::string& path) {
+        std::ofstream f(path, std::ios::binary);
+        ASSERT_TRUE(f.is_open());
+        // Create a (likely sparse) file with apparent size > 100MB.
+        f.seekp((100U * 1024U * 1024U) + 1U);
+        f.put('x');
+        f.close();
+    }
+
     fs::path test_dir;
     std::string csv_path;
     std::string out_path;
+    std::string big_path;
 };
 
 TEST_F(ImportExportCsvTest, ImportFromCsv_SkipsHeaderAndParsesQuotedFields) {
@@ -120,4 +131,12 @@ TEST_F(ImportExportCsvTest, ExportToCsv_EscapesCommaAndQuotes) {
     std::string line;
     std::getline(f, line);
     EXPECT_EQ(line, "\"My,Account\",\"user\"\"name\",p@ss,,,");
+}
+
+TEST_F(ImportExportCsvTest, ImportFromCsv_FileOver100MB_IsRejected) {
+    write_sparse_file_over_100mb(big_path);
+
+    auto imp = ImportExport::import_from_csv(big_path);
+    ASSERT_FALSE(imp.has_value());
+    EXPECT_EQ(imp.error(), ImportExport::ImportError::INVALID_FORMAT);
 }

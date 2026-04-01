@@ -135,7 +135,7 @@ void append_utf8(std::string& out, uint32_t codepoint) {
                     out.push_back('\t');
                     break;
                 case 'u': {
-                    if (pos + 4 > s.size()) {
+                    if (pos > s.size() || (s.size() - pos) < 4) {
                         return false;
                     }
                     int h1 = hex_value(s[pos]);
@@ -153,7 +153,7 @@ void append_utf8(std::string& out, uint32_t codepoint) {
 
                     // Handle surrogate pairs
                     if (code >= 0xD800 && code <= 0xDBFF) {
-                        if (pos + 6 <= s.size() && s[pos] == '\\' && s[pos + 1] == 'u') {
+                        if (pos <= s.size() && (s.size() - pos) >= 6 && s[pos] == '\\' && s[pos + 1] == 'u') {
                             int l1 = hex_value(s[pos + 2]);
                             int l2 = hex_value(s[pos + 3]);
                             int l3 = hex_value(s[pos + 4]);
