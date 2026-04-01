@@ -55,7 +55,7 @@ public:
      * @brief Get current group ID
      * @return Group unique identifier
      */
-    std::string group_id() const;
+    const std::string& group_id() const;
 
     /**
      * @brief Set visual selection state

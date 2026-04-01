@@ -126,7 +126,7 @@ void YubiKeyManagerDialog::refresh_key_list() {
 
             if (key.added_at() > 0) {
                 std::time_t timestamp = key.added_at();
-                std::tm* tm_ptr = std::localtime(&timestamp);
+                const std::tm* tm_ptr = std::localtime(&timestamp);
                 if (tm_ptr) {
                     char time_buf[100];
                     if (std::strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M", tm_ptr) > 0) {

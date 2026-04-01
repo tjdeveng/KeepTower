@@ -41,7 +41,7 @@ void AccountRowWidget::set_account(const keeptower::AccountRecord& account) {
     update_display();
 }
 
-std::string AccountRowWidget::account_id() const {
+const std::string& AccountRowWidget::account_id() const {
     return m_account_id;
 }
 

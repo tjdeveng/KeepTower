@@ -1468,7 +1468,7 @@ public:
 
     /** @brief Get path of currently open vault
      *  @return Vault file path (empty if no vault open) */
-    std::string get_current_vault_path() const { return m_current_vault_path; }
+    const std::string& get_current_vault_path() const { return m_current_vault_path; }
 
     /** @brief Check if vault has unsaved modifications
      *  @return true if vault has been modified since last save */
@@ -1656,7 +1656,7 @@ public:
      * @brief Get custom backup directory path
      * @return Backup directory path (empty if same as vault)
      */
-    [[nodiscard]] std::string get_backup_path() const { return m_backup_path; }
+    [[nodiscard]] const std::string& get_backup_path() const { return m_backup_path; }
 
     /**
      * @brief Restore vault from most recent backup

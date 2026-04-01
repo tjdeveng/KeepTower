@@ -1079,7 +1079,7 @@ KeepTower::VaultResult<> VaultManager::validate_new_password(
     }
 
     // Find user slot using hash verification
-    KeySlot* user_slot = find_slot_by_username_hash(
+    const KeySlot* user_slot = find_slot_by_username_hash(
         m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
 
     if (!user_slot) {
@@ -1543,7 +1543,7 @@ void VaultManager::change_user_password_async(
     int total_steps = 1;  // Minimum: password change without YubiKey
 
     if (m_vault_open && m_is_v2_vault) {
-        KeySlot* slot = find_slot_by_username_hash(
+        const KeySlot* slot = find_slot_by_username_hash(
             m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
         if (slot && slot->yubikey_enrolled) {
             yubikey_enrolled = true;
@@ -1828,8 +1828,13 @@ KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
     }
 
     // Find user slot using hash verification
+#ifdef HAVE_YUBIKEY_SUPPORT
     KeySlot* user_slot = find_slot_by_username_hash(
         m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
+#else
+    const KeySlot* user_slot = find_slot_by_username_hash(
+        m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
+#endif
 
     if (!user_slot) {
         Log::error("VaultManager: User not found");
@@ -2021,8 +2026,13 @@ KeepTower::VaultResult<> VaultManager::unenroll_yubikey_for_user(
     }
 
     // Find user slot using hash verification
+#ifdef HAVE_YUBIKEY_SUPPORT
     KeySlot* user_slot = find_slot_by_username_hash(
         m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
+#else
+    const KeySlot* user_slot = find_slot_by_username_hash(
+        m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
+#endif
 
     if (!user_slot) {
         Log::error("VaultManager: User not found");

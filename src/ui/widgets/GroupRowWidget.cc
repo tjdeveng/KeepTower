@@ -82,7 +82,7 @@ void GroupRowWidget::set_group(const keeptower::AccountGroup& group) {
     update_display();
 }
 
-std::string GroupRowWidget::group_id() const {
+const std::string& GroupRowWidget::group_id() const {
     return m_group_id;
 }
 

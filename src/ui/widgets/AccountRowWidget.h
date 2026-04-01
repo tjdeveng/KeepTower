@@ -57,7 +57,7 @@ public:
      * @brief Get current account ID
      * @return Account unique identifier
      */
-    std::string account_id() const;
+    const std::string& account_id() const;
 
     /**
      * @brief Set visual selection state
