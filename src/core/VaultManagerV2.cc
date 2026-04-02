@@ -704,7 +704,7 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
     m_vault_data = vault_data;
     m_modified = true;  // Mark modified to save updated last_login_at
 
-    // Load backup settings from vault data if available.
+    // Load vault-persisted backup settings (enabled/count). Path remains runtime-local.
     if (m_backup_policy && m_backup_policy->load_from_vault_data(m_vault_data)) {
         const VaultManager::BackupSettings backup_settings = get_backup_settings();
         Log::debug(

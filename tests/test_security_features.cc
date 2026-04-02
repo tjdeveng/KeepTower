@@ -107,7 +107,12 @@ bool test_backup_mechanism() {
 
     // Create vault and add data
     VaultManager vm;
-    vm.set_backup_enabled(true);
+    VaultManager::BackupSettings backup_settings = vm.get_backup_settings();
+    backup_settings.enabled = true;
+    if (!vm.apply_backup_settings(backup_settings)) {
+        std::cerr << "Failed to configure backup settings\n";
+        return false;
+    }
 
     KeepTower::VaultSecurityPolicy policy;
     policy.require_yubikey = false;

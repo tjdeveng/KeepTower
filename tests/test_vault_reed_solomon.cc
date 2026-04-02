@@ -78,7 +78,9 @@ protected:
 
     // Helper to configure VaultManager for testing (disables backups)
     void configure_for_testing(VaultManager& manager) {
-        manager.set_backup_enabled(false);
+        VaultManager::BackupSettings settings = manager.get_backup_settings();
+        settings.enabled = false;
+        ASSERT_TRUE(manager.apply_backup_settings(settings));
     }
 
     std::string test_dir;

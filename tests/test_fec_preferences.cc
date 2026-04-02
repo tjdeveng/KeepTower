@@ -21,6 +21,14 @@
 
 namespace fs = std::filesystem;
 
+namespace {
+void disable_backups_for_test(VaultManager& manager) {
+    VaultManager::BackupSettings settings = manager.get_backup_settings();
+    settings.enabled = false;
+    ASSERT_TRUE(manager.apply_backup_settings(settings));
+}
+}  // namespace
+
 class FECPreferencesTest : public ::testing::Test {
 protected:
     void SetUp() override {
@@ -49,7 +57,7 @@ protected:
 // Test that apply_default_fec_preferences sets the expected values
 TEST_F(FECPreferencesTest, ApplyDefaultFECPreferences_SetsCorrectly) {
     VaultManager manager;
-    manager.set_backup_enabled(false);
+    disable_backups_for_test(manager);
 
     // Apply defaults: FEC enabled with 15% redundancy
     manager.apply_default_fec_preferences(true, 15);
@@ -61,7 +69,7 @@ TEST_F(FECPreferencesTest, ApplyDefaultFECPreferences_SetsCorrectly) {
 // Test that FEC settings are preserved when opening a V2 vault with FEC enabled
 TEST_F(FECPreferencesTest, OpenVault_PreservesFECEnabled) {
     VaultManager manager;
-    manager.set_backup_enabled(false);
+    disable_backups_for_test(manager);
 
     // Create V2 vault with FEC enabled at 20%
     manager.set_reed_solomon_enabled(true);
@@ -93,7 +101,7 @@ TEST_F(FECPreferencesTest, OpenVault_PreservesFECEnabled) {
 // Note: V2 vaults always have header FEC enabled at 20% minimum
 TEST_F(FECPreferencesTest, OpenVault_PreservesDataFECDisabled) {
     VaultManager manager;
-    manager.set_backup_enabled(false);
+    disable_backups_for_test(manager);
 
     // Create V2 vault with data FEC disabled (header still has 20% FEC)
     manager.set_reed_solomon_enabled(false);
@@ -122,7 +130,7 @@ TEST_F(FECPreferencesTest, OpenVault_PreservesDataFECDisabled) {
 // Test that creating a new V2 vault after opening one uses defaults, not previous vault's settings
 TEST_F(FECPreferencesTest, CreateVaultAfterOpen_UsesDefaults) {
     VaultManager manager;
-    manager.set_backup_enabled(false);
+    disable_backups_for_test(manager);
 
     KeepTower::VaultSecurityPolicy policy;
     policy.min_password_length = 8;
@@ -163,7 +171,7 @@ TEST_F(FECPreferencesTest, CreateVaultAfterOpen_UsesDefaults) {
 // Test that different redundancy levels are preserved correctly in V2 vaults
 TEST_F(FECPreferencesTest, OpenVault_PreservesRedundancyLevel) {
     VaultManager manager;
-    manager.set_backup_enabled(false);
+    disable_backups_for_test(manager);
 
     KeepTower::VaultSecurityPolicy policy;
     policy.min_password_length = 8;
@@ -202,7 +210,7 @@ TEST_F(FECPreferencesTest, OpenVault_PreservesRedundancyLevel) {
 // Test that user modifications override loaded file settings in V2 vaults
 TEST_F(FECPreferencesTest, UserModifications_OverrideFileSettings) {
     VaultManager manager;
-    manager.set_backup_enabled(false);
+    disable_backups_for_test(manager);
 
     KeepTower::VaultSecurityPolicy policy;
     policy.min_password_length = 8;
@@ -245,7 +253,7 @@ TEST_F(FECPreferencesTest, UserModifications_OverrideFileSettings) {
 // Test that V2 vaults have 20% header FEC even when data FEC is disabled
 TEST_F(FECPreferencesTest, V2_HeaderFEC_Always20Percent_WhenDataFECDisabled) {
     VaultManager manager;
-    manager.set_backup_enabled(false);
+    disable_backups_for_test(manager);
 
     // Set FEC to disabled (for data)
     manager.apply_default_fec_preferences(false, 0);
@@ -288,7 +296,7 @@ TEST_F(FECPreferencesTest, V2_HeaderFEC_Always20Percent_WhenDataFECDisabled) {
 // Test that V2 vaults use 20% header FEC when data FEC is < 20%
 TEST_F(FECPreferencesTest, V2_HeaderFEC_Uses20Percent_WhenDataFECIsLow) {
     VaultManager manager;
-    manager.set_backup_enabled(false);
+    disable_backups_for_test(manager);
 
     // Set FEC to 10% (below 20% minimum for header)
     manager.apply_default_fec_preferences(true, 10);
@@ -322,7 +330,7 @@ TEST_F(FECPreferencesTest, V2_HeaderFEC_Uses20Percent_WhenDataFECIsLow) {
 // Test that V2 vaults use user's rate for header when data FEC > 20%
 TEST_F(FECPreferencesTest, V2_HeaderFEC_UsesUserRate_WhenDataFECIsHigh) {
     VaultManager manager;
-    manager.set_backup_enabled(false);
+    disable_backups_for_test(manager);
 
     // Set FEC to 30% (above 20% minimum)
     manager.apply_default_fec_preferences(true, 30);
@@ -356,7 +364,7 @@ TEST_F(FECPreferencesTest, V2_HeaderFEC_UsesUserRate_WhenDataFECIsHigh) {
 // Test that saving V2 vault also maintains 20% minimum header FEC
 TEST_F(FECPreferencesTest, V2_SaveVault_HeaderFEC_Always20Percent) {
     VaultManager manager;
-    manager.set_backup_enabled(false);
+    disable_backups_for_test(manager);
 
     // Create vault with FEC enabled at 25%
     manager.apply_default_fec_preferences(true, 25);

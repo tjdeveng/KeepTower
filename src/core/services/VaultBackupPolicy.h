@@ -50,10 +50,18 @@ public:
     /** @brief Get configured backup directory path. */
     [[nodiscard]] const std::string& backup_path() const;
 
-    /** @brief Load persisted backup settings from vault data if present and valid. */
+    /**
+     * @brief Load persisted backup settings from vault data if present and valid.
+     *
+     * Only enabled/count are vault-persisted. Backup path remains a local runtime setting.
+     */
     [[nodiscard]] bool load_from_vault_data(const keeptower::VaultData& vault_data);
 
-    /** @brief Persist current backup settings back into vault data. */
+    /**
+     * @brief Persist current backup settings back into vault data.
+     *
+     * Only enabled/count are serialized into vault data. Backup path is intentionally excluded.
+     */
     void store_to_vault_data(keeptower::VaultData& vault_data) const;
 
     /**

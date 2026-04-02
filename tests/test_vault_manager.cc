@@ -10,6 +10,14 @@
 
 namespace fs = std::filesystem;
 
+namespace {
+void disable_backups_for_test(VaultManager& manager) {
+    VaultManager::BackupSettings settings = manager.get_backup_settings();
+    settings.enabled = false;
+    ASSERT_TRUE(manager.apply_backup_settings(settings));
+}
+}  // namespace
+
 static KeepTower::VaultSecurityPolicy make_test_policy() {
     KeepTower::VaultSecurityPolicy policy;
     policy.require_yubikey = false;
@@ -27,7 +35,7 @@ protected:
         test_vault_path = (test_dir / "test_vault.v2").string();
 
         vault_manager = std::make_unique<VaultManager>();
-        vault_manager->set_backup_enabled(false);
+        disable_backups_for_test(*vault_manager);
         vault_manager->set_reed_solomon_enabled(false);
     }
 

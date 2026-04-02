@@ -4,7 +4,12 @@
 
 int main() {
     VaultManager vm;
-    vm.set_backup_enabled(false);
+    VaultManager::BackupSettings backup_settings = vm.get_backup_settings();
+    backup_settings.enabled = false;
+    if (!vm.apply_backup_settings(backup_settings)) {
+        std::cerr << "Failed to configure backup settings\n";
+        return 1;
+    }
     vm.set_reed_solomon_enabled(false);
 
     std::string vault_path = "test_vaults/quick_v2_test.vault";

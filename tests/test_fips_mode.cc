@@ -137,6 +137,12 @@
 namespace fs = std::filesystem;
 
 namespace {
+void disable_backups_for_test(VaultManager& manager) {
+    VaultManager::BackupSettings settings = manager.get_backup_settings();
+    settings.enabled = false;
+    ASSERT_TRUE(manager.apply_backup_settings(settings));
+}
+
 class OpenSSLCleanupEnvironment final : public ::testing::Environment {
 public:
     ~OpenSSLCleanupEnvironment() override {
@@ -368,7 +374,7 @@ TEST_F(FIPSModeTest, VaultOperations_DefaultMode_CreateAndOpen) {
     [[maybe_unused]] bool _r1 = VaultManager::init_fips_mode(false);
 
     VaultManager vault;
-    vault.set_backup_enabled(false);
+    disable_backups_for_test(vault);
     vault.set_reed_solomon_enabled(false);
 
     // Create vault
@@ -401,7 +407,7 @@ TEST_F(FIPSModeTest, VaultOperations_DefaultMode_Encryption) {
     [[maybe_unused]] bool _r2 = VaultManager::init_fips_mode(false);
 
     VaultManager vault;
-    vault.set_backup_enabled(false);
+    disable_backups_for_test(vault);
     vault.set_reed_solomon_enabled(false);
 
     // Create and save vault with data
@@ -428,7 +434,7 @@ TEST_F(FIPSModeTest, VaultOperations_DefaultMode_WrongPassword) {
     [[maybe_unused]] bool _r3 = VaultManager::init_fips_mode(false);
 
     VaultManager vault;
-    vault.set_backup_enabled(false);
+    disable_backups_for_test(vault);
     vault.set_reed_solomon_enabled(false);
 
     // Create vault
@@ -456,7 +462,7 @@ TEST_F(FIPSModeTest, FIPSMode_EnabledMode_IfAvailable) {
 
         // Test vault operations work in FIPS mode
         VaultManager vault;
-        vault.set_backup_enabled(false);
+        disable_backups_for_test(vault);
         vault.set_reed_solomon_enabled(false);
 
         ASSERT_TRUE(vault.create_vault_v2(test_vault_path, test_username, test_password, policy));
@@ -474,7 +480,8 @@ TEST_F(FIPSModeTest, FIPSMode_EnabledMode_IfAvailable) {
         EXPECT_EQ(vault.get_account_count(), 1);
 
         // Clean up: disable FIPS for subsequent tests
-        VaultManager::set_fips_mode(false);
+        bool disable_result = VaultManager::set_fips_mode(false);
+        EXPECT_TRUE(disable_result);
 
     } else {
         // If FIPS not available, FIPS should not be enabled
@@ -512,7 +519,7 @@ TEST_F(FIPSModeTest, CrossMode_VaultCreatedInDefault_OpenableRegardless) {
     [[maybe_unused]] bool _r5 = VaultManager::init_fips_mode(false);
 
     VaultManager vault1;
-    vault1.set_backup_enabled(false);
+    disable_backups_for_test(vault1);
     vault1.set_reed_solomon_enabled(false);
 
     ASSERT_TRUE(vault1.create_vault_v2(test_vault_path, test_username, test_password, policy));
@@ -542,7 +549,7 @@ TEST_F(FIPSModeTest, Performance_DefaultMode_EncryptionSpeed) {
     [[maybe_unused]] bool _r6 = VaultManager::init_fips_mode(false);
 
     VaultManager vault;
-    vault.set_backup_enabled(false);
+    disable_backups_for_test(vault);
     vault.set_reed_solomon_enabled(false);
 
     ASSERT_TRUE(vault.create_vault_v2(test_vault_path, test_username, test_password, policy));
@@ -591,7 +598,7 @@ TEST_F(FIPSModeTest, ErrorHandling_CorruptedVault_FailsGracefully) {
     [[maybe_unused]] bool _r7 = VaultManager::init_fips_mode(false);
 
     VaultManager vault;
-    vault.set_backup_enabled(false);
+    disable_backups_for_test(vault);
     vault.set_reed_solomon_enabled(false);
 
     // Create valid vault

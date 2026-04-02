@@ -160,6 +160,38 @@ TEST_F(VaultManagerV2Test, BackupEnabledPersistsAcrossReopen) {
     EXPECT_EQ(loaded_settings.count, 5);
 }
 
+TEST_F(VaultManagerV2Test, BackupPathRemainsRuntimeLocalAcrossReopen) {
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 8;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "alice", "validpass123", policy));
+    ASSERT_TRUE(vault_manager.close_vault());
+
+    ASSERT_TRUE(vault_manager.open_vault_v2(
+        test_vault_path.string(), "alice", "validpass123"));
+
+    VaultManager::BackupSettings settings = vault_manager.get_backup_settings();
+    settings.path = "/tmp/keeptower-backup-path-a";
+    settings.enabled = true;
+    settings.count = 5;
+    ASSERT_TRUE(vault_manager.apply_backup_settings(settings));
+    ASSERT_TRUE(vault_manager.save_vault());
+    ASSERT_TRUE(vault_manager.close_vault());
+
+    // Simulate app/runtime preference change before reopen.
+    VaultManager::BackupSettings runtime_settings = vault_manager.get_backup_settings();
+    runtime_settings.path = "/tmp/keeptower-backup-path-b";
+    ASSERT_TRUE(vault_manager.apply_backup_settings(runtime_settings));
+
+    ASSERT_TRUE(vault_manager.open_vault_v2(
+        test_vault_path.string(), "alice", "validpass123"));
+
+    const VaultManager::BackupSettings reopened = vault_manager.get_backup_settings();
+    EXPECT_EQ(reopened.path, "/tmp/keeptower-backup-path-b");
+    EXPECT_TRUE(reopened.enabled);
+    EXPECT_EQ(reopened.count, 5);
+}
+
 TEST_F(VaultManagerV2Test, OpenV2VaultNonExistentUser) {
     // Create vault
     VaultSecurityPolicy policy;
