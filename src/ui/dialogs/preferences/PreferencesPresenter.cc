@@ -17,9 +17,6 @@ namespace {
 constexpr int MIN_REDUNDANCY = 5;
 constexpr int MAX_REDUNDANCY = 50;
 
-constexpr int MIN_BACKUP_COUNT = 1;
-constexpr int MAX_BACKUP_COUNT = 50;
-
 constexpr int MIN_CLIPBOARD_TIMEOUT = 5;
 constexpr int MAX_CLIPBOARD_TIMEOUT = 300;
 
@@ -94,7 +91,10 @@ PreferencesModel PreferencesPresenter::load() const {
     if (model.vault_open) {
         const VaultManager::BackupSettings backup_settings = m_vault_manager->get_backup_settings();
         model.backup_enabled = backup_settings.enabled;
-        model.backup_count = std::clamp(backup_settings.count, MIN_BACKUP_COUNT, MAX_BACKUP_COUNT);
+        model.backup_count = std::clamp(
+            backup_settings.count,
+            SettingsValidator::MIN_BACKUP_COUNT,
+            SettingsValidator::MAX_BACKUP_COUNT);
         model.backup_path = backup_settings.path;
     } else {
         model.backup_enabled = SettingsValidator::is_backup_enabled(m_settings);
@@ -197,7 +197,10 @@ void PreferencesPresenter::save(const PreferencesModel& model) const {
 
     // Backups
     const bool backup_enabled = model.backup_enabled;
-    const int backup_count = std::clamp(model.backup_count, MIN_BACKUP_COUNT, MAX_BACKUP_COUNT);
+    const int backup_count = std::clamp(
+        model.backup_count,
+        SettingsValidator::MIN_BACKUP_COUNT,
+        SettingsValidator::MAX_BACKUP_COUNT);
 
     if (vault_open) {
         const VaultManager::BackupSettings backup_settings{backup_enabled, backup_count, model.backup_path};

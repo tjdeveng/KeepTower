@@ -51,6 +51,9 @@ protected:
         settings->reset("auto-lock-timeout");
         settings->reset("password-history-enabled");
         settings->reset("password-history-limit");
+        settings->reset("backup-enabled");
+        settings->reset("backup-count");
+        settings->reset("backup-path");
         settings->reset("fips-mode-enabled");
         settings->reset("username-hash-algorithm");
         settings->reset("username-pbkdf2-iterations");
@@ -66,6 +69,9 @@ protected:
             settings->reset("auto-lock-timeout");
             settings->reset("password-history-enabled");
             settings->reset("password-history-limit");
+            settings->reset("backup-enabled");
+            settings->reset("backup-count");
+            settings->reset("backup-path");
             settings->reset("fips-mode-enabled");
             settings->reset("username-hash-algorithm");
             settings->reset("username-pbkdf2-iterations");
@@ -168,6 +174,36 @@ TEST_F(SettingsValidatorTest, BooleanGettersWorkCorrectly) {
 
     settings->set_boolean("password-history-enabled", false);
     EXPECT_FALSE(SettingsValidator::is_password_history_enabled(settings));
+
+    settings->set_boolean("backup-enabled", true);
+    EXPECT_TRUE(SettingsValidator::is_backup_enabled(settings));
+
+    settings->set_boolean("backup-enabled", false);
+    EXPECT_FALSE(SettingsValidator::is_backup_enabled(settings));
+}
+
+TEST_F(SettingsValidatorTest, BackupCountClampsToSafeRange) {
+    settings->set_int("backup-count", 1);  // Schema minimum
+    int value = SettingsValidator::get_backup_count(settings);
+    EXPECT_EQ(value, 1);
+    EXPECT_GE(value, SettingsValidator::MIN_BACKUP_COUNT);
+
+    settings->set_int("backup-count", 50);  // Schema maximum
+    value = SettingsValidator::get_backup_count(settings);
+    EXPECT_EQ(value, 50);
+    EXPECT_LE(value, SettingsValidator::MAX_BACKUP_COUNT);
+
+    settings->set_int("backup-count", 12);
+    value = SettingsValidator::get_backup_count(settings);
+    EXPECT_EQ(value, 12);
+}
+
+TEST_F(SettingsValidatorTest, BackupPathGetterReturnsConfiguredPath) {
+    settings->set_string("backup-path", "/tmp/keeptower-backups");
+    EXPECT_EQ(SettingsValidator::get_backup_path(settings), "/tmp/keeptower-backups");
+
+    settings->set_string("backup-path", "");
+    EXPECT_EQ(SettingsValidator::get_backup_path(settings), "");
 }
 
 /**
@@ -191,6 +227,12 @@ TEST(SettingsValidatorConstantsTest, ValidatorConstantsAreSensible) {
     EXPECT_LE(SettingsValidator::MAX_PASSWORD_HISTORY, 20);
     EXPECT_GE(SettingsValidator::DEFAULT_PASSWORD_HISTORY, SettingsValidator::MIN_PASSWORD_HISTORY);
     EXPECT_LE(SettingsValidator::DEFAULT_PASSWORD_HISTORY, SettingsValidator::MAX_PASSWORD_HISTORY);
+
+    // Backup count
+    EXPECT_GE(SettingsValidator::MIN_BACKUP_COUNT, 1);
+    EXPECT_LE(SettingsValidator::MAX_BACKUP_COUNT, 50);
+    EXPECT_GE(SettingsValidator::DEFAULT_BACKUP_COUNT, SettingsValidator::MIN_BACKUP_COUNT);
+    EXPECT_LE(SettingsValidator::DEFAULT_BACKUP_COUNT, SettingsValidator::MAX_BACKUP_COUNT);
 }
 
 /**
@@ -219,6 +261,10 @@ TEST_F(SettingsValidatorTest, ValidatorProvidesDefenseInDepth) {
     // Password history: schema allows 1-20, validator enforces same
     EXPECT_EQ(SettingsValidator::MIN_PASSWORD_HISTORY, 1);
     EXPECT_EQ(SettingsValidator::MAX_PASSWORD_HISTORY, 20);
+
+    // Backup count: schema allows 1-50, validator enforces same
+    EXPECT_EQ(SettingsValidator::MIN_BACKUP_COUNT, 1);
+    EXPECT_EQ(SettingsValidator::MAX_BACKUP_COUNT, 50);
 
     // Test that validator would clamp hypothetical out-of-range values
     // (Schema prevents setting these, but validator provides backup)
