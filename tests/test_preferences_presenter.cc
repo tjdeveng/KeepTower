@@ -156,4 +156,38 @@ TEST_F(PreferencesPresenterTest, SaveWithoutOpenVaultPersistsBackupDefaultsAndOn
     EXPECT_EQ(updated_runtime_settings.path, "/tmp/new-app-default-backups");
 }
 
+TEST_F(PreferencesPresenterTest, LoadWhileVaultOpenUsesVaultScopedBackupSettings) {
+    m_settings->set_boolean("backup-enabled", true);
+    m_settings->set_int("backup-count", 12);
+    m_settings->set_string("backup-path", "/tmp/app-default-backups");
+
+    const VaultManager::BackupSettings vault_settings{false, 6, "/tmp/vault-open-backups"};
+    ASSERT_TRUE(m_vault_manager->apply_backup_settings(vault_settings));
+
+    const KeepTower::Ui::PreferencesModel model = m_presenter->load();
+
+    EXPECT_TRUE(model.vault_open);
+    EXPECT_FALSE(model.backup_enabled);
+    EXPECT_EQ(model.backup_count, 6);
+    EXPECT_EQ(model.backup_path, "/tmp/vault-open-backups");
+}
+
+TEST_F(PreferencesPresenterTest, LoadWithoutOpenVaultUsesApplicationBackupDefaults) {
+    const VaultManager::BackupSettings vault_settings{false, 6, "/tmp/vault-only-backups"};
+    ASSERT_TRUE(m_vault_manager->apply_backup_settings(vault_settings));
+
+    m_settings->set_boolean("backup-enabled", true);
+    m_settings->set_int("backup-count", 10);
+    m_settings->set_string("backup-path", "/tmp/app-default-load-backups");
+
+    ASSERT_TRUE(m_vault_manager->close_vault());
+
+    const KeepTower::Ui::PreferencesModel model = m_presenter->load();
+
+    EXPECT_FALSE(model.vault_open);
+    EXPECT_TRUE(model.backup_enabled);
+    EXPECT_EQ(model.backup_count, 10);
+    EXPECT_EQ(model.backup_path, "/tmp/app-default-load-backups");
+}
+
 }  // namespace
