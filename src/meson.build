@@ -202,6 +202,7 @@ sources = files(
   'core/repositories/GroupRepository.cc',
   'core/services/AccountService.cc',
   'core/services/GroupService.cc',
+  'core/services/KeySlotManager.cc',
   'core/services/VaultYubiKeyService.cc',
   'core/services/VaultFileService.cc',
   'core/services/UsernameHashService.cc',

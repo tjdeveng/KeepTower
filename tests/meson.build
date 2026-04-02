@@ -49,6 +49,7 @@ vault_manager_common_sources = [
     # Phase 2 Day 5: Add orchestrator and services
     '../src/core/controllers/VaultCreationOrchestrator.cc',
     '../src/lib/crypto/VaultCryptoService.cc',
+    '../src/core/services/KeySlotManager.cc',
     '../src/core/services/VaultYubiKeyService.cc',
     '../src/core/services/VaultFileService.cc',
     '../src/lib/backup/VaultBackupPolicy.cc',
