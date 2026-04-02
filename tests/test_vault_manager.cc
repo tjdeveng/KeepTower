@@ -122,3 +122,35 @@ TEST_F(VaultManagerTest, CorruptionRecoveryV2_TruncatedFile_Fails) {
     EXPECT_FALSE(session);
     EXPECT_FALSE(vault_manager->is_vault_open());
 }
+
+TEST_F(VaultManagerTest, ApplyBackupSettingsRejectsInvalidCountWithoutMutatingState) {
+    VaultManager::BackupSettings baseline = vault_manager->get_backup_settings();
+
+    VaultManager::BackupSettings valid{true, 7, test_dir.string()};
+    ASSERT_TRUE(vault_manager->apply_backup_settings(valid));
+
+    VaultManager::BackupSettings invalid = valid;
+    invalid.enabled = false;
+    invalid.count = 0;  // Invalid range
+    invalid.path = (test_dir / "other").string();
+
+    EXPECT_FALSE(vault_manager->apply_backup_settings(invalid));
+
+    const VaultManager::BackupSettings after = vault_manager->get_backup_settings();
+    EXPECT_EQ(after.enabled, valid.enabled);
+    EXPECT_EQ(after.count, valid.count);
+    EXPECT_EQ(after.path, valid.path);
+
+    // Keep baseline referenced so test intent is explicit and future assertions can extend safely.
+    (void)baseline;
+}
+
+TEST_F(VaultManagerTest, RestoreFromMostRecentBackupFailsWhenVaultOpen) {
+    const auto policy = make_test_policy();
+    ASSERT_TRUE(vault_manager->create_vault_v2(test_vault_path, test_username, test_password, policy));
+    ASSERT_TRUE(vault_manager->is_vault_open());
+
+    auto restore_result = vault_manager->restore_from_most_recent_backup(test_vault_path);
+    ASSERT_FALSE(restore_result);
+    EXPECT_EQ(restore_result.error(), KeepTower::VaultError::VaultAlreadyOpen);
+}

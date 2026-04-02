@@ -1625,8 +1625,13 @@ public:
      * @brief Aggregate backup configuration values used by UI and startup wiring.
      */
     struct BackupSettings {
+        /** @brief Whether automatic backups are enabled. */
         bool enabled{true};
+
+        /** @brief Maximum retained backup files (valid range: 1-50). */
         int count{DEFAULT_BACKUP_COUNT};
+
+        /** @brief Optional backup directory path (empty means vault directory). */
         std::string path;
     };
 
@@ -1638,6 +1643,8 @@ public:
 
     /** @brief Get current backup settings snapshot. */
     [[nodiscard]] BackupSettings get_backup_settings() const;
+
+    // Compatibility wrappers: prefer apply_backup_settings()/get_backup_settings() in new code.
 
     /**
      * @brief Enable or disable automatic timestamped backups

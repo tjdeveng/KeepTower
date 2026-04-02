@@ -211,7 +211,9 @@ void PreferencesPresenter::save(const PreferencesModel& model) const {
 
     m_settings->set_string("backup-path", model.backup_path);
     if (m_vault_manager && !vault_open) {
-        m_vault_manager->set_backup_path(model.backup_path);
+        VaultManager::BackupSettings backup_settings = m_vault_manager->get_backup_settings();
+        backup_settings.path = model.backup_path;
+        (void)m_vault_manager->apply_backup_settings(backup_settings);
     }
 
     // Clipboard timeout

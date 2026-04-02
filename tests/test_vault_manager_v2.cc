@@ -142,21 +142,22 @@ TEST_F(VaultManagerV2Test, BackupEnabledPersistsAcrossReopen) {
         test_vault_path.string(), "alice", "validpass123"));
 
     // Disable backups and save
-    ASSERT_TRUE(vault_manager.set_backup_count(5));
-    vault_manager.set_backup_enabled(false);
-    EXPECT_FALSE(vault_manager.is_backup_enabled());
+    const VaultManager::BackupSettings backup_settings_before_save{false, 5, ""};
+    ASSERT_TRUE(vault_manager.apply_backup_settings(backup_settings_before_save));
+    EXPECT_FALSE(vault_manager.get_backup_settings().enabled);
     ASSERT_TRUE(vault_manager.save_vault());
     ASSERT_TRUE(vault_manager.close_vault());
 
     // Change in-memory defaults before reopen so open_vault_v2 must reload from disk.
-    ASSERT_TRUE(vault_manager.set_backup_count(3));
-    vault_manager.set_backup_enabled(true);
+    const VaultManager::BackupSettings stale_in_memory_settings{true, 3, ""};
+    ASSERT_TRUE(vault_manager.apply_backup_settings(stale_in_memory_settings));
 
     // Reopen and verify setting persisted
     ASSERT_TRUE(vault_manager.open_vault_v2(
         test_vault_path.string(), "alice", "validpass123"));
-    EXPECT_FALSE(vault_manager.is_backup_enabled());
-    EXPECT_EQ(vault_manager.get_backup_count(), 5);
+    const VaultManager::BackupSettings loaded_settings = vault_manager.get_backup_settings();
+    EXPECT_FALSE(loaded_settings.enabled);
+    EXPECT_EQ(loaded_settings.count, 5);
 }
 
 TEST_F(VaultManagerV2Test, OpenV2VaultNonExistentUser) {

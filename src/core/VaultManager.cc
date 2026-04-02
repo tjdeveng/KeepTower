@@ -649,6 +649,12 @@ bool VaultManager::apply_backup_settings(const BackupSettings& settings) {
         return false;
     }
 
+    constexpr int kMinBackups = 1;
+    constexpr int kMaxBackups = 50;
+    if (settings.count < kMinBackups || settings.count > kMaxBackups) {
+        return false;
+    }
+
     bool persisted_settings_changed = false;
 
     if (m_backup_policy->is_enabled() != settings.enabled) {
