@@ -7,6 +7,7 @@
 #include "../MultiUserTypes.h"
 
 #include <cstddef>
+#include <span>
 #include <string_view>
 #include <vector>
 
@@ -14,6 +15,16 @@ namespace KeepTower {
 
 class KeySlotManager {
 public:
+    [[nodiscard]] static KeySlot create_user_slot(
+        std::string_view username,
+        uint8_t kek_derivation_algorithm,
+        std::span<const uint8_t> username_hash,
+        const std::array<uint8_t, 16>& username_salt,
+        const std::array<uint8_t, 32>& salt,
+        const std::array<uint8_t, 40>& wrapped_dek,
+        UserRole role,
+        bool must_change_password);
+
     [[nodiscard]] static KeySlot* find_slot_by_username_hash(
         std::vector<KeySlot>& slots,
         std::string_view username,
@@ -47,6 +58,31 @@ public:
         std::vector<KeySlot>& slots,
         std::string_view username,
         const VaultSecurityPolicy& policy);
+
+    static void apply_yubikey_enrollment(
+        KeySlot& slot,
+        bool enrolled,
+        const std::array<uint8_t, 32>& challenge,
+        std::string serial,
+        int64_t enrolled_at,
+        std::vector<uint8_t> encrypted_pin,
+        std::vector<uint8_t> credential_id) noexcept;
+
+    static void add_password_history_entry(
+        KeySlot& slot,
+        const PasswordHistoryEntry& entry,
+        uint32_t max_depth);
+
+    [[nodiscard]] static size_t clear_password_history(KeySlot& slot) noexcept;
+
+    static void update_password_material(
+        KeySlot& slot,
+        const std::array<uint8_t, 32>& salt,
+        const std::array<uint8_t, 40>& wrapped_dek,
+        bool must_change_password,
+        int64_t password_changed_at) noexcept;
+
+    static void clear_yubikey_enrollment(KeySlot& slot) noexcept;
 };
 
 } // namespace KeepTower

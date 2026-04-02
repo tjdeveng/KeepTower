@@ -3,6 +3,7 @@
 
 #include "KeySlotManager.h"
 
+#include "../PasswordHistory.h"
 #include "UsernameHashService.h"
 #include "../../utils/Log.h"
 
@@ -136,6 +137,31 @@ KeySlot* find_slot_by_username_hash_mutable(
 }
 
 } // namespace
+
+KeySlot KeySlotManager::create_user_slot(
+    std::string_view username,
+    uint8_t kek_derivation_algorithm,
+    std::span<const uint8_t> username_hash,
+    const std::array<uint8_t, 16>& username_salt,
+    const std::array<uint8_t, 32>& salt,
+    const std::array<uint8_t, 40>& wrapped_dek,
+    UserRole role,
+    bool must_change_password) {
+    KeySlot slot;
+    slot.active = true;
+    slot.username = std::string(username);
+    slot.kek_derivation_algorithm = kek_derivation_algorithm;
+    std::copy_n(username_hash.begin(), std::min(username_hash.size(), slot.username_hash.size()), slot.username_hash.begin());
+    slot.username_hash_size = static_cast<uint8_t>(username_hash.size());
+    slot.username_salt = username_salt;
+    slot.salt = salt;
+    slot.wrapped_dek = wrapped_dek;
+    slot.role = role;
+    slot.must_change_password = must_change_password;
+    slot.password_changed_at = 0;
+    slot.last_login_at = 0;
+    return slot;
+}
 
 KeySlot* KeySlotManager::find_slot_by_username_hash(
     std::vector<KeySlot>& slots,
@@ -314,6 +340,56 @@ VaultResult<> KeySlotManager::deactivate_user(
 
     user_slot->active = false;
     return {};
+}
+
+void KeySlotManager::apply_yubikey_enrollment(
+    KeySlot& slot,
+    bool enrolled,
+    const std::array<uint8_t, 32>& challenge,
+    std::string serial,
+    int64_t enrolled_at,
+    std::vector<uint8_t> encrypted_pin,
+    std::vector<uint8_t> credential_id) noexcept {
+    slot.yubikey_enrolled = enrolled;
+    slot.yubikey_challenge = challenge;
+    slot.yubikey_serial = std::move(serial);
+    slot.yubikey_enrolled_at = enrolled ? enrolled_at : 0;
+    slot.yubikey_encrypted_pin = std::move(encrypted_pin);
+    slot.yubikey_credential_id = std::move(credential_id);
+}
+
+void KeySlotManager::add_password_history_entry(
+    KeySlot& slot,
+    const PasswordHistoryEntry& entry,
+    uint32_t max_depth) {
+    PasswordHistory::add_to_history(slot.password_history, entry, max_depth);
+}
+
+size_t KeySlotManager::clear_password_history(KeySlot& slot) noexcept {
+    const size_t old_size = slot.password_history.size();
+    slot.password_history.clear();
+    return old_size;
+}
+
+void KeySlotManager::update_password_material(
+    KeySlot& slot,
+    const std::array<uint8_t, 32>& salt,
+    const std::array<uint8_t, 40>& wrapped_dek,
+    bool must_change_password,
+    int64_t password_changed_at) noexcept {
+    slot.salt = salt;
+    slot.wrapped_dek = wrapped_dek;
+    slot.must_change_password = must_change_password;
+    slot.password_changed_at = password_changed_at;
+}
+
+void KeySlotManager::clear_yubikey_enrollment(KeySlot& slot) noexcept {
+    slot.yubikey_enrolled = false;
+    slot.yubikey_challenge = {};
+    slot.yubikey_serial.clear();
+    slot.yubikey_enrolled_at = 0;
+    slot.yubikey_encrypted_pin.clear();
+    slot.yubikey_credential_id.clear();
 }
 
 } // namespace KeepTower

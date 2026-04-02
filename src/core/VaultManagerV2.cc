@@ -676,23 +676,15 @@ KeepTower::VaultResult<> VaultManager::add_user(
         return std::unexpected(VaultError::CryptoError);
     }
 
-    // Create new key slot
-    KeySlot new_slot;
-    new_slot.active = true;
-    new_slot.username = username.raw();  // Keep in memory for UI (NOT serialized to disk)
-    new_slot.kek_derivation_algorithm = static_cast<uint8_t>(algorithm);  // Store algorithm used
-
-    // Copy hash from vector to array
-    const auto& hash_vec = username_hash_result.value();
-    std::copy_n(hash_vec.begin(), std::min(hash_vec.size(), size_t(64)), new_slot.username_hash.begin());
-    new_slot.username_hash_size = static_cast<uint8_t>(hash_vec.size());
-    new_slot.username_salt = username_salt;
-    new_slot.salt = salt_result.value();
-    new_slot.wrapped_dek = wrapped_result.value().wrapped_key;
-    new_slot.role = role;
-    new_slot.must_change_password = must_change_password;
-    new_slot.password_changed_at = 0;  // Not yet changed
-    new_slot.last_login_at = 0;
+    KeySlot new_slot = KeySlotManager::create_user_slot(
+        username.raw(),
+        static_cast<uint8_t>(algorithm),
+        username_hash_result.value(),
+        username_salt,
+        salt_result.value(),
+        wrapped_result.value().wrapped_key,
+        role,
+        must_change_password);
 
     // YubiKey enrollment if PIN provided and policy requires it
     bool yubikey_enrolled = false;
@@ -790,23 +782,21 @@ KeepTower::VaultResult<> VaultManager::add_user(
     }
 #endif
 
-    // YubiKey fields: Use enrollment data if available
-    // cppcheck-suppress knownConditionTrueFalse -- yubikey_enrolled is set to true inside #ifdef HAVE_YUBIKEY_SUPPORT
-    new_slot.yubikey_enrolled = yubikey_enrolled;
-    new_slot.yubikey_challenge = yubikey_challenge;
-    new_slot.yubikey_serial = yubikey_serial;
-    // cppcheck-suppress knownConditionTrueFalse
-    new_slot.yubikey_enrolled_at = yubikey_enrolled ?
-        std::chrono::system_clock::now().time_since_epoch().count() : 0;
-    new_slot.yubikey_encrypted_pin = std::move(encrypted_pin);
-    new_slot.yubikey_credential_id = std::move(credential_id);
+    KeySlotManager::apply_yubikey_enrollment(
+        new_slot,
+        yubikey_enrolled,
+        yubikey_challenge,
+        std::move(yubikey_serial),
+        std::chrono::system_clock::now().time_since_epoch().count(),
+        std::move(encrypted_pin),
+        std::move(credential_id));
 
     // Add initial password to history if enabled
     if (m_v2_header->security_policy.password_history_depth > 0) {
         auto history_entry = KeepTower::PasswordHistory::hash_password(temporary_password);
         if (history_entry) {
-            KeepTower::PasswordHistory::add_to_history(
-                new_slot.password_history,
+            KeySlotManager::add_password_history_entry(
+                new_slot,
                 history_entry.value(),
                 m_v2_header->security_policy.password_history_depth);
             Log::debug("VaultManager: Added initial password to new user's history");
@@ -1211,18 +1201,19 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
         return std::unexpected(VaultError::CryptoError);
     }
 
-    // Update slot
-    user_slot->salt = new_salt_result.value();
-    user_slot->wrapped_dek = new_wrapped_result.value().wrapped_key;
-    user_slot->must_change_password = false;
-    user_slot->password_changed_at = std::chrono::system_clock::now().time_since_epoch().count();
+    KeySlotManager::update_password_material(
+        *user_slot,
+        new_salt_result.value(),
+        new_wrapped_result.value().wrapped_key,
+        false,
+        std::chrono::system_clock::now().time_since_epoch().count());
 
     // Add new password to history if enabled
     if (m_v2_header->security_policy.password_history_depth > 0) {
         auto history_entry = KeepTower::PasswordHistory::hash_password(new_password);
         if (history_entry) {
-            KeepTower::PasswordHistory::add_to_history(
-                user_slot->password_history,
+            KeySlotManager::add_password_history_entry(
+                *user_slot,
                 history_entry.value(),
                 m_v2_header->security_policy.password_history_depth);
             Log::debug("VaultManager: Added password to history (size: {})",
@@ -1474,8 +1465,7 @@ KeepTower::VaultResult<> VaultManager::clear_user_password_history(
     }
 
     // Clear password history
-    size_t old_size = user_slot->password_history.size();
-    user_slot->password_history.clear();
+    const size_t old_size = KeySlotManager::clear_password_history(*user_slot);
 
     m_modified = true;
 
@@ -1564,24 +1554,22 @@ KeepTower::VaultResult<> VaultManager::admin_reset_user_password(
         return std::unexpected(VaultError::CryptoError);
     }
 
-    // Update slot with new wrapped key and force password change
-    user_slot->salt = new_salt_result.value();
-    user_slot->wrapped_dek = new_wrapped_result.value().wrapped_key;
-    user_slot->must_change_password = true;  // Force password change on next login
-    user_slot->password_changed_at = 0;  // Reset to indicate temporary password
+    KeySlotManager::update_password_material(
+        *user_slot,
+        new_salt_result.value(),
+        new_wrapped_result.value().wrapped_key,
+        true,
+        0);
 
     // Clear password history (admin reset = fresh start)
-    user_slot->password_history.clear();
+    (void)KeySlotManager::clear_password_history(*user_slot);
     Log::debug("VaultManager: Cleared password history for reset user");
 
     // IMPORTANT: Unenroll YubiKey if enrolled
     // Admin doesn't have user's YubiKey device, so reset to password-only
     if (user_slot->yubikey_enrolled) {
         Log::info("VaultManager: Unenrolling YubiKey for user (admin reset)");
-        user_slot->yubikey_enrolled = false;
-        user_slot->yubikey_challenge = {};
-        user_slot->yubikey_serial.clear();
-        user_slot->yubikey_enrolled_at = 0;
+        KeySlotManager::clear_yubikey_enrollment(*user_slot);
 
         // If vault policy requires YubiKey, user will need to re-enroll after password change
         if (m_v2_header->security_policy.require_yubikey) {
