@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "../VaultError.h"
 #include "../MultiUserTypes.h"
 
 #include <cstddef>
@@ -31,6 +32,21 @@ public:
 
     [[nodiscard]] static size_t find_available_slot_index(
         const std::vector<KeySlot>& slots) noexcept;
+
+    [[nodiscard]] static bool user_exists(
+        const std::vector<KeySlot>& slots,
+        std::string_view username,
+        const VaultSecurityPolicy& policy);
+
+    [[nodiscard]] static VaultResult<size_t> store_user_slot(
+        std::vector<KeySlot>& slots,
+        KeySlot slot,
+        size_t max_slots);
+
+    [[nodiscard]] static VaultResult<> deactivate_user(
+        std::vector<KeySlot>& slots,
+        std::string_view username,
+        const VaultSecurityPolicy& policy);
 };
 
 } // namespace KeepTower

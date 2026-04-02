@@ -271,4 +271,49 @@ size_t KeySlotManager::find_available_slot_index(const std::vector<KeySlot>& slo
     return slots.size();
 }
 
+bool KeySlotManager::user_exists(
+    const std::vector<KeySlot>& slots,
+    std::string_view username,
+    const VaultSecurityPolicy& policy) {
+    return find_slot_by_username_hash(slots, username, policy) != nullptr;
+}
+
+VaultResult<size_t> KeySlotManager::store_user_slot(
+    std::vector<KeySlot>& slots,
+    KeySlot slot,
+    size_t max_slots) {
+    const size_t slot_index = find_available_slot_index(slots);
+    if (slot_index >= max_slots) {
+        Log::error("KeySlotManager: No available key slots (max: {})", max_slots);
+        return std::unexpected(VaultError::MaxUsersReached);
+    }
+
+    if (slot_index < slots.size()) {
+        slots[slot_index] = std::move(slot);
+    } else {
+        slots.push_back(std::move(slot));
+    }
+
+    return slot_index;
+}
+
+VaultResult<> KeySlotManager::deactivate_user(
+    std::vector<KeySlot>& slots,
+    std::string_view username,
+    const VaultSecurityPolicy& policy) {
+    KeySlot* user_slot = find_slot_by_username_hash(slots, username, policy);
+    if (!user_slot) {
+        Log::error("KeySlotManager: User not found");
+        return std::unexpected(VaultError::UserNotFound);
+    }
+
+    if (user_slot->role == UserRole::ADMINISTRATOR && count_active_administrators(slots) <= 1) {
+        Log::error("KeySlotManager: Cannot remove last administrator");
+        return std::unexpected(VaultError::LastAdministrator);
+    }
+
+    user_slot->active = false;
+    return {};
+}
+
 } // namespace KeepTower

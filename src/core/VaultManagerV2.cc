@@ -609,7 +609,7 @@ KeepTower::VaultResult<> VaultManager::add_user(
     }
 
     // Check for duplicate username using hash verification
-    if (KeySlotManager::find_slot_by_username_hash(
+    if (KeySlotManager::user_exists(
             m_v2_header->key_slots, username.raw(), m_v2_header->security_policy)) {
         Log::error("VaultManager: Username already exists");
         return std::unexpected(VaultError::UserAlreadyExists);
@@ -623,13 +623,6 @@ KeepTower::VaultResult<> VaultManager::add_user(
     }
 
     // Find empty slot or add new one
-    const size_t slot_index = KeySlotManager::find_available_slot_index(m_v2_header->key_slots);
-
-    if (slot_index >= VaultHeaderV2::MAX_KEY_SLOTS) {
-        Log::error("VaultManager: No available key slots (max: 32)");
-        return std::unexpected(VaultError::MaxUsersReached);
-    }
-
     // Generate unique salt for new user
     auto salt_result = KeyWrapping::generate_random_salt();
     if (!salt_result) {
@@ -822,12 +815,15 @@ KeepTower::VaultResult<> VaultManager::add_user(
         }
     }
 
-    // Add to header
-    if (slot_index < m_v2_header->key_slots.size()) {
-        m_v2_header->key_slots[slot_index] = new_slot;
-    } else {
-        m_v2_header->key_slots.push_back(new_slot);
+    auto slot_store_result = KeySlotManager::store_user_slot(
+        m_v2_header->key_slots,
+        std::move(new_slot),
+        VaultHeaderV2::MAX_KEY_SLOTS);
+    if (!slot_store_result) {
+        return std::unexpected(slot_store_result.error());
     }
+
+    const size_t slot_index = slot_store_result.value();
     m_modified = true;
 
     Log::info("VaultManager: User added successfully (role: {}, slot: {})",
@@ -857,26 +853,14 @@ KeepTower::VaultResult<> VaultManager::remove_user(const Glib::ustring& username
         return std::unexpected(VaultError::SelfRemovalNotAllowed);
     }
 
-    // Find user slot using hash verification
-    KeySlot* user_slot = KeySlotManager::find_slot_by_username_hash(
-        m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
-
-    if (!user_slot) {
-        Log::error("VaultManager: User not found");
-        return std::unexpected(VaultError::UserNotFound);
+    auto deactivate_result = KeySlotManager::deactivate_user(
+        m_v2_header->key_slots,
+        username.raw(),
+        m_v2_header->security_policy);
+    if (!deactivate_result) {
+        return std::unexpected(deactivate_result.error());
     }
 
-    // Check if removing last administrator
-    if (user_slot->role == UserRole::ADMINISTRATOR) {
-        const int admin_count = KeySlotManager::count_active_administrators(m_v2_header->key_slots);
-        if (admin_count <= 1) {
-            Log::error("VaultManager: Cannot remove last administrator");
-            return std::unexpected(VaultError::LastAdministrator);
-        }
-    }
-
-    // Deactivate slot (don't delete, preserve structure)
-    user_slot->active = false;
     m_modified = true;
 
     Log::info("VaultManager: User removed successfully");
