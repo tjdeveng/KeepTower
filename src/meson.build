@@ -114,11 +114,29 @@ fec_dep = declare_dependency(
 
 meson.override_dependency('keeptower-fec', fec_dep)
 
+# Phase D.4: Extract FIPS provider management into dedicated library target.
+fips_library_sources = files(
+  'core/crypto/FipsProviderManager.cc',
+)
+
+fips_library = static_library(
+  'keeptower-fips',
+  fips_library_sources,
+  dependencies: [openssl_dep],
+  include_directories: [root_inc, include_directories('core')],
+)
+
+fips_dep = declare_dependency(
+  link_with: fips_library,
+  include_directories: [root_inc, include_directories('core')],
+)
+
+meson.override_dependency('keeptower-fips', fips_dep)
+
 # Phase D.3: Extract crypto primitives/services into dedicated library target.
 crypto_library_sources = files(
   'core/KeyWrapping.cc',
   'core/crypto/VaultCrypto.cc',
-  'core/crypto/FipsProviderManager.cc',
   'core/services/VaultCryptoService.cc',
 )
 
@@ -131,6 +149,7 @@ crypto_library = static_library(
 
 crypto_dep = declare_dependency(
   link_with: crypto_library,
+  dependencies: [fips_dep],
   include_directories: [root_inc, include_directories('core')],
 )
 
@@ -231,7 +250,7 @@ src_inc = include_directories(
 executable(
   project_name,
   all_sources,
-  dependencies: common_deps + [backup_dep, fec_dep, crypto_dep],
+  dependencies: common_deps + [backup_dep, fec_dep, crypto_dep, fips_dep],
   include_directories: [root_inc, src_inc],
   install: true,
 )

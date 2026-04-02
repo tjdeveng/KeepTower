@@ -8,6 +8,7 @@ gtest_dep = dependency('gtest', main: true, required: true)
 giomm_dep = dependency('giomm-2.68')
 backup_dep = dependency('keeptower-backup')
 crypto_dep = dependency('keeptower-crypto')
+fips_dep = dependency('keeptower-fips')
 
 # Include directories - include project root for config.h and generated files
 test_inc = [
@@ -66,7 +67,8 @@ vault_manager_common_deps = [
     libcorrect_dep,
     argon2_dep,
     backup_dep,
-    crypto_dep
+    crypto_dep,
+    fips_dep
 ]
 
 # VaultManager tests
