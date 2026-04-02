@@ -355,6 +355,26 @@ settings_validator_test = executable(
     include_directories: test_inc
 )
 
+# Preferences presenter tests (vault-open backup persistence semantics)
+preferences_presenter_sources = [
+    'test_preferences_presenter.cc',
+    '../src/ui/dialogs/preferences/PreferencesPresenter.cc',
+    ] + vault_manager_common_sources
+
+
+preferences_presenter_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep]
+if yubikey_available
+    preferences_presenter_sources += files('../src/core/managers/YubiKeyManager.cc')
+    preferences_presenter_deps += [fido2_dep]
+endif
+
+preferences_presenter_test = executable(
+    'preferences_presenter_test',
+    preferences_presenter_sources,
+    dependencies: preferences_presenter_deps,
+    include_directories: test_inc
+)
+
 # Vault helper function tests (unit tests for refactored helpers)
 vault_helpers_sources = [
     'test_vault_helpers.cc',
@@ -614,6 +634,12 @@ test('VaultIO Flow Controller Tests', vault_io_flow_controllers_test)
 test('Password Generator Tests', password_generator_test)
 test('UI Security Tests', ui_security_test, env: ['GSETTINGS_SCHEMA_DIR=' + meson.project_build_root() / 'data'])
 test('Settings Validator Tests', settings_validator_test, env: ['GSETTINGS_SCHEMA_DIR=' + meson.project_build_root() / 'data'])
+test('Preferences Presenter Tests', preferences_presenter_test,
+    env: {
+        'GSETTINGS_SCHEMA_DIR': meson.project_build_root() / 'data',
+        'DISABLE_YUBIKEY_DETECT': '1',
+    }
+)
 test('Vault Helper Functions', vault_helpers_test)
 test('Fuzzy Match Tests', fuzzy_match_test)
 test('Undo/Redo Tests', undo_redo_test)
