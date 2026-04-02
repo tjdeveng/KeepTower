@@ -341,17 +341,9 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
         }
         std::string decrypted_pin = std::move(pin_result.value());
 
-        // Load credential ID if stored (required for FIDO2 assertions)
-        if (!user_slot->yubikey_credential_id.empty()) {
-            if (!yk_manager.set_credential(user_slot->yubikey_credential_id)) {
-                Log::error("VaultManager: Failed to set FIDO2 credential ID");
-                return std::unexpected(VaultError::YubiKeyError);
-            }
-            Log::info("VaultManager: Loaded FIDO2 credential ID ({} bytes)",
-                     user_slot->yubikey_credential_id.size());
-        } else {
-            Log::error("VaultManager: No FIDO2 credential ID stored for user");
-            return std::unexpected(VaultError::YubiKeyError);
+        auto credential_result = V2AuthService::load_fido2_credential_for_open(*user_slot, yk_manager);
+        if (!credential_result) {
+            return std::unexpected(credential_result.error());
         }
 
         // Use user's unique challenge

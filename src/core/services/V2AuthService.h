@@ -11,6 +11,8 @@
 #include <string_view>
 #include <vector>
 
+class YubiKeyManager;
+
 namespace KeepTower {
 
 class V2AuthService {
@@ -29,6 +31,10 @@ public:
     [[nodiscard]] static VaultResult<std::string> decrypt_yubikey_pin_for_open(
         const KeySlot& slot,
         const std::array<uint8_t, 32>& password_kek);
+
+    [[nodiscard]] static VaultResult<> load_fido2_credential_for_open(
+        const KeySlot& slot,
+        ::YubiKeyManager& yk_manager);
 };
 
 } // namespace KeepTower

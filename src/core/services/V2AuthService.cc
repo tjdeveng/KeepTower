@@ -6,6 +6,7 @@
 #include "KeySlotManager.h"
 #include "KekDerivationService.h"
 #include "lib/crypto/VaultCrypto.h"
+#include "managers/YubiKeyManager.h"
 #include "../../utils/Log.h"
 
 namespace Log = KeepTower::Log;
@@ -86,6 +87,25 @@ VaultResult<std::string> V2AuthService::decrypt_yubikey_pin_for_open(
 
     Log::info("V2AuthService: Successfully decrypted YubiKey PIN from vault");
     return std::string(reinterpret_cast<const char*>(pin_bytes.data()), pin_bytes.size());
+}
+
+VaultResult<> V2AuthService::load_fido2_credential_for_open(
+    const KeySlot& slot,
+    ::YubiKeyManager& yk_manager) {
+
+    if (slot.yubikey_credential_id.empty()) {
+        Log::error("V2AuthService: No FIDO2 credential ID stored for user");
+        return std::unexpected(VaultError::YubiKeyError);
+    }
+
+    if (!yk_manager.set_credential(slot.yubikey_credential_id)) {
+        Log::error("V2AuthService: Failed to set FIDO2 credential ID");
+        return std::unexpected(VaultError::YubiKeyError);
+    }
+
+    Log::info("V2AuthService: Loaded FIDO2 credential ID ({} bytes)",
+              slot.yubikey_credential_id.size());
+    return {};
 }
 
 } // namespace KeepTower
