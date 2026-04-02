@@ -108,4 +108,28 @@ VaultResult<> V2AuthService::load_fido2_credential_for_open(
     return {};
 }
 
+VaultResult<std::vector<uint8_t>> V2AuthService::run_yubikey_challenge_for_open(
+    const KeySlot& slot,
+    const VaultSecurityPolicy& policy,
+    std::string_view decrypted_pin,
+    ::YubiKeyManager& yk_manager) {
+
+    const YubiKeyAlgorithm yk_algorithm = static_cast<YubiKeyAlgorithm>(policy.yubikey_algorithm);
+
+    auto response = yk_manager.challenge_response(
+        std::span<const unsigned char>(slot.yubikey_challenge.data(), slot.yubikey_challenge.size()),
+        yk_algorithm,
+        false,
+        5000,
+        decrypted_pin);
+
+    if (!response.success) {
+        Log::error("V2AuthService: YubiKey challenge-response failed: {}",
+                   response.error_message);
+        return std::unexpected(VaultError::YubiKeyError);
+    }
+
+    return std::vector<uint8_t>(response.get_response().begin(), response.get_response().end());
+}
+
 } // namespace KeepTower

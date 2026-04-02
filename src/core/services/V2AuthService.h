@@ -35,6 +35,12 @@ public:
     [[nodiscard]] static VaultResult<> load_fido2_credential_for_open(
         const KeySlot& slot,
         ::YubiKeyManager& yk_manager);
+
+    [[nodiscard]] static VaultResult<std::vector<uint8_t>> run_yubikey_challenge_for_open(
+        const KeySlot& slot,
+        const VaultSecurityPolicy& policy,
+        std::string_view decrypted_pin,
+        ::YubiKeyManager& yk_manager);
 };
 
 } // namespace KeepTower

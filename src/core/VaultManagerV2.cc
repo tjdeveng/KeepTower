@@ -346,28 +346,17 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
             return std::unexpected(credential_result.error());
         }
 
-        // Use user's unique challenge
-        const auto& challenge = user_slot->yubikey_challenge;
-
-        // Perform challenge-response with decrypted PIN
-        const YubiKeyAlgorithm yk_algorithm = static_cast<YubiKeyAlgorithm>(file_header.vault_header.security_policy.yubikey_algorithm);
-        auto response = yk_manager.challenge_response(
-            std::span<const unsigned char>(challenge.data(), challenge.size()),
-            yk_algorithm,
-            false,  // don't require touch for vault access (usability)
-            5000,   // 5 second timeout
-            decrypted_pin  // Use decrypted PIN for authentication
-        );
-
-        if (!response.success) {
-            Log::error("VaultManager: YubiKey challenge-response failed: {}",
-                       response.error_message);
-            return std::unexpected(VaultError::YubiKeyError);
+        auto response_result = V2AuthService::run_yubikey_challenge_for_open(
+            *user_slot,
+            file_header.vault_header.security_policy,
+            decrypted_pin,
+            yk_manager);
+        if (!response_result) {
+            return std::unexpected(response_result.error());
         }
 
         // Combine KEK with YubiKey response (use v2 for variable-length responses)
-        std::vector<uint8_t> yk_response_vec(response.get_response().begin(),
-                                              response.get_response().end());
+        std::vector<uint8_t> yk_response_vec = std::move(response_result.value());
         final_kek = KeyWrapping::combine_with_yubikey_v2(final_kek, yk_response_vec);
 
         Log::info("VaultManager: YubiKey authentication successful");
