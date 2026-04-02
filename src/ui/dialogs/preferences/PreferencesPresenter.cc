@@ -209,15 +209,18 @@ void PreferencesPresenter::save(const PreferencesModel& model) const {
         model.backup_path
     };
 
-    SettingsValidator::set_backup_preferences(m_settings, backup_prefs);
-
     if (vault_open) {
         const VaultManager::BackupSettings backup_settings{backup_enabled, backup_count, model.backup_path};
         if (!m_vault_manager->apply_backup_settings(backup_settings)) {
             KeepTower::Log::warning("PreferencesPresenter: Ignoring invalid backup count in preferences dialog");
         }
-    }
 
+        // Keep historical behavior: while vault is open, enabled/count remain vault-scoped.
+        // Only backup path is mirrored to preferences as a runtime default.
+        m_settings->set_string("backup-path", model.backup_path);
+    } else {
+        SettingsValidator::set_backup_preferences(m_settings, backup_prefs);
+    }
     if (m_vault_manager && !vault_open) {
         VaultManager::BackupSettings backup_settings = m_vault_manager->get_backup_settings();
         backup_settings.path = model.backup_path;
