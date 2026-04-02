@@ -311,6 +311,10 @@ bool VaultManager::close_vault() {
     m_account_manager.reset();
     m_group_manager.reset();
 
+
+    // Phase C: Reset vault runtime preferences to defaults when vault closes
+    m_preferences.reset_to_defaults();
+
     m_vault_open = false;
     m_modified = false;
 
@@ -706,114 +710,94 @@ bool VaultManager::set_rs_redundancy_percent(uint8_t percent) {
 }
 
 void VaultManager::set_clipboard_timeout(int timeout_seconds) {
-    if (!m_vault_open) {
-        return;
+    m_preferences.set_clipboard_timeout(timeout_seconds);
+    if (m_vault_open) {
+        auto* metadata = m_vault_data.mutable_metadata();
+        metadata->set_clipboard_timeout_seconds(timeout_seconds);
+        m_modified = true;
     }
-    auto* metadata = m_vault_data.mutable_metadata();
-    metadata->set_clipboard_timeout_seconds(timeout_seconds);
 }
 
 int VaultManager::get_clipboard_timeout() const {
-    if (!m_vault_open || !m_vault_data.has_metadata()) {
-        return 0;
-    }
-    return m_vault_data.metadata().clipboard_timeout_seconds();
+    return m_preferences.get_clipboard_timeout();
 }
 
 void VaultManager::set_auto_lock_enabled(bool enabled) {
-    if (!m_vault_open) {
-        return;
+    m_preferences.set_auto_lock_enabled(enabled);
+    if (m_vault_open) {
+        auto* metadata = m_vault_data.mutable_metadata();
+        metadata->set_auto_lock_enabled(enabled);
+        m_modified = true;
     }
-    auto* metadata = m_vault_data.mutable_metadata();
-    metadata->set_auto_lock_enabled(enabled);
-    m_modified = true;
 }
 
 bool VaultManager::get_auto_lock_enabled() const {
-    if (!m_vault_open || !m_vault_data.has_metadata()) {
-        return false;
-    }
-    return m_vault_data.metadata().auto_lock_enabled();
+    return m_preferences.get_auto_lock_enabled();
 }
 
 void VaultManager::set_auto_lock_timeout(int timeout_seconds) {
-    if (!m_vault_open) {
-        return;
+    m_preferences.set_auto_lock_timeout(timeout_seconds);
+    if (m_vault_open) {
+        auto* metadata = m_vault_data.mutable_metadata();
+        metadata->set_auto_lock_timeout_seconds(timeout_seconds);
+        m_modified = true;
     }
-    auto* metadata = m_vault_data.mutable_metadata();
-    metadata->set_auto_lock_timeout_seconds(timeout_seconds);
-    m_modified = true;
 }
 
 int VaultManager::get_auto_lock_timeout() const {
-    if (!m_vault_open || !m_vault_data.has_metadata()) {
-        return 0;
-    }
-    return m_vault_data.metadata().auto_lock_timeout_seconds();
+    return m_preferences.get_auto_lock_timeout();
 }
 
 void VaultManager::set_undo_redo_enabled(bool enabled) {
-    if (!m_vault_open) {
-        return;
+    m_preferences.set_undo_redo_enabled(enabled);
+    if (m_vault_open) {
+        auto* metadata = m_vault_data.mutable_metadata();
+        metadata->set_undo_redo_enabled(enabled);
+        m_modified = true;
     }
-    auto* metadata = m_vault_data.mutable_metadata();
-    metadata->set_undo_redo_enabled(enabled);
-    m_modified = true;
 }
 
 bool VaultManager::get_undo_redo_enabled() const {
-    if (!m_vault_open || !m_vault_data.has_metadata()) {
-        return false;
-    }
-    return m_vault_data.metadata().undo_redo_enabled();
+    return m_preferences.get_undo_redo_enabled();
 }
 
 void VaultManager::set_undo_history_limit(int limit) {
-    if (!m_vault_open) {
-        return;
+    m_preferences.set_undo_history_limit(limit);
+    if (m_vault_open) {
+        auto* metadata = m_vault_data.mutable_metadata();
+        metadata->set_undo_history_limit(limit);
+        m_modified = true;
     }
-    auto* metadata = m_vault_data.mutable_metadata();
-    metadata->set_undo_history_limit(limit);
-    m_modified = true;
 }
 
 int VaultManager::get_undo_history_limit() const {
-    if (!m_vault_open || !m_vault_data.has_metadata()) {
-        return 0;
-    }
-    return m_vault_data.metadata().undo_history_limit();
+    return m_preferences.get_undo_history_limit();
 }
 
 void VaultManager::set_account_password_history_enabled(bool enabled) {
-    if (!m_vault_open) {
-        return;
+    m_preferences.set_account_password_history_enabled(enabled);
+    if (m_vault_open) {
+        auto* metadata = m_vault_data.mutable_metadata();
+        metadata->set_account_password_history_enabled(enabled);
+        m_modified = true;
     }
-    auto* metadata = m_vault_data.mutable_metadata();
-    metadata->set_account_password_history_enabled(enabled);
-    m_modified = true;
 }
 
 bool VaultManager::get_account_password_history_enabled() const {
-    if (!m_vault_open || !m_vault_data.has_metadata()) {
-        return false;
-    }
-    return m_vault_data.metadata().account_password_history_enabled();
+    return m_preferences.get_account_password_history_enabled();
 }
 
 void VaultManager::set_account_password_history_limit(int limit) {
-    if (!m_vault_open) {
-        return;
+    m_preferences.set_account_password_history_limit(limit);
+    if (m_vault_open) {
+        auto* metadata = m_vault_data.mutable_metadata();
+        metadata->set_account_password_history_limit(limit);
+        m_modified = true;
     }
-    auto* metadata = m_vault_data.mutable_metadata();
-    metadata->set_account_password_history_limit(limit);
-    m_modified = true;
 }
 
 int VaultManager::get_account_password_history_limit() const {
-    if (!m_vault_open || !m_vault_data.has_metadata()) {
-        return 0;
-    }
-    return m_vault_data.metadata().account_password_history_limit();
+    return m_preferences.get_account_password_history_limit();
 }
 
 bool VaultManager::migrate_vault_schema() {
