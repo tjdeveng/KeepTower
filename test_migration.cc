@@ -23,7 +23,12 @@ int main() {
     std::cout << "Step 1: Creating V1 vault with test accounts...\n";
 
     VaultManager vault_manager;
-    vault_manager.set_backup_enabled(false);
+    VaultManager::BackupSettings backup_settings = vault_manager.get_backup_settings();
+    backup_settings.enabled = false;
+    if (!vault_manager.apply_backup_settings(backup_settings)) {
+        std::cerr << "❌ Failed to configure backup settings\n";
+        return 1;
+    }
     vault_manager.set_reed_solomon_enabled(false);
 
     if (!vault_manager.create_vault(v1_vault_path, password)) {

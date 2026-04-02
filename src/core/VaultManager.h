@@ -1644,45 +1644,6 @@ public:
     /** @brief Get current backup settings snapshot. */
     [[nodiscard]] BackupSettings get_backup_settings() const;
 
-    // Compatibility wrappers: prefer apply_backup_settings()/get_backup_settings() in new code.
-
-    /**
-     * @brief Enable or disable automatic timestamped backups
-     * @param enable true to enable backups, false to disable
-     */
-    void set_backup_enabled(bool enable);
-
-    /**
-     * @brief Check if automatic backups are enabled
-     * @return true if backups are enabled
-     */
-    bool is_backup_enabled() const;
-
-    /**
-     * @brief Set maximum number of backups to maintain
-     * @param count Maximum backup count (1-50)
-     * @return true if valid, false if out of range
-     */
-    bool set_backup_count(int count);
-
-    /**
-     * @brief Get maximum number of backups to maintain
-     * @return Maximum backup count
-     */
-    int get_backup_count() const;
-
-    /**
-     * @brief Set custom backup directory path
-     * @param path Directory path for backup files (empty=same as vault)
-     */
-    void set_backup_path(const std::string& path);
-
-    /**
-     * @brief Get custom backup directory path
-     * @return Backup directory path (empty if same as vault)
-     */
-    [[nodiscard]] const std::string& get_backup_path() const;
-
     /**
      * @brief Restore vault from most recent backup
      * @return Expected void or VaultError

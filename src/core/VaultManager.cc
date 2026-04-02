@@ -705,18 +705,6 @@ bool VaultManager::set_rs_redundancy_percent(uint8_t percent) {
     return true;
 }
 
-void VaultManager::set_backup_enabled(bool enable) {
-    BackupSettings settings = get_backup_settings();
-    settings.enabled = enable;
-    (void)apply_backup_settings(settings);
-}
-
-bool VaultManager::set_backup_count(int count) {
-    BackupSettings settings = get_backup_settings();
-    settings.count = count;
-    return apply_backup_settings(settings);
-}
-
 void VaultManager::set_clipboard_timeout(int timeout_seconds) {
     if (!m_vault_open) {
         return;
@@ -1608,26 +1596,6 @@ bool VaultManager::set_fips_mode(bool enable) {
     return KeepTower::FipsProviderManager::set_fips_mode(enable);
 }
 #endif
-
-// Backup path management
-void VaultManager::set_backup_path(const std::string& path) {
-    BackupSettings settings = get_backup_settings();
-    settings.path = path;
-    (void)apply_backup_settings(settings);
-}
-
-bool VaultManager::is_backup_enabled() const {
-    return get_backup_settings().enabled;
-}
-
-int VaultManager::get_backup_count() const {
-    return get_backup_settings().count;
-}
-
-const std::string& VaultManager::get_backup_path() const {
-    static const std::string kEmpty;
-    return m_backup_policy ? m_backup_policy->backup_path() : kEmpty;
-}
 
 // Restore from most recent backup
 KeepTower::VaultResult<> VaultManager::restore_from_most_recent_backup(const std::string& vault_path) {

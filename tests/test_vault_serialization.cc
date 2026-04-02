@@ -621,6 +621,7 @@ TEST_F(VaultSerializationTest, SerializeVaultSettings) {
 
     vault.set_fec_enabled(false);
     vault.set_fec_redundancy_percent(25);
+    // These are protobuf VaultData fields, not VaultManager backup wrapper APIs.
     vault.set_backup_enabled(true);
     vault.set_backup_count(5);
 
