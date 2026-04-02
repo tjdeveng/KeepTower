@@ -76,6 +76,44 @@ foreach proto : proto_files
   proto_headers += proto_gen[1]
 endforeach
 
+# Phase D.1: Extract backup policy into dedicated library target.
+backup_library_sources = files(
+  'core/services/VaultBackupPolicy.cc',
+)
+
+backup_library = static_library(
+  'keeptower-backup',
+  backup_library_sources,
+  dependencies: [protobuf_dep],
+  include_directories: [root_inc, include_directories('core')],
+)
+
+backup_dep = declare_dependency(
+  link_with: backup_library,
+  include_directories: [root_inc],
+)
+
+meson.override_dependency('keeptower-backup', backup_dep)
+
+# Phase D.2: Extract FEC/Reed-Solomon into dedicated library target.
+fec_library_sources = files(
+  'core/ReedSolomon.cc',
+)
+
+fec_library = static_library(
+  'keeptower-fec',
+  fec_library_sources,
+  dependencies: [libcorrect_dep],
+  include_directories: [root_inc, include_directories('core')],
+)
+
+fec_dep = declare_dependency(
+  link_with: fec_library,
+  include_directories: [root_inc, include_directories('core')],
+)
+
+meson.override_dependency('keeptower-fec', fec_dep)
+
 # Application sources
 sources = files(
   'main.cc',
@@ -126,11 +164,9 @@ sources = files(
   'core/services/VaultCryptoService.cc',
   'core/services/VaultYubiKeyService.cc',
   'core/services/VaultFileService.cc',
-  'core/services/VaultBackupPolicy.cc',
   'core/services/UsernameHashService.cc',
   'core/services/KekDerivationService.cc',
   'core/controllers/VaultCreationOrchestrator.cc',
-  'core/ReedSolomon.cc',
   'core/MultiUserTypes.cc',
   'core/MultiUserTypesSerDe.cc',
   'core/KeyWrapping.cc',
@@ -177,7 +213,7 @@ src_inc = include_directories(
 executable(
   project_name,
   all_sources,
-  dependencies: common_deps,
+  dependencies: common_deps + [backup_dep, fec_dep],
   include_directories: [root_inc, src_inc],
   install: true,
 )
