@@ -28,6 +28,7 @@
 #include "services/VaultYubiKeyService.h"
 #include "services/UsernameHashService.h"
 #include "services/KekDerivationService.h"
+#include "services/V2AuthService.h"
 #include "../utils/Log.h"
 #include "../utils/SecureMemory.h"
 #include <glibmm/main.h>
@@ -44,6 +45,7 @@ using KeepTower::UserRole;
 using KeepTower::UserSession;
 using KeepTower::KekDerivationService;
 using KeepTower::KeySlotManager;
+using KeepTower::V2AuthService;
 using KeepTower::VaultSecurityPolicy;
 using KeepTower::VaultFormatV2;
 using KeepTower::VaultIO;
@@ -280,15 +282,14 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
 
     auto [file_header, data_offset] = header_result.value();
 
-    // Find key slot for username using hash verification
-    KeySlot* user_slot = KeySlotManager::find_slot_by_username_hash(
-        file_header.vault_header.key_slots, username.raw(),
+    auto user_slot_result = V2AuthService::resolve_user_slot_for_open(
+        file_header.vault_header.key_slots,
+        username.raw(),
         file_header.vault_header.security_policy);
-
-    if (!user_slot) {
-        Log::error("VaultManager: No active key slot found for requested user");
-        return std::unexpected(VaultError::AuthenticationFailed);
+    if (!user_slot_result) {
+        return std::unexpected(user_slot_result.error());
     }
+    KeySlot* user_slot = user_slot_result.value();
 
     // Derive KEK from password using algorithm stored in KeySlot
     Log::debug("VaultManager: Deriving KEK (password length: {} bytes, {} chars, algorithm: 0x{:02x})",

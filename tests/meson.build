@@ -52,6 +52,7 @@ vault_manager_common_sources = [
     '../src/core/services/KeySlotManager.cc',
     '../src/core/services/VaultYubiKeyService.cc',
     '../src/core/services/VaultFileService.cc',
+    '../src/core/services/V2AuthService.cc',
     '../src/lib/backup/VaultBackupPolicy.cc',
     '../src/core/services/UsernameHashService.cc',  # Username hashing service
     '../src/core/services/KekDerivationService.cc',  # KEK derivation service (Phase 3)
