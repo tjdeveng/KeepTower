@@ -97,9 +97,9 @@ PreferencesModel PreferencesPresenter::load() const {
         model.backup_count = std::clamp(backup_settings.count, MIN_BACKUP_COUNT, MAX_BACKUP_COUNT);
         model.backup_path = backup_settings.path;
     } else {
-        model.backup_enabled = m_settings->get_boolean("backup-enabled");
-        model.backup_count = std::clamp(m_settings->get_int("backup-count"), MIN_BACKUP_COUNT, MAX_BACKUP_COUNT);
-        model.backup_path = m_settings->get_string("backup-path");
+        model.backup_enabled = SettingsValidator::is_backup_enabled(m_settings);
+        model.backup_count = SettingsValidator::get_backup_count(m_settings);
+        model.backup_path = SettingsValidator::get_backup_path(m_settings);
     }
 
     // Security
@@ -213,7 +213,9 @@ void PreferencesPresenter::save(const PreferencesModel& model) const {
     if (m_vault_manager && !vault_open) {
         VaultManager::BackupSettings backup_settings = m_vault_manager->get_backup_settings();
         backup_settings.path = model.backup_path;
-        (void)m_vault_manager->apply_backup_settings(backup_settings);
+        if (!m_vault_manager->apply_backup_settings(backup_settings)) {
+            KeepTower::Log::warning("PreferencesPresenter: Failed to apply runtime backup path");
+        }
     }
 
     // Clipboard timeout

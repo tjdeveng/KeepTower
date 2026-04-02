@@ -5,6 +5,7 @@
 #define SETTINGS_VALIDATOR_H
 
 #include <algorithm>
+#include <string>
 #include <string_view>
 #include <giomm/settings.h>
 #include "../core/services/UsernameHashService.h"
@@ -33,6 +34,10 @@ public:
     static inline constexpr int MIN_PASSWORD_HISTORY{1};       ///< Minimum password history entries
     static inline constexpr int MAX_PASSWORD_HISTORY{20};      ///< Maximum password history entries
     static inline constexpr int DEFAULT_PASSWORD_HISTORY{5};   ///< Default password history entries
+
+    static inline constexpr int MIN_BACKUP_COUNT{1};           ///< Minimum number of retained backups
+    static inline constexpr int MAX_BACKUP_COUNT{50};          ///< Maximum number of retained backups
+    static inline constexpr int DEFAULT_BACKUP_COUNT{5};       ///< Default number of retained backups
 
     // Username hashing constraints (Phase 2)
     static inline constexpr uint32_t MIN_USERNAME_PBKDF2_ITERATIONS{10000};    ///< Minimum PBKDF2 iterations (NIST SP 800-132)
@@ -98,6 +103,34 @@ public:
      */
     [[nodiscard]] static bool is_password_history_enabled(const Glib::RefPtr<Gio::Settings>& settings) noexcept {
         return settings->get_boolean("password-history-enabled");
+    }
+
+    /**
+     * @brief Check if backups are enabled
+     * @param settings GSettings instance (must not be null)
+     * @return true if backups are enabled
+     */
+    [[nodiscard]] static bool is_backup_enabled(const Glib::RefPtr<Gio::Settings>& settings) noexcept {
+        return settings->get_boolean("backup-enabled");
+    }
+
+    /**
+     * @brief Get backup count with validation
+     * @param settings GSettings instance (must not be null)
+     * @return Validated backup count (1-50)
+     */
+    [[nodiscard]] static int get_backup_count(const Glib::RefPtr<Gio::Settings>& settings) noexcept {
+        const int value = settings->get_int("backup-count");
+        return std::clamp(value, MIN_BACKUP_COUNT, MAX_BACKUP_COUNT);
+    }
+
+    /**
+     * @brief Get configured backup path
+     * @param settings GSettings instance (must not be null)
+     * @return Backup path (empty means same directory as vault)
+     */
+    [[nodiscard]] static std::string get_backup_path(const Glib::RefPtr<Gio::Settings>& settings) {
+        return settings->get_string("backup-path");
     }
 
     // ========================================================================
