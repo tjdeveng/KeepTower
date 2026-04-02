@@ -5,6 +5,7 @@
 
 #include "../src/core/VaultManager.h"
 #include "../src/ui/dialogs/preferences/PreferencesPresenter.h"
+#include "../src/utils/SettingsValidator.h"
 
 #include <giomm.h>
 
@@ -188,6 +189,41 @@ TEST_F(PreferencesPresenterTest, LoadWithoutOpenVaultUsesApplicationBackupDefaul
     EXPECT_TRUE(model.backup_enabled);
     EXPECT_EQ(model.backup_count, 10);
     EXPECT_EQ(model.backup_path, "/tmp/app-default-load-backups");
+}
+
+TEST_F(PreferencesPresenterTest, SaveWhileVaultOpenClampsBackupCountBeforeApplyingToVault) {
+    m_settings->set_boolean("backup-enabled", true);
+    m_settings->set_int("backup-count", 7);
+    m_settings->set_string("backup-path", "/tmp/app-default-backups");
+
+    KeepTower::Ui::PreferencesModel model = m_presenter->load();
+    model.backup_enabled = true;
+    model.backup_count = SettingsValidator::MAX_BACKUP_COUNT + 25;
+    model.backup_path = "/tmp/clamped-vault-backups";
+
+    m_presenter->save(model);
+
+    const VaultManager::BackupSettings updated_vault_settings = m_vault_manager->get_backup_settings();
+    EXPECT_TRUE(updated_vault_settings.enabled);
+    EXPECT_EQ(updated_vault_settings.count, SettingsValidator::MAX_BACKUP_COUNT);
+    EXPECT_EQ(updated_vault_settings.path, "/tmp/clamped-vault-backups");
+
+    EXPECT_EQ(m_settings->get_int("backup-count"), 7);
+}
+
+TEST_F(PreferencesPresenterTest, SaveWithoutOpenVaultClampsBackupCountBeforePersistingDefaults) {
+    ASSERT_TRUE(m_vault_manager->close_vault());
+
+    KeepTower::Ui::PreferencesModel model = m_presenter->load();
+    model.backup_enabled = false;
+    model.backup_count = SettingsValidator::MIN_BACKUP_COUNT - 1;
+    model.backup_path = "/tmp/clamped-default-backups";
+
+    m_presenter->save(model);
+
+    EXPECT_FALSE(m_settings->get_boolean("backup-enabled"));
+    EXPECT_EQ(m_settings->get_int("backup-count"), SettingsValidator::MIN_BACKUP_COUNT);
+    EXPECT_EQ(m_settings->get_string("backup-path"), "/tmp/clamped-default-backups");
 }
 
 }  // namespace
