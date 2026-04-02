@@ -49,6 +49,16 @@ public:
         std::string_view username,
         const VaultSecurityPolicy& policy);
 
+    [[nodiscard]] static VaultResult<KeySlot*> require_user_slot(
+        std::vector<KeySlot>& slots,
+        std::string_view username,
+        const VaultSecurityPolicy& policy);
+
+    [[nodiscard]] static VaultResult<const KeySlot*> require_user_slot(
+        const std::vector<KeySlot>& slots,
+        std::string_view username,
+        const VaultSecurityPolicy& policy);
+
     [[nodiscard]] static VaultResult<size_t> store_user_slot(
         std::vector<KeySlot>& slots,
         KeySlot slot,

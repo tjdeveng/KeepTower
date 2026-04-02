@@ -304,6 +304,26 @@ bool KeySlotManager::user_exists(
     return find_slot_by_username_hash(slots, username, policy) != nullptr;
 }
 
+VaultResult<KeySlot*> KeySlotManager::require_user_slot(
+    std::vector<KeySlot>& slots,
+    std::string_view username,
+    const VaultSecurityPolicy& policy) {
+    if (KeySlot* slot = find_slot_by_username_hash(slots, username, policy)) {
+        return slot;
+    }
+    return std::unexpected(VaultError::UserNotFound);
+}
+
+VaultResult<const KeySlot*> KeySlotManager::require_user_slot(
+    const std::vector<KeySlot>& slots,
+    std::string_view username,
+    const VaultSecurityPolicy& policy) {
+    if (const KeySlot* slot = find_slot_by_username_hash(slots, username, policy)) {
+        return slot;
+    }
+    return std::unexpected(VaultError::UserNotFound);
+}
+
 VaultResult<size_t> KeySlotManager::store_user_slot(
     std::vector<KeySlot>& slots,
     KeySlot slot,

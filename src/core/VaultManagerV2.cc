@@ -870,13 +870,12 @@ KeepTower::VaultResult<> VaultManager::validate_new_password(
     }
 
     // Find user slot using hash verification
-    const KeySlot* user_slot = KeySlotManager::find_slot_by_username_hash(
+    auto user_slot_result = KeySlotManager::require_user_slot(
         m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
-
-    if (!user_slot) {
-        Log::error("VaultManager: User not found");
-        return std::unexpected(VaultError::UserNotFound);
+    if (!user_slot_result) {
+        return std::unexpected(user_slot_result.error());
     }
+    const KeySlot* user_slot = user_slot_result.value();
 
     // Validate new password meets minimum length
     if (new_password.length() < m_v2_header->security_policy.min_password_length) {
@@ -926,13 +925,12 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
     }
 
     // Find user slot using hash verification
-    KeySlot* user_slot = KeySlotManager::find_slot_by_username_hash(
+    auto user_slot_result = KeySlotManager::require_user_slot(
         m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
-
-    if (!user_slot) {
-        Log::error("VaultManager: User not found");
-        return std::unexpected(VaultError::UserNotFound);
+    if (!user_slot_result) {
+        return std::unexpected(user_slot_result.error());
     }
+    KeySlot* user_slot = user_slot_result.value();
 
     // Validate new password meets policy
     Log::info("VaultManager: Password length check - length: {}, bytes: {}, required: {}",
@@ -1456,13 +1454,12 @@ KeepTower::VaultResult<> VaultManager::clear_user_password_history(
     }
 
     // Find user slot using hash verification
-    KeySlot* user_slot = KeySlotManager::find_slot_by_username_hash(
+    auto user_slot_result = KeySlotManager::require_user_slot(
         m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
-
-    if (!user_slot) {
-        Log::error("VaultManager: User not found");
-        return std::unexpected(VaultError::UserNotFound);
+    if (!user_slot_result) {
+        return std::unexpected(user_slot_result.error());
     }
+    KeySlot* user_slot = user_slot_result.value();
 
     // Clear password history
     const size_t old_size = KeySlotManager::clear_password_history(*user_slot);
@@ -1503,13 +1500,12 @@ KeepTower::VaultResult<> VaultManager::admin_reset_user_password(
     }
 
     // Find user slot using hash verification
-    KeySlot* user_slot = KeySlotManager::find_slot_by_username_hash(
+    auto user_slot_result = KeySlotManager::require_user_slot(
         m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
-
-    if (!user_slot) {
-        Log::error("VaultManager: User not found");
-        return std::unexpected(VaultError::UserNotFound);
+    if (!user_slot_result) {
+        return std::unexpected(user_slot_result.error());
     }
+    KeySlot* user_slot = user_slot_result.value();
 
     // Validate new password meets policy
     if (new_temporary_password.length() < m_v2_header->security_policy.min_password_length) {
@@ -1618,17 +1614,20 @@ KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
 
     // Find user slot using hash verification
 #ifdef HAVE_YUBIKEY_SUPPORT
-    KeySlot* user_slot = KeySlotManager::find_slot_by_username_hash(
+    auto user_slot_result = KeySlotManager::require_user_slot(
         m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
-#else
-    const KeySlot* user_slot = KeySlotManager::find_slot_by_username_hash(
-        m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
-#endif
-
-    if (!user_slot) {
-        Log::error("VaultManager: User not found");
-        return std::unexpected(VaultError::UserNotFound);
+    if (!user_slot_result) {
+        return std::unexpected(user_slot_result.error());
     }
+    KeySlot* user_slot = user_slot_result.value();
+#else
+    auto user_slot_result = KeySlotManager::require_user_slot(
+        m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
+    if (!user_slot_result) {
+        return std::unexpected(user_slot_result.error());
+    }
+    const KeySlot* user_slot = user_slot_result.value();
+#endif
 
     // Check if already enrolled
     if (user_slot->yubikey_enrolled) {
@@ -1816,17 +1815,20 @@ KeepTower::VaultResult<> VaultManager::unenroll_yubikey_for_user(
 
     // Find user slot using hash verification
 #ifdef HAVE_YUBIKEY_SUPPORT
-    KeySlot* user_slot = KeySlotManager::find_slot_by_username_hash(
+    auto user_slot_result = KeySlotManager::require_user_slot(
         m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
-#else
-    const KeySlot* user_slot = KeySlotManager::find_slot_by_username_hash(
-        m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
-#endif
-
-    if (!user_slot) {
-        Log::error("VaultManager: User not found");
-        return std::unexpected(VaultError::UserNotFound);
+    if (!user_slot_result) {
+        return std::unexpected(user_slot_result.error());
     }
+    KeySlot* user_slot = user_slot_result.value();
+#else
+    auto user_slot_result = KeySlotManager::require_user_slot(
+        m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
+    if (!user_slot_result) {
+        return std::unexpected(user_slot_result.error());
+    }
+    const KeySlot* user_slot = user_slot_result.value();
+#endif
 
     // Check if YubiKey is enrolled
     if (!user_slot->yubikey_enrolled) {
