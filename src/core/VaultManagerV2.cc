@@ -970,11 +970,11 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
             return std::unexpected(VaultError::YubiKeyError);
         }
 
-        // Load credential ID
+        // Load credential ID if present
         if (!user_slot->yubikey_credential_id.empty()) {
-            if (!yk_manager.set_credential(user_slot->yubikey_credential_id)) {
-                Log::error("VaultManager: Failed to set FIDO2 credential ID");
-                return std::unexpected(VaultError::YubiKeyError);
+            auto credential_result = V2AuthService::load_fido2_credential_for_open(*user_slot, yk_manager);
+            if (!credential_result) {
+                return std::unexpected(credential_result.error());
             }
         }
 
@@ -983,26 +983,19 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
             progress_callback("Touch 1 of 2: Verifying old password with YubiKey...");
         }
 
-        // Use user's enrolled challenge
-        const auto& challenge = user_slot->yubikey_challenge;
-        const YubiKeyAlgorithm algorithm = static_cast<YubiKeyAlgorithm>(m_v2_header->security_policy.yubikey_algorithm);
-        auto response = yk_manager.challenge_response(
-            std::span<const unsigned char>(challenge.data(), challenge.size()),
-            algorithm,
-            false,
-            5000,
-            decrypted_pin);  // Pass decrypted PIN
-
-        if (!response.success) {
-            Log::error("VaultManager: YubiKey challenge-response failed: {}",
-                       response.error_message);
-            return std::unexpected(VaultError::YubiKeyError);
+        auto response_result = V2AuthService::run_yubikey_challenge_for_open(
+            *user_slot,
+            m_v2_header->security_policy,
+            decrypted_pin,
+            yk_manager);
+        if (!response_result) {
+            return std::unexpected(response_result.error());
         }
 
         // Combine KEK with YubiKey response (use v2 for variable-length responses)
-        std::vector<uint8_t> yk_response_vec(response.get_response().begin(),
-                                              response.get_response().end());
-        old_final_kek = KeyWrapping::combine_with_yubikey_v2(old_final_kek, yk_response_vec);
+        old_final_kek = V2AuthService::combine_kek_with_yubikey_response_for_open(
+            old_final_kek,
+            std::span<const uint8_t>(response_result.value()));
 
         Log::info("VaultManager: Old password verified with YubiKey");
     }
@@ -1079,11 +1072,11 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
             return std::unexpected(VaultError::YubiKeyError);
         }
 
-        // Load credential ID
+        // Load credential ID if present
         if (!user_slot->yubikey_credential_id.empty()) {
-            if (!yk_manager.set_credential(user_slot->yubikey_credential_id)) {
-                Log::error("VaultManager: Failed to set FIDO2 credential ID");
-                return std::unexpected(VaultError::YubiKeyError);
+            auto credential_result = V2AuthService::load_fido2_credential_for_open(*user_slot, yk_manager);
+            if (!credential_result) {
+                return std::unexpected(credential_result.error());
             }
         }
 
@@ -1092,26 +1085,19 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
             progress_callback("Touch 2 of 2: Combining new password with YubiKey...");
         }
 
-        // Use SAME challenge as before (don't regenerate!)
-        const auto& challenge = user_slot->yubikey_challenge;
-        const YubiKeyAlgorithm algorithm = static_cast<YubiKeyAlgorithm>(m_v2_header->security_policy.yubikey_algorithm);
-        auto response = yk_manager.challenge_response(
-            std::span<const unsigned char>(challenge.data(), challenge.size()),
-            algorithm,
-            false,
-            5000,
-            pin_to_use);  // Pass PIN
-
-        if (!response.success) {
-            Log::error("VaultManager: YubiKey challenge-response failed: {}",
-                       response.error_message);
-            return std::unexpected(VaultError::YubiKeyError);
+        auto response_result = V2AuthService::run_yubikey_challenge_for_open(
+            *user_slot,
+            m_v2_header->security_policy,
+            pin_to_use,
+            yk_manager);
+        if (!response_result) {
+            return std::unexpected(response_result.error());
         }
 
         // Combine new KEK with YubiKey response (use v2 for variable-length)
-        std::vector<uint8_t> yk_response_vec(response.get_response().begin(),
-                                              response.get_response().end());
-        new_final_kek = KeyWrapping::combine_with_yubikey_v2(new_final_kek, yk_response_vec);
+        new_final_kek = V2AuthService::combine_kek_with_yubikey_response_for_open(
+            new_final_kek,
+            std::span<const uint8_t>(response_result.value()));
 
         // Re-encrypt PIN with NEW password-derived KEK (before YubiKey combination)
         std::vector<uint8_t> new_encrypted_pin;
