@@ -291,33 +291,18 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
     }
     KeySlot* user_slot = user_slot_result.value();
 
-    // Derive KEK from password using algorithm stored in KeySlot
     Log::debug("VaultManager: Deriving KEK (password length: {} bytes, {} chars, algorithm: 0x{:02x})",
                password.bytes(), password.length(), user_slot->kek_derivation_algorithm);
 
-    // Convert algorithm byte to enum
-    auto algorithm = static_cast<KekDerivationService::Algorithm>(user_slot->kek_derivation_algorithm);
-
-    // Prepare algorithm parameters from security policy
-    KekDerivationService::AlgorithmParameters params;
-    params.pbkdf2_iterations = file_header.pbkdf2_iterations;
-    params.argon2_memory_kb = file_header.vault_header.security_policy.argon2_memory_kb;
-    params.argon2_time_cost = file_header.vault_header.security_policy.argon2_iterations;
-    params.argon2_parallelism = file_header.vault_header.security_policy.argon2_parallelism;
-
-    // Derive KEK using KekDerivationService
-    auto kek_result = KekDerivationService::derive_kek(
+    auto kek_result = V2AuthService::derive_password_kek_for_slot(
+        *user_slot,
         password.raw(),
-        algorithm,
-        std::span<const uint8_t>(user_slot->salt.data(), user_slot->salt.size()),
-        params);
+        file_header.pbkdf2_iterations,
+        file_header.vault_header.security_policy);
     if (!kek_result) {
-        Log::error("VaultManager: Failed to derive KEK");
-        return std::unexpected(VaultError::CryptoError);
+        return std::unexpected(kek_result.error());
     }
-
-    std::array<uint8_t, 32> final_kek{};
-    std::copy(kek_result->begin(), kek_result->end(), final_kek.begin());
+    std::array<uint8_t, 32> final_kek = kek_result.value();
 
     // Check if this user has YubiKey enrolled
 #ifdef HAVE_YUBIKEY_SUPPORT

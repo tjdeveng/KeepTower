@@ -6,6 +6,7 @@
 #include "../VaultError.h"
 #include "../MultiUserTypes.h"
 
+#include <array>
 #include <string_view>
 #include <vector>
 
@@ -16,6 +17,12 @@ public:
     [[nodiscard]] static VaultResult<KeySlot*> resolve_user_slot_for_open(
         std::vector<KeySlot>& slots,
         std::string_view username,
+        const VaultSecurityPolicy& policy);
+
+    [[nodiscard]] static VaultResult<std::array<uint8_t, 32>> derive_password_kek_for_slot(
+        const KeySlot& slot,
+        std::string_view password,
+        uint32_t pbkdf2_iterations,
         const VaultSecurityPolicy& policy);
 };
 
