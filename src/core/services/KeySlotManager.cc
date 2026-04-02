@@ -412,4 +412,36 @@ void KeySlotManager::clear_yubikey_enrollment(KeySlot& slot) noexcept {
     slot.yubikey_credential_id.clear();
 }
 
+void KeySlotManager::update_yubikey_encrypted_pin(
+    KeySlot& slot,
+    std::vector<uint8_t> encrypted_pin) noexcept {
+    slot.yubikey_encrypted_pin = std::move(encrypted_pin);
+}
+
+void KeySlotManager::enroll_yubikey(
+    KeySlot& slot,
+    const std::array<uint8_t, 40>& wrapped_dek,
+    const std::array<uint8_t, 20>& challenge,
+    std::string serial,
+    int64_t enrolled_at,
+    std::vector<uint8_t> encrypted_pin,
+    std::vector<uint8_t> credential_id) noexcept {
+    slot.wrapped_dek = wrapped_dek;
+    slot.yubikey_enrolled = true;
+    std::copy_n(challenge.begin(), challenge.size(), slot.yubikey_challenge.begin());
+    slot.yubikey_serial = std::move(serial);
+    slot.yubikey_enrolled_at = enrolled_at;
+    slot.yubikey_encrypted_pin = std::move(encrypted_pin);
+    slot.yubikey_credential_id = std::move(credential_id);
+}
+
+void KeySlotManager::unenroll_yubikey(
+    KeySlot& slot,
+    const std::array<uint8_t, 32>& salt,
+    const std::array<uint8_t, 40>& wrapped_dek) noexcept {
+    slot.salt = salt;
+    slot.wrapped_dek = wrapped_dek;
+    clear_yubikey_enrollment(slot);
+}
+
 } // namespace KeepTower

@@ -1186,7 +1186,7 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
         new_pin_storage.reserve(new_pin_iv.size() + new_encrypted_pin.size());
         new_pin_storage.insert(new_pin_storage.end(), new_pin_iv.begin(), new_pin_iv.end());
         new_pin_storage.insert(new_pin_storage.end(), new_encrypted_pin.begin(), new_encrypted_pin.end());
-        user_slot->yubikey_encrypted_pin = std::move(new_pin_storage);
+        KeySlotManager::update_yubikey_encrypted_pin(*user_slot, std::move(new_pin_storage));
 
         Log::info("VaultManager: YubiKey enrollment preserved and PIN re-encrypted with new password");
     }
@@ -1763,16 +1763,14 @@ KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
 
     Log::info("VaultManager: YubiKey PIN encrypted ({} bytes)", pin_storage.size());
 
-    // Update slot with YubiKey enrollment data
-    user_slot->wrapped_dek = new_wrapped_result.value().wrapped_key;
-    user_slot->yubikey_enrolled = true;
-    std::copy_n(user_challenge.begin(), 20, user_slot->yubikey_challenge.begin());
-    user_slot->yubikey_serial = device_serial;
-    user_slot->yubikey_enrolled_at = std::chrono::system_clock::now().time_since_epoch().count();
-    user_slot->yubikey_encrypted_pin = pin_storage;
-
-    // Store credential ID from FIDO2 enrollment
-    user_slot->yubikey_credential_id = *credential_id;
+    KeySlotManager::enroll_yubikey(
+        *user_slot,
+        new_wrapped_result.value().wrapped_key,
+        user_challenge,
+        std::move(device_serial),
+        std::chrono::system_clock::now().time_since_epoch().count(),
+        std::move(pin_storage),
+        std::move(*credential_id));
     Log::info("VaultManager: Stored FIDO2 credential ID ({} bytes)", credential_id->size());
 
     // Mark vault as modified so the new wrapped_dek gets saved
@@ -1928,13 +1926,10 @@ KeepTower::VaultResult<> VaultManager::unenroll_yubikey_for_user(
         return std::unexpected(VaultError::CryptoError);
     }
 
-    // Update slot: remove YubiKey enrollment, use password-only
-    user_slot->salt = new_salt_result.value();
-    user_slot->wrapped_dek = new_wrapped_result.value().wrapped_key;
-    user_slot->yubikey_enrolled = false;
-    user_slot->yubikey_challenge = {};  // Clear challenge
-    user_slot->yubikey_serial.clear();
-    user_slot->yubikey_enrolled_at = 0;
+    KeySlotManager::unenroll_yubikey(
+        *user_slot,
+        new_salt_result.value(),
+        new_wrapped_result.value().wrapped_key);
     m_modified = true;
 
     // Update current session if user unenrolled their own YubiKey

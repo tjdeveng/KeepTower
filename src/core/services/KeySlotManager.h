@@ -93,6 +93,24 @@ public:
         int64_t password_changed_at) noexcept;
 
     static void clear_yubikey_enrollment(KeySlot& slot) noexcept;
+
+    static void update_yubikey_encrypted_pin(
+        KeySlot& slot,
+        std::vector<uint8_t> encrypted_pin) noexcept;
+
+    static void enroll_yubikey(
+        KeySlot& slot,
+        const std::array<uint8_t, 40>& wrapped_dek,
+        const std::array<uint8_t, 20>& challenge,
+        std::string serial,
+        int64_t enrolled_at,
+        std::vector<uint8_t> encrypted_pin,
+        std::vector<uint8_t> credential_id) noexcept;
+
+    static void unenroll_yubikey(
+        KeySlot& slot,
+        const std::array<uint8_t, 32>& salt,
+        const std::array<uint8_t, 40>& wrapped_dek) noexcept;
 };
 
 } // namespace KeepTower
