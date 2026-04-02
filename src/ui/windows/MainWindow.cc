@@ -72,10 +72,13 @@ MainWindow::MainWindow()
     m_vault_manager->apply_default_fec_preferences(use_rs, rs_redundancy);
 
     // Load backup settings and apply to VaultManager
-    bool backup_enabled = SettingsValidator::is_backup_enabled(settings);
-    int backup_count = SettingsValidator::get_backup_count(settings);
-    const std::string backup_path = SettingsValidator::get_backup_path(settings);
-    const VaultManager::BackupSettings backup_settings{backup_enabled, backup_count, backup_path};
+    const SettingsValidator::BackupPreferences backup_prefs =
+        SettingsValidator::get_backup_preferences(settings);
+    const VaultManager::BackupSettings backup_settings{
+        backup_prefs.enabled,
+        backup_prefs.count,
+        backup_prefs.path
+    };
     if (!m_vault_manager->apply_backup_settings(backup_settings)) {
         KeepTower::Log::warning("MainWindow: Invalid backup settings in preferences; using policy defaults");
     }

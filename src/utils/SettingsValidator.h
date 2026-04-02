@@ -39,6 +39,20 @@ public:
     static inline constexpr int MAX_BACKUP_COUNT{50};          ///< Maximum number of retained backups
     static inline constexpr int DEFAULT_BACKUP_COUNT{5};       ///< Default number of retained backups
 
+    /**
+     * @brief Aggregated backup settings read from GSettings.
+     */
+    struct BackupPreferences {
+        /** @brief Whether backups are enabled in preferences. */
+        bool enabled{true};
+
+        /** @brief Validated backup retention count. */
+        int count{DEFAULT_BACKUP_COUNT};
+
+        /** @brief Backup output path (empty means vault directory). */
+        std::string path;
+    };
+
     // Username hashing constraints (Phase 2)
     static inline constexpr uint32_t MIN_USERNAME_PBKDF2_ITERATIONS{10000};    ///< Minimum PBKDF2 iterations (NIST SP 800-132)
     static inline constexpr uint32_t MAX_USERNAME_PBKDF2_ITERATIONS{1000000};  ///< Maximum PBKDF2 iterations
@@ -131,6 +145,33 @@ public:
      */
     [[nodiscard]] static std::string get_backup_path(const Glib::RefPtr<Gio::Settings>& settings) {
         return settings->get_string("backup-path");
+    }
+
+    /**
+     * @brief Get all backup preferences with validation.
+     * @param settings GSettings instance (must not be null)
+     * @return Aggregated backup preferences
+     */
+    [[nodiscard]] static BackupPreferences get_backup_preferences(const Glib::RefPtr<Gio::Settings>& settings) {
+        return BackupPreferences{
+            is_backup_enabled(settings),
+            get_backup_count(settings),
+            get_backup_path(settings)
+        };
+    }
+
+    /**
+     * @brief Persist backup preferences with validation.
+     * @param settings GSettings instance (must not be null)
+     * @param prefs Backup preferences to persist
+     */
+    static void set_backup_preferences(const Glib::RefPtr<Gio::Settings>& settings,
+                                       const BackupPreferences& prefs) {
+        settings->set_boolean("backup-enabled", prefs.enabled);
+        settings->set_int(
+            "backup-count",
+            std::clamp(prefs.count, MIN_BACKUP_COUNT, MAX_BACKUP_COUNT));
+        settings->set_string("backup-path", prefs.path);
     }
 
     // ========================================================================

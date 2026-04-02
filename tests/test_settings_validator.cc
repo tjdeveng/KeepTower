@@ -206,6 +206,30 @@ TEST_F(SettingsValidatorTest, BackupPathGetterReturnsConfiguredPath) {
     EXPECT_EQ(SettingsValidator::get_backup_path(settings), "");
 }
 
+TEST_F(SettingsValidatorTest, BackupPreferencesGetterAggregatesValues) {
+    settings->set_boolean("backup-enabled", false);
+    settings->set_int("backup-count", 17);
+    settings->set_string("backup-path", "/tmp/aggregate-path");
+
+    const SettingsValidator::BackupPreferences prefs =
+        SettingsValidator::get_backup_preferences(settings);
+
+    EXPECT_FALSE(prefs.enabled);
+    EXPECT_EQ(prefs.count, 17);
+    EXPECT_EQ(prefs.path, "/tmp/aggregate-path");
+}
+
+TEST_F(SettingsValidatorTest, BackupPreferencesSetterPersistsValidatedValues) {
+    const SettingsValidator::BackupPreferences prefs{false, 23, "/tmp/setter-path"};
+    SettingsValidator::set_backup_preferences(settings, prefs);
+
+    const SettingsValidator::BackupPreferences loaded =
+        SettingsValidator::get_backup_preferences(settings);
+    EXPECT_FALSE(loaded.enabled);
+    EXPECT_EQ(loaded.count, 23);
+    EXPECT_EQ(loaded.path, "/tmp/setter-path");
+}
+
 /**
  * @brief Test validator constants are sensible
  */
