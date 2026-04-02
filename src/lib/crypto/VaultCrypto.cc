@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2024 Travis E. Hansen
 
-#include "VaultCrypto.h"
-#include "../../utils/SecureMemory.h"
+#include "crypto/VaultCrypto.h"
+#include "utils/SecureMemory.h"
 #include <openssl/evp.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>

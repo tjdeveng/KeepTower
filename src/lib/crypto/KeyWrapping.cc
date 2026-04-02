@@ -2,8 +2,8 @@
 // SPDX-FileCopyrightText: 2025 tjdeveng
 
 #include "KeyWrapping.h"
-#include "../utils/Log.h"
-#include "../utils/SecureMemory.h"
+#include "utils/Log.h"
+#include "utils/SecureMemory.h"
 #include <openssl/evp.h>
 #include <openssl/rand.h>
 #include <openssl/kdf.h>

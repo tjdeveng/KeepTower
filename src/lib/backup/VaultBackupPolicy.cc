@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 tjdeveng
 
-#include "VaultBackupPolicy.h"
+#include "services/VaultBackupPolicy.h"
 
-#include "../io/VaultIO.h"
+#include "io/VaultIO.h"
 #include "record.pb.h"
-#include "../../utils/Log.h"
+#include "utils/Log.h"
 
 #include <filesystem>
 

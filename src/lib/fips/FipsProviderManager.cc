@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 tjdeveng
 
-#include "FipsProviderManager.h"
+#include "crypto/FipsProviderManager.h"
 
-#include "../../utils/Log.h"
+#include "utils/Log.h"
 
 #include <openssl/crypto.h>
 #include <openssl/err.h>

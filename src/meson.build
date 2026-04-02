@@ -78,14 +78,14 @@ endforeach
 
 # Phase D.1: Extract backup policy into dedicated library target.
 backup_library_sources = files(
-  'core/services/VaultBackupPolicy.cc',
+  'lib/backup/VaultBackupPolicy.cc',
 )
 
 backup_library = static_library(
   'keeptower-backup',
   backup_library_sources,
   dependencies: [protobuf_dep],
-  include_directories: [root_inc, include_directories('core')],
+  include_directories: [root_inc, include_directories('.'), include_directories('core')],
 )
 
 backup_dep = declare_dependency(
@@ -97,14 +97,14 @@ meson.override_dependency('keeptower-backup', backup_dep)
 
 # Phase D.2: Extract FEC/Reed-Solomon into dedicated library target.
 fec_library_sources = files(
-  'core/ReedSolomon.cc',
+  'lib/fec/ReedSolomon.cc',
 )
 
 fec_library = static_library(
   'keeptower-fec',
   fec_library_sources,
   dependencies: [libcorrect_dep],
-  include_directories: [root_inc, include_directories('core')],
+  include_directories: [root_inc, include_directories('.'), include_directories('core')],
 )
 
 fec_dep = declare_dependency(
@@ -116,14 +116,14 @@ meson.override_dependency('keeptower-fec', fec_dep)
 
 # Phase D.4: Extract FIPS provider management into dedicated library target.
 fips_library_sources = files(
-  'core/crypto/FipsProviderManager.cc',
+  'lib/fips/FipsProviderManager.cc',
 )
 
 fips_library = static_library(
   'keeptower-fips',
   fips_library_sources,
   dependencies: [openssl_dep],
-  include_directories: [root_inc, include_directories('core')],
+  include_directories: [root_inc, include_directories('.'), include_directories('core')],
 )
 
 fips_dep = declare_dependency(
@@ -135,16 +135,16 @@ meson.override_dependency('keeptower-fips', fips_dep)
 
 # Phase D.3: Extract crypto primitives/services into dedicated library target.
 crypto_library_sources = files(
-  'core/KeyWrapping.cc',
-  'core/crypto/VaultCrypto.cc',
-  'core/services/VaultCryptoService.cc',
+  'lib/crypto/KeyWrapping.cc',
+  'lib/crypto/VaultCrypto.cc',
+  'lib/crypto/VaultCryptoService.cc',
 )
 
 crypto_library = static_library(
   'keeptower-crypto',
   crypto_library_sources,
   dependencies: [openssl_dep, gtkmm_dep],
-  include_directories: [root_inc, include_directories('core')],
+  include_directories: [root_inc, include_directories('.'), include_directories('core')],
 )
 
 crypto_dep = declare_dependency(

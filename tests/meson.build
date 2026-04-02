@@ -34,24 +34,24 @@ proto_gen = custom_target('record_proto_test',
 vault_manager_common_sources = [
     '../src/core/VaultManager.cc',
     '../src/core/VaultManagerV2.cc',
-    '../src/core/ReedSolomon.cc',
+    '../src/lib/fec/ReedSolomon.cc',
     '../src/core/MultiUserTypes.cc',
     '../src/core/MultiUserTypesSerDe.cc',
-    '../src/core/KeyWrapping.cc',
+    '../src/lib/crypto/KeyWrapping.cc',
     '../src/core/VaultFormatV2.cc',
     '../src/core/PasswordHistory.cc',
-    '../src/core/crypto/VaultCrypto.cc',
-    '../src/core/crypto/FipsProviderManager.cc',
+    '../src/lib/crypto/VaultCrypto.cc',
+    '../src/lib/fips/FipsProviderManager.cc',
     '../src/core/io/VaultIO.cc',
     '../src/core/serialization/VaultSerialization.cc',
     '../src/core/managers/AccountManager.cc',
     '../src/core/managers/GroupManager.cc',
     # Phase 2 Day 5: Add orchestrator and services
     '../src/core/controllers/VaultCreationOrchestrator.cc',
-    '../src/core/services/VaultCryptoService.cc',
+    '../src/lib/crypto/VaultCryptoService.cc',
     '../src/core/services/VaultYubiKeyService.cc',
     '../src/core/services/VaultFileService.cc',
-    '../src/core/services/VaultBackupPolicy.cc',
+    '../src/lib/backup/VaultBackupPolicy.cc',
     '../src/core/services/UsernameHashService.cc',  # Username hashing service
     '../src/core/services/KekDerivationService.cc',  # KEK derivation service (Phase 3)
     proto_gen
@@ -182,7 +182,7 @@ input_validation_test = executable(
 # Reed-Solomon tests
 reed_solomon_test = executable(
     'reed_solomon_test',
-    ['test_reed_solomon.cc', '../src/core/ReedSolomon.cc'],
+    ['test_reed_solomon.cc', '../src/lib/fec/ReedSolomon.cc'],
 
     dependencies: [
         gtest_dep,
@@ -757,7 +757,7 @@ test('Group Manager Unit Tests', group_manager_test)
 vault_format_v2_sources = [
     'test_vault_format_v2.cc',
     '../src/core/VaultFormatV2.cc',
-    '../src/core/ReedSolomon.cc',
+    '../src/lib/fec/ReedSolomon.cc',
     '../src/core/MultiUserTypes.cc',
     '../src/core/MultiUserTypesSerDe.cc',
     proto_gen
@@ -825,7 +825,7 @@ vault_file_service_sources = [
     'test_vault_file_service.cc',
     '../src/core/services/VaultFileService.cc',
     '../src/core/VaultFormatV2.cc',
-    '../src/core/ReedSolomon.cc',
+    '../src/lib/fec/ReedSolomon.cc',
     '../src/core/MultiUserTypes.cc',
     '../src/core/MultiUserTypesSerDe.cc',
     '../src/core/PasswordHistory.cc'
@@ -844,16 +844,16 @@ test('VaultFileService Unit Tests', vault_file_service_test)
 # VaultCreationOrchestrator unit tests (Phase 2 Day 2)
 vault_creation_orchestrator_sources = [
     '../src/core/controllers/VaultCreationOrchestrator.cc',
-    '../src/core/services/VaultCryptoService.cc',
+    '../src/lib/crypto/VaultCryptoService.cc',
     '../src/core/services/VaultYubiKeyService.cc',
     '../src/core/services/VaultFileService.cc',
     '../src/core/services/UsernameHashService.cc',
     '../src/core/services/KekDerivationService.cc',  # KEK derivation service (Phase 3)
-    '../src/core/KeyWrapping.cc',
-    '../src/core/crypto/VaultCrypto.cc',
+    '../src/lib/crypto/KeyWrapping.cc',
+    '../src/lib/crypto/VaultCrypto.cc',
     '../src/core/managers/YubiKeyManager.cc',
     '../src/core/VaultFormatV2.cc',
-    '../src/core/ReedSolomon.cc',
+    '../src/lib/fec/ReedSolomon.cc',
     '../src/core/MultiUserTypes.cc',
     '../src/core/MultiUserTypesSerDe.cc',
     '../src/core/PasswordHistory.cc',
@@ -884,10 +884,10 @@ test('VaultCreationOrchestrator Integration Tests', vault_orchestrator_integrati
 # Multi-User Infrastructure tests
 multiuser_sources = [
     'test_multiuser.cc',
-    '../src/core/ReedSolomon.cc',
+    '../src/lib/fec/ReedSolomon.cc',
     '../src/core/MultiUserTypes.cc',
     '../src/core/MultiUserTypesSerDe.cc',
-    '../src/core/KeyWrapping.cc',
+    '../src/lib/crypto/KeyWrapping.cc',
     '../src/core/VaultFormatV2.cc',
 ]
 multiuser_deps = [gtest_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep]
@@ -983,7 +983,7 @@ test('vault_io', vault_io_test)
 # vault_format_test_sources = [
 #     'test_vault_format.cc',
 #     '../src/core/format/VaultFormat.cc',
-#     '../src/core/ReedSolomon.cc'
+#     '../src/lib/fec/ReedSolomon.cc'
 # ]
 # vault_format_test_deps = [gtest_dep, giomm_dep, libcorrect_dep]
 
