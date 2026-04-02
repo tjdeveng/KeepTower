@@ -114,6 +114,28 @@ fec_dep = declare_dependency(
 
 meson.override_dependency('keeptower-fec', fec_dep)
 
+# Phase D.3: Extract crypto primitives/services into dedicated library target.
+crypto_library_sources = files(
+  'core/KeyWrapping.cc',
+  'core/crypto/VaultCrypto.cc',
+  'core/crypto/FipsProviderManager.cc',
+  'core/services/VaultCryptoService.cc',
+)
+
+crypto_library = static_library(
+  'keeptower-crypto',
+  crypto_library_sources,
+  dependencies: [openssl_dep, gtkmm_dep],
+  include_directories: [root_inc, include_directories('core')],
+)
+
+crypto_dep = declare_dependency(
+  link_with: crypto_library,
+  include_directories: [root_inc, include_directories('core')],
+)
+
+meson.override_dependency('keeptower-crypto', crypto_dep)
+
 # Application sources
 sources = files(
   'main.cc',
@@ -161,7 +183,6 @@ sources = files(
   'core/repositories/GroupRepository.cc',
   'core/services/AccountService.cc',
   'core/services/GroupService.cc',
-  'core/services/VaultCryptoService.cc',
   'core/services/VaultYubiKeyService.cc',
   'core/services/VaultFileService.cc',
   'core/services/UsernameHashService.cc',
@@ -169,11 +190,8 @@ sources = files(
   'core/controllers/VaultCreationOrchestrator.cc',
   'core/MultiUserTypes.cc',
   'core/MultiUserTypesSerDe.cc',
-  'core/KeyWrapping.cc',
   'core/VaultFormatV2.cc',
   'core/PasswordHistory.cc',
-  'core/crypto/VaultCrypto.cc',
-  'core/crypto/FipsProviderManager.cc',
   'core/io/VaultIO.cc',
   'core/serialization/VaultSerialization.cc',
   'core/managers/AccountManager.cc',
@@ -213,7 +231,7 @@ src_inc = include_directories(
 executable(
   project_name,
   all_sources,
-  dependencies: common_deps + [backup_dep, fec_dep],
+  dependencies: common_deps + [backup_dep, fec_dep, crypto_dep],
   include_directories: [root_inc, src_inc],
   install: true,
 )

@@ -7,6 +7,7 @@ gtest_dep = dependency('gtest', main: true, required: true)
 # Get dependencies from parent
 giomm_dep = dependency('giomm-2.68')
 backup_dep = dependency('keeptower-backup')
+crypto_dep = dependency('keeptower-crypto')
 
 # Include directories - include project root for config.h and generated files
 test_inc = [
@@ -64,7 +65,8 @@ vault_manager_common_deps = [
     giomm_dep,
     libcorrect_dep,
     argon2_dep,
-    backup_dep
+    backup_dep,
+    crypto_dep
 ]
 
 # VaultManager tests
@@ -772,9 +774,8 @@ test('VaultFormatV2 Unit Tests', vault_format_v2_test)
 # KeyWrapping unit tests
 key_wrapping_sources = [
     'test_key_wrapping.cc',
-    '../src/core/KeyWrapping.cc'
 ]
-key_wrapping_deps = [gtest_dep, openssl_dep, giomm_dep]
+key_wrapping_deps = [gtest_dep, openssl_dep, giomm_dep, crypto_dep]
 
 key_wrapping_test = executable(
     'key_wrapping_test',
@@ -788,11 +789,8 @@ test('KeyWrapping Unit Tests', key_wrapping_test)
 # VaultCryptoService unit tests
 vault_crypto_service_sources = [
     'test_vault_crypto_service.cc',
-    '../src/core/services/VaultCryptoService.cc',
-    '../src/core/KeyWrapping.cc',
-    '../src/core/crypto/VaultCrypto.cc'
 ]
-vault_crypto_service_deps = [gtest_dep, openssl_dep, giomm_dep]
+vault_crypto_service_deps = [gtest_dep, openssl_dep, giomm_dep, crypto_dep]
 
 vault_crypto_service_test = executable(
     'vault_crypto_service_test',
@@ -807,10 +805,9 @@ test('VaultCryptoService Unit Tests', vault_crypto_service_test)
 vault_yubikey_service_sources = [
     'test_vault_yubikey_service.cc',
     '../src/core/services/VaultYubiKeyService.cc',
-    '../src/core/crypto/VaultCrypto.cc',
     '../src/core/managers/YubiKeyManager.cc'
 ]
-vault_yubikey_service_deps = [gtest_dep, openssl_dep, giomm_dep, fido2_dep]
+vault_yubikey_service_deps = [gtest_dep, openssl_dep, giomm_dep, fido2_dep, crypto_dep]
 
 vault_yubikey_service_test = executable(
     'vault_yubikey_service_test',
@@ -952,9 +949,8 @@ test('password_history', password_history_test)
 # VaultCrypto unit tests (AES-256-GCM encryption and PBKDF2)
 vault_crypto_test_sources = [
     'test_vault_crypto.cc',
-    '../src/core/crypto/VaultCrypto.cc'
 ]
-vault_crypto_test_deps = [gtest_dep, openssl_dep, giomm_dep]
+vault_crypto_test_deps = [gtest_dep, openssl_dep, giomm_dep, crypto_dep]
 
 vault_crypto_test = executable(
     'vault_crypto_test',
