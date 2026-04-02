@@ -273,9 +273,25 @@ doxygen = find_program('doxygen', required: false)
 if doxygen.found()
   message('Doxygen found, API documentation target enabled')
 
+  doxygen_output_dir = meson.project_build_root() / 'docs' / 'api'
+
+  doxygen_conf = configuration_data()
+  doxygen_conf.set('PROJECT_VERSION', meson.project_version())
+  doxygen_conf.set('DOXYGEN_OUTPUT_DIRECTORY', doxygen_output_dir)
+  doxygen_conf.set('DOXYGEN_STRIP_FROM_PATH', meson.project_source_root() / 'src')
+  doxygen_conf.set('DOXYGEN_INPUT_DIRECTORY', meson.project_source_root() / 'src')
+
+  configured_doxyfile = configure_file(
+    input: 'Doxyfile',
+    output: 'Doxyfile',
+    configuration: doxygen_conf,
+  )
+
+  shell = find_program('sh')
+
   # Run doxygen target
   run_target('doxygen',
-    command: [doxygen, meson.project_source_root() / 'Doxyfile'],
+    command: [shell, '-c', 'mkdir -p "$1" && exec "$2" "$3"', 'sh', doxygen_output_dir, doxygen, configured_doxyfile],
   )
 
   message('Run "ninja doxygen" or "meson compile -C build doxygen" to generate API documentation')
