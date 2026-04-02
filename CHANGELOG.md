@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-04-02
+
+### Fixed
+- **Backup Settings Architecture Refactor:**
+  - Restored vault-scoped backup preference semantics in PreferencesPresenter to preserve `enabled` and `count` in app settings while vault is open (only `path` is mirrored for runtime defaults)
+  - Consolidated backup settings persistence flow from scattered per-field wrappers to aggregate `BackupSettings` and `BackupPreferences` helpers
+  - Hardened backup preference mapping to ensure consistency between UI, validator, and persistence layers
+- **Build System:**
+  - Fixed Doxygen output directory configuration in Meson to correctly handle build-root paths and create output directories automatically
+
+### Changed
+- **Refactoring:**
+  - Removed legacy backup wrapper surface (`set_backup_enabled()`, `set_backup_count()`, `get_backup_enabled()`, `get_backup_count()`) from VaultManager public API
+  - Migrated all test setup and production call sites to use aggregate `apply_backup_settings()` and `get_backup_settings()` methods
+  - Centralized backup settings validation into `SettingsValidator::BackupPreferences` getter/setter with consistent MIN/MAX bounds enforcement
+
+### Added
+- **Testing:**
+  - PreferencesPresenter integration test suite covering vault-open vs. no-vault backup semantics (4 tests)
+  - Load-side regression tests for backup preference source-of-truth (vault vs. app settings)
+  - Save-side clamping tests for backup count bounds enforcement in ProferencesPresenter
+  - Expanded `SettingsValidator` test coverage for backup preference aggregation
+
+### Technical Details
+- Backup settings now use centralized validation boundaries: `MIN_BACKUP_COUNT=1`, `MAX_BACKUP_COUNT=50`
+- `BackupPreferences` struct aggregates enabled flag, count, and path for cleaner setter/getter contracts
+- All 58 unit tests passing with zero compiler warnings
+- API documentation (Doxygen) fully regenerated without errors
+
 ## [0.3.2] - 2026-01-06
 
 ### Fixed
