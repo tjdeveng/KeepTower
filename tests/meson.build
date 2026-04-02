@@ -179,6 +179,16 @@ input_validation_test = executable(
     include_directories: test_inc
 )
 
+# VaultRuntimePreferences unit tests
+vault_runtime_preferences_test = executable(
+    'vault_runtime_preferences_test',
+    'test_vault_runtime_preferences.cc',
+    dependencies: [
+        gtest_dep,
+    ],
+    include_directories: test_inc
+)
+
 # Reed-Solomon tests
 reed_solomon_test = executable(
     'reed_solomon_test',
@@ -631,6 +641,7 @@ test('VaultManager Tests', vault_manager_test,
 )
 test('Password Validation Tests', password_validation_test, timeout: 30)
 test('Input Validation Tests', input_validation_test)
+test('VaultRuntimePreferences Unit Tests', vault_runtime_preferences_test)
 test('Reed-Solomon Tests', reed_solomon_test)
 test('Vault Reed-Solomon Integration', vault_reed_solomon_test)
 test('FEC Preferences Tests', fec_preferences_test)
