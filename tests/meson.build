@@ -833,6 +833,30 @@ vault_yubikey_service_test = executable(
 
 test('VaultYubiKeyService Unit Tests', vault_yubikey_service_test)
 
+# V2AuthService unit tests
+v2_auth_service_sources = [
+    'test_v2_auth_service.cc',
+    '../src/core/services/V2AuthService.cc',
+    '../src/core/services/KeySlotManager.cc',
+    '../src/core/services/UsernameHashService.cc',
+    '../src/core/services/KekDerivationService.cc',
+    '../src/lib/crypto/VaultCrypto.cc',
+    '../src/lib/crypto/KeyWrapping.cc',
+    '../src/core/managers/YubiKeyManager.cc',
+    '../src/core/MultiUserTypes.cc',
+    '../src/core/PasswordHistory.cc',
+]
+v2_auth_service_deps = [gtest_dep, openssl_dep, giomm_dep, argon2_dep, fido2_dep, crypto_dep]
+
+v2_auth_service_test = executable(
+    'v2_auth_service_test',
+    v2_auth_service_sources,
+    dependencies: v2_auth_service_deps,
+    include_directories: test_inc
+)
+
+test('V2AuthService Unit Tests', v2_auth_service_test)
+
 # VaultFileService unit tests
 vault_file_service_sources = [
     'test_vault_file_service.cc',
