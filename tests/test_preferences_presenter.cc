@@ -128,4 +128,32 @@ TEST_F(PreferencesPresenterTest, SaveWhileVaultOpenPreservesAppDefaultsForBackup
     EXPECT_EQ(updated_vault_settings.path, "/tmp/vault-specific-backups");
 }
 
+TEST_F(PreferencesPresenterTest, SaveWithoutOpenVaultPersistsBackupDefaultsAndOnlyUpdatesRuntimePath) {
+    m_settings->set_boolean("backup-enabled", false);
+    m_settings->set_int("backup-count", 4);
+    m_settings->set_string("backup-path", "/tmp/old-app-default-backups");
+
+    const VaultManager::BackupSettings initial_runtime_settings{true, 8, "/tmp/runtime-old-path"};
+    ASSERT_TRUE(m_vault_manager->apply_backup_settings(initial_runtime_settings));
+    ASSERT_TRUE(m_vault_manager->close_vault());
+
+    KeepTower::Ui::PreferencesModel model = m_presenter->load();
+    model.backup_enabled = true;
+    model.backup_count = 11;
+    model.backup_path = "/tmp/new-app-default-backups";
+
+    m_presenter->save(model);
+
+    // Without an open vault, defaults are persisted to app settings.
+    EXPECT_TRUE(m_settings->get_boolean("backup-enabled"));
+    EXPECT_EQ(m_settings->get_int("backup-count"), 11);
+    EXPECT_EQ(m_settings->get_string("backup-path"), "/tmp/new-app-default-backups");
+
+    // Runtime manager state should only have backup path synchronized.
+    const VaultManager::BackupSettings updated_runtime_settings = m_vault_manager->get_backup_settings();
+    EXPECT_TRUE(updated_runtime_settings.enabled);
+    EXPECT_EQ(updated_runtime_settings.count, 8);
+    EXPECT_EQ(updated_runtime_settings.path, "/tmp/new-app-default-backups");
+}
+
 }  // namespace
