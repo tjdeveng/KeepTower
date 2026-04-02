@@ -265,6 +265,14 @@ const KeySlot* KeySlotManager::find_slot_by_username_hash(
     return nullptr;
 }
 
+bool KeySlotManager::is_yubikey_enrolled_for_user(
+    const std::vector<KeySlot>& slots,
+    std::string_view username,
+    const VaultSecurityPolicy& policy) {
+    const KeySlot* slot = find_slot_by_username_hash(slots, username, policy);
+    return slot != nullptr && slot->yubikey_enrolled;
+}
+
 std::vector<KeySlot> KeySlotManager::list_active_users(const std::vector<KeySlot>& slots) {
     std::vector<KeySlot> active_users;
     active_users.reserve(slots.size());

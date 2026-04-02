@@ -1333,9 +1333,8 @@ void VaultManager::change_user_password_async(
     int total_steps = 1;  // Minimum: password change without YubiKey
 
     if (m_vault_open && m_is_v2_vault) {
-        const KeySlot* slot = KeySlotManager::find_slot_by_username_hash(
-            m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
-        if (slot && slot->yubikey_enrolled) {
+        if (KeySlotManager::is_yubikey_enrolled_for_user(
+                m_v2_header->key_slots, username.raw(), m_v2_header->security_policy)) {
             yubikey_enrolled = true;
             total_steps = 2;  // With YubiKey: verify old + combine new
         }

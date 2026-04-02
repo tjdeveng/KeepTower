@@ -35,6 +35,11 @@ public:
         std::string_view username,
         const VaultSecurityPolicy& policy);
 
+    [[nodiscard]] static bool is_yubikey_enrolled_for_user(
+        const std::vector<KeySlot>& slots,
+        std::string_view username,
+        const VaultSecurityPolicy& policy);
+
     [[nodiscard]] static std::vector<KeySlot> list_active_users(
         const std::vector<KeySlot>& slots);
 
