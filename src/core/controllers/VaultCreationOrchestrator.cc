@@ -3,15 +3,15 @@
 // File: src/core/controllers/VaultCreationOrchestrator.cc
 
 #include "VaultCreationOrchestrator.h"
-#include "../services/VaultCryptoService.h"
+#include "lib/crypto/VaultCryptoService.h"
 #include "../services/VaultYubiKeyService.h"
 #include "../services/VaultFileService.h"
 #include "../services/UsernameHashService.h"
 #include "../services/KekDerivationService.h"
-#include "../KeyWrapping.h"
+#include "lib/crypto/KeyWrapping.h"
 #include "../VaultFormatV2.h"
 #include "../PasswordHistory.h"
-#include "../crypto/VaultCrypto.h"
+#include "lib/crypto/VaultCrypto.h"
 #include "../../utils/Log.h"
 #include "../../utils/SecureMemory.h"  // For secure_clear_std_string
 #include "../record.pb.h"

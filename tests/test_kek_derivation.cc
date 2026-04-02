@@ -19,7 +19,7 @@
 
 #include <gtest/gtest.h>
 #include "core/services/KekDerivationService.h"
-#include "core/crypto/VaultCrypto.h"
+#include "lib/crypto/VaultCrypto.h"
 #include <glibmm/init.h>
 #include <giomm/init.h>
 #include <giomm/settings.h>

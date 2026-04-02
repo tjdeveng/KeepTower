@@ -3,7 +3,7 @@
 
 #include "VaultYubiKeyService.h"
 #include "../managers/YubiKeyManager.h"
-#include "../crypto/VaultCrypto.h"
+#include "lib/crypto/VaultCrypto.h"
 #include "../../utils/Log.h"
 #include <algorithm>
 

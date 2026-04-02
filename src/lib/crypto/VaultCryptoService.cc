@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 tjdeveng
 
-#include "services/VaultCryptoService.h"
-#include "crypto/VaultCrypto.h"
-#include "KeyWrapping.h"
+#include "lib/crypto/VaultCryptoService.h"
+#include "lib/crypto/VaultCrypto.h"
+#include "lib/crypto/KeyWrapping.h"
 #include "utils/Log.h"
 #include "utils/SecureMemory.h"
 #include <openssl/evp.h>

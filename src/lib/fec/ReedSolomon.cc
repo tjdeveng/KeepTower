@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2025 tjdeveng
 
-#include "ReedSolomon.h"
+#include "lib/fec/ReedSolomon.h"
 
 extern "C" {
 #include <correct.h>

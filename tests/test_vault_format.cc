@@ -11,7 +11,7 @@
 
 #include <gtest/gtest.h>
 #include "../src/core/format/VaultFormat.h"
-#include "../src/core/ReedSolomon.h"
+#include "../src/lib/fec/ReedSolomon.h"
 #include <algorithm>
 
 using namespace KeepTower;

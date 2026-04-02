@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2025 tjdeveng
 
-#include "KeyWrapping.h"
+#include "lib/crypto/KeyWrapping.h"
 #include "utils/Log.h"
 #include "utils/SecureMemory.h"
 #include <openssl/evp.h>

@@ -10,7 +10,7 @@
  */
 
 #include <gtest/gtest.h>
-#include "../src/core/KeyWrapping.h"
+#include "../src/lib/crypto/KeyWrapping.h"
 #include <openssl/rand.h>
 
 using namespace KeepTower;

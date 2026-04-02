@@ -8,7 +8,7 @@
  * Tests key wrapping, key slot serialization, and V2 vault format.
  */
 
-#include "../src/core/KeyWrapping.h"
+#include "../src/lib/crypto/KeyWrapping.h"
 #include "../src/core/MultiUserTypes.h"
 #include "../src/core/VaultFormatV2.h"
 #include <cassert>

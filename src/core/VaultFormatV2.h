@@ -42,7 +42,7 @@
 #define VAULTFORMATV2_H
 
 #include "MultiUserTypes.h"
-#include "ReedSolomon.h"
+#include "lib/fec/ReedSolomon.h"
 #include "VaultError.h"
 #include <vector>
 #include <cstdint>

@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: 2025 tjdeveng
 
 #include <gtest/gtest.h>
-#include "../src/core/ReedSolomon.h"
+#include "../src/lib/fec/ReedSolomon.h"
 #include <algorithm>
 #include <random>
 

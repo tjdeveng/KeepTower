@@ -17,7 +17,7 @@
 #include <gtest/gtest.h>
 #include <core/VaultManager.h>
 #include <core/VaultError.h>
-#include <core/ReedSolomon.h>
+#include <lib/fec/ReedSolomon.h>
 
 using namespace std;
 using namespace KeepTower;

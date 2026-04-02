@@ -6,7 +6,7 @@
 #include <string>
 #include <string_view>
 
-#include "../VaultError.h"
+#include "core/VaultError.h"
 
 namespace keeptower {
 class VaultData;

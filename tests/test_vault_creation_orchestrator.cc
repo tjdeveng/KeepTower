@@ -11,7 +11,7 @@
 
 #include <gtest/gtest.h>
 #include "../src/core/controllers/VaultCreationOrchestrator.h"
-#include "../src/core/services/VaultCryptoService.h"
+#include "../src/lib/crypto/VaultCryptoService.h"
 #include "../src/core/services/VaultYubiKeyService.h"
 #include "../src/core/services/VaultFileService.h"
 

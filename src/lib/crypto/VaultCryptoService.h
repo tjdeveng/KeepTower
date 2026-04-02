@@ -23,7 +23,7 @@
 
 #pragma once
 
-#include "../VaultError.h"
+#include "core/VaultError.h"
 #include <array>
 #include <vector>
 #include <cstdint>

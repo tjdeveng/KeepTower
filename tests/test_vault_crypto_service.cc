@@ -11,8 +11,8 @@
  */
 
 #include <gtest/gtest.h>
-#include "../src/core/services/VaultCryptoService.h"
-#include "../src/core/crypto/VaultCrypto.h"
+#include "../src/lib/crypto/VaultCryptoService.h"
+#include "../src/lib/crypto/VaultCrypto.h"
 #include <algorithm>
 
 using namespace KeepTower;
