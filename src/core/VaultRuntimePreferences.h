@@ -180,6 +180,30 @@ public:
      *
      * Used when vault is closed to ensure consistent defaults.
      */
+    /**
+     * @brief Sync all preferences from vault metadata values
+     *
+     * Loads preference values from vault metadata into the cache.
+     * Called by VaultManager after loading a vault file.
+     */
+    void sync_from_vault_metadata(
+        int clipboard_timeout,
+        bool auto_lock_enabled,
+        int auto_lock_timeout,
+        bool undo_redo_enabled,
+        int undo_history_limit,
+        bool password_history_enabled,
+        int password_history_limit
+    ) noexcept {
+        m_clipboard_timeout_seconds = clipboard_timeout;
+        m_auto_lock_enabled = auto_lock_enabled;
+        m_auto_lock_timeout_seconds = auto_lock_timeout;
+        m_undo_redo_enabled = undo_redo_enabled;
+        m_undo_history_limit = undo_history_limit;
+        m_account_password_history_enabled = password_history_enabled;
+        m_account_password_history_limit = password_history_limit;
+    }
+
     void reset_to_defaults() noexcept {
         m_clipboard_timeout_seconds = 30;
         m_auto_lock_enabled = true;
