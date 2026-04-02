@@ -115,14 +115,27 @@ VaultResult<std::vector<uint8_t>> V2AuthService::run_yubikey_challenge_for_open(
     std::string_view decrypted_pin,
     ::YubiKeyManager& yk_manager) {
 
+    return run_yubikey_challenge_for_policy(
+        std::span<const uint8_t>(slot.yubikey_challenge.data(), slot.yubikey_challenge.size()),
+        policy,
+        decrypted_pin,
+        yk_manager);
+}
+
+VaultResult<std::vector<uint8_t>> V2AuthService::run_yubikey_challenge_for_policy(
+    std::span<const uint8_t> challenge,
+    const VaultSecurityPolicy& policy,
+    std::optional<std::string_view> pin,
+    ::YubiKeyManager& yk_manager) {
+
     const YubiKeyAlgorithm yk_algorithm = static_cast<YubiKeyAlgorithm>(policy.yubikey_algorithm);
 
     auto response = yk_manager.challenge_response(
-        std::span<const unsigned char>(slot.yubikey_challenge.data(), slot.yubikey_challenge.size()),
+        std::span<const unsigned char>(challenge.data(), challenge.size()),
         yk_algorithm,
         false,
         5000,
-        decrypted_pin);
+        pin);
 
     if (!response.success) {
         Log::error("V2AuthService: YubiKey challenge-response failed: {}",

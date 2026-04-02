@@ -1804,12 +1804,13 @@ KeepTower::VaultResult<> VaultManager::unenroll_yubikey_for_user(
     std::array<uint8_t, 20> user_challenge{};
     std::copy_n(user_slot->yubikey_challenge.begin(), 20, user_challenge.begin());
 
-    const YubiKeyAlgorithm algorithm = static_cast<YubiKeyAlgorithm>(m_v2_header->security_policy.yubikey_algorithm);
-    auto response = yk_manager.challenge_response(user_challenge, algorithm, false, 5000);
-    if (!response.success) {
-        Log::error("VaultManager: YubiKey challenge-response failed: {}",
-                   response.error_message);
-        return std::unexpected(VaultError::YubiKeyError);
+    auto response_result = V2AuthService::run_yubikey_challenge_for_policy(
+        std::span<const uint8_t>(user_challenge.data(), user_challenge.size()),
+        m_v2_header->security_policy,
+        std::nullopt,
+        yk_manager);
+    if (!response_result) {
+        return std::unexpected(response_result.error());
     }
 
     // Combine KEK with YubiKey response for verification
@@ -1817,7 +1818,7 @@ KeepTower::VaultResult<> VaultManager::unenroll_yubikey_for_user(
     std::copy(kek_result->begin(), kek_result->end(), kek_array.begin());
 
     std::array<uint8_t, 20> yk_response_array{};
-    std::copy_n(response.response.begin(), 20, yk_response_array.begin());
+    std::copy_n(response_result.value().begin(), 20, yk_response_array.begin());
     auto current_kek = KeyWrapping::combine_with_yubikey(kek_array, yk_response_array);
 
     auto verify_unwrap = KeyWrapping::unwrap_key(current_kek, user_slot->wrapped_dek);

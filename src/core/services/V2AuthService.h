@@ -7,6 +7,7 @@
 #include "../MultiUserTypes.h"
 
 #include <array>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -41,6 +42,12 @@ public:
         const KeySlot& slot,
         const VaultSecurityPolicy& policy,
         std::string_view decrypted_pin,
+        ::YubiKeyManager& yk_manager);
+
+    [[nodiscard]] static VaultResult<std::vector<uint8_t>> run_yubikey_challenge_for_policy(
+        std::span<const uint8_t> challenge,
+        const VaultSecurityPolicy& policy,
+        std::optional<std::string_view> pin,
         ::YubiKeyManager& yk_manager);
 
     [[nodiscard]] static std::array<uint8_t, 32> combine_kek_with_yubikey_response_for_open(
