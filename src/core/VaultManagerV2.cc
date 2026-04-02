@@ -356,8 +356,9 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
         }
 
         // Combine KEK with YubiKey response (use v2 for variable-length responses)
-        std::vector<uint8_t> yk_response_vec = std::move(response_result.value());
-        final_kek = KeyWrapping::combine_with_yubikey_v2(final_kek, yk_response_vec);
+        final_kek = V2AuthService::combine_kek_with_yubikey_response_for_open(
+            final_kek,
+            std::span<const uint8_t>(response_result.value()));
 
         Log::info("VaultManager: YubiKey authentication successful");
     }

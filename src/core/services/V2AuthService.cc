@@ -5,6 +5,7 @@
 
 #include "KeySlotManager.h"
 #include "KekDerivationService.h"
+#include "lib/crypto/KeyWrapping.h"
 #include "lib/crypto/VaultCrypto.h"
 #include "managers/YubiKeyManager.h"
 #include "../../utils/Log.h"
@@ -130,6 +131,13 @@ VaultResult<std::vector<uint8_t>> V2AuthService::run_yubikey_challenge_for_open(
     }
 
     return std::vector<uint8_t>(response.get_response().begin(), response.get_response().end());
+}
+
+std::array<uint8_t, 32> V2AuthService::combine_kek_with_yubikey_response_for_open(
+    const std::array<uint8_t, 32>& password_kek,
+    std::span<const uint8_t> yubikey_response) {
+    std::vector<uint8_t> yk_response_vec(yubikey_response.begin(), yubikey_response.end());
+    return KeyWrapping::combine_with_yubikey_v2(password_kek, yk_response_vec);
 }
 
 } // namespace KeepTower

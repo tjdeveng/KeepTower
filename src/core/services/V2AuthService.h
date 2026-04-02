@@ -7,6 +7,7 @@
 #include "../MultiUserTypes.h"
 
 #include <array>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -41,6 +42,10 @@ public:
         const VaultSecurityPolicy& policy,
         std::string_view decrypted_pin,
         ::YubiKeyManager& yk_manager);
+
+    [[nodiscard]] static std::array<uint8_t, 32> combine_kek_with_yubikey_response_for_open(
+        const std::array<uint8_t, 32>& password_kek,
+        std::span<const uint8_t> yubikey_response);
 };
 
 } // namespace KeepTower
