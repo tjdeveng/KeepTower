@@ -126,15 +126,17 @@ VaultResult<std::vector<uint8_t>> V2AuthService::run_yubikey_challenge_for_polic
     std::span<const uint8_t> challenge,
     const VaultSecurityPolicy& policy,
     std::optional<std::string_view> pin,
-    ::YubiKeyManager& yk_manager) {
+    ::YubiKeyManager& yk_manager,
+    bool require_touch,
+    int timeout_ms) {
 
     const YubiKeyAlgorithm yk_algorithm = static_cast<YubiKeyAlgorithm>(policy.yubikey_algorithm);
 
     auto response = yk_manager.challenge_response(
         std::span<const unsigned char>(challenge.data(), challenge.size()),
         yk_algorithm,
-        false,
-        5000,
+        require_touch,
+        timeout_ms,
         pin);
 
     if (!response.success) {

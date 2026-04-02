@@ -671,17 +671,13 @@ KeepTower::VaultResult<> VaultManager::add_user(
         }
         credential_id = std::move(cred_result.value());
 
-        // Test challenge-response
-        const YubiKeyAlgorithm yk_algorithm = static_cast<YubiKeyAlgorithm>(
-            m_v2_header->security_policy.yubikey_algorithm);
-        auto response = yk_manager.challenge_response(
-            std::span<const unsigned char>(yubikey_challenge.data(), yubikey_challenge.size()),
-            yk_algorithm, false, 5000);
-
-        if (!response.success) {
-            Log::error("VaultManager: YubiKey challenge-response failed: {}",
-                      response.error_message);
-            return std::unexpected(VaultError::YubiKeyError);
+        auto response_result = V2AuthService::run_yubikey_challenge_for_policy(
+            std::span<const uint8_t>(yubikey_challenge.data(), yubikey_challenge.size()),
+            m_v2_header->security_policy,
+            std::nullopt,
+            yk_manager);
+        if (!response_result) {
+            return std::unexpected(response_result.error());
         }
 
         // Get device serial
@@ -708,9 +704,9 @@ KeepTower::VaultResult<> VaultManager::add_user(
         encrypted_pin.insert(encrypted_pin.end(), pin_ciphertext.begin(), pin_ciphertext.end());
 
         // Re-wrap DEK with YubiKey-enhanced KEK
-        std::vector<uint8_t> yk_response_vec(response.get_response().begin(),
-                                             response.get_response().end());
-        auto final_kek = KeyWrapping::combine_with_yubikey_v2(kek_array, yk_response_vec);
+        auto final_kek = V2AuthService::combine_kek_with_yubikey_response_for_open(
+            kek_array,
+            std::span<const uint8_t>(response_result.value()));
 
         auto wrapped_result_yk = KeyWrapping::wrap_key(final_kek, m_v2_dek);
         if (!wrapped_result_yk) {
@@ -1619,7 +1615,6 @@ KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
 
     // Perform YubiKey challenge-response (require touch = true for enrollment security)
     Log::info("VaultManager: Performing YubiKey challenge-response (touch required)");
-    const YubiKeyAlgorithm algorithm = static_cast<YubiKeyAlgorithm>(m_v2_header->security_policy.yubikey_algorithm);
 
     // Create FIDO2 credential for enrollment (required for FIDO2 hmac-secret extension)
     Log::info("VaultManager: Creating FIDO2 credential for enrollment");
@@ -1638,17 +1633,15 @@ KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
     if (progress_callback) {
         progress_callback("Touch 2 of 2: Generating cryptographic response for authentication");
     }
-    auto response = yk_manager.challenge_response(
-        user_challenge,
-        algorithm,
+    auto response_result = V2AuthService::run_yubikey_challenge_for_policy(
+        std::span<const uint8_t>(user_challenge.data(), user_challenge.size()),
+        m_v2_header->security_policy,
+        std::string_view(yubikey_pin),
+        yk_manager,
         true,
-        15000,
-        yubikey_pin  // Pass PIN for challenge-response
-    );
-    if (!response.success) {
-        Log::error("VaultManager: YubiKey challenge-response failed: {}",
-                   response.error_message);
-        return std::unexpected(VaultError::YubiKeyError);
+        15000);
+    if (!response_result) {
+        return std::unexpected(response_result.error());
     }
 
     // Get device serial for audit trail
@@ -1660,9 +1653,9 @@ KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
     }
 
     // Combine KEK with YubiKey response (use v2 for variable-length responses)
-    std::vector<uint8_t> yk_response_vec(response.get_response().begin(),
-                                          response.get_response().end());
-    auto final_kek = KeyWrapping::combine_with_yubikey_v2(kek_array, yk_response_vec);
+    auto final_kek = V2AuthService::combine_kek_with_yubikey_response_for_open(
+        kek_array,
+        std::span<const uint8_t>(response_result.value()));
 
     // Re-wrap DEK with password+YubiKey combined KEK
     auto new_wrapped_result = KeyWrapping::wrap_key(final_kek, m_v2_dek);
