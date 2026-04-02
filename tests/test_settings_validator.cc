@@ -219,6 +219,22 @@ TEST_F(SettingsValidatorTest, BackupPreferencesGetterAggregatesValues) {
     EXPECT_EQ(prefs.path, "/tmp/aggregate-path");
 }
 
+TEST_F(SettingsValidatorTest, BackupPreferencesGetterMatchesIndividualAccessors) {
+    // Start from schema defaults to verify aggregation remains consistent.
+    settings->reset("backup-enabled");
+    settings->reset("backup-count");
+    settings->reset("backup-path");
+
+    const SettingsValidator::BackupPreferences prefs =
+        SettingsValidator::get_backup_preferences(settings);
+
+    EXPECT_EQ(prefs.enabled, SettingsValidator::is_backup_enabled(settings));
+    EXPECT_EQ(prefs.count, SettingsValidator::get_backup_count(settings));
+    EXPECT_EQ(prefs.path, SettingsValidator::get_backup_path(settings));
+    EXPECT_GE(prefs.count, SettingsValidator::MIN_BACKUP_COUNT);
+    EXPECT_LE(prefs.count, SettingsValidator::MAX_BACKUP_COUNT);
+}
+
 TEST_F(SettingsValidatorTest, BackupPreferencesSetterPersistsValidatedValues) {
     const SettingsValidator::BackupPreferences prefs{false, 23, "/tmp/setter-path"};
     SettingsValidator::set_backup_preferences(settings, prefs);
@@ -228,6 +244,22 @@ TEST_F(SettingsValidatorTest, BackupPreferencesSetterPersistsValidatedValues) {
     EXPECT_FALSE(loaded.enabled);
     EXPECT_EQ(loaded.count, 23);
     EXPECT_EQ(loaded.path, "/tmp/setter-path");
+}
+
+TEST_F(SettingsValidatorTest, BackupPreferencesSetterClampsInvalidCount) {
+    const SettingsValidator::BackupPreferences low{true, 0, "/tmp/low"};
+    SettingsValidator::set_backup_preferences(settings, low);
+    auto loaded = SettingsValidator::get_backup_preferences(settings);
+    EXPECT_EQ(loaded.count, SettingsValidator::MIN_BACKUP_COUNT);
+    EXPECT_TRUE(loaded.enabled);
+    EXPECT_EQ(loaded.path, "/tmp/low");
+
+    const SettingsValidator::BackupPreferences high{false, 999, "/tmp/high"};
+    SettingsValidator::set_backup_preferences(settings, high);
+    loaded = SettingsValidator::get_backup_preferences(settings);
+    EXPECT_EQ(loaded.count, SettingsValidator::MAX_BACKUP_COUNT);
+    EXPECT_FALSE(loaded.enabled);
+    EXPECT_EQ(loaded.path, "/tmp/high");
 }
 
 /**
