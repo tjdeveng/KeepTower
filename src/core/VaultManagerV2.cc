@@ -335,36 +335,11 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
 
         // Decrypt stored PIN first (encrypted with password-derived KEK only)
         // This must happen BEFORE getting YubiKey response to avoid circular dependency
-        std::string decrypted_pin;
-        if (!user_slot->yubikey_encrypted_pin.empty()) {
-            // Extract IV and ciphertext from storage (format: [IV(12) || ciphertext+tag])
-            if (user_slot->yubikey_encrypted_pin.size() < KeepTower::VaultCrypto::IV_LENGTH) {
-                Log::error("VaultManager: Invalid encrypted PIN format");
-                return std::unexpected(VaultError::CryptoError);
-            }
-
-            std::vector<uint8_t> pin_iv(
-                user_slot->yubikey_encrypted_pin.begin(),
-                user_slot->yubikey_encrypted_pin.begin() + KeepTower::VaultCrypto::IV_LENGTH);
-
-            std::vector<uint8_t> pin_ciphertext(
-                user_slot->yubikey_encrypted_pin.begin() + KeepTower::VaultCrypto::IV_LENGTH,
-                user_slot->yubikey_encrypted_pin.end());
-
-            // Decrypt PIN using password-derived KEK (not yet combined with YubiKey)
-            std::vector<uint8_t> pin_bytes;
-            if (!KeepTower::VaultCrypto::decrypt_data(pin_ciphertext, final_kek, pin_iv, pin_bytes)) {
-                Log::error("VaultManager: Failed to decrypt YubiKey PIN");
-                return std::unexpected(VaultError::CryptoError);
-            }
-
-            decrypted_pin = std::string(reinterpret_cast<const char*>(pin_bytes.data()),
-                                       pin_bytes.size());
-            Log::info("VaultManager: Successfully decrypted YubiKey PIN from vault");
-        } else {
-            Log::error("VaultManager: No encrypted PIN stored in vault for user");
-            return std::unexpected(VaultError::YubiKeyError);
+        auto pin_result = V2AuthService::decrypt_yubikey_pin_for_open(*user_slot, final_kek);
+        if (!pin_result) {
+            return std::unexpected(pin_result.error());
         }
+        std::string decrypted_pin = std::move(pin_result.value());
 
         // Load credential ID if stored (required for FIDO2 assertions)
         if (!user_slot->yubikey_credential_id.empty()) {

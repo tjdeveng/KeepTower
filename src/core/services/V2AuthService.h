@@ -7,6 +7,7 @@
 #include "../MultiUserTypes.h"
 
 #include <array>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -24,6 +25,10 @@ public:
         std::string_view password,
         uint32_t pbkdf2_iterations,
         const VaultSecurityPolicy& policy);
+
+    [[nodiscard]] static VaultResult<std::string> decrypt_yubikey_pin_for_open(
+        const KeySlot& slot,
+        const std::array<uint8_t, 32>& password_kek);
 };
 
 } // namespace KeepTower

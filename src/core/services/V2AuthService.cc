@@ -5,6 +5,7 @@
 
 #include "KeySlotManager.h"
 #include "KekDerivationService.h"
+#include "lib/crypto/VaultCrypto.h"
 #include "../../utils/Log.h"
 
 namespace Log = KeepTower::Log;
@@ -53,6 +54,38 @@ VaultResult<std::array<uint8_t, 32>> V2AuthService::derive_password_kek_for_slot
     std::array<uint8_t, 32> kek{};
     std::copy(kek_result->begin(), kek_result->end(), kek.begin());
     return kek;
+}
+
+VaultResult<std::string> V2AuthService::decrypt_yubikey_pin_for_open(
+    const KeySlot& slot,
+    const std::array<uint8_t, 32>& password_kek) {
+
+    if (slot.yubikey_encrypted_pin.empty()) {
+        Log::error("V2AuthService: No encrypted PIN stored in vault for user");
+        return std::unexpected(VaultError::YubiKeyError);
+    }
+
+    if (slot.yubikey_encrypted_pin.size() < KeepTower::VaultCrypto::IV_LENGTH) {
+        Log::error("V2AuthService: Invalid encrypted PIN format");
+        return std::unexpected(VaultError::CryptoError);
+    }
+
+    std::vector<uint8_t> pin_iv(
+        slot.yubikey_encrypted_pin.begin(),
+        slot.yubikey_encrypted_pin.begin() + KeepTower::VaultCrypto::IV_LENGTH);
+
+    std::vector<uint8_t> pin_ciphertext(
+        slot.yubikey_encrypted_pin.begin() + KeepTower::VaultCrypto::IV_LENGTH,
+        slot.yubikey_encrypted_pin.end());
+
+    std::vector<uint8_t> pin_bytes;
+    if (!KeepTower::VaultCrypto::decrypt_data(pin_ciphertext, password_kek, pin_iv, pin_bytes)) {
+        Log::error("V2AuthService: Failed to decrypt YubiKey PIN");
+        return std::unexpected(VaultError::CryptoError);
+    }
+
+    Log::info("V2AuthService: Successfully decrypted YubiKey PIN from vault");
+    return std::string(reinterpret_cast<const char*>(pin_bytes.data()), pin_bytes.size());
 }
 
 } // namespace KeepTower
