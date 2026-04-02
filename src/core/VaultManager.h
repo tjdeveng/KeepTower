@@ -31,6 +31,9 @@
 // Phase 2 Day 5: VaultCreationOrchestrator integration
 #include "controllers/VaultCreationOrchestrator.h"
 
+// Phase C: VaultRuntimePreferences for vault-scoped preferences
+#include "VaultRuntimePreferences.h"
+
 // Forward declare for conditional compilation
 #if __has_include("config.h")
 #include "config.h"
@@ -1619,6 +1622,29 @@ public:
      */
     [[nodiscard]] int get_account_password_history_limit() const;
 
+    /**
+     * @brief Access vault-scoped runtime preferences
+     * @return Mutable reference to VaultRuntimePreferences for current vault
+     *
+     * Use this accessor to query or modify vault-scoped preferences:
+     * @code
+     * vault_manager.preferences().get_clipboard_timeout();
+     * vault_manager.preferences().set_auto_lock_enabled(true);
+     * @endcode
+     */
+    [[nodiscard]] KeepTower::VaultRuntimePreferences& preferences() noexcept {
+        return m_preferences;
+    }
+
+    /**
+     * @brief Access vault-scoped runtime preferences (const)
+     * @return Const reference to VaultRuntimePreferences for current vault
+     */
+    [[nodiscard]] const KeepTower::VaultRuntimePreferences& preferences() const noexcept {
+        return m_preferences;
+    }
+
+
     // Backup configuration
 
     /**
@@ -1761,6 +1787,9 @@ private:
 
     // Backup configuration
     std::unique_ptr<KeepTower::VaultBackupPolicy> m_backup_policy;
+
+    // Phase C: Vault runtime preferences (clipboard timeout, auto-lock, undo/redo, etc.)
+    KeepTower::VaultRuntimePreferences m_preferences;
 
     bool m_memory_locked;  // Track if sensitive memory is locked
 

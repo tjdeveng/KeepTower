@@ -1,8 +1,8 @@
 # Phase C & D: Preferences Refactor + Library Extraction Plan
 
-**Status:** Planning (Post-Phase B)  
-**Target:** v0.4.0  
-**Duration:** ~4-5 days estimated  
+**Status:** Planning (Post-Phase B)
+**Target:** v0.4.0
+**Duration:** ~4-5 days estimated
 **Quality Gate:** 58/58 tests passing, zero compiler warnings, Doxygen clean
 
 ---
@@ -12,7 +12,7 @@
 Phase C and D form a coordinated refactoring cycle to extract internal libraries and consolidate runtime preferences. This work:
 
 1. **Reduces VaultManager surface area** by moving 14 preference accessors to a dedicated struct
-2. **Establishes library extraction pattern** by creating clean boundaries  
+2. **Establishes library extraction pattern** by creating clean boundaries
 3. **Prepares for Phase 9** (user password history) and beyond
 4. **Enables A+ code quality** through isolated, independently-testable libraries
 
@@ -79,19 +79,19 @@ src/lib/
     tests/
       test_backup_policy.cc
     meson.build
-  
+
   fec/
     include/keeptower/fec/...
     src/...
     tests/...
     meson.build
-  
+
   crypto/
     include/keeptower/crypto/...
     src/...
     tests/...
     meson.build
-  
+
   fips/
     include/keeptower/fips/...
     src/...
@@ -161,10 +161,10 @@ public:
 // keeptower/fec/ReedSolomon.h
 class ReedSolomon {
 public:
-  static std::expected<std::vector<uint8_t>, VaultError> 
+  static std::expected<std::vector<uint8_t>, VaultError>
     encode(std::span<const uint8_t> data, uint8_t redundancy_percent);
-  
-  static std::expected<std::vector<uint8_t>, VaultError> 
+
+  static std::expected<std::vector<uint8_t>, VaultError>
     decode(std::span<const uint8_t> encoded);
 };
 
@@ -202,7 +202,7 @@ class VaultCryptoService {
 public:
   static std::expected<std::vector<uint8_t>, VaultError>
     derive_kek(std::string_view password, std::span<const uint8_t, 32> salt);
-  
+
   static std::expected<std::vector<uint8_t>, VaultError>
     encrypt(std::span<const uint8_t> plaintext, const std::vector<uint8_t>& kek);
 };
@@ -244,7 +244,7 @@ public:
   static bool is_fips_available();
   static bool is_fips_mode_enabled();
   static std::expected<void, VaultError> enable_fips_mode();
-  
+
   static bool is_algorithm_fips_approved(Algorithm algo);
 };
 ```
@@ -435,7 +435,7 @@ src/
       tests/
         test_backup_policy.cc
       meson.build
-    
+
     fec/
       include/keeptower/fec/
         ReedSolomon.h
@@ -445,7 +445,7 @@ src/
       tests/
         test_reed_solomon.cc
       meson.build
-    
+
     crypto/
       include/keeptower/crypto/
         VaultCrypto.h
@@ -459,7 +459,7 @@ src/
         test_vault_crypto.cc
         test_secure_memory.cc
       meson.build
-    
+
     fips/
       include/keeptower/fips/
         FipsProvider.h
@@ -468,11 +468,11 @@ src/
       tests/
         test_fips_provider.cc
       meson.build
-  
+
   core/
     VaultRuntimePreferences.h (Phase C)
     VaultManager.h/cc (Phase C + D: reduced surface)
     ... (other core files)
-  
+
   meson.build (updated to subdir('lib/*'))
 ```
