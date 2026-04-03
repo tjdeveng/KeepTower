@@ -12,7 +12,7 @@
 
 #ifdef HAVE_YUBIKEY_SUPPORT
 #include "../dialogs/YubiKeyPromptDialog.h"
-#include "../../core/managers/YubiKeyManager.h"
+#include "../../lib/yubikey/YubiKeyManager.h"
 #endif
 
 // Forward declare OPENSSL_cleanse to avoid including openssl headers that conflict with UI namespace

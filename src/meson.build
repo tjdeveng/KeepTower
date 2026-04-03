@@ -158,20 +158,20 @@ meson.override_dependency('keeptower-crypto', crypto_dep)
 # Phase D.5: Extract YubiKey hardware manager into dedicated library target.
 if yubikey_available
   yubikey_library_sources = files(
-    'core/managers/YubiKeyManager.cc',
+    'lib/yubikey/YubiKeyManager.cc',
   )
 
   yubikey_library = static_library(
     'keeptower-yubikey',
     yubikey_library_sources,
     dependencies: [fido2_dep, openssl_dep, gtkmm_dep],
-    include_directories: [root_inc, include_directories('.'), include_directories('core'), include_directories('core/managers')],
+    include_directories: [root_inc, include_directories('.')],
   )
 
   yubikey_dep = declare_dependency(
     link_with: yubikey_library,
     dependencies: [fido2_dep, openssl_dep, gtkmm_dep],
-    include_directories: [root_inc, include_directories('core')],
+    include_directories: [root_inc, include_directories('.')],
   )
 
   meson.override_dependency('keeptower-yubikey', yubikey_dep)

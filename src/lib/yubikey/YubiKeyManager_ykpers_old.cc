@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: 2025 tjdeveng
 
 #include "YubiKeyManager.h"
-#include "../utils/Log.h"
+#include "../../utils/Log.h"
 
 #ifdef HAVE_YUBIKEY_SUPPORT
 #include <PCSC/winscard.h>

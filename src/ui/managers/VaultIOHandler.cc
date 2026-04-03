@@ -17,7 +17,7 @@ extern "C" {
 
 #ifdef HAVE_YUBIKEY_SUPPORT
 #include "../dialogs/YubiKeyPromptDialog.h"
-#include "../../core/managers/YubiKeyManager.h"
+#include "../../lib/yubikey/YubiKeyManager.h"
 #endif
 
 #include <algorithm>

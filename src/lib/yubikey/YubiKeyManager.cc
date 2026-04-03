@@ -7,10 +7,10 @@
 #include "YubiKeyManager.h"
 #include "../../utils/Log.h"
 
-#include "yubikey/Fido2Global.h"
-#include "yubikey/Fido2Discovery.h"
-#include "yubikey/Fido2Protocol.h"
-#include "yubikey/AsyncRunner.h"
+#include "lib/yubikey/internal/Fido2Global.h"
+#include "lib/yubikey/internal/Fido2Discovery.h"
+#include "lib/yubikey/internal/Fido2Protocol.h"
+#include "lib/yubikey/internal/AsyncRunner.h"
 
 #ifdef HAVE_YUBIKEY_SUPPORT
 #include <fido.h>

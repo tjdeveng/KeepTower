@@ -5,7 +5,7 @@
  * @brief Internal helper to run YubiKey work off the GTK thread.
  */
 
-#include "../../utils/Log.h"
+#include "utils/Log.h"
 
 #include <atomic>
 #include <functional>

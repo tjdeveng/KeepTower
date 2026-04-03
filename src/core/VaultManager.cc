@@ -10,7 +10,7 @@
 #include "io/VaultIO.h"
 #include "managers/AccountManager.h"
 #include "managers/GroupManager.h"
-#include "managers/YubiKeyManager.h"
+#include "lib/yubikey/YubiKeyManager.h"
 #include "serialization/VaultSerialization.h"
 #include "lib/crypto/VaultCryptoService.h"
 #include "services/VaultFileService.h"

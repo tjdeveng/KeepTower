@@ -7,7 +7,7 @@
 #include "KekDerivationService.h"
 #include "lib/crypto/KeyWrapping.h"
 #include "lib/crypto/VaultCrypto.h"
-#include "managers/YubiKeyManager.h"
+#include "lib/yubikey/YubiKeyManager.h"
 #include "../../utils/Log.h"
 
 namespace Log = KeepTower::Log;

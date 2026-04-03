@@ -34,7 +34,7 @@ namespace Gtk { class Box; class HeaderBar; class Button; class MenuButton; clas
 #include "../../core/VaultManager.h"
 #include "../../core/commands/UndoManager.h"
 #ifdef HAVE_YUBIKEY_SUPPORT
-#include "../../core/managers/YubiKeyManager.h"
+#include "../../lib/yubikey/YubiKeyManager.h"
 #endif
 
 // Project widget headers (must come after GTKmm includes)

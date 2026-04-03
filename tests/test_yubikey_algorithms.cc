@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: 2025 tjdeveng
 
 #include <gtest/gtest.h>
-#include "managers/YubiKeyAlgorithm.h"
+#include "lib/yubikey/YubiKeyAlgorithm.h"
 #include <cstdint>
 
 /**

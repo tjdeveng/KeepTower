@@ -9,7 +9,7 @@
 #include <cstddef>
 #include <string>
 
-#include "../../../utils/Log.h"
+#include "utils/Log.h"
 
 #ifdef HAVE_YUBIKEY_SUPPORT
 #include <fido.h>

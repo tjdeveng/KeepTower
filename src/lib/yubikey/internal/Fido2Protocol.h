@@ -5,8 +5,8 @@
  * @brief Internal FIDO2 (hmac-secret) operations for YubiKey-backed authentication.
  */
 
-#include "../YubiKeyManager.h"
-#include "../../utils/Log.h"
+#include "lib/yubikey/YubiKeyManager.h"
+#include "utils/Log.h"
 
 #ifdef HAVE_YUBIKEY_SUPPORT
 #include <fido.h>

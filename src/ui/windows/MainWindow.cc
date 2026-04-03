@@ -32,7 +32,7 @@
 
 using KeepTower::safe_ustring_to_string;
 #ifdef HAVE_YUBIKEY_SUPPORT
-#include "../../core/managers/YubiKeyManager.h"
+#include "../../lib/yubikey/YubiKeyManager.h"
 #include "../dialogs/YubiKeyManagerDialog.h"
 #endif
 #include "record.pb.h"

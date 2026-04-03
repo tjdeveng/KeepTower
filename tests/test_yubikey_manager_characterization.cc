@@ -17,7 +17,7 @@
 #include <cstdlib>
 #include <string>
 
-#include "managers/YubiKeyManager.h"
+#include "lib/yubikey/YubiKeyManager.h"
 
 namespace {
 

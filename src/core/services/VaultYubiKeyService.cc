@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: 2026 tjdeveng
 
 #include "VaultYubiKeyService.h"
-#include "../managers/YubiKeyManager.h"
+#include "lib/yubikey/YubiKeyManager.h"
 #include "lib/crypto/VaultCrypto.h"
 #include "../../utils/Log.h"
 #include <algorithm>
