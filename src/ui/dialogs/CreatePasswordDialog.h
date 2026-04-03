@@ -41,10 +41,6 @@
 
 #include <gtkmm.h>
 
-#ifdef HAVE_YUBIKEY_SUPPORT
-#include "../../lib/yubikey/YubiKeyManager.h"
-#endif
-
 /**
  * @class CreatePasswordDialog
  * @brief Dialog for creating strong vault passwords

@@ -4,6 +4,7 @@
 #include "config.h"
 #include "CreatePasswordDialog.h"
 #include "../../core/CommonPasswords.h"
+#include "../../lib/yubikey/YubiKeyManager.h"
 #include "../../utils/StringHelpers.h"
 #include <algorithm>
 #include <cctype>
