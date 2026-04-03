@@ -143,7 +143,9 @@ sigc::signal<void(std::string, Gtk::Widget*, double, double)>& GroupRowWidget::s
     return m_signal_right_clicked;
 }
 
-void GroupRowWidget::on_header_clicked(int n_press, double x, double y) {
+void GroupRowWidget::on_header_clicked([[maybe_unused]] int n_press,
+                                       [[maybe_unused]] double x,
+                                       [[maybe_unused]] double y) {
     // Toggle expansion on click - DON'T emit selection signal
     // Selection should only happen on double-click or via another mechanism
     g_debug("GroupRowWidget::on_header_clicked - group '%s', current expanded=%d",
@@ -177,7 +179,7 @@ void GroupRowWidget::update_display() {
     }
 }
 
-void GroupRowWidget::on_header_right_clicked(int n_press, double x, double y) {
+void GroupRowWidget::on_header_right_clicked([[maybe_unused]] int n_press, double x, double y) {
     // Emit signal to show context menu with click coordinates and widget
     m_signal_right_clicked.emit(m_group_id, &m_header_box, x, y);
 }
@@ -202,7 +204,8 @@ void GroupRowWidget::setup_drag_and_drop() {
     add_controller(m_drop_target);
 }
 
-Glib::RefPtr<Gdk::ContentProvider> GroupRowWidget::on_drag_prepare(double x, double y) {
+Glib::RefPtr<Gdk::ContentProvider> GroupRowWidget::on_drag_prepare([[maybe_unused]] double x,
+                                                                    [[maybe_unused]] double y) {
     // Store group ID for drag operation
     auto value = Glib::Value<Glib::ustring>();
     value.init(value.value_type());
@@ -210,7 +213,7 @@ Glib::RefPtr<Gdk::ContentProvider> GroupRowWidget::on_drag_prepare(double x, dou
     return Gdk::ContentProvider::create(value);
 }
 
-void GroupRowWidget::on_drag_begin(const Glib::RefPtr<Gdk::Drag>& drag) {
+void GroupRowWidget::on_drag_begin([[maybe_unused]] const Glib::RefPtr<Gdk::Drag>& drag) {
     // Visual feedback during drag
     add_css_class("dragging");
 }

@@ -120,23 +120,24 @@ void AccountRowWidget::setup_interactions() {
     add_controller(m_drop_target);
 }
 
-void AccountRowWidget::on_clicked(int n_press, double x, double y) {
+void AccountRowWidget::on_clicked([[maybe_unused]] int n_press, [[maybe_unused]] double x, [[maybe_unused]] double y) {
     // Emit selection signal
     m_signal_selected.emit(m_account_id);
 }
 
-void AccountRowWidget::on_star_clicked(int n_press, double x, double y) {
+void AccountRowWidget::on_star_clicked([[maybe_unused]] int n_press, [[maybe_unused]] double x, [[maybe_unused]] double y) {
     // Emit signal to toggle favorite state - don't update local state
     // The backend will toggle it and UI refresh will show the correct state
     m_signal_favorite_toggled.emit(m_account_id);
 }
 
-void AccountRowWidget::on_right_clicked(int n_press, double x, double y) {
+void AccountRowWidget::on_right_clicked([[maybe_unused]] int n_press, double x, double y) {
     // Emit signal to show context menu with click coordinates and widget
     m_signal_right_clicked.emit(m_account_id, this, x, y);
 }
 
-Glib::RefPtr<Gdk::ContentProvider> AccountRowWidget::on_drag_prepare(double x, double y) {
+Glib::RefPtr<Gdk::ContentProvider> AccountRowWidget::on_drag_prepare([[maybe_unused]] double x,
+                                                                      [[maybe_unused]] double y) {
     // Store account ID for drag operation
     auto value = Glib::Value<Glib::ustring>();
     value.init(value.value_type());
@@ -144,7 +145,7 @@ Glib::RefPtr<Gdk::ContentProvider> AccountRowWidget::on_drag_prepare(double x, d
     return Gdk::ContentProvider::create(value);
 }
 
-void AccountRowWidget::on_drag_begin(const Glib::RefPtr<Gdk::Drag>& drag) {
+void AccountRowWidget::on_drag_begin([[maybe_unused]] const Glib::RefPtr<Gdk::Drag>& drag) {
     // Visual feedback during drag
     add_css_class("dragging");
 }

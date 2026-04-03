@@ -142,7 +142,7 @@ void UserAccountHandler::handle_change_password() {
 
         // Progress callback: update YubiKey touch dialog with specific message for each touch
         auto progress_callback = [this, touch_dialog_ptr, yubikey_enrolled_for_user]
-            (int step, int total, const std::string& message) {
+            ([[maybe_unused]] int step, [[maybe_unused]] int total, const std::string& message) {
             if (yubikey_enrolled_for_user && *touch_dialog_ptr) {
                 // Update dialog message with specific touch prompt
                 std::string formatted_message = "<big><b>Changing Password with YubiKey</b></big>\n\n" + message;

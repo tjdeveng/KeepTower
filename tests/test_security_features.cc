@@ -12,6 +12,7 @@
 #include <filesystem>
 #include <fstream>
 #include "../src/core/VaultManager.h"
+#include "../src/core/managers/AccountManager.h"
 #include "../src/core/VaultFormatV2.h"
 #include "../src/core/MultiUserTypes.h"
 #include "record.pb.h"  // Include protobuf definitions
@@ -130,7 +131,7 @@ bool test_backup_mechanism() {
     account.set_account_name("First Account");
     account.set_user_name("user1");
     account.set_password("pass1");
-    (void)vm.add_account(account);
+    (void)vm.account_manager()->add_account(account);
 
     // First save - no backup expected (file didn't exist before)
     if (!vm.save_vault()) {
@@ -144,7 +145,7 @@ bool test_backup_mechanism() {
 
     // Modify and save again - backup should be created this time
     account.set_account_name("Modified Account");
-    (void)vm.update_account(0, account);
+    (void)vm.account_manager()->update_account(0, account);
 
     if (!vm.save_vault()) {
         std::cerr << "Failed second save\n";

@@ -718,7 +718,7 @@ TEST_F(PasswordHistoryIntegrationTest, AddUserInitializesHistory) {
 
     // Save and close vault
     EXPECT_TRUE(vault_manager.save_vault());
-    vault_manager.close_vault();
+    (void)vault_manager.close_vault();
 
     // Reopen as new user
     auto open_result = vault_manager.open_vault_v2(
@@ -759,7 +759,7 @@ TEST_F(PasswordHistoryIntegrationTest, AdminResetClearsHistory) {
 
     // Save and close, then reopen as user1
     EXPECT_TRUE(vault_manager.save_vault());
-    vault_manager.close_vault();
+    (void)vault_manager.close_vault();
     ASSERT_TRUE(vault_manager.open_vault_v2(test_vault_path.string(), "user1", "UserPass1!"));
 
     // Change password to build history
@@ -767,7 +767,7 @@ TEST_F(PasswordHistoryIntegrationTest, AdminResetClearsHistory) {
 
     // Save and close, then reopen as admin
     EXPECT_TRUE(vault_manager.save_vault());
-    vault_manager.close_vault();
+    (void)vault_manager.close_vault();
     ASSERT_TRUE(vault_manager.open_vault_v2(test_vault_path.string(), "admin", "AdminPass123!"));
 
     // Admin resets user password
@@ -776,7 +776,7 @@ TEST_F(PasswordHistoryIntegrationTest, AdminResetClearsHistory) {
 
     // Save and close, then reopen as user1 with new password
     EXPECT_TRUE(vault_manager.save_vault());
-    vault_manager.close_vault();
+    (void)vault_manager.close_vault();
     ASSERT_TRUE(vault_manager.open_vault_v2(test_vault_path.string(), "user1", "NewReset123!"));
 
     // User should be able to reuse old password (history was cleared)

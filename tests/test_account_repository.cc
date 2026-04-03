@@ -9,6 +9,7 @@
 #include <gtest/gtest.h>
 #include "../src/core/repositories/AccountRepository.h"
 #include "../src/core/VaultManager.h"
+#include "../src/core/managers/AccountManager.h"
 #include "../src/core/MultiUserTypes.h"
 #include <memory>
 #include <cstdio>
@@ -48,7 +49,7 @@ protected:
         account1.set_email("john@gmail.com");
         account1.set_password("password123");
         account1.set_is_favorite(true);
-        vault_manager->add_account(account1);
+        ASSERT_TRUE(vault_manager->account_manager()->add_account(account1));
 
         keeptower::AccountRecord account2;
         account2.set_id("account2");
@@ -57,7 +58,7 @@ protected:
         account2.set_email("john@company.com");
         account2.set_password("ghp_token");
         account2.set_is_favorite(false);
-        vault_manager->add_account(account2);
+        ASSERT_TRUE(vault_manager->account_manager()->add_account(account2));
 
         keeptower::AccountRecord account3;
         account3.set_id("account3");
@@ -66,12 +67,12 @@ protected:
         account3.set_email("admin@company.com");
         account3.set_password("aws_secret");
         account3.set_is_favorite(false);
-        vault_manager->add_account(account3);
+        ASSERT_TRUE(vault_manager->account_manager()->add_account(account3));
     }
 
     void TearDown() override {
         if (vault_manager && vault_manager->is_vault_open()) {
-            vault_manager->close_vault();
+            (void)vault_manager->close_vault();
         }
         // Clean up test file
         std::remove(temp_vault_path.c_str());
@@ -93,7 +94,7 @@ TEST_F(AccountRepositoryTest, ConstructorThrowsOnNull) {
 TEST_F(AccountRepositoryTest, IsVaultOpen) {
     EXPECT_TRUE(repository->is_vault_open());
 
-    vault_manager->close_vault();
+    (void)vault_manager->close_vault();
     EXPECT_FALSE(repository->is_vault_open());
 }
 
@@ -123,7 +124,7 @@ TEST_F(AccountRepositoryTest, AddAccount) {
 }
 
 TEST_F(AccountRepositoryTest, AddAccountWhenVaultClosed) {
-    vault_manager->close_vault();
+    (void)vault_manager->close_vault();
 
     keeptower::AccountRecord new_account;
     new_account.set_id("account4");
@@ -165,7 +166,7 @@ TEST_F(AccountRepositoryTest, GetAccountByNonexistentId) {
 }
 
 TEST_F(AccountRepositoryTest, GetAccountWhenVaultClosed) {
-    vault_manager->close_vault();
+    (void)vault_manager->close_vault();
 
     auto result = repository->get(0);
     ASSERT_FALSE(result.has_value());
@@ -188,7 +189,7 @@ TEST_F(AccountRepositoryTest, GetAllAccounts) {
 }
 
 TEST_F(AccountRepositoryTest, GetAllAccountsWhenVaultClosed) {
-    vault_manager->close_vault();
+    (void)vault_manager->close_vault();
 
     auto result = repository->get_all();
     ASSERT_FALSE(result.has_value());
@@ -230,7 +231,7 @@ TEST_F(AccountRepositoryTest, UpdateAccountInvalidIndex) {
 }
 
 TEST_F(AccountRepositoryTest, UpdateAccountWhenVaultClosed) {
-    vault_manager->close_vault();
+    (void)vault_manager->close_vault();
 
     keeptower::AccountRecord account;
     auto result = repository->update(0, account);
@@ -273,7 +274,7 @@ TEST_F(AccountRepositoryTest, RemoveAccountInvalidIndex) {
 }
 
 TEST_F(AccountRepositoryTest, RemoveAccountWhenVaultClosed) {
-    vault_manager->close_vault();
+    (void)vault_manager->close_vault();
 
     auto result = repository->remove(0);
     ASSERT_FALSE(result.has_value());
@@ -291,7 +292,7 @@ TEST_F(AccountRepositoryTest, Count) {
 }
 
 TEST_F(AccountRepositoryTest, CountWhenVaultClosed) {
-    vault_manager->close_vault();
+    (void)vault_manager->close_vault();
 
     auto result = repository->count();
     ASSERT_FALSE(result.has_value());
@@ -319,12 +320,12 @@ TEST_F(AccountRepositoryTest, CanModify) {
 }
 
 TEST_F(AccountRepositoryTest, CanViewWhenVaultClosed) {
-    vault_manager->close_vault();
+    (void)vault_manager->close_vault();
     EXPECT_FALSE(repository->can_view(0));
 }
 
 TEST_F(AccountRepositoryTest, CanModifyWhenVaultClosed) {
-    vault_manager->close_vault();
+    (void)vault_manager->close_vault();
     EXPECT_FALSE(repository->can_modify(0));
 }
 
@@ -352,7 +353,7 @@ TEST_F(AccountRepositoryTest, FindIndexByNonexistentId) {
 }
 
 TEST_F(AccountRepositoryTest, FindIndexWhenVaultClosed) {
-    vault_manager->close_vault();
+    (void)vault_manager->close_vault();
 
     auto index = repository->find_index_by_id("account1");
     EXPECT_FALSE(index.has_value());

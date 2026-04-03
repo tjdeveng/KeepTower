@@ -17,6 +17,8 @@
  */
 
 #include "GroupRepository.h"
+#include "../managers/AccountManager.h"
+#include "../managers/GroupManager.h"
 #include <stdexcept>
 #include <algorithm>
 
@@ -56,7 +58,12 @@ GroupRepository::get(std::string_view group_id) const {
     }
 
     // VaultManager doesn't have get_group_by_id, so search in all groups
-    auto all_groups = m_vault_manager->get_all_groups();
+    auto* group_manager = m_vault_manager->group_manager();
+    if (!group_manager) {
+        return std::unexpected(RepositoryError::SAVE_FAILED);
+    }
+
+    auto all_groups = group_manager->get_all_groups();
 
     for (const auto& group : all_groups) {
         if (group.group_id() == group_id) {
@@ -73,7 +80,12 @@ GroupRepository::get_all() const {
         return std::unexpected(RepositoryError::VAULT_CLOSED);
     }
 
-    return m_vault_manager->get_all_groups();
+    auto* group_manager = m_vault_manager->group_manager();
+    if (!group_manager) {
+        return std::unexpected(RepositoryError::SAVE_FAILED);
+    }
+
+    return group_manager->get_all_groups();
 }
 
 std::expected<void, RepositoryError>
@@ -122,7 +134,12 @@ GroupRepository::count() const {
         return std::unexpected(RepositoryError::VAULT_CLOSED);
     }
 
-    auto groups = m_vault_manager->get_all_groups();
+    auto* group_manager = m_vault_manager->group_manager();
+    if (!group_manager) {
+        return std::unexpected(RepositoryError::SAVE_FAILED);
+    }
+
+    auto groups = group_manager->get_all_groups();
     return groups.size();
 }
 
@@ -188,7 +205,12 @@ GroupRepository::get_accounts_in_group(std::string_view group_id) const {
     // VaultManager doesn't have get_accounts_in_group
     // Need to search through all accounts
     std::vector<size_t> account_indices;
-    const auto& all_accounts = m_vault_manager->get_all_accounts();
+    auto* account_manager = m_vault_manager->account_manager();
+    if (!account_manager) {
+        return std::unexpected(RepositoryError::SAVE_FAILED);
+    }
+
+    const auto all_accounts = account_manager->get_all_accounts();
 
     for (size_t i = 0; i < all_accounts.size(); ++i) {
         const auto& account = all_accounts[i];
@@ -214,7 +236,12 @@ bool GroupRepository::exists(std::string_view group_id) const noexcept {
         return false;
     }
 
-    auto all_groups = m_vault_manager->get_all_groups();
+    auto* group_manager = m_vault_manager->group_manager();
+    if (!group_manager) {
+        return false;
+    }
+
+    auto all_groups = group_manager->get_all_groups();
 
     for (const auto& group : all_groups) {
         if (group.group_id() == group_id) {

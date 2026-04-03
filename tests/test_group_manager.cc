@@ -239,7 +239,7 @@ TEST_F(GroupManagerTest, ReorderGroupSuccess) {
 }
 
 TEST_F(GroupManagerTest, ReorderGroupFailsNonExistent) {
-    group_manager->create_group("Group1");
+    (void)group_manager->create_group("Group1");
 
     modified_flag = false;
     bool result = group_manager->reorder_group("invalid-id", 0);
@@ -308,7 +308,7 @@ TEST_F(GroupManagerTest, AddAccountToGroupFailsInvalidAccountIndex) {
 TEST_F(GroupManagerTest, AddAccountToGroupPreventsDuplicate) {
     std::string group_id = group_manager->create_group("Work");
 
-    group_manager->add_account_to_group(0, group_id);
+    ASSERT_TRUE(group_manager->add_account_to_group(0, group_id));
     ASSERT_EQ(vault_data.accounts(0).groups_size(), 1);
 
     modified_flag = false;
@@ -338,7 +338,7 @@ TEST_F(GroupManagerTest, AddAccountToMultipleGroups) {
 
 TEST_F(GroupManagerTest, RemoveAccountFromGroupSuccess) {
     std::string group_id = group_manager->create_group("Work");
-    group_manager->add_account_to_group(0, group_id);
+    ASSERT_TRUE(group_manager->add_account_to_group(0, group_id));
 
     modified_flag = false;
     bool result = group_manager->remove_account_from_group(0, group_id);

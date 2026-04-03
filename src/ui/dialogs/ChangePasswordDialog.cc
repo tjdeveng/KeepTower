@@ -274,7 +274,7 @@ void ChangePasswordDialog::set_current_password(std::string_view temp_password) 
     on_input_changed();  // Update validation state
 }
 
-void ChangePasswordDialog::set_yubikey_required(bool required) {
+void ChangePasswordDialog::set_yubikey_required([[maybe_unused]] bool required) {
 #ifdef HAVE_YUBIKEY_SUPPORT
     m_yubikey_separator.set_visible(required);
     m_yubikey_pin_box.set_visible(required);

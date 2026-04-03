@@ -9,6 +9,7 @@
 #include <gtest/gtest.h>
 #include "../src/ui/controllers/AccountViewController.h"
 #include "../src/core/VaultManager.h"
+#include "../src/core/managers/AccountManager.h"
 #include "../src/core/MultiUserTypes.h"
 #include <memory>
 
@@ -40,21 +41,21 @@ protected:
         account1.set_account_name("Gmail Account");
         account1.set_user_name("user1@gmail.com");
         account1.set_is_favorite(true);
-        vault_manager->add_account(account1);
+        ASSERT_TRUE(vault_manager->account_manager()->add_account(account1));
 
         keeptower::AccountRecord account2;
         account2.set_id("account2");
         account2.set_account_name("GitHub Account");
         account2.set_user_name("user2");
         account2.set_is_favorite(false);
-        vault_manager->add_account(account2);
+        ASSERT_TRUE(vault_manager->account_manager()->add_account(account2));
 
         keeptower::AccountRecord account3;
         account3.set_id("account3");
         account3.set_account_name("AWS Account");
         account3.set_user_name("user3");
         account3.set_is_favorite(false);
-        vault_manager->add_account(account3);
+        ASSERT_TRUE(vault_manager->account_manager()->add_account(account3));
 
         // Add test group
         test_group_id = vault_manager->create_group("Work Accounts");
@@ -65,7 +66,7 @@ protected:
 
     void TearDown() override {
         if (vault_manager && vault_manager->is_vault_open()) {
-            vault_manager->close_vault();
+            (void)vault_manager->close_vault();
         }
         // Clean up test file
         std::remove(temp_vault_path.c_str());
@@ -94,7 +95,7 @@ TEST_F(AccountViewControllerTest, RefreshAccountList) {
     size_t groups_count = 0;
 
     controller->signal_list_updated().connect(
-        [&](const auto& accounts, const auto& groups, size_t total) {
+        [&](const auto& accounts, const auto& groups, [[maybe_unused]] size_t total) {
             signal_received = true;
             accounts_count = accounts.size();
             groups_count = groups.size();
@@ -168,7 +169,7 @@ TEST_F(AccountViewControllerTest, ToggleFavorite) {
     EXPECT_TRUE(is_favorite);  // Was false, now true
 
     // Verify change in vault
-    auto accounts = vault_manager->get_all_accounts();
+    auto accounts = vault_manager->account_manager()->get_all_accounts();
     EXPECT_TRUE(accounts[1].is_favorite());
 }
 
@@ -180,7 +181,7 @@ TEST_F(AccountViewControllerTest, ToggleFavoriteInvalidIndex) {
 
     // Setup error signal spy
     bool error_received = false;
-    controller->signal_error().connect([&](const std::string& msg) {
+    controller->signal_error().connect([&]([[maybe_unused]] const std::string& msg) {
         error_received = true;
     });
 
@@ -195,7 +196,7 @@ TEST_F(AccountViewControllerTest, ToggleFavoriteInvalidIndex) {
 TEST_F(AccountViewControllerTest, VaultOpenStatus) {
     EXPECT_TRUE(controller->is_vault_open());
 
-    vault_manager->close_vault();
+    (void)vault_manager->close_vault();
     EXPECT_FALSE(controller->is_vault_open());
 }
 
@@ -208,14 +209,14 @@ TEST_F(AccountViewControllerTest, RefreshWithClosedVault) {
     EXPECT_EQ(controller->get_viewable_account_count(), 3);
 
     // Close vault
-    vault_manager->close_vault();
+    (void)vault_manager->close_vault();
 
     // Setup signal spy
     bool signal_received = false;
     size_t accounts_count = 999;
 
     controller->signal_list_updated().connect(
-        [&](const auto& accounts, const auto& groups, size_t total) {
+        [&](const auto& accounts, [[maybe_unused]] const auto& groups, [[maybe_unused]] size_t total) {
             signal_received = true;
             accounts_count = accounts.size();
         });
@@ -256,8 +257,6 @@ TEST_F(AccountViewControllerTest, GetGroups) {
 
 /**
  * @test Multiple refreshes update data correctly
-/**
- * @test Multiple refreshes update data correctly
  */
 TEST_F(AccountViewControllerTest, MultipleRefreshes) {
     // First refresh
@@ -268,7 +267,7 @@ TEST_F(AccountViewControllerTest, MultipleRefreshes) {
     keeptower::AccountRecord account4;
     account4.set_id("account4");
     account4.set_account_name("New Account");
-    vault_manager->add_account(account4);
+    ASSERT_TRUE(vault_manager->account_manager()->add_account(account4));
 
     // Second refresh
     controller->refresh_account_list();

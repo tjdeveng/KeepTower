@@ -1,5 +1,6 @@
 // Quick test for V2 vault creation in new vault flow
 #include "../src/core/VaultManager.h"
+#include "../src/core/managers/AccountManager.h"
 #include <iostream>
 
 int main() {
@@ -47,7 +48,7 @@ int main() {
     account.set_user_name("testuser");
     account.set_password("password123");
 
-    if (!vm.add_account(account)) {
+    if (!vm.account_manager()->add_account(account)) {
         std::cerr << "✗ Failed to add account\n";
         return 1;
     }

@@ -16,8 +16,6 @@ class ClipboardManagerTest : public ::testing::Test {
 protected:
     void SetUp() override {
         // Create GTK application for clipboard access
-        int argc = 0;
-        char** argv = nullptr;
         m_app = Gtk::Application::create("com.test.clipboard");
         m_window = std::make_unique<Gtk::Window>();
         m_clipboard = m_window->get_clipboard();

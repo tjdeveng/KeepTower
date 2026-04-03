@@ -1262,43 +1262,21 @@ public:
     // Account operations
 
     /**
-     * @brief Add new account to vault
-     * @param account Account record to add
+         * @brief Add new account to vault from protobuf-free detail model
+         * @param detail Account data to add
      * @return true if added successfully, false on error
      *
      * @note Requires vault to be open
      * @note Call save_vault() to persist changes
      */
-    [[nodiscard]] bool add_account(const keeptower::AccountRecord& account);
+        [[nodiscard]] bool add_account(const KeepTower::AccountDetail& detail);
 
     /**
-     * @brief Get all accounts from vault
-     * @return Vector of all account records
-     *
-     * @note Returns empty vector if vault not open
-     */
-    [[nodiscard]] std::vector<keeptower::AccountRecord> get_all_accounts() const;
-
-    /**
-     * @brief Get all accounts as protobuf-free list items
+         * @brief Get all accounts as protobuf-free list items
      * @return Vector of AccountListItem (no record.pb.h dependency)
-     *
-     * Parallel to get_all_accounts(). Use this in code that should not
-     * depend on protobuf-generated types.
      * @note Returns empty vector if vault not open
      */
     [[nodiscard]] std::vector<KeepTower::AccountListItem> get_all_accounts_view() const;
-
-    /**
-     * @brief Update existing account
-     * @param index Zero-based index of account to update
-     * @param account New account data
-     * @return true if updated successfully, false on error
-     *
-     * @note Requires vault to be open
-     * @note Call save_vault() to persist changes
-     */
-    [[nodiscard]] bool update_account(size_t index, const keeptower::AccountRecord& account);
 
     /**
      * @brief Update existing account from protobuf-free detail model
@@ -1319,30 +1297,11 @@ public:
     [[nodiscard]] bool delete_account(size_t index);
 
     /**
-     * @brief Get read-only pointer to account
-     * @param index Zero-based index of account
-     * @return Pointer to account or nullptr if invalid index
-     */
-    const keeptower::AccountRecord* get_account(size_t index) const;
-
-    /**
      * @brief Get account detail as a protobuf-free model
      * @param index Zero-based index of account
      * @return AccountDetail if found, std::nullopt if vault closed or invalid index
-     *
-     * Parallel to get_account(). Use this in code that should not
-     * depend on protobuf-generated types.
      */
     [[nodiscard]] std::optional<KeepTower::AccountDetail> get_account_view(size_t index) const;
-
-    /**
-     * @brief Get mutable pointer to account
-     * @param index Zero-based index of account
-     * @return Pointer to account or nullptr if invalid index
-     *
-     * @note Changes must be followed by save_vault() to persist
-     */
-    keeptower::AccountRecord* get_account_mutable(size_t index);
 
     /**
      * @brief Get number of accounts in vault
@@ -1461,17 +1420,8 @@ public:
     [[nodiscard]] bool is_account_in_group(size_t account_index, std::string_view group_id) const;
 
     /**
-     * @brief Get all account groups
-     * @return Vector of all groups in the vault
-     */
-    [[nodiscard]] std::vector<keeptower::AccountGroup> get_all_groups() const;
-
-    /**
-     * @brief Get all account groups as protobuf-free view models
+    * @brief Get all account groups as protobuf-free view models
      * @return Vector of GroupView (no record.pb.h dependency)
-     *
-     * Parallel to get_all_groups(). Use this in code that should not
-     * depend on protobuf-generated types.
      * @note Returns empty vector if vault not open
      */
     [[nodiscard]] std::vector<KeepTower::GroupView> get_all_groups_view() const;
@@ -1730,14 +1680,6 @@ public:
     // YubiKey multi-key management
 
     /**
-     * @brief Get list of configured YubiKeys for current vault
-     * @return Vector of YubiKey entries (serial, name, added_at)
-     *
-     * @note Returns empty vector if vault not open or no YubiKeys configured
-     */
-    std::vector<keeptower::YubiKeyEntry> get_yubikey_list() const;
-
-    /**
      * @brief Add a backup YubiKey to the vault
      * @param name Friendly name for the key (e.g., "Backup", "Office Key")
      * @return true if added successfully, false on error
@@ -1809,6 +1751,35 @@ public:
      * @return Username if V2 vault is open and authenticated, empty string otherwise
      */
     [[nodiscard]] std::string get_current_username() const;
+
+
+    /**
+     * @brief Access the underlying AccountManager (null when vault is closed)
+     * @return Raw pointer to AccountManager or nullptr
+     *
+     * For use by core-internal classes that need protobuf-level account access.
+     * Callers must include core/managers/AccountManager.h to use the returned pointer.
+     */
+    [[nodiscard]] KeepTower::AccountManager* account_manager() noexcept {
+        return m_account_manager.get();
+    }
+    [[nodiscard]] const KeepTower::AccountManager* account_manager() const noexcept {
+        return m_account_manager.get();
+    }
+
+    /**
+     * @brief Access the underlying GroupManager (null when vault is closed)
+     * @return Raw pointer to GroupManager or nullptr
+     *
+     * For use by core-internal classes that need protobuf-level group access.
+     * Callers must include core/managers/GroupManager.h to use the returned pointer.
+     */
+    [[nodiscard]] KeepTower::GroupManager* group_manager() noexcept {
+        return m_group_manager.get();
+    }
+    [[nodiscard]] const KeepTower::GroupManager* group_manager() const noexcept {
+        return m_group_manager.get();
+    }
 
 private:
     // Secure memory clearing and locking

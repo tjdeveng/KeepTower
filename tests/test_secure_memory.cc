@@ -39,7 +39,7 @@ protected:
     }
 
     void TearDown() override {
-        vault_manager->close_vault();
+        (void)vault_manager->close_vault();
         if (fs::exists(test_vault_path)) {
             fs::remove(test_vault_path);
         }
@@ -76,9 +76,6 @@ TEST_F(SecureMemoryTest, SecureClearAccountWipesPassword) {
     EXPECT_EQ(account.password(), test_password);
     EXPECT_FALSE(account.password().empty());
 
-    // Get pointer to password data for verification
-    const char* password_data = account.password().data();
-
     // Clear the account
     secure_clear_account(account);
 
@@ -97,7 +94,7 @@ TEST_F(SecureMemoryTest, DeleteCommandClearsPasswordOnDestruction) {
     auto account = create_test_account_with_password("Gmail", sensitive_password);
 
     // Add account to vault
-    vault_manager->add_account(account);
+    ASSERT_TRUE(vault_manager->account_manager()->add_account(account));
     ASSERT_EQ(vault_manager->get_account_count(), 1);
 
     // Create delete command (captures account data with password)
@@ -135,9 +132,9 @@ TEST_F(SecureMemoryTest, ModifyCommandClearsBothPasswords) {
     const std::string new_password = "NewP@ssw0rd456";
 
     auto account = create_test_account_with_password("Test", old_password);
-    vault_manager->add_account(account);
+    ASSERT_TRUE(vault_manager->account_manager()->add_account(account));
 
-    const auto* acc = vault_manager->get_account(0);
+    const auto* acc = vault_manager->account_manager()->get_account(0);
     ASSERT_NE(acc, nullptr);
     EXPECT_EQ(acc->password(), old_password);
 
@@ -155,7 +152,7 @@ TEST_F(SecureMemoryTest, ModifyCommandClearsBothPasswords) {
 
         // Execute - now stores both old and new passwords
         ASSERT_TRUE(undo_manager->execute_command(std::move(cmd)));
-        EXPECT_EQ(vault_manager->get_account(0)->password(), new_password);
+        EXPECT_EQ(vault_manager->account_manager()->get_account(0)->password(), new_password);
     }
 
     // Clear history - destroys command and should wipe both passwords

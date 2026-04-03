@@ -39,7 +39,7 @@ protected:
     }
 
     void TearDown() override {
-        vault_manager.close_vault();
+        (void)vault_manager.close_vault();
         cleanup_test_vault();
     }
 
@@ -199,7 +199,7 @@ TEST_F(UsernameHashMigrationTest, TwoPhaseAuthentication_MigratedUser) {
     EXPECT_TRUE(session_alice) << "Alice should authenticate with new algorithm (Phase 1)";
     EXPECT_EQ(session_alice->username, "alice");
 
-    vault_manager.close_vault();
+    (void)vault_manager.close_vault();
 
     // Step 6: Verify bob still authenticates with old algorithm (Phase 2)
     auto session_bob = vault_manager.open_vault_v2(
@@ -225,7 +225,7 @@ TEST_F(UsernameHashMigrationTest, TwoPhaseAuthentication_UnmigratedUser) {
     auto users = vault_manager.list_users();
     ASSERT_EQ(users.size(), 1);
 
-    vault_manager.close_vault();
+    (void)vault_manager.close_vault();
 
     // Step 5: Login again - should now use Phase 1 (new algorithm)
     auto session2 = vault_manager.open_vault_v2(
@@ -698,17 +698,17 @@ TEST_F(UsernameHashMigrationTest, CompleteWorkflow_SHA256_to_PBKDF2) {
         auto session1 = vault_manager.open_vault_v2(
             test_vault_path.string(), "admin", "AdminPass123!");
         EXPECT_TRUE(session1);
-        vault_manager.close_vault();
+        (void)vault_manager.close_vault();
 
         auto session2 = vault_manager.open_vault_v2(
             test_vault_path.string(), "user1", "User1Pass123!");
         EXPECT_TRUE(session2);
-        vault_manager.close_vault();
+        (void)vault_manager.close_vault();
 
         auto session3 = vault_manager.open_vault_v2(
             test_vault_path.string(), "user2", "User2Pass123!");
         EXPECT_TRUE(session3);
-        vault_manager.close_vault();
+        (void)vault_manager.close_vault();
     }
 
     // Step 7: Unmigrated user still authenticates (Phase 2)

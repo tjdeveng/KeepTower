@@ -45,7 +45,7 @@ protected:
 
     void TearDown() override {
         if (vault_manager.is_vault_open()) {
-            vault_manager.close_vault();
+            (void)vault_manager.close_vault();
         }
 
         if (std::filesystem::exists(test_vault_path)) {
@@ -447,17 +447,17 @@ TEST_F(UsernameHashMigrationPriority2Test, MigrationProgress_CompletionDetection
     auto session1 = vault_manager.open_vault_v2(
         test_vault_path.string(), "alice", "TestPassword123!");
     ASSERT_TRUE(session1);
-    vault_manager.close_vault();
+    (void)vault_manager.close_vault();
 
     auto session2 = vault_manager.open_vault_v2(
         test_vault_path.string(), "bob", "BobPassword123!");
     ASSERT_TRUE(session2);
-    vault_manager.close_vault();
+    (void)vault_manager.close_vault();
 
     auto session3 = vault_manager.open_vault_v2(
         test_vault_path.string(), "charlie", "CharliePassword123!");
     ASSERT_TRUE(session3);
-    vault_manager.close_vault();
+    (void)vault_manager.close_vault();
 
     // Verify all migrated
     auto stats = count_migration_statuses();
@@ -573,7 +573,7 @@ TEST_F(UsernameHashMigrationPriority2Test, BackupRestore_RecoveryFromFailure) {
     ASSERT_TRUE(session_restored) << "Should successfully auth against restored backup";
 
     // Closing should save the migrated state again
-    vault_manager.close_vault();
+    (void)vault_manager.close_vault();
 
     // 8. Verify migration happened (again)
     auto stats = count_migration_statuses();
@@ -612,7 +612,7 @@ TEST_F(UsernameHashMigrationPriority2Test, EdgeCase_SpecialCharactersInUsername)
         auto session = vault_manager.open_vault_v2(
             test_vault_path.string(), "user@example.com", "UserPass123!");
         EXPECT_TRUE(session) << "User with @ in username should migrate successfully";
-        vault_manager.close_vault();
+        (void)vault_manager.close_vault();
     }
 
     // Test migration for user with . and + symbols
@@ -620,7 +620,7 @@ TEST_F(UsernameHashMigrationPriority2Test, EdgeCase_SpecialCharactersInUsername)
         auto session = vault_manager.open_vault_v2(
             test_vault_path.string(), "user.name+tag", "UserPass123!");
         EXPECT_TRUE(session) << "User with special chars should migrate successfully";
-        vault_manager.close_vault();
+        (void)vault_manager.close_vault();
     }
 
     // Verify both users migrated
@@ -658,7 +658,7 @@ TEST_F(UsernameHashMigrationPriority2Test, EdgeCase_LongUsername) {
     EXPECT_TRUE(session) << "User with long username should migrate successfully";
 
     if (session) {
-        vault_manager.close_vault();
+        (void)vault_manager.close_vault();
 
         auto stats = count_migration_statuses();
         EXPECT_GE(stats.migrated, 1) << "Long username user should be migrated";

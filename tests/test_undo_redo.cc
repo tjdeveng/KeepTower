@@ -45,7 +45,7 @@ protected:
     }
 
     void TearDown() override {
-        vault_manager->close_vault();
+        (void)vault_manager->close_vault();
         if (fs::exists(test_vault_path)) {
             fs::remove(test_vault_path);
         }
@@ -108,7 +108,7 @@ TEST_F(UndoRedoTest, AddAccountUndoRedo) {
 TEST_F(UndoRedoTest, DeleteAccountUndoRedo) {
     // Add an account first
     auto account = create_test_account("To Delete");
-    vault_manager->add_account(account);
+    ASSERT_TRUE(vault_manager->account_manager()->add_account(account));
     ASSERT_EQ(vault_manager->get_account_count(), 1);
 
     // Delete the account
@@ -124,7 +124,7 @@ TEST_F(UndoRedoTest, DeleteAccountUndoRedo) {
     // Undo delete (restore account)
     ASSERT_TRUE(undo_manager->undo());
     EXPECT_EQ(vault_manager->get_account_count(), 1);
-    const auto* restored = vault_manager->get_account(0);
+    const auto* restored = vault_manager->account_manager()->get_account(0);
     ASSERT_NE(restored, nullptr);
     EXPECT_EQ(restored->account_name(), "To Delete");
 
@@ -140,9 +140,9 @@ TEST_F(UndoRedoTest, ToggleFavoriteUndoRedo) {
     // Add an account
     auto account = create_test_account("Favorite Test");
     account.set_is_favorite(false);
-    vault_manager->add_account(account);
+    ASSERT_TRUE(vault_manager->account_manager()->add_account(account));
 
-    const auto* acc = vault_manager->get_account(0);
+    const auto* acc = vault_manager->account_manager()->get_account(0);
     ASSERT_NE(acc, nullptr);
     EXPECT_FALSE(acc->is_favorite());
 
@@ -154,15 +154,15 @@ TEST_F(UndoRedoTest, ToggleFavoriteUndoRedo) {
     );
 
     ASSERT_TRUE(undo_manager->execute_command(std::move(toggle_cmd)));
-    EXPECT_TRUE(vault_manager->get_account(0)->is_favorite());
+    EXPECT_TRUE(vault_manager->account_manager()->get_account(0)->is_favorite());
 
     // Undo toggle (back to non-favorite)
     ASSERT_TRUE(undo_manager->undo());
-    EXPECT_FALSE(vault_manager->get_account(0)->is_favorite());
+    EXPECT_FALSE(vault_manager->account_manager()->get_account(0)->is_favorite());
 
     // Redo toggle (back to favorite)
     ASSERT_TRUE(undo_manager->redo());
-    EXPECT_TRUE(vault_manager->get_account(0)->is_favorite());
+    EXPECT_TRUE(vault_manager->account_manager()->get_account(0)->is_favorite());
 }
 
 /**
@@ -171,9 +171,9 @@ TEST_F(UndoRedoTest, ToggleFavoriteUndoRedo) {
 TEST_F(UndoRedoTest, ModifyAccountUndoRedo) {
     // Add an account
     auto account = create_test_account("Original Name");
-    vault_manager->add_account(account);
+    ASSERT_TRUE(vault_manager->account_manager()->add_account(account));
 
-    const auto* acc = vault_manager->get_account(0);
+    const auto* acc = vault_manager->account_manager()->get_account(0);
     ASSERT_NE(acc, nullptr);
     EXPECT_EQ(acc->account_name(), "Original Name");
 
@@ -190,17 +190,17 @@ TEST_F(UndoRedoTest, ModifyAccountUndoRedo) {
     );
 
     ASSERT_TRUE(undo_manager->execute_command(std::move(modify_cmd)));
-    EXPECT_EQ(vault_manager->get_account(0)->account_name(), "Modified Name");
-    EXPECT_EQ(vault_manager->get_account(0)->email(), "modified@example.com");
+    EXPECT_EQ(vault_manager->account_manager()->get_account(0)->account_name(), "Modified Name");
+    EXPECT_EQ(vault_manager->account_manager()->get_account(0)->email(), "modified@example.com");
 
     // Undo modification
     ASSERT_TRUE(undo_manager->undo());
-    EXPECT_EQ(vault_manager->get_account(0)->account_name(), "Original Name");
-    EXPECT_EQ(vault_manager->get_account(0)->email(), "test@example.com");
+    EXPECT_EQ(vault_manager->account_manager()->get_account(0)->account_name(), "Original Name");
+    EXPECT_EQ(vault_manager->account_manager()->get_account(0)->email(), "test@example.com");
 
     // Redo modification
     ASSERT_TRUE(undo_manager->redo());
-    EXPECT_EQ(vault_manager->get_account(0)->account_name(), "Modified Name");
+    EXPECT_EQ(vault_manager->account_manager()->get_account(0)->account_name(), "Modified Name");
 }
 
 /**
@@ -257,7 +257,7 @@ TEST_F(UndoRedoTest, NewCommandClearsRedoStack) {
         std::move(account1),
         nullptr
     );
-    undo_manager->execute_command(std::move(cmd1));
+    ASSERT_TRUE(undo_manager->execute_command(std::move(cmd1)));
 
     auto account2 = create_test_account("Account 2");
     auto cmd2 = std::make_unique<AddAccountCommand>(
@@ -265,7 +265,7 @@ TEST_F(UndoRedoTest, NewCommandClearsRedoStack) {
         std::move(account2),
         nullptr
     );
-    undo_manager->execute_command(std::move(cmd2));
+    ASSERT_TRUE(undo_manager->execute_command(std::move(cmd2)));
 
     EXPECT_EQ(vault_manager->get_account_count(), 2);
 
@@ -281,7 +281,7 @@ TEST_F(UndoRedoTest, NewCommandClearsRedoStack) {
         std::move(account3),
         nullptr
     );
-    undo_manager->execute_command(std::move(cmd3));
+    ASSERT_TRUE(undo_manager->execute_command(std::move(cmd3)));
 
     EXPECT_EQ(vault_manager->get_account_count(), 2);
     EXPECT_FALSE(undo_manager->can_redo()) << "Redo stack should be cleared after new command";
@@ -302,7 +302,7 @@ TEST_F(UndoRedoTest, HistoryLimit) {
             std::move(account),
             nullptr
         );
-        undo_manager->execute_command(std::move(cmd));
+        ASSERT_TRUE(undo_manager->execute_command(std::move(cmd)));
     }
 
     EXPECT_EQ(vault_manager->get_account_count(), 10);
@@ -331,7 +331,7 @@ TEST_F(UndoRedoTest, ClearHistory) {
             std::move(account),
             nullptr
         );
-        [[maybe_unused]] bool exec_success = undo_manager->execute_command(std::move(cmd));
+        ASSERT_TRUE(undo_manager->execute_command(std::move(cmd)));
     }
 
     EXPECT_TRUE(undo_manager->can_undo());
@@ -356,7 +356,7 @@ TEST_F(UndoRedoTest, CommandDescriptions) {
         nullptr
     );
 
-    undo_manager->execute_command(std::move(cmd));
+    ASSERT_TRUE(undo_manager->execute_command(std::move(cmd)));
 
     std::string undo_desc = undo_manager->get_undo_description();
     EXPECT_FALSE(undo_desc.empty());

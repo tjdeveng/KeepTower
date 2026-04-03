@@ -1526,9 +1526,6 @@ KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
         return std::unexpected(VaultError::YubiKeyNotPresent);
     }
 
-    // Verify password by unwrapping DEK with password-only KEK (use user's algorithm)
-    auto user_algorithm = static_cast<KekDerivationService::Algorithm>(user_slot->kek_derivation_algorithm);
-
     KekDerivationService::AlgorithmParameters params;
     params.pbkdf2_iterations = m_v2_header->security_policy.pbkdf2_iterations;
     params.argon2_memory_kb = m_v2_header->security_policy.argon2_memory_kb;
@@ -1998,7 +1995,11 @@ bool VaultManager::can_view_account(size_t account_index) const noexcept {
         return false;
     }
 
-    const auto& accounts = get_all_accounts();
+    if (!m_account_manager) {
+        return false;
+    }
+
+    const auto accounts = m_account_manager->get_all_accounts();
     if (account_index >= accounts.size()) {
         return false;
     }
@@ -2025,7 +2026,11 @@ bool VaultManager::can_delete_account(size_t account_index) const noexcept {
     }
 
     // Invalid index
-    const auto& accounts = get_all_accounts();
+    if (!m_account_manager) {
+        return false;
+    }
+
+    const auto accounts = m_account_manager->get_all_accounts();
     if (account_index >= accounts.size()) {
         return false;
     }

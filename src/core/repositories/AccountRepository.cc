@@ -19,6 +19,7 @@
  */
 
 #include "AccountRepository.h"
+#include "../managers/AccountManager.h"
 #include <stdexcept>
 #include <algorithm>
 
@@ -38,7 +39,12 @@ AccountRepository::add(const keeptower::AccountRecord& account) {
     }
 
     // Delegate to VaultManager
-    if (m_vault_manager->add_account(account)) {
+    auto* account_manager = m_vault_manager->account_manager();
+    if (!account_manager) {
+        return std::unexpected(RepositoryError::SAVE_FAILED);
+    }
+
+    if (account_manager->add_account(account)) {
         return {};
     }
 
@@ -64,7 +70,12 @@ AccountRepository::get(size_t index) const {
     }
 
     // Use get_account (returns pointer)
-    const auto* account = m_vault_manager->get_account(index);
+    auto* account_manager = m_vault_manager->account_manager();
+    if (!account_manager) {
+        return std::unexpected(RepositoryError::SAVE_FAILED);
+    }
+
+    const auto* account = account_manager->get_account(index);
     if (!account) {
         return std::unexpected(RepositoryError::INVALID_INDEX);
     }
@@ -95,7 +106,12 @@ AccountRepository::get_all() const {
     }
 
     // Get all accounts from VaultManager
-    auto all_accounts = m_vault_manager->get_all_accounts();
+    auto* account_manager = m_vault_manager->account_manager();
+    if (!account_manager) {
+        return std::unexpected(RepositoryError::SAVE_FAILED);
+    }
+
+    auto all_accounts = account_manager->get_all_accounts();
 
     // For V2 vaults, filter by permissions
     if (m_vault_manager->is_v2_vault()) {
@@ -131,8 +147,12 @@ AccountRepository::update(size_t index, const keeptower::AccountRecord& account)
         return std::unexpected(RepositoryError::PERMISSION_DENIED);
     }
 
-    // Delegate to VaultManager
-    if (m_vault_manager->update_account(index, account)) {
+    auto* account_manager = m_vault_manager->account_manager();
+    if (!account_manager) {
+        return std::unexpected(RepositoryError::SAVE_FAILED);
+    }
+
+    if (account_manager->update_account(index, account)) {
         return {};
     }
 
@@ -201,7 +221,12 @@ AccountRepository::find_index_by_id(std::string_view account_id) const noexcept 
         return std::nullopt;
     }
 
-    const auto& all_accounts = m_vault_manager->get_all_accounts();
+    auto* account_manager = m_vault_manager->account_manager();
+    if (!account_manager) {
+        return std::nullopt;
+    }
+
+    const auto all_accounts = account_manager->get_all_accounts();
     for (size_t i = 0; i < all_accounts.size(); ++i) {
         if (all_accounts[i].id() == account_id) {
             return i;

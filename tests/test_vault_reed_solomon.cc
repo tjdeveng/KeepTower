@@ -11,6 +11,7 @@
 
 #include <gtest/gtest.h>
 #include "VaultManager.h"
+#include "managers/AccountManager.h"
 #include "VaultFormatV2.h"
 #include "record.pb.h"
 #include "MultiUserTypes.h"
@@ -104,8 +105,8 @@ TEST_F(VaultReedSolomonTest, SaveWithRS_CreatesValidVault) {
     // Add some data
     auto account1 = createAccount("Example", "user@example.com");
     auto account2 = createAccount("Test", "test@test.com");
-    ASSERT_TRUE(manager.add_account(account1));
-    ASSERT_TRUE(manager.add_account(account2));
+    ASSERT_TRUE(manager.account_manager()->add_account(account1));
+    ASSERT_TRUE(manager.account_manager()->add_account(account2));
 
     // Save vault
     ASSERT_TRUE(manager.save_vault());
@@ -129,8 +130,8 @@ TEST_F(VaultReedSolomonTest, SaveWithRS_CreatesValidVault) {
     ASSERT_TRUE(manager2.create_vault_v2(test_vault_no_rs, test_username, test_password, policy));
     auto account3 = createAccount("Example", "user@example.com");
     auto account4 = createAccount("Test", "test@test.com");
-    ASSERT_TRUE(manager2.add_account(account3));
-    ASSERT_TRUE(manager2.add_account(account4));
+    ASSERT_TRUE(manager2.account_manager()->add_account(account3));
+    ASSERT_TRUE(manager2.account_manager()->add_account(account4));
     ASSERT_TRUE(manager2.save_vault());
     ASSERT_TRUE(manager2.close_vault());
 
@@ -152,7 +153,7 @@ TEST_F(VaultReedSolomonTest, OpenRSVault_WithNoCorruption_Success) {
     manager.set_rs_redundancy_percent(10);
     ASSERT_TRUE(manager.create_vault_v2(test_vault_path, test_username, test_password, policy));
     auto account = createAccount("Example", "user@example.com");
-    ASSERT_TRUE(manager.add_account(account));
+    ASSERT_TRUE(manager.account_manager()->add_account(account));
     ASSERT_TRUE(manager.save_vault());
     ASSERT_TRUE(manager.close_vault());
 
@@ -163,7 +164,7 @@ TEST_F(VaultReedSolomonTest, OpenRSVault_WithNoCorruption_Success) {
 
     // Verify data
     EXPECT_EQ(manager2.get_account_count(), 1);
-    auto* account_out = manager2.get_account(0);
+    auto* account_out = manager2.account_manager()->get_account(0);
     ASSERT_NE(account_out, nullptr);
     EXPECT_EQ(account_out->account_name(), "Example");
     EXPECT_EQ(account_out->user_name(), "user@example.com");
@@ -179,8 +180,8 @@ TEST_F(VaultReedSolomonTest, OpenRSVault_WithMinorCorruption_Recovers) {
     ASSERT_TRUE(manager.create_vault_v2(test_vault_path, test_username, test_password, policy));
     auto account1 = createAccount("Example", "user@example.com");
     auto account2 = createAccount("Test", "test@test.com");
-    ASSERT_TRUE(manager.add_account(account1));
-    ASSERT_TRUE(manager.add_account(account2));
+    ASSERT_TRUE(manager.account_manager()->add_account(account1));
+    ASSERT_TRUE(manager.account_manager()->add_account(account2));
     ASSERT_TRUE(manager.save_vault());
     ASSERT_TRUE(manager.close_vault());
 
@@ -195,11 +196,11 @@ TEST_F(VaultReedSolomonTest, OpenRSVault_WithMinorCorruption_Recovers) {
 
     // Verify data is intact
     EXPECT_EQ(manager2.get_account_count(), 2);
-    auto* account_1 = manager2.get_account(0);
+    auto* account_1 = manager2.account_manager()->get_account(0);
     ASSERT_NE(account_1, nullptr);
     EXPECT_EQ(account_1->account_name(), "Example");
 
-    auto* account_2 = manager2.get_account(1);
+    auto* account_2 = manager2.account_manager()->get_account(1);
     ASSERT_NE(account_2, nullptr);
     EXPECT_EQ(account_2->account_name(), "Test");
 }
@@ -213,7 +214,7 @@ TEST_F(VaultReedSolomonTest, OpenRSVault_WithSevereCorruption_Fails) {
     manager.set_rs_redundancy_percent(10);
     ASSERT_TRUE(manager.create_vault_v2(test_vault_path, test_username, test_password, policy));
     auto account = createAccount("Example", "user@example.com");
-    ASSERT_TRUE(manager.add_account(account));
+    ASSERT_TRUE(manager.account_manager()->add_account(account));
     ASSERT_TRUE(manager.save_vault());
     ASSERT_TRUE(manager.close_vault());
 
@@ -238,7 +239,7 @@ TEST_F(VaultReedSolomonTest, DisableRS_SavesWithoutEncoding) {
     manager.set_reed_solomon_enabled(false);
     ASSERT_TRUE(manager.create_vault_v2(test_vault_path, test_username, test_password, policy));
     auto account = createAccount("Example", "user@example.com");
-    ASSERT_TRUE(manager.add_account(account));
+    ASSERT_TRUE(manager.account_manager()->add_account(account));
     ASSERT_TRUE(manager.save_vault());
     ASSERT_TRUE(manager.close_vault());
 
@@ -256,7 +257,7 @@ TEST_F(VaultReedSolomonTest, DisableRS_SavesWithoutEncoding) {
     manager.set_rs_redundancy_percent(10);
     ASSERT_TRUE(manager.create_vault_v2(test_vault_with_rs, test_username, test_password, policy));
     auto account2 = createAccount("Example", "user@example.com");
-    ASSERT_TRUE(manager.add_account(account2));
+    ASSERT_TRUE(manager.account_manager()->add_account(account2));
     ASSERT_TRUE(manager.save_vault());
 
     // RS enabled should persist as configured in the V2 header
@@ -282,7 +283,7 @@ TEST_F(VaultReedSolomonTest, ChangeRedundancyLevel_Works) {
 
         ASSERT_TRUE(manager.create_vault_v2(vault_path, test_username, test_password, policy));
         auto account = createAccount("Test", "test@test.com");
-        ASSERT_TRUE(manager.add_account(account));
+        ASSERT_TRUE(manager.account_manager()->add_account(account));
         ASSERT_TRUE(manager.save_vault());
         ASSERT_TRUE(manager.close_vault());
 
@@ -320,7 +321,7 @@ TEST_F(VaultReedSolomonTest, LegacyVault_OpensWithoutRS) {
     manager.set_reed_solomon_enabled(false);
     ASSERT_TRUE(manager.create_vault_v2(test_vault_path, test_username, test_password, policy));
     auto account = createAccount("Legacy", "legacy@test.com");
-    ASSERT_TRUE(manager.add_account(account));
+    ASSERT_TRUE(manager.account_manager()->add_account(account));
     ASSERT_TRUE(manager.save_vault());
     ASSERT_TRUE(manager.close_vault());
 
@@ -332,7 +333,7 @@ TEST_F(VaultReedSolomonTest, LegacyVault_OpensWithoutRS) {
 
     // Verify data
     EXPECT_EQ(manager2.get_account_count(), 1);
-    auto* account_out = manager2.get_account(0);
+    auto* account_out = manager2.account_manager()->get_account(0);
     ASSERT_NE(account_out, nullptr);
     EXPECT_EQ(account_out->account_name(), "Legacy");
 }

@@ -129,6 +129,7 @@
 #include <gtest/gtest.h>
 #include "VaultManager.h"
 #include "record.pb.h"
+#include "managers/AccountManager.h"
 #include "MultiUserTypes.h"
 #include <filesystem>
 #include <fstream>
@@ -389,7 +390,7 @@ TEST_F(FIPSModeTest, VaultOperations_DefaultMode_CreateAndOpen) {
     account.set_password("testpass123");
     account.set_website("https://example.com");
 
-    ASSERT_TRUE(vault.add_account(account));
+    ASSERT_TRUE(vault.account_manager()->add_account(account));
     ASSERT_TRUE(vault.save_vault());
     ASSERT_TRUE(vault.close_vault());
 
@@ -397,7 +398,7 @@ TEST_F(FIPSModeTest, VaultOperations_DefaultMode_CreateAndOpen) {
     ASSERT_TRUE(vault.open_vault_v2(test_vault_path, test_username, test_password));
     EXPECT_EQ(vault.get_account_count(), 1);
 
-    auto accounts = vault.get_all_accounts();
+    auto accounts = vault.account_manager()->get_all_accounts();
     ASSERT_EQ(accounts.size(), 1);
     EXPECT_EQ(accounts[0].account_name(), "Test Account");
     EXPECT_EQ(accounts[0].user_name(), "testuser");
@@ -417,7 +418,7 @@ TEST_F(FIPSModeTest, VaultOperations_DefaultMode_Encryption) {
     keeptower::AccountRecord account;
     account.set_account_name("Sensitive Data");
     account.set_password("VerySecretPassword123!@#");
-    ASSERT_TRUE(vault.add_account(account));
+    ASSERT_TRUE(vault.account_manager()->add_account(account));
     ASSERT_TRUE(vault.save_vault());
     ASSERT_TRUE(vault.close_vault());
 
@@ -472,7 +473,7 @@ TEST_F(FIPSModeTest, FIPSMode_EnabledMode_IfAvailable) {
         account.set_account_name("FIPS Test Account");
         account.set_password("FIPSPassword123!");
 
-        ASSERT_TRUE(vault.add_account(account));
+        ASSERT_TRUE(vault.account_manager()->add_account(account));
         ASSERT_TRUE(vault.save_vault());
         ASSERT_TRUE(vault.close_vault());
 
@@ -528,7 +529,7 @@ TEST_F(FIPSModeTest, CrossMode_VaultCreatedInDefault_OpenableRegardless) {
     keeptower::AccountRecord account;
     account.set_account_name("Cross-Mode Test");
     account.set_password("CrossModePass123");
-    ASSERT_TRUE(vault1.add_account(account));
+    ASSERT_TRUE(vault1.account_manager()->add_account(account));
     ASSERT_TRUE(vault1.save_vault());
     ASSERT_TRUE(vault1.close_vault());
 
@@ -537,7 +538,7 @@ TEST_F(FIPSModeTest, CrossMode_VaultCreatedInDefault_OpenableRegardless) {
     ASSERT_TRUE(vault2.open_vault_v2(test_vault_path, test_username, test_password));
     EXPECT_EQ(vault2.get_account_count(), 1);
 
-    auto accounts = vault2.get_all_accounts();
+    auto accounts = vault2.account_manager()->get_all_accounts();
     EXPECT_EQ(accounts[0].account_name(), "Cross-Mode Test");
     EXPECT_EQ(accounts[0].password(), "CrossModePass123");
 }
@@ -563,7 +564,7 @@ TEST_F(FIPSModeTest, Performance_DefaultMode_EncryptionSpeed) {
         account.set_account_name("Test Account " + std::to_string(i));
         account.set_user_name("user" + std::to_string(i));
         account.set_password("password" + std::to_string(i));
-        ASSERT_TRUE(vault.add_account(account));
+        ASSERT_TRUE(vault.account_manager()->add_account(account));
     }
 
     ASSERT_TRUE(vault.save_vault());

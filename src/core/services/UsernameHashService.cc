@@ -252,7 +252,7 @@ UsernameHashService::hash_pbkdf2_sha256(std::string_view username,
 std::expected<std::vector<uint8_t>, VaultError>
 UsernameHashService::hash_argon2id(std::string_view username,
                                    std::span<const uint8_t, 16> salt,
-                                   uint32_t iterations) {
+                                   [[maybe_unused]] uint32_t iterations) {
     // Check FIPS mode: Argon2id is NOT FIPS-approved
     // Note: FIPS_mode() check would go here if OpenSSL FIPS module is loaded
     // For now, we allow Argon2id (user must disable FIPS mode explicitly)

@@ -9,6 +9,7 @@
 #include <gtest/gtest.h>
 #include "../src/core/repositories/GroupRepository.h"
 #include "../src/core/VaultManager.h"
+#include "../src/core/managers/AccountManager.h"
 #include "../src/core/MultiUserTypes.h"
 #include <memory>
 #include <cstdio>
@@ -49,27 +50,27 @@ protected:
         keeptower::AccountRecord account1;
         account1.set_id("account1");
         account1.set_account_name("Gmail");
-        vault_manager->add_account(account1);
+        ASSERT_TRUE(vault_manager->account_manager()->add_account(account1));
 
         keeptower::AccountRecord account2;
         account2.set_id("account2");
         account2.set_account_name("GitHub");
-        vault_manager->add_account(account2);
+        ASSERT_TRUE(vault_manager->account_manager()->add_account(account2));
 
         keeptower::AccountRecord account3;
         account3.set_id("account3");
         account3.set_account_name("AWS");
-        vault_manager->add_account(account3);
+        ASSERT_TRUE(vault_manager->account_manager()->add_account(account3));
 
         // Add accounts to groups
-        vault_manager->add_account_to_group(0, group1_id);  // Gmail -> Personal
-        vault_manager->add_account_to_group(1, group2_id);  // GitHub -> Work
-        vault_manager->add_account_to_group(2, group2_id);  // AWS -> Work
+        ASSERT_TRUE(vault_manager->add_account_to_group(0, group1_id));  // Gmail -> Personal
+        ASSERT_TRUE(vault_manager->add_account_to_group(1, group2_id));  // GitHub -> Work
+        ASSERT_TRUE(vault_manager->add_account_to_group(2, group2_id));  // AWS -> Work
     }
 
     void TearDown() override {
         if (vault_manager && vault_manager->is_vault_open()) {
-            vault_manager->close_vault();
+            (void)vault_manager->close_vault();
         }
         // Clean up test file
         std::remove(temp_vault_path.c_str());
@@ -94,7 +95,7 @@ TEST_F(GroupRepositoryTest, ConstructorThrowsOnNull) {
 TEST_F(GroupRepositoryTest, IsVaultOpen) {
     EXPECT_TRUE(repository->is_vault_open());
 
-    vault_manager->close_vault();
+    (void)vault_manager->close_vault();
     EXPECT_FALSE(repository->is_vault_open());
 }
 
@@ -125,7 +126,7 @@ TEST_F(GroupRepositoryTest, CreateGroupEmptyName) {
 }
 
 TEST_F(GroupRepositoryTest, CreateGroupWhenVaultClosed) {
-    vault_manager->close_vault();
+    (void)vault_manager->close_vault();
 
     auto result = repository->create("TestGroup");
     ASSERT_FALSE(result.has_value());
@@ -150,7 +151,7 @@ TEST_F(GroupRepositoryTest, GetGroupByNonexistentId) {
 }
 
 TEST_F(GroupRepositoryTest, GetGroupWhenVaultClosed) {
-    vault_manager->close_vault();
+    (void)vault_manager->close_vault();
 
     auto result = repository->get(group1_id);
     ASSERT_FALSE(result.has_value());
@@ -183,7 +184,7 @@ TEST_F(GroupRepositoryTest, GetAllGroups) {
 }
 
 TEST_F(GroupRepositoryTest, GetAllGroupsWhenVaultClosed) {
-    vault_manager->close_vault();
+    (void)vault_manager->close_vault();
 
     auto result = repository->get_all();
     ASSERT_FALSE(result.has_value());
@@ -220,7 +221,7 @@ TEST_F(GroupRepositoryTest, RemoveNonexistentGroup) {
 }
 
 TEST_F(GroupRepositoryTest, RemoveGroupWhenVaultClosed) {
-    vault_manager->close_vault();
+    (void)vault_manager->close_vault();
 
     auto result = repository->remove(group1_id);
     ASSERT_FALSE(result.has_value());
@@ -238,7 +239,7 @@ TEST_F(GroupRepositoryTest, Count) {
 }
 
 TEST_F(GroupRepositoryTest, CountWhenVaultClosed) {
-    vault_manager->close_vault();
+    (void)vault_manager->close_vault();
 
     auto result = repository->count();
     ASSERT_FALSE(result.has_value());
@@ -274,7 +275,7 @@ TEST_F(GroupRepositoryTest, AddAccountToNonexistentGroup) {
 }
 
 TEST_F(GroupRepositoryTest, AddAccountToGroupWhenVaultClosed) {
-    vault_manager->close_vault();
+    (void)vault_manager->close_vault();
 
     auto result = repository->add_account_to_group(0, group1_id);
     ASSERT_FALSE(result.has_value());
@@ -309,7 +310,7 @@ TEST_F(GroupRepositoryTest, RemoveAccountFromNonexistentGroup) {
 }
 
 TEST_F(GroupRepositoryTest, RemoveAccountFromGroupWhenVaultClosed) {
-    vault_manager->close_vault();
+    (void)vault_manager->close_vault();
 
     auto result = repository->remove_account_from_group(0, group1_id);
     ASSERT_FALSE(result.has_value());
@@ -345,7 +346,7 @@ TEST_F(GroupRepositoryTest, GetAccountsInNonexistentGroup) {
 }
 
 TEST_F(GroupRepositoryTest, GetAccountsInGroupWhenVaultClosed) {
-    vault_manager->close_vault();
+    (void)vault_manager->close_vault();
 
     auto result = repository->get_accounts_in_group(group1_id);
     ASSERT_FALSE(result.has_value());
@@ -364,7 +365,7 @@ TEST_F(GroupRepositoryTest, GroupExists) {
 }
 
 TEST_F(GroupRepositoryTest, ExistsWhenVaultClosed) {
-    vault_manager->close_vault();
+    (void)vault_manager->close_vault();
     EXPECT_FALSE(repository->exists(group1_id));
 }
 

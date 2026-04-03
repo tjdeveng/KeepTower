@@ -64,7 +64,14 @@ bool HelpManager::open_help(HelpTopic topic, Gtk::Window& parent) {
 
     try {
         // Use GTK4 C API for URI launching
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
         gtk_show_uri(GTK_WINDOW(parent.gobj()), uri.c_str(), GDK_CURRENT_TIME);
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
         return true;
     } catch (const Glib::Error& ex) {
         const std::string message = std::string("Could not open help in browser: ") + ex.what() +

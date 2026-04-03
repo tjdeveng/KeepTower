@@ -289,7 +289,7 @@ TEST_F(VaultIOTest, WriteFileV2NoHeader) {
 
 TEST_F(VaultIOTest, WriteFileOverwritesExisting) {
     // Write initial file
-    VaultIO::write_file(test_file.string(), test_data, false, 600000);
+    ASSERT_TRUE(VaultIO::write_file(test_file.string(), test_data, false, 600000));
 
     // Overwrite with new data
     std::vector<uint8_t> new_data = {99, 88, 77};
@@ -300,7 +300,7 @@ TEST_F(VaultIOTest, WriteFileOverwritesExisting) {
     // Verify new data
     std::vector<uint8_t> read_data;
     int iterations = 0;
-    VaultIO::read_file(test_file.string(), read_data, false, iterations);
+    ASSERT_TRUE(VaultIO::read_file(test_file.string(), read_data, false, iterations));
 
     EXPECT_EQ(read_data, new_data);
     EXPECT_EQ(iterations, 700000);
@@ -329,7 +329,7 @@ TEST_F(VaultIOTest, WriteFileLargeData) {
     // Verify round-trip
     std::vector<uint8_t> read_data;
     int iterations = 0;
-    VaultIO::read_file(test_file.string(), read_data, false, iterations);
+    ASSERT_TRUE(VaultIO::read_file(test_file.string(), read_data, false, iterations));
 
     EXPECT_EQ(read_data, large_data);
 }
@@ -342,7 +342,7 @@ TEST_F(VaultIOTest, WriteFileInvalidPath) {
 
 #ifdef __linux__
 TEST_F(VaultIOTest, WriteFileSetsSecurePermissions) {
-    VaultIO::write_file(test_file.string(), test_data, false, 600000);
+    ASSERT_TRUE(VaultIO::write_file(test_file.string(), test_data, false, 600000));
 
     // Check file permissions
     struct stat st;
@@ -355,7 +355,7 @@ TEST_F(VaultIOTest, WriteFileSetsSecurePermissions) {
 
 TEST_F(VaultIOTest, WriteFileAtomicRename) {
     // Write file
-    VaultIO::write_file(test_file.string(), test_data, false, 600000);
+    ASSERT_TRUE(VaultIO::write_file(test_file.string(), test_data, false, 600000));
 
     // Verify temp file doesn't exist after successful write
     auto temp_file = test_file.string() + ".tmp";

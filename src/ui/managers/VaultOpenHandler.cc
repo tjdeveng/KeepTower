@@ -185,7 +185,9 @@ void VaultOpenHandler::handle_new_vault() {
                         );
 
                         // Define progress callback to update touch dialog message
-                        auto progress_callback = [touch_dialog](int step, int total, const std::string& desc) {
+                        auto progress_callback = [touch_dialog]([[maybe_unused]] int step,
+                                                                 [[maybe_unused]] int total,
+                                                                 const std::string& desc) {
                             // Update dialog message for YubiKey touch operations
                             if (desc.find("Touch") != std::string::npos) {
                                 touch_dialog->update_message(desc);

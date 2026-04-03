@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: 2025 tjdeveng
 
 #include "../../core/VaultManager.h"
+#include "../../core/managers/AccountManager.h"
 #include "VaultIOHandler.h"
 #include "DialogManager.h"
 #include "../../utils/Log.h"
@@ -109,9 +110,14 @@ VaultIOHandler::VaultIOHandler(MainWindow& window,
                   int imported_count = 0;
                   int failed_count = 0;
                   std::vector<std::string> failed_accounts;
+                  auto* account_manager = m_vault_manager->account_manager();
+
+                  if (!account_manager) {
+                      return std::unexpected("vault is not open");
+                  }
 
                   for (const auto& account : accounts) {
-                      if (m_vault_manager->add_account(account)) {
+                      if (account_manager->add_account(account)) {
                           imported_count++;
                       } else {
                           failed_count++;
@@ -361,9 +367,14 @@ VaultIOHandler::VaultIOHandler(MainWindow& window,
                   std::vector<keeptower::AccountRecord> accounts;
                   int account_count = m_vault_manager->get_account_count();
                   accounts.reserve(account_count);
+                  auto* account_manager = m_vault_manager->account_manager();
+
+                  if (!account_manager) {
+                      return std::unexpected("Export cancelled: vault is not open");
+                  }
 
                   for (int i = 0; i < account_count; i++) {
-                      const auto* account = m_vault_manager->get_account(i);
+                      const auto* account = account_manager->get_account(i);
                       if (account) {
                           accounts.emplace_back(*account);
                       }

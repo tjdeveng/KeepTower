@@ -45,7 +45,7 @@ protected:
 
     void TearDown() override {
         // Clean up test vault
-        vault_manager.close_vault();
+        (void)vault_manager.close_vault();
 
         if (std::filesystem::exists(test_vault_path)) {
             std::filesystem::remove(test_vault_path);
@@ -249,7 +249,7 @@ TEST_F(UsernameHashMigrationPriority3Test, Performance_TwentyUsers) {
         auto session = vault_manager.open_vault_v2(
             test_vault_path.string(), "user" + std::to_string(i), "Password123!");
         EXPECT_TRUE(session) << "Failed to authenticate user" << i;
-        vault_manager.close_vault();
+        (void)vault_manager.close_vault();
     }
 
     auto end_time = std::chrono::high_resolution_clock::now();
@@ -342,7 +342,7 @@ TEST_F(UsernameHashMigrationPriority3Test, Security_ConstantTimeComparison) {
     auto correct_duration = std::chrono::duration_cast<std::chrono::microseconds>(
         std::chrono::high_resolution_clock::now() - start);
     ASSERT_TRUE(session1);
-    vault_manager.close_vault();
+    (void)vault_manager.close_vault();
 
     // Time authentication with incorrect password
     start = std::chrono::high_resolution_clock::now();
@@ -380,7 +380,7 @@ TEST_F(UsernameHashMigrationPriority3Test, Security_RollbackProtection) {
         auto session = vault_manager.open_vault_v2(
             test_vault_path.string(), "alice", "TestPassword123!");
         ASSERT_TRUE(session);
-        vault_manager.close_vault();
+        (void)vault_manager.close_vault();
     }
 
     // Verify alice is migrated
@@ -401,7 +401,7 @@ TEST_F(UsernameHashMigrationPriority3Test, Security_RollbackProtection) {
         auto result = vault_manager.update_security_policy(policy);
         ASSERT_TRUE(result);
         ASSERT_TRUE(vault_manager.save_vault());
-        vault_manager.close_vault();
+        (void)vault_manager.close_vault();
     }
 
     // Try to authenticate alice - should still use PBKDF2 hash
@@ -459,7 +459,7 @@ TEST_F(UsernameHashMigrationPriority3Test, ErrorHandling_EmptyVault) {
     auto session = vault_manager.open_vault_v2(
         test_vault_path.string(), "alice", "TestPassword123!");
     ASSERT_TRUE(session);
-    vault_manager.close_vault();
+    (void)vault_manager.close_vault();
 
     // Verify migration completed
     auto stats = count_migration_statuses();
@@ -486,7 +486,7 @@ TEST_F(UsernameHashMigrationPriority3Test, ErrorHandling_MaximumUsers) {
         }
 
         ASSERT_TRUE(vault_manager.save_vault());
-        vault_manager.close_vault();
+        (void)vault_manager.close_vault();
     }
 
     // Verify we have 32 users
@@ -500,7 +500,7 @@ TEST_F(UsernameHashMigrationPriority3Test, ErrorHandling_MaximumUsers) {
     auto session = vault_manager.open_vault_v2(
         test_vault_path.string(), "user1", "Password123!");
     EXPECT_TRUE(session);
-    vault_manager.close_vault();
+    (void)vault_manager.close_vault();
 
     // Verify migration worked with max users
     auto stats = count_migration_statuses();
@@ -521,7 +521,7 @@ TEST_F(UsernameHashMigrationPriority3Test, ErrorHandling_RapidMigrations) {
         ASSERT_TRUE(session);
         add_user_to_vault("bob", "BobPassword123!");
         ASSERT_TRUE(vault_manager.save_vault());
-        vault_manager.close_vault();
+        (void)vault_manager.close_vault();
     }
 
     // Migration 1: SHA3-256 → SHA3-384
@@ -530,7 +530,7 @@ TEST_F(UsernameHashMigrationPriority3Test, ErrorHandling_RapidMigrations) {
         auto session = vault_manager.open_vault_v2(
             test_vault_path.string(), "bob", "BobPassword123!");
         ASSERT_TRUE(session);
-        vault_manager.close_vault();
+        (void)vault_manager.close_vault();
     }
 
     auto stats1 = count_migration_statuses();
@@ -542,7 +542,7 @@ TEST_F(UsernameHashMigrationPriority3Test, ErrorHandling_RapidMigrations) {
         auto session = vault_manager.open_vault_v2(
             test_vault_path.string(), "alice", "TestPassword123!");
         ASSERT_TRUE(session);
-        vault_manager.close_vault();
+        (void)vault_manager.close_vault();
     }
 
     auto stats2 = count_migration_statuses();
@@ -554,12 +554,12 @@ TEST_F(UsernameHashMigrationPriority3Test, ErrorHandling_RapidMigrations) {
         auto session1 = vault_manager.open_vault_v2(
             test_vault_path.string(), "alice", "TestPassword123!");
         ASSERT_TRUE(session1);
-        vault_manager.close_vault();
+        (void)vault_manager.close_vault();
 
         auto session2 = vault_manager.open_vault_v2(
             test_vault_path.string(), "bob", "BobPassword123!");
         ASSERT_TRUE(session2);
-        vault_manager.close_vault();
+        (void)vault_manager.close_vault();
     }
 
     auto stats3 = count_migration_statuses();
@@ -583,7 +583,7 @@ TEST_F(UsernameHashMigrationPriority3Test, ErrorHandling_VeryLongUsername) {
         ASSERT_TRUE(session);
         add_user_to_vault(long_username, "Password123!");
         ASSERT_TRUE(vault_manager.save_vault());
-        vault_manager.close_vault();
+        (void)vault_manager.close_vault();
     }
 
     enable_migration(UsernameHashService::Algorithm::PBKDF2_SHA256);
@@ -610,7 +610,7 @@ TEST_F(UsernameHashMigrationPriority3Test, EdgeCase_StatusPersistence) {
         auto session = vault_manager.open_vault_v2(
             test_vault_path.string(), "alice", "TestPassword123!");
         ASSERT_TRUE(session);
-        vault_manager.close_vault();
+        (void)vault_manager.close_vault();
     }
 
     // Open and close multiple times
@@ -618,7 +618,7 @@ TEST_F(UsernameHashMigrationPriority3Test, EdgeCase_StatusPersistence) {
         auto session = vault_manager.open_vault_v2(
             test_vault_path.string(), "alice", "TestPassword123!");
         ASSERT_TRUE(session) << "Iteration " << i;
-        vault_manager.close_vault();
+        (void)vault_manager.close_vault();
 
         // Verify migration status persists
         auto header = read_vault_header();
@@ -651,7 +651,7 @@ TEST_F(UsernameHashMigrationPriority3Test, EdgeCase_AllAlgorithms) {
         auto session = vault_manager.open_vault_v2(
             test_vault_path.string(), "alice", "TestPassword123!");
         EXPECT_TRUE(session) << "Algorithm " << static_cast<int>(algorithms[i]) << " should work";
-        vault_manager.close_vault();
+        (void)vault_manager.close_vault();
     }
 }
 
@@ -671,7 +671,7 @@ TEST_F(UsernameHashMigrationPriority3Test, EdgeCase_MigrationCompletionDetection
         }
 
         ASSERT_TRUE(vault_manager.save_vault());
-        vault_manager.close_vault();
+        (void)vault_manager.close_vault();
     }
 
     enable_migration(UsernameHashService::Algorithm::PBKDF2_SHA256);
@@ -686,7 +686,7 @@ TEST_F(UsernameHashMigrationPriority3Test, EdgeCase_MigrationCompletionDetection
         auto session = vault_manager.open_vault_v2(
             test_vault_path.string(), "user" + std::to_string(i), "Password123!");
         ASSERT_TRUE(session);
-        vault_manager.close_vault();
+        (void)vault_manager.close_vault();
 
         stats = count_migration_statuses();
         EXPECT_EQ(stats.migrated, i) << "After user" << i;
@@ -697,7 +697,7 @@ TEST_F(UsernameHashMigrationPriority3Test, EdgeCase_MigrationCompletionDetection
         auto session = vault_manager.open_vault_v2(
             test_vault_path.string(), "alice", "TestPassword123!");
         ASSERT_TRUE(session);
-        vault_manager.close_vault();
+        (void)vault_manager.close_vault();
     }
 
     // Verify completion
@@ -723,7 +723,7 @@ TEST_F(UsernameHashMigrationPriority3Test, EdgeCase_VaultIntegrityAfterMigration
         auto session = vault_manager.open_vault_v2(
             test_vault_path.string(), "alice", "TestPassword123!");
         ASSERT_TRUE(session);
-        vault_manager.close_vault();
+        (void)vault_manager.close_vault();
     }
 
     // Verify file is still valid

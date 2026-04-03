@@ -64,8 +64,8 @@ TEST_F(VaultCryptoTest, DeriveKeyDeterministic) {
     std::vector<uint8_t> key2;
 
     // Same password + salt + iterations should produce same key
-    VaultCrypto::derive_key(test_password, test_salt, key1, 100000);
-    VaultCrypto::derive_key(test_password, test_salt, key2, 100000);
+    ASSERT_TRUE(VaultCrypto::derive_key(test_password, test_salt, key1, 100000));
+    ASSERT_TRUE(VaultCrypto::derive_key(test_password, test_salt, key2, 100000));
 
     EXPECT_EQ(key1, key2);
 }
@@ -77,8 +77,8 @@ TEST_F(VaultCryptoTest, DeriveKeyDifferentPasswordProducesDifferentKey) {
     std::vector<uint8_t> key1;
     std::vector<uint8_t> key2;
 
-    VaultCrypto::derive_key(password1, test_salt, key1, 100000);
-    VaultCrypto::derive_key(password2, test_salt, key2, 100000);
+    ASSERT_TRUE(VaultCrypto::derive_key(password1, test_salt, key1, 100000));
+    ASSERT_TRUE(VaultCrypto::derive_key(password2, test_salt, key2, 100000));
 
     EXPECT_NE(key1, key2);
 }
@@ -90,8 +90,8 @@ TEST_F(VaultCryptoTest, DeriveKeyDifferentSaltProducesDifferentKey) {
     std::vector<uint8_t> key1;
     std::vector<uint8_t> key2;
 
-    VaultCrypto::derive_key(test_password, salt1, key1, 100000);
-    VaultCrypto::derive_key(test_password, salt2, key2, 100000);
+    ASSERT_TRUE(VaultCrypto::derive_key(test_password, salt1, key1, 100000));
+    ASSERT_TRUE(VaultCrypto::derive_key(test_password, salt2, key2, 100000));
 
     EXPECT_NE(key1, key2);
 }
@@ -100,8 +100,8 @@ TEST_F(VaultCryptoTest, DeriveKeyDifferentIterationsProducesDifferentKey) {
     std::vector<uint8_t> key1;
     std::vector<uint8_t> key2;
 
-    VaultCrypto::derive_key(test_password, test_salt, key1, 100000);
-    VaultCrypto::derive_key(test_password, test_salt, key2, 200000);
+    ASSERT_TRUE(VaultCrypto::derive_key(test_password, test_salt, key1, 100000));
+    ASSERT_TRUE(VaultCrypto::derive_key(test_password, test_salt, key2, 200000));
 
     EXPECT_NE(key1, key2);
 }

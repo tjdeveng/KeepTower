@@ -3,6 +3,8 @@
 
 #include <gtest/gtest.h>
 #include "../src/core/VaultManager.h"
+#include "../src/core/managers/AccountManager.h"
+#include "../src/core/managers/GroupManager.h"
 #include "../src/record.pb.h"
 #include "../src/core/MultiUserTypes.h"
 #include <filesystem>
@@ -42,7 +44,7 @@ protected:
             account.set_account_name("Test Account " + std::to_string(i));
             account.set_user_name("user" + std::to_string(i));
             account.set_password("pass" + std::to_string(i));
-            ASSERT_TRUE(vault_manager->add_account(account));
+            ASSERT_TRUE(vault_manager->account_manager()->add_account(account));
         }
     }
 
@@ -324,7 +326,7 @@ TEST_F(AccountGroupsTest, RenameGroupSuccess) {
     EXPECT_TRUE(vault_manager->rename_group(group_id, "New Name"));
 
     // Verify name changed
-    auto groups = vault_manager->get_all_groups();
+    auto groups = vault_manager->group_manager()->get_all_groups();
     auto it = std::find_if(groups.begin(), groups.end(),
                           [&](const auto& g) { return g.group_id() == group_id; });
     ASSERT_NE(it, groups.end());
@@ -340,7 +342,7 @@ TEST_F(AccountGroupsTest, CannotRenameSystemGroups) {
     EXPECT_FALSE(vault_manager->rename_group(fav_id, "Not Favorites"));
 
     // Verify name unchanged
-    auto groups = vault_manager->get_all_groups();
+    auto groups = vault_manager->group_manager()->get_all_groups();
     auto it = std::find_if(groups.begin(), groups.end(),
                           [&](const auto& g) { return g.group_id() == fav_id; });
     ASSERT_NE(it, groups.end());
@@ -358,7 +360,7 @@ TEST_F(AccountGroupsTest, RenameGroupDuplicateName) {
     EXPECT_FALSE(vault_manager->rename_group(group2_id, "Work"));
 
     // Verify group2 name unchanged
-    auto groups = vault_manager->get_all_groups();
+    auto groups = vault_manager->group_manager()->get_all_groups();
     auto it = std::find_if(groups.begin(), groups.end(),
                           [&](const auto& g) { return g.group_id() == group2_id; });
     ASSERT_NE(it, groups.end());
@@ -392,7 +394,7 @@ TEST_F(AccountGroupsTest, RenameGroupPersistence) {
     ASSERT_TRUE(vault_manager->open_vault_v2(test_vault_path, test_username, test_password));
 
     // Verify renamed group persisted
-    auto groups = vault_manager->get_all_groups();
+    auto groups = vault_manager->group_manager()->get_all_groups();
     auto it = std::find_if(groups.begin(), groups.end(),
                           [&](const auto& g) { return g.group_id() == group_id; });
     ASSERT_NE(it, groups.end());
@@ -410,7 +412,7 @@ TEST_F(AccountGroupsTest, ReorderGroupSuccess) {
     EXPECT_TRUE(vault_manager->reorder_group(group1_id, 5));
 
     // Verify order changed
-    auto groups = vault_manager->get_all_groups();
+    auto groups = vault_manager->group_manager()->get_all_groups();
     auto it = std::find_if(groups.begin(), groups.end(),
                           [&](const auto& g) { return g.group_id() == group1_id; });
     ASSERT_NE(it, groups.end());
@@ -426,7 +428,7 @@ TEST_F(AccountGroupsTest, CannotReorderSystemGroups) {
     EXPECT_FALSE(vault_manager->reorder_group(fav_id, 10));
 
     // Verify order unchanged (should be 0)
-    auto groups = vault_manager->get_all_groups();
+    auto groups = vault_manager->group_manager()->get_all_groups();
     auto it = std::find_if(groups.begin(), groups.end(),
                           [&](const auto& g) { return g.group_id() == fav_id; });
     ASSERT_NE(it, groups.end());
@@ -453,7 +455,7 @@ TEST_F(AccountGroupsTest, ReorderGroupPersistence) {
     ASSERT_TRUE(vault_manager->open_vault_v2(test_vault_path, test_username, test_password));
 
     // Verify reorder persisted
-    auto groups = vault_manager->get_all_groups();
+    auto groups = vault_manager->group_manager()->get_all_groups();
     auto it = std::find_if(groups.begin(), groups.end(),
                           [&](const auto& g) { return g.group_id() == group_id; });
     ASSERT_NE(it, groups.end());
@@ -473,7 +475,7 @@ TEST_F(AccountGroupsTest, ReorderAccountInGroup) {
     EXPECT_TRUE(vault_manager->reorder_account_in_group(0, group_id, 3));
 
     // Verify by reading account data directly
-    const auto* account = vault_manager->get_account(0);
+    const auto* account = vault_manager->account_manager()->get_account(0);
     ASSERT_NE(account, nullptr);
 
     bool found = false;
@@ -524,7 +526,7 @@ TEST_F(AccountGroupsTest, ReorderAccountInGroupPersistence) {
     ASSERT_TRUE(vault_manager->open_vault_v2(test_vault_path, test_username, test_password));
 
     // Verify reorder persisted
-    const auto* account = vault_manager->get_account(0);
+    const auto* account = vault_manager->account_manager()->get_account(0);
     ASSERT_NE(account, nullptr);
 
     bool found = false;

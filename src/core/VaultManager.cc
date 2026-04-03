@@ -323,23 +323,11 @@ bool VaultManager::close_vault() {
     return true;
 }
 
-bool VaultManager::add_account(const keeptower::AccountRecord& account) {
-    if (!m_vault_open) {
-        return false;
-    }
-
-    return m_account_manager->add_account(account);
-}
-
-std::vector<keeptower::AccountRecord> VaultManager::get_all_accounts() const {
+std::vector<KeepTower::AccountListItem> VaultManager::get_all_accounts_view() const {
     if (!m_account_manager) {
         return {};
     }
-    return m_account_manager->get_all_accounts();
-}
-
-std::vector<KeepTower::AccountListItem> VaultManager::get_all_accounts_view() const {
-    const auto accounts = get_all_accounts();
+    const auto accounts = m_account_manager->get_all_accounts();
     std::vector<KeepTower::AccountListItem> result;
     result.reserve(accounts.size());
     for (const auto& a : accounts) {
@@ -361,16 +349,8 @@ std::vector<KeepTower::AccountListItem> VaultManager::get_all_accounts_view() co
     return result;
 }
 
-bool VaultManager::update_account(size_t index, const keeptower::AccountRecord& account) {
-    if (!m_vault_open) {
-        return false;
-    }
-
-    return m_account_manager->update_account(index, account);
-}
-
 bool VaultManager::update_account(size_t index, const KeepTower::AccountDetail& detail) {
-    const auto* existing = get_account(index);
+    const auto* existing = m_account_manager ? m_account_manager->get_account(index) : nullptr;
     if (!existing) {
         return false;
     }
@@ -410,7 +390,42 @@ bool VaultManager::update_account(size_t index, const KeepTower::AccountDetail& 
     updated.set_modified_at(detail.modified_at);
     updated.set_password_changed_at(detail.password_changed_at);
 
-    return update_account(index, updated);
+    return m_account_manager->update_account(index, updated);
+}
+
+bool VaultManager::add_account(const KeepTower::AccountDetail& detail) {
+    if (!m_vault_open || !m_account_manager) {
+        return false;
+    }
+
+    keeptower::AccountRecord record;
+    record.set_id(detail.id);
+    record.set_account_name(detail.account_name);
+    record.set_user_name(detail.user_name);
+    record.set_password(detail.password);
+    record.set_email(detail.email);
+    record.set_website(detail.website);
+    record.set_notes(detail.notes);
+    for (const auto& tag : detail.tags) {
+        record.add_tags(tag);
+    }
+    for (const auto& group : detail.groups) {
+        auto* membership = record.add_groups();
+        membership->set_group_id(group.group_id);
+        membership->set_display_order(group.display_order);
+    }
+    record.set_is_favorite(detail.is_favorite);
+    record.set_is_archived(detail.is_archived);
+    record.set_is_admin_only_viewable(detail.is_admin_only_viewable);
+    record.set_is_admin_only_deletable(detail.is_admin_only_deletable);
+    record.set_global_display_order(detail.global_display_order);
+    record.set_created_at(detail.created_at);
+    record.set_modified_at(detail.modified_at);
+    record.set_password_changed_at(detail.password_changed_at);
+    for (const auto& h : detail.password_history) {
+        record.add_password_history(h);
+    }
+    return m_account_manager->add_account(record);
 }
 
 bool VaultManager::delete_account(size_t index) {
@@ -421,22 +436,8 @@ bool VaultManager::delete_account(size_t index) {
     return m_account_manager->delete_account(index);
 }
 
-keeptower::AccountRecord* VaultManager::get_account_mutable(size_t index) {
-    if (!m_vault_open) {
-        return nullptr;
-    }
-    return m_account_manager->get_account_mutable(index);
-}
-
-const keeptower::AccountRecord* VaultManager::get_account(size_t index) const {
-    if (!m_vault_open) {
-        return nullptr;
-    }
-    return m_account_manager->get_account(index);
-}
-
 std::optional<KeepTower::AccountDetail> VaultManager::get_account_view(size_t index) const {
-    const auto* a = get_account(index);
+    const auto* a = m_account_manager ? m_account_manager->get_account(index) : nullptr;
     if (!a) return std::nullopt;
     KeepTower::AccountDetail detail;
     detail.id = a->id();
@@ -605,15 +606,11 @@ bool VaultManager::is_account_in_group(size_t account_index, std::string_view gr
     return m_group_manager->is_account_in_group(account_index, group_id);
 }
 
-std::vector<keeptower::AccountGroup> VaultManager::get_all_groups() const {
+std::vector<KeepTower::GroupView> VaultManager::get_all_groups_view() const {
     if (!m_group_manager) {
         return {};
     }
-    return m_group_manager->get_all_groups();
-}
-
-std::vector<KeepTower::GroupView> VaultManager::get_all_groups_view() const {
-    const auto groups = get_all_groups();
+    const auto groups = m_group_manager->get_all_groups();
     std::vector<KeepTower::GroupView> result;
     result.reserve(groups.size());
     for (const auto& g : groups) {
@@ -920,67 +917,6 @@ bool VaultManager::migrate_vault_schema() {
 }
 
 #ifdef HAVE_YUBIKEY_SUPPORT
-std::vector<keeptower::YubiKeyEntry> VaultManager::get_yubikey_list() const {
-    std::vector<keeptower::YubiKeyEntry> result;
-
-    Log::info("VaultManager", "get_yubikey_list() called");
-
-    if (!m_vault_open) {
-        Log::info("VaultManager", "Vault not open, returning empty list");
-        return result;
-    }
-
-    // V2 vault: Return per-user YubiKey entries
-    if (m_is_v2_vault && m_v2_header.has_value()) {
-        Log::info("VaultManager", std::format("V2 vault detected, {} key slots", m_v2_header->key_slots.size()));
-        for (size_t i = 0; i < m_v2_header->key_slots.size(); ++i) {
-            const auto& slot = m_v2_header->key_slots[i];
-            Log::debug("VaultManager", std::format("Slot {}: active={}, enrolled={}",
-                i, slot.active, slot.yubikey_enrolled));
-
-            if (slot.active && slot.yubikey_enrolled) {
-                // Safety check: ensure username and serial are valid
-                if (slot.username.empty() || slot.yubikey_serial.empty()) {
-                    KeepTower::Log::warning("VaultManager: Skipping invalid YubiKey entry (empty username or serial)");
-                    continue;
-                }
-
-                keeptower::YubiKeyEntry entry;
-                try {
-                    entry.set_name(std::format("{}'s YubiKey", slot.username));
-                    entry.set_serial(slot.yubikey_serial);
-                    // Store timestamp directly (int64)
-                    entry.set_added_at(slot.yubikey_enrolled_at);
-                    Log::info("VaultManager", std::format("Added YubiKey entry: name={}, serial={}",
-                        entry.name(), entry.serial()));
-                    result.push_back(entry);
-                } catch (const std::exception& e) {
-                    KeepTower::Log::error("VaultManager: Error creating YubiKey entry: {}", e.what());
-                    continue;
-                }
-            }
-        }
-        Log::info("VaultManager", std::format("Returning {} YubiKey entries", result.size()));
-        return result;
-    }
-
-    // V1 vault: Use old YubiKey config method
-    if (!m_yubikey_required) {
-        return result;
-    }
-
-    if (!m_vault_data->has_yubikey_config()) {
-        return result;
-    }
-
-    const auto& yk_config = m_vault_data->yubikey_config();
-    for (const auto& entry : yk_config.yubikey_entries()) {
-        result.push_back(entry);
-    }
-
-    return result;
-}
-
 bool VaultManager::add_backup_yubikey(const std::string& name) {
     if (!m_vault_open || !m_yubikey_required) {
         std::cerr << "Vault must be open and YubiKey-protected to add backup keys" << '\n';
@@ -1698,14 +1634,43 @@ bool VaultManager::set_fips_mode(bool enable) {
 
 std::vector<KeepTower::YubiKeyView> VaultManager::get_yubikey_list_view() const {
 #ifdef HAVE_YUBIKEY_SUPPORT
-    const auto entries = get_yubikey_list();
     std::vector<KeepTower::YubiKeyView> result;
-    result.reserve(entries.size());
-    for (const auto& e : entries) {
+
+    if (!m_vault_open) {
+        return result;
+    }
+
+    if (m_is_v2_vault && m_v2_header.has_value()) {
+        result.reserve(m_v2_header->key_slots.size());
+        for (const auto& slot : m_v2_header->key_slots) {
+            if (!slot.active || !slot.yubikey_enrolled) {
+                continue;
+            }
+            if (slot.username.empty() || slot.yubikey_serial.empty()) {
+                KeepTower::Log::warning("VaultManager: Skipping invalid YubiKey entry (empty username or serial)");
+                continue;
+            }
+
+            KeepTower::YubiKeyView view;
+            view.serial = slot.yubikey_serial;
+            view.name = std::format("{}'s YubiKey", slot.username);
+            view.added_at = slot.yubikey_enrolled_at;
+            result.push_back(std::move(view));
+        }
+        return result;
+    }
+
+    if (!m_yubikey_required || !m_vault_data || !m_vault_data->has_yubikey_config()) {
+        return result;
+    }
+
+    const auto& yk_config = m_vault_data->yubikey_config();
+    result.reserve(yk_config.yubikey_entries_size());
+    for (const auto& entry : yk_config.yubikey_entries()) {
         KeepTower::YubiKeyView view;
-        view.serial = e.serial();
-        view.name = e.name();
-        view.added_at = e.added_at();
+        view.serial = entry.serial();
+        view.name = entry.name();
+        view.added_at = entry.added_at();
         result.push_back(std::move(view));
     }
     return result;

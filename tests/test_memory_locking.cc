@@ -46,6 +46,7 @@
 #include <gtest/gtest.h>
 #include "../src/core/VaultManager.h"
 #include "../src/record.pb.h"
+#include "../src/core/managers/AccountManager.h"
 #include "../src/core/MultiUserTypes.h"
 #include <chrono>
 #include <filesystem>
@@ -222,7 +223,7 @@ TEST_F(MemoryLockingTest, V1VaultOperationsWorkWithLockedMemory) {
     new_account.set_user_name("testuser");
     new_account.set_password("testpass");
 
-    ASSERT_TRUE(vm.add_account(new_account)) << "Failed to add account with locked keys";
+    ASSERT_TRUE(vm.account_manager()->add_account(new_account)) << "Failed to add account with locked keys";
 
     // Save vault - encryption operations with locked keys
     ASSERT_TRUE(vm.save_vault()) << "Failed to save vault with locked keys";
@@ -234,7 +235,7 @@ TEST_F(MemoryLockingTest, V1VaultOperationsWorkWithLockedMemory) {
         << "Failed to reopen vault";
 
     ASSERT_EQ(vm.get_account_count(), 1) << "Account not preserved";
-    const auto* retrieved_account = vm.get_account(0);
+    const auto* retrieved_account = vm.account_manager()->get_account(0);
     ASSERT_NE(retrieved_account, nullptr) << "Failed to get account";
     EXPECT_EQ(retrieved_account->account_name(), "Test Account");
 
@@ -340,7 +341,7 @@ TEST_F(MemoryLockingTest, V2DEKLockedAfterAuthentication) {
     // Verify vault operations work with locked DEK
     keeptower::AccountRecord account;
     account.set_account_name("Test Account");
-    ASSERT_TRUE(vm.add_account(account)) << "Operations should work with locked DEK";
+    ASSERT_TRUE(vm.account_manager()->add_account(account)) << "Operations should work with locked DEK";
 
     EXPECT_TRUE(vm.close_vault());
 }
@@ -416,7 +417,7 @@ TEST_F(MemoryLockingTest, V2PerUserChallengeLocked) {
     // Verify operations work (challenges accessible when locked)
     keeptower::AccountRecord account;
     account.set_account_name("Alice's Account");
-    ASSERT_TRUE(vm.add_account(account));
+    ASSERT_TRUE(vm.account_manager()->add_account(account));
 
     EXPECT_TRUE(vm.close_vault());
 }
@@ -491,7 +492,7 @@ TEST_F(MemoryLockingTest, GracefulDegradationWithoutPermissions) {
     // All operations should work
     keeptower::AccountRecord account;
     account.set_account_name("Test");
-    EXPECT_TRUE(vm.add_account(account));
+    EXPECT_TRUE(vm.account_manager()->add_account(account));
     EXPECT_TRUE(vm.save_vault());
 
     EXPECT_TRUE(vm.close_vault());
@@ -585,7 +586,7 @@ TEST_F(MemoryLockingTest, MemoryLockedThroughoutSession) {
     for (int i = 0; i < 10; ++i) {
         keeptower::AccountRecord account;
         account.set_account_name("Account " + std::to_string(i));
-        ASSERT_TRUE(vm.add_account(account));
+        ASSERT_TRUE(vm.account_manager()->add_account(account));
     }
 
     long locked_after_ops = get_locked_memory_kb();
@@ -691,7 +692,7 @@ TEST_F(MemoryLockingTest, MemoryLockingPerformance) {
     for (int i = 0; i < 100; ++i) {
         keeptower::AccountRecord account;
         account.set_account_name("Account " + std::to_string(i));
-        ASSERT_TRUE(vm.add_account(account));
+        ASSERT_TRUE(vm.account_manager()->add_account(account));
     }
 
     ASSERT_TRUE(vm.save_vault());

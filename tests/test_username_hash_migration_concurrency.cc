@@ -148,7 +148,7 @@ TEST_F(UsernameHashMigrationConcurrencyTest, IndependentThreads_MigrationContent
                     // Hold it briefly to increase overlap chance
                     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-                    (void)local_mgr.close_vault();
+                    (void)(void)local_mgr.close_vault();
                     return true;
                 }
 
@@ -174,7 +174,7 @@ TEST_F(UsernameHashMigrationConcurrencyTest, IndependentThreads_MigrationContent
     ASSERT_TRUE(session) << "Vault became corrupted or inaccessible after concurrent stress";
 
     // Check migration status
-    auto policy = verify_mgr.get_vault_security_policy();
+    [[maybe_unused]] auto policy = verify_mgr.get_vault_security_policy();
     // We can iterate slots to see how many migrated
     // But VaultManager doesn't expose raw slots easily without reading file directly
     // Let's rely on the fact that "open_vault_v2" worked for user0, so user0 IS migrated (or still valid).
@@ -265,10 +265,10 @@ TEST_F(UsernameHashMigrationConcurrencyTest, BackupRestoration_CorruptedVault) {
     // Admin was user0.
 
     // We need to re-login as admin to check things or try to login as user1.
-    success_mgr.close_vault();
+    (void)success_mgr.close_vault();
 
     VaultManager user1_mgr;
     auto user1_session = user1_mgr.open_vault_v2(test_vault_path.string(), "user1", "Password123!");
     ASSERT_TRUE(user1_session) << "Restored data missing user1";
-    user1_mgr.close_vault();
+    (void)user1_mgr.close_vault();
 }

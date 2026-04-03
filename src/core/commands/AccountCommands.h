@@ -11,6 +11,7 @@
 
 #include "Command.h"
 #include "../VaultManager.h"
+#include "../managers/AccountManager.h"
 #include "record.pb.h"
 #include <functional>
 #include <string>
@@ -75,8 +76,13 @@ public:
             return false;
         }
 
+        auto* account_manager = m_vault_manager->account_manager();
+        if (!account_manager) {
+            return false;
+        }
+
         // Add account to vault
-        auto result = m_vault_manager->add_account(m_account);
+        auto result = account_manager->add_account(m_account);
         if (!result) {
             return false;
         }
@@ -97,7 +103,12 @@ public:
         }
 
         // Before deleting, save the current state of the account (in case user edited it)
-        const auto* current_account = m_vault_manager->get_account(m_added_index);
+        auto* account_manager = m_vault_manager->account_manager();
+        if (!account_manager) {
+            return false;
+        }
+
+        const auto* current_account = account_manager->get_account(m_added_index);
         if (current_account) {
             // Update our stored account with current state for proper redo
             m_account.CopyFrom(*current_account);
@@ -150,7 +161,8 @@ public:
 
         // Capture account data before deletion
         if (vault_manager && account_index >= 0) {
-            const auto* account = vault_manager->get_account(account_index);
+            auto* account_manager = vault_manager->account_manager();
+            const auto* account = account_manager ? account_manager->get_account(account_index) : nullptr;
             if (account) {
                 m_deleted_account = *account;
                 m_account_name = account->account_name();
@@ -184,10 +196,15 @@ public:
             return false;
         }
 
+        auto* account_manager = m_vault_manager->account_manager();
+        if (!account_manager) {
+            return false;
+        }
+
         // Re-add the deleted account
         // Note: It will be added at the end, not at original position
         // This is acceptable as account order isn't semantically meaningful
-        bool result = m_vault_manager->add_account(m_deleted_account);
+        bool result = account_manager->add_account(m_deleted_account);
 
         if (result && m_ui_callback) {
             m_ui_callback();
@@ -234,7 +251,8 @@ public:
 
         // Capture current state before modification
         if (vault_manager && account_index >= 0) {
-            const auto* account = vault_manager->get_account(account_index);
+            auto* account_manager = vault_manager->account_manager();
+            const auto* account = account_manager ? account_manager->get_account(account_index) : nullptr;
             if (account) {
                 m_old_account = *account;
             }
@@ -254,7 +272,12 @@ public:
             return false;
         }
 
-        auto* account = m_vault_manager->get_account_mutable(m_account_index);
+        auto* account_manager = m_vault_manager->account_manager();
+        if (!account_manager) {
+            return false;
+        }
+
+        auto* account = account_manager->get_account_mutable(m_account_index);
         if (!account) {
             return false;
         }
@@ -274,7 +297,12 @@ public:
             return false;
         }
 
-        auto* account = m_vault_manager->get_account_mutable(m_account_index);
+        auto* account_manager = m_vault_manager->account_manager();
+        if (!account_manager) {
+            return false;
+        }
+
+        auto* account = account_manager->get_account_mutable(m_account_index);
         if (!account) {
             return false;
         }
@@ -341,7 +369,12 @@ private:
             return false;
         }
 
-        auto* account = m_vault_manager->get_account_mutable(m_account_index);
+        auto* account_manager = m_vault_manager->account_manager();
+        if (!account_manager) {
+            return false;
+        }
+
+        auto* account = account_manager->get_account_mutable(m_account_index);
         if (!account) {
             return false;
         }
