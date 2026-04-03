@@ -9,6 +9,7 @@ giomm_dep = dependency('giomm-2.68')
 backup_dep = dependency('keeptower-backup')
 crypto_dep = dependency('keeptower-crypto')
 fips_dep = dependency('keeptower-fips')
+yubikey_dep = dependency('keeptower-yubikey', required: false)
 
 # Include directories - include project root for config.h and generated files
 test_inc = [
@@ -82,8 +83,7 @@ vault_manager_deps = vault_manager_common_deps
 
 # Add YubiKey support if available
 if yubikey_available
-    vault_manager_sources += files('../src/core/managers/YubiKeyManager.cc')
-    vault_manager_deps += [fido2_dep]
+    vault_manager_deps += [yubikey_dep]
 endif
 
 vault_manager_test = executable(
@@ -101,8 +101,7 @@ fips_mode_sources = [
 fips_mode_deps = vault_manager_common_deps + []
 
 if yubikey_available
-    fips_mode_sources += files('../src/core/managers/YubiKeyManager.cc')
-    fips_mode_deps += [fido2_dep]
+    fips_mode_deps += [yubikey_dep]
 endif
 
 fips_mode_test = executable(
@@ -128,8 +127,7 @@ memory_locking_deps = [
 ]
 
 if yubikey_available
-    memory_locking_sources += files('../src/core/managers/YubiKeyManager.cc')
-    memory_locking_deps += [fido2_dep]
+    memory_locking_deps += [yubikey_dep]
 endif
 
 memory_locking_test = executable(
@@ -158,8 +156,7 @@ security_sources = [
 
 security_deps = [protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep]
 if yubikey_available
-    security_sources += files('../src/core/managers/YubiKeyManager.cc')
-    security_deps += [fido2_dep]
+    security_deps += [yubikey_dep]
 endif
 
 security_features_test = executable(
@@ -211,8 +208,7 @@ vault_rs_sources = [
 
 vault_rs_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep]
 if yubikey_available
-    vault_rs_sources += files('../src/core/managers/YubiKeyManager.cc')
-    vault_rs_deps += [fido2_dep]
+    vault_rs_deps += [yubikey_dep]
 endif
 
 vault_reed_solomon_test = executable(
@@ -230,8 +226,7 @@ fec_pref_sources = [
 
 fec_pref_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep]
 if yubikey_available
-    fec_pref_sources += files('../src/core/managers/YubiKeyManager.cc')
-    fec_pref_deps += [fido2_dep]
+    fec_pref_deps += [yubikey_dep]
 endif
 
 fec_preferences_test = executable(
@@ -382,8 +377,7 @@ preferences_presenter_sources = [
 
 preferences_presenter_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep]
 if yubikey_available
-    preferences_presenter_sources += files('../src/core/managers/YubiKeyManager.cc')
-    preferences_presenter_deps += [fido2_dep]
+    preferences_presenter_deps += [yubikey_dep]
 endif
 
 preferences_presenter_test = executable(
@@ -401,8 +395,7 @@ vault_helpers_sources = [
 
 vault_helpers_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep]
 if yubikey_available
-    vault_helpers_sources += files('../src/core/managers/YubiKeyManager.cc')
-    vault_helpers_deps += [fido2_dep]
+    vault_helpers_deps += [yubikey_dep]
 endif
 
 vault_helpers_test = executable(
@@ -428,8 +421,7 @@ undo_redo_sources = [
 
 undo_redo_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep]
 if yubikey_available
-    undo_redo_sources += files('../src/core/managers/YubiKeyManager.cc')
-    undo_redo_deps += [fido2_dep]
+    undo_redo_deps += [yubikey_dep]
 endif
 
 undo_redo_test = executable(
@@ -450,12 +442,11 @@ yubikey_algorithms_test = executable(
 # YubiKeyManager characterization tests (Issue #7 refactor safety net)
 yubikey_manager_characterization_sources = [
     'test_yubikey_manager_characterization.cc',
-    '../src/core/managers/YubiKeyManager.cc'
 ]
 
 yubikey_manager_characterization_deps = [gtest_dep, openssl_dep, giomm_dep]
 if yubikey_available
-    yubikey_manager_characterization_deps += [fido2_dep]
+    yubikey_manager_characterization_deps += [yubikey_dep]
 endif
 
 yubikey_manager_characterization_test = executable(
@@ -509,8 +500,7 @@ if argon2_available
 endif
 
 if yubikey_available
-    username_hash_migration_sources += files('../src/core/managers/YubiKeyManager.cc')
-    username_hash_migration_deps += [fido2_dep]
+    username_hash_migration_deps += [yubikey_dep]
 endif
 
 username_hash_migration_test = executable(
@@ -539,8 +529,7 @@ if argon2_available
 endif
 
 if yubikey_available
-    username_hash_migration_priority2_sources += files('../src/core/managers/YubiKeyManager.cc')
-    username_hash_migration_priority2_deps += [fido2_dep]
+    username_hash_migration_priority2_deps += [yubikey_dep]
 endif
 
 username_hash_migration_priority2_test = executable(
@@ -569,8 +558,7 @@ if argon2_available
 endif
 
 if yubikey_available
-    username_hash_migration_priority3_sources += files('../src/core/managers/YubiKeyManager.cc')
-    username_hash_migration_priority3_deps += [fido2_dep]
+    username_hash_migration_priority3_deps += [yubikey_dep]
 endif
 
 username_hash_migration_priority3_test = executable(
@@ -598,8 +586,7 @@ if argon2_available
 endif
 
 if yubikey_available
-    username_hash_migration_concurrency_sources += files('../src/core/managers/YubiKeyManager.cc')
-    username_hash_migration_concurrency_deps += [fido2_dep]
+    username_hash_migration_concurrency_deps += [yubikey_dep]
 endif
 
 username_hash_migration_concurrency_test = executable(
@@ -695,8 +682,7 @@ secure_memory_sources = [
 
 secure_memory_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep]
 if yubikey_available
-    secure_memory_sources += files('../src/core/managers/YubiKeyManager.cc')
-    secure_memory_deps += [fido2_dep]
+    secure_memory_deps += [yubikey_dep]
 endif
 
 secure_memory_test = executable(
@@ -716,8 +702,7 @@ undo_redo_prefs_sources = [
 
 undo_redo_prefs_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep]
 if yubikey_available
-    undo_redo_prefs_sources += files('../src/core/managers/YubiKeyManager.cc')
-    undo_redo_prefs_deps += [fido2_dep]
+    undo_redo_prefs_deps += [yubikey_dep]
 endif
 
 undo_redo_prefs_test = executable(
@@ -737,8 +722,7 @@ account_groups_sources = [
 
 account_groups_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep]
 if yubikey_available
-    account_groups_sources += files('../src/core/managers/YubiKeyManager.cc')
-    account_groups_deps += [fido2_dep]
+    account_groups_deps += [yubikey_dep]
 endif
 
 account_groups_test = executable(
@@ -820,9 +804,8 @@ test('VaultCryptoService Unit Tests', vault_crypto_service_test)
 vault_yubikey_service_sources = [
     'test_vault_yubikey_service.cc',
     '../src/core/services/VaultYubiKeyService.cc',
-    '../src/core/managers/YubiKeyManager.cc'
 ]
-vault_yubikey_service_deps = [gtest_dep, openssl_dep, giomm_dep, fido2_dep, crypto_dep]
+vault_yubikey_service_deps = [gtest_dep, openssl_dep, giomm_dep, yubikey_dep, crypto_dep]
 
 vault_yubikey_service_test = executable(
     'vault_yubikey_service_test',
@@ -842,11 +825,10 @@ v2_auth_service_sources = [
     '../src/core/services/KekDerivationService.cc',
     '../src/lib/crypto/VaultCrypto.cc',
     '../src/lib/crypto/KeyWrapping.cc',
-    '../src/core/managers/YubiKeyManager.cc',
     '../src/core/MultiUserTypes.cc',
     '../src/core/PasswordHistory.cc',
 ]
-v2_auth_service_deps = [gtest_dep, openssl_dep, giomm_dep, argon2_dep, fido2_dep, crypto_dep]
+v2_auth_service_deps = [gtest_dep, openssl_dep, giomm_dep, argon2_dep, yubikey_dep, crypto_dep]
 
 v2_auth_service_test = executable(
     'v2_auth_service_test',
@@ -888,7 +870,6 @@ vault_creation_orchestrator_sources = [
     '../src/core/services/KekDerivationService.cc',  # KEK derivation service (Phase 3)
     '../src/lib/crypto/KeyWrapping.cc',
     '../src/lib/crypto/VaultCrypto.cc',
-    '../src/core/managers/YubiKeyManager.cc',
     '../src/core/VaultFormatV2.cc',
     '../src/lib/fec/ReedSolomon.cc',
     '../src/core/MultiUserTypes.cc',
@@ -896,7 +877,7 @@ vault_creation_orchestrator_sources = [
     '../src/core/PasswordHistory.cc',
     proto_gen
 ]
-vault_creation_orchestrator_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, fido2_dep, argon2_dep]
+vault_creation_orchestrator_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, yubikey_dep, argon2_dep]
 
 # TODO: Fix corrupted test file
 # vault_creation_orchestrator_test = executable(
@@ -945,8 +926,7 @@ v2_auth_sources = [
 ] + vault_manager_common_sources
 v2_auth_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep]
 if yubikey_available
-    v2_auth_sources += files('../src/core/managers/YubiKeyManager.cc')
-    v2_auth_deps += [fido2_dep]
+    v2_auth_deps += [yubikey_dep]
 endif
 
 v2_auth_test = executable(
@@ -972,8 +952,7 @@ password_history_test_deps = [
     argon2_dep
 ]
 if yubikey_available
-    password_history_test_sources += files('../src/core/managers/YubiKeyManager.cc')
-    password_history_test_deps += [fido2_dep]
+    password_history_test_deps += [yubikey_dep]
 endif
 
 password_history_test = executable(
@@ -1070,8 +1049,7 @@ account_view_controller_test_deps = [
 ]
 
 if yubikey_available
-    account_view_controller_test_sources += files('../src/core/managers/YubiKeyManager.cc')
-    account_view_controller_test_deps += [fido2_dep]
+    account_view_controller_test_deps += [yubikey_dep]
 endif
 
 account_view_controller_test = executable(
@@ -1183,8 +1161,7 @@ account_repository_test_deps = [
 ]
 
 if yubikey_available
-    account_repository_test_sources += files('../src/core/managers/YubiKeyManager.cc')
-    account_repository_test_deps += [fido2_dep]
+    account_repository_test_deps += [yubikey_dep]
 endif
 
 account_repository_test = executable(
@@ -1213,8 +1190,7 @@ group_repository_test_deps = [
 ]
 
 if yubikey_available
-    group_repository_test_sources += files('../src/core/managers/YubiKeyManager.cc')
-    group_repository_test_deps += [fido2_dep]
+    group_repository_test_deps += [yubikey_dep]
 endif
 
 group_repository_test = executable(
@@ -1244,8 +1220,7 @@ account_service_test_deps = [
 ]
 
 if yubikey_available
-    account_service_test_sources += files('../src/core/managers/YubiKeyManager.cc')
-    account_service_test_deps += [fido2_dep]
+    account_service_test_deps += [yubikey_dep]
 endif
 
 account_service_test = executable(
@@ -1275,8 +1250,7 @@ group_service_test_deps = [
 ]
 
 if yubikey_available
-    group_service_test_sources += files('../src/core/managers/YubiKeyManager.cc')
-    group_service_test_deps += [fido2_dep]
+    group_service_test_deps += [yubikey_dep]
 endif
 
 group_service_test = executable(
