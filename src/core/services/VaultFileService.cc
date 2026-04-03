@@ -61,7 +61,7 @@ VaultResult<> VaultFileService::read_vault_file(
         }
 
         // Prevent excessive allocations on corrupted/hostile inputs.
-        constexpr std::streamsize MAX_VAULT_FILE_SIZE = 1024LL * 1024 * 1024;  // 1 GiB
+        constexpr std::streamsize MAX_VAULT_FILE_SIZE = 1024LL * 1024 * 1024;
         if (file_size > MAX_VAULT_FILE_SIZE) {
             Log::error("VaultFileService: Vault file too large: {} ({} bytes)", path, file_size);
             return std::unexpected(VaultError::InvalidData);
@@ -94,6 +94,7 @@ VaultResult<> VaultFileService::read_vault_file(
 
         // V2 format: PBKDF2 iterations are stored in the V2 header and handled by VaultFormatV2.
         pbkdf2_iterations = 0;
+
         Log::debug("VaultFileService: Read V2 vault ({} bytes)", data.size());
 
         return {};
@@ -113,7 +114,6 @@ VaultResult<> VaultFileService::write_vault_file(
     const std::vector<uint8_t>& data,
     bool is_v2_vault,
     int pbkdf2_iterations) {
-
     const std::string temp_path = path + ".tmp";
 
     try {
