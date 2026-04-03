@@ -281,6 +281,41 @@ AccountService::validate_account(const keeptower::AccountRecord& account) const 
     return {};
 }
 
+std::expected<void, ServiceError>
+AccountService::validate_account(const KeepTower::AccountDetail& detail) const {
+    if (detail.account_name.empty()) {
+        return std::unexpected(ServiceError::VALIDATION_FAILED);
+    }
+    if (!validate_field_length(detail.account_name, MAX_ACCOUNT_NAME_LENGTH)) {
+        return std::unexpected(ServiceError::FIELD_TOO_LONG);
+    }
+
+    if (!validate_field_length(detail.user_name, MAX_USERNAME_LENGTH)) {
+        return std::unexpected(ServiceError::FIELD_TOO_LONG);
+    }
+
+    if (!validate_field_length(detail.password, MAX_PASSWORD_LENGTH)) {
+        return std::unexpected(ServiceError::FIELD_TOO_LONG);
+    }
+
+    if (!validate_field_length(detail.email, MAX_EMAIL_LENGTH)) {
+        return std::unexpected(ServiceError::FIELD_TOO_LONG);
+    }
+    if (!detail.email.empty() && !validate_email_format(detail.email)) {
+        return std::unexpected(ServiceError::INVALID_EMAIL);
+    }
+
+    if (!validate_field_length(detail.website, MAX_WEBSITE_LENGTH)) {
+        return std::unexpected(ServiceError::FIELD_TOO_LONG);
+    }
+
+    if (!validate_field_length(detail.notes, MAX_NOTES_LENGTH)) {
+        return std::unexpected(ServiceError::FIELD_TOO_LONG);
+    }
+
+    return {};
+}
+
 bool AccountService::is_name_unique(std::string_view name,
                                    std::string_view exclude_id) const {
     // Get all accounts

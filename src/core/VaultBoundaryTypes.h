@@ -61,6 +61,7 @@ struct AccountDetail {
     std::string website;
     std::string notes;
     std::vector<std::string> tags;
+    std::vector<std::string> password_history;
     std::vector<GroupMembershipView> groups;
     bool is_favorite{false};
     bool is_archived{false};

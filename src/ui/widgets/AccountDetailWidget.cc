@@ -1,5 +1,4 @@
 #include "AccountDetailWidget.h"
-#include "src/record.pb.h"
 #include "../../utils/StringHelpers.h"
 #include <gtkmm.h>
 
@@ -194,31 +193,26 @@ AccountDetailWidget::~AccountDetailWidget() {
     secure_clear_password();
 }
 
-void AccountDetailWidget::display_account(const keeptower::AccountRecord* account) {
-    if (!account) {
-        clear();
-        return;
-    }
-
+void AccountDetailWidget::display_account(const KeepTower::AccountDetail& detail) {
     // Populate fields - convert std::string to Glib::ustring
-    m_account_name_entry.set_text(Glib::ustring(account->account_name()));
-    m_user_name_entry.set_text(Glib::ustring(account->user_name()));
-    m_password_entry.set_text(Glib::ustring(account->password()));
-    m_email_entry.set_text(Glib::ustring(account->email()));
-    m_website_entry.set_text(Glib::ustring(account->website()));
-    m_notes_view.get_buffer()->set_text(Glib::ustring(account->notes()));
+    m_account_name_entry.set_text(Glib::ustring(detail.account_name));
+    m_user_name_entry.set_text(Glib::ustring(detail.user_name));
+    m_password_entry.set_text(Glib::ustring(detail.password));
+    m_email_entry.set_text(Glib::ustring(detail.email));
+    m_website_entry.set_text(Glib::ustring(detail.website));
+    m_notes_view.get_buffer()->set_text(Glib::ustring(detail.notes));
 
     // Clear and populate tags
     while (auto child = m_tags_flowbox.get_first_child()) {
         m_tags_flowbox.remove(*child);
     }
-    for (const auto& tag : account->tags()) {
+    for (const auto& tag : detail.tags) {
         add_tag_chip(tag);
     }
 
     // Set privacy controls (V2 multi-user vaults)
-    m_admin_only_viewable_check.set_active(account->is_admin_only_viewable());
-    m_admin_only_deletable_check.set_active(account->is_admin_only_deletable());
+    m_admin_only_viewable_check.set_active(detail.is_admin_only_viewable);
+    m_admin_only_deletable_check.set_active(detail.is_admin_only_deletable);
 
     // Enable widgets
     set_editable(true);

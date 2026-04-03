@@ -1295,6 +1295,14 @@ public:
     [[nodiscard]] bool update_account(size_t index, const keeptower::AccountRecord& account);
 
     /**
+     * @brief Update existing account from protobuf-free detail model
+     * @param index Zero-based index of account to update
+     * @param detail New account data
+     * @return true if updated successfully, false on error
+     */
+    [[nodiscard]] bool update_account(size_t index, const KeepTower::AccountDetail& detail);
+
+    /**
      * @brief Delete account from vault
      * @param index Zero-based index of account to delete
      * @return true if deleted successfully, false on error

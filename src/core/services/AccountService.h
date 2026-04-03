@@ -92,6 +92,9 @@ public:
     [[nodiscard]] std::expected<void, ServiceError>
         validate_account(const keeptower::AccountRecord& account) const override;
 
+    [[nodiscard]] std::expected<void, ServiceError>
+        validate_account(const KeepTower::AccountDetail& detail) const override;
+
     [[nodiscard]] bool
         is_name_unique(std::string_view name,
                       std::string_view exclude_id = "") const override;

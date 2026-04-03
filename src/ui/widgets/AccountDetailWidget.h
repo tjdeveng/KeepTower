@@ -7,14 +7,12 @@
  */
 
 #pragma once
+
+#include "core/VaultBoundaryTypes.h"
+
 #include <gtkmm.h>
 #include <string>
 #include <vector>
-
-// Forward declaration
-namespace keeptower {
-class AccountRecord;
-}
 
 /**
  * @class AccountDetailWidget
@@ -31,8 +29,8 @@ public:
     // Public API to display account details
 
     /** @brief Display account record in widget
-     *  @param account Pointer to AccountRecord to display (nullptr to clear) */
-    void display_account(const keeptower::AccountRecord* account);
+     *  @param detail AccountDetail value to display */
+    void display_account(const KeepTower::AccountDetail& detail);
 
     /** @brief Clear all fields and reset widget state */
     void clear();

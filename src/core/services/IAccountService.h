@@ -16,6 +16,7 @@
 #include <vector>
 #include <optional>
 #include <expected>
+#include "../VaultBoundaryTypes.h"
 #include "../record.pb.h"
 #include "../repositories/IAccountRepository.h"
 
@@ -209,6 +210,14 @@ public:
      */
     [[nodiscard]] virtual std::expected<void, ServiceError>
         validate_account(const keeptower::AccountRecord& account) const = 0;
+
+    /**
+     * @brief Validate account data without saving
+     * @param detail Protobuf-free account detail to validate
+     * @return Success or validation error with details
+     */
+    [[nodiscard]] virtual std::expected<void, ServiceError>
+        validate_account(const AccountDetail& detail) const = 0;
 
     /**
      * @brief Check if account name is unique

@@ -367,6 +367,50 @@ bool VaultManager::update_account(size_t index, const keeptower::AccountRecord& 
     return m_account_manager->update_account(index, account);
 }
 
+bool VaultManager::update_account(size_t index, const KeepTower::AccountDetail& detail) {
+    const auto* existing = get_account(index);
+    if (!existing) {
+        return false;
+    }
+
+    keeptower::AccountRecord updated = *existing;
+    updated.set_id(detail.id);
+    updated.set_account_name(detail.account_name);
+    updated.set_user_name(detail.user_name);
+    updated.set_password(detail.password);
+    updated.set_email(detail.email);
+    updated.set_website(detail.website);
+    updated.set_notes(detail.notes);
+
+    updated.clear_tags();
+    for (const auto& tag : detail.tags) {
+        updated.add_tags(tag);
+    }
+
+    updated.clear_password_history();
+    for (const auto& historical_password : detail.password_history) {
+        updated.add_password_history(historical_password);
+    }
+
+    updated.clear_groups();
+    for (const auto& group : detail.groups) {
+        auto* membership = updated.add_groups();
+        membership->set_group_id(group.group_id);
+        membership->set_display_order(group.display_order);
+    }
+
+    updated.set_is_favorite(detail.is_favorite);
+    updated.set_is_archived(detail.is_archived);
+    updated.set_is_admin_only_viewable(detail.is_admin_only_viewable);
+    updated.set_is_admin_only_deletable(detail.is_admin_only_deletable);
+    updated.set_global_display_order(detail.global_display_order);
+    updated.set_created_at(detail.created_at);
+    updated.set_modified_at(detail.modified_at);
+    updated.set_password_changed_at(detail.password_changed_at);
+
+    return update_account(index, updated);
+}
+
 bool VaultManager::delete_account(size_t index) {
     if (!m_vault_open) {
         return false;
@@ -411,6 +455,8 @@ std::optional<KeepTower::AccountDetail> VaultManager::get_account_view(size_t in
     detail.created_at = a->created_at();
     detail.modified_at = a->modified_at();
     detail.password_changed_at = a->password_changed_at();
+    for (int i = 0; i < a->password_history_size(); ++i)
+        detail.password_history.push_back(a->password_history(i));
     return detail;
 }
 
