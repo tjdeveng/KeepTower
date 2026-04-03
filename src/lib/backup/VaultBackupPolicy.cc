@@ -3,7 +3,7 @@
 
 #include "lib/backup/VaultBackupPolicy.h"
 
-#include "io/VaultIO.h"
+#include "lib/storage/VaultIO.h"
 #include "record.pb.h"
 #include "utils/Log.h"
 

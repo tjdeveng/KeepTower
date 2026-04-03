@@ -7,7 +7,7 @@
  */
 
 #include "VaultIO.h"
-#include "../utils/Log.h"
+#include "utils/Log.h"
 
 #include <fstream>
 #include <filesystem>

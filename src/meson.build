@@ -88,8 +88,27 @@ backup_library = static_library(
   include_directories: [root_inc, include_directories('.'), include_directories('core')],
 )
 
+# Phase H: Extract VaultIO into dedicated storage library target.
+storage_library_sources = files(
+  'lib/storage/VaultIO.cc',
+)
+
+storage_library = static_library(
+  'keeptower-storage',
+  storage_library_sources,
+  include_directories: [root_inc, include_directories('.'), include_directories('core')],
+)
+
+storage_dep = declare_dependency(
+  link_with: storage_library,
+  include_directories: [root_inc, include_directories('core')],
+)
+
+meson.override_dependency('keeptower-storage', storage_dep)
+
 backup_dep = declare_dependency(
   link_with: backup_library,
+  dependencies: [storage_dep],
   include_directories: [root_inc],
 )
 
@@ -235,7 +254,6 @@ sources = files(
   'core/MultiUserTypesSerDe.cc',
   'core/VaultFormatV2.cc',
   'core/PasswordHistory.cc',
-  'core/io/VaultIO.cc',
   'core/serialization/VaultSerialization.cc',
   'core/managers/AccountManager.cc',
   'core/managers/GroupManager.cc',
@@ -269,7 +287,7 @@ src_inc = include_directories(
   'utils',
 )
 
-app_deps = common_deps + [backup_dep, fec_dep, crypto_dep, fips_dep]
+app_deps = common_deps + [backup_dep, storage_dep, fec_dep, crypto_dep, fips_dep]
 if yubikey_available
   app_deps += [dependency('keeptower-yubikey')]
 endif

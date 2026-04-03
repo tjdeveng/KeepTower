@@ -7,6 +7,7 @@ gtest_dep = dependency('gtest', main: true, required: true)
 # Get dependencies from parent
 giomm_dep = dependency('giomm-2.68')
 backup_dep = dependency('keeptower-backup')
+storage_dep = dependency('keeptower-storage')
 crypto_dep = dependency('keeptower-crypto')
 fips_dep = dependency('keeptower-fips')
 yubikey_dep = dependency('keeptower-yubikey', required: false)
@@ -43,7 +44,7 @@ vault_manager_common_sources = [
     '../src/core/PasswordHistory.cc',
     '../src/lib/crypto/VaultCrypto.cc',
     '../src/lib/fips/FipsProviderManager.cc',
-    '../src/core/io/VaultIO.cc',
+    '../src/lib/storage/VaultIO.cc',
     '../src/core/serialization/VaultSerialization.cc',
     '../src/core/managers/AccountManager.cc',
     '../src/core/managers/GroupManager.cc',
@@ -990,10 +991,9 @@ test('vault_crypto', vault_crypto_test)
 
 # VaultIO unit tests (File I/O operations)
 vault_io_test_sources = [
-    'test_vault_io.cc',
-    '../src/core/io/VaultIO.cc'
+    'test_vault_io.cc'
 ]
-vault_io_test_deps = [gtest_dep, giomm_dep]
+vault_io_test_deps = [gtest_dep, giomm_dep, storage_dep]
 
 vault_io_test = executable(
     'vault_io_test',

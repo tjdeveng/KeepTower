@@ -10,7 +10,7 @@
  */
 
 #include <gtest/gtest.h>
-#include "../src/core/io/VaultIO.h"
+#include "../src/lib/storage/VaultIO.h"
 #include <filesystem>
 #include <fstream>
 #include <chrono>

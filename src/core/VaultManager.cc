@@ -8,7 +8,7 @@
 #include "lib/crypto/VaultCrypto.h"
 #include "lib/fips/FipsProviderManager.h"
 #include "lib/fec/ReedSolomon.h"
-#include "io/VaultIO.h"
+#include "lib/storage/VaultIO.h"
 #include "managers/AccountManager.h"
 #include "managers/GroupManager.h"
 #include "lib/yubikey/YubiKeyManager.h"

@@ -30,7 +30,7 @@
 #include "../src/core/MultiUserTypes.h"
 #include "../src/core/services/UsernameHashService.h"
 #include "../src/lib/crypto/VaultCrypto.h"
-#include "../src/core/io/VaultIO.h"
+#include "../src/lib/storage/VaultIO.h"
 #include "../src/core/VaultFormatV2.h"
 
 using namespace KeepTower;
