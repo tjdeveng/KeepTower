@@ -303,7 +303,9 @@ MainWindow::MainWindow()
         [this]() { clear_account_details(); },
         [this]() {
             if (m_account_tree_widget) {
-                m_account_tree_widget->set_data({}, {});
+                m_account_tree_widget->set_data(
+                    std::vector<keeptower::AccountGroup>{},
+                    std::vector<keeptower::AccountRecord>{});
             }
         },
         [this](bool can_undo, bool can_redo) { update_undo_redo_sensitivity(can_undo, can_redo); },
@@ -376,10 +378,10 @@ MainWindow::MainWindow()
         {"create-group", [this]() { on_create_group(); }},
         {"rename-group", [this]() {
             if (!m_context_menu_group_id.empty() && m_vault_manager) {
-                auto groups = m_vault_manager->get_all_groups();
+                auto groups = m_vault_manager->get_all_groups_view();
                 for (const auto& group : groups) {
-                    if (group.group_id() == m_context_menu_group_id) {
-                        on_rename_group(m_context_menu_group_id, group.group_name());
+                    if (group.group_id == m_context_menu_group_id) {
+                        on_rename_group(m_context_menu_group_id, group.group_name);
                         break;
                     }
                 }
@@ -899,7 +901,7 @@ bool MainWindow::save_current_account() {
     }
 
     // Validate the index is within bounds
-    const auto accounts = m_vault_manager->get_all_accounts();
+    const auto accounts = m_vault_manager->get_all_accounts_view();
     if (m_selected_account_index >= static_cast<int>(accounts.size())) {
         KeepTower::Log::warning("Invalid account index {} (total accounts: {})",
                   m_selected_account_index, accounts.size());
@@ -1110,10 +1112,10 @@ void MainWindow::update_tag_filter_dropdown() {
     std::set<std::string> all_tags;
 
     if (m_vault_manager && m_vault_manager->is_vault_open()) {
-        const auto accounts = m_vault_manager->get_all_accounts();
+        const auto accounts = m_vault_manager->get_all_accounts_view();
         for (const auto& account : accounts) {
-            for (int i = 0; i < account.tags_size(); ++i) {
-                all_tags.insert(account.tags(i));
+            for (const auto& tag : account.tags) {
+                all_tags.insert(tag);
             }
         }
     }
@@ -1527,27 +1529,27 @@ void MainWindow::on_delete_group(const std::string& group_id) {
 // Helper methods for widget-based UI
 int MainWindow::find_account_index_by_id(const std::string& account_id) const {
     if (!m_vault_manager) return -1;
-    const auto& accounts = m_vault_manager->get_all_accounts();
+    const auto accounts = m_vault_manager->get_all_accounts_view();
     for (size_t i = 0; i < accounts.size(); ++i) {
-        if (accounts[i].id() == account_id) return static_cast<int>(i);
+        if (accounts[i].id == account_id) return static_cast<int>(i);
     }
     return -1;
 }
 
 void MainWindow::filter_accounts_by_group(const std::string& group_id) {
     if (!m_vault_manager) return;
-    const auto& groups = m_vault_manager->get_all_groups();
-    const auto& accounts = m_vault_manager->get_all_accounts();
+    const auto groups = m_vault_manager->get_all_groups_view();
+    const auto accounts = m_vault_manager->get_all_accounts_view();
     if (group_id.empty()) {
         // Show all accounts
         m_account_tree_widget->set_data(groups, accounts);
         return;
     }
     // Filter accounts belonging to the selected group
-    std::vector<keeptower::AccountRecord> filtered_accounts;
+    std::vector<KeepTower::AccountListItem> filtered_accounts;
     for (const auto& account : accounts) {
-        for (int i = 0; i < account.groups_size(); ++i) {
-            if (account.groups(i).group_id() == group_id) {
+        for (const auto& membership : account.groups) {
+            if (membership.group_id == group_id) {
                 filtered_accounts.push_back(account);
                 break;
             }

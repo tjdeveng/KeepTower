@@ -24,6 +24,7 @@
 
 #include "GroupRowWidget.h"
 #include "AccountRowWidget.h"
+#include "core/VaultBoundaryTypes.h"
 #include "record.pb.h"
 
 /**
@@ -65,6 +66,14 @@ public:
      */
     void set_data(const std::vector<keeptower::AccountGroup>& groups,
                  const std::vector<keeptower::AccountRecord>& accounts);
+
+    /**
+     * @brief Set data using protobuf-free boundary types
+     * @param groups Vector of group views
+     * @param accounts Vector of account list items
+     */
+    void set_data(const std::vector<KeepTower::GroupView>& groups,
+                 const std::vector<KeepTower::AccountListItem>& accounts);
 
     /**
      * @brief Apply search and tag filters

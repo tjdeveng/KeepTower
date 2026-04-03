@@ -88,8 +88,8 @@ void YubiKeyManagerDialog::refresh_key_list() {
         return;
     }
 
-    KeepTower::Log::info("YubiKeyManagerDialog: Calling get_yubikey_list()");
-    auto keys = m_vault_manager->get_yubikey_list();
+    KeepTower::Log::info("YubiKeyManagerDialog: Calling get_yubikey_list_view()");
+    auto keys = m_vault_manager->get_yubikey_list_view();
     KeepTower::Log::info("YubiKeyManagerDialog: Retrieved {} YubiKey entries", keys.size());
 
     if (keys.empty()) {
@@ -103,7 +103,7 @@ void YubiKeyManagerDialog::refresh_key_list() {
         try {
             const auto& key = keys[i];
             KeepTower::Log::info("YubiKeyManagerDialog: Processing key {}: name='{}', serial='{}'",
-                i, key.name(), key.serial());
+                i, key.name, key.serial);
 
             auto* row = Gtk::make_managed<Gtk::ListBoxRow>();
             auto* box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 4);
@@ -111,7 +111,7 @@ void YubiKeyManagerDialog::refresh_key_list() {
 
             // Name label with safety check
             auto* name_label = Gtk::make_managed<Gtk::Label>();
-            std::string name_text = !key.name().empty() ? key.name() : "Unknown YubiKey";
+            std::string name_text = !key.name.empty() ? key.name : "Unknown YubiKey";
             // GCC 13 compatibility: explicit string conversion required for Glib::Markup::escape_text
             // GCC 14+ will support direct usage: std::format("<b>{}</b>", Glib::Markup::escape_text(name_text))
             std::string escaped_name = Glib::Markup::escape_text(name_text);
@@ -121,11 +121,11 @@ void YubiKeyManagerDialog::refresh_key_list() {
 
             // Info label with safety checks
             auto* info_label = Gtk::make_managed<Gtk::Label>();
-            std::string serial_text = !key.serial().empty() ? key.serial() : "Unknown";
+            std::string serial_text = !key.serial.empty() ? key.serial : "Unknown";
             std::string time_text = "Unknown";
 
-            if (key.added_at() > 0) {
-                std::time_t timestamp = key.added_at();
+            if (key.added_at > 0) {
+                std::time_t timestamp = key.added_at;
                 const std::tm* tm_ptr = std::localtime(&timestamp);
                 if (tm_ptr) {
                     char time_buf[100];

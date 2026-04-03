@@ -270,9 +270,9 @@ void AccountEditHandler::handle_generate_password() {
 
 int AccountEditHandler::find_account_index_by_id(const std::string& account_id) const {
     if (!m_vault_manager) return -1;
-    const auto& accounts = m_vault_manager->get_all_accounts();
+    const auto accounts = m_vault_manager->get_all_accounts_view();
     for (size_t i = 0; i < accounts.size(); ++i) {
-        if (accounts[i].id() == account_id) return static_cast<int>(i);
+        if (accounts[i].id == account_id) return static_cast<int>(i);
     }
     return -1;
 }

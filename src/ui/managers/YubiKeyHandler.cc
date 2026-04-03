@@ -95,7 +95,7 @@ void YubiKeyHandler::handle_manage() {
     }
 
     // Vault manager will check if vault is open
-    auto keys = m_vault_manager->get_yubikey_list();
+    auto keys = m_vault_manager->get_yubikey_list_view();
 
     if (keys.empty()) {
         auto dialog = Gtk::AlertDialog::create("Vault Not YubiKey-Protected");

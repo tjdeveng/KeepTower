@@ -118,8 +118,8 @@ Gtk::PopoverMenu* MenuManager::create_account_context_menu(
     auto menu = Gio::Menu::create();
 
     if (m_vault_manager) {
-        auto groups = m_vault_manager->get_all_groups();
-        auto accounts = m_vault_manager->get_all_accounts();
+        auto groups = m_vault_manager->get_all_groups_view();
+        auto accounts = m_vault_manager->get_all_accounts_view();
 
         if (account_index < static_cast<int>(accounts.size())) {
             const auto& account = accounts[account_index];
@@ -128,13 +128,13 @@ Gtk::PopoverMenu* MenuManager::create_account_context_menu(
             if (!groups.empty()) {
                 auto groups_menu = Gio::Menu::create();
                 for (const auto& group : groups) {
-                    if (group.group_id() != "favorites") {
-                        std::string action_name = "add-to-group-" + group.group_id();
+                    if (group.group_id != "favorites") {
+                        std::string action_name = "add-to-group-" + group.group_id;
                         remove_action(action_name);
-                        add_action(action_name, [add_to_group_callback, gid = group.group_id()]() {
+                        add_action(action_name, [add_to_group_callback, gid = group.group_id]() {
                             add_to_group_callback(gid);
                         });
-                        groups_menu->append(group.group_name(), "win." + action_name);
+                        groups_menu->append(group.group_name, "win." + action_name);
                     }
                 }
                 if (groups_menu->get_n_items() > 0) {
@@ -144,9 +144,9 @@ Gtk::PopoverMenu* MenuManager::create_account_context_menu(
 
             // Build "Remove from Group" submenu
             std::vector<std::string> account_groups;
-            account_groups.reserve(account.groups_size());
-            for (int i = 0; i < account.groups_size(); ++i) {
-                account_groups.push_back(account.groups(i).group_id());
+            account_groups.reserve(account.groups.size());
+            for (const auto& membership : account.groups) {
+                account_groups.push_back(membership.group_id);
             }
 
             if (!account_groups.empty()) {
@@ -154,8 +154,8 @@ Gtk::PopoverMenu* MenuManager::create_account_context_menu(
                 for (const auto& gid : account_groups) {
                     std::string group_name = gid;
                     for (const auto& group : groups) {
-                        if (group.group_id() == gid) {
-                            group_name = group.group_name();
+                        if (group.group_id == gid) {
+                            group_name = group.group_name;
                             break;
                         }
                     }

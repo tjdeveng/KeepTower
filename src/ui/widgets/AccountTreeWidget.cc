@@ -50,6 +50,50 @@ void AccountTreeWidget::set_data(const std::vector<keeptower::AccountGroup>& gro
     }
 }
 
+void AccountTreeWidget::set_data(const std::vector<KeepTower::GroupView>& groups,
+                                 const std::vector<KeepTower::AccountListItem>& accounts) {
+    std::vector<keeptower::AccountGroup> proto_groups;
+    proto_groups.reserve(groups.size());
+    for (const auto& group : groups) {
+        keeptower::AccountGroup proto_group;
+        proto_group.set_group_id(group.group_id);
+        proto_group.set_group_name(group.group_name);
+        proto_group.set_icon(group.icon);
+        proto_group.set_is_system_group(group.is_system_group);
+        proto_groups.push_back(std::move(proto_group));
+    }
+
+    std::vector<keeptower::AccountRecord> proto_accounts;
+    proto_accounts.reserve(accounts.size());
+    for (const auto& account : accounts) {
+        keeptower::AccountRecord proto_account;
+        proto_account.set_id(account.id);
+        proto_account.set_account_name(account.account_name);
+        proto_account.set_user_name(account.user_name);
+        proto_account.set_password("");
+        proto_account.set_email(account.email);
+        proto_account.set_website(account.website);
+        proto_account.set_notes(account.notes);
+        proto_account.set_is_favorite(account.is_favorite);
+        proto_account.set_is_archived(account.is_archived);
+        proto_account.set_global_display_order(account.global_display_order);
+
+        for (const auto& tag : account.tags) {
+            proto_account.add_tags(tag);
+        }
+
+        for (const auto& membership : account.groups) {
+            auto* proto_membership = proto_account.add_groups();
+            proto_membership->set_group_id(membership.group_id);
+            proto_membership->set_display_order(membership.display_order);
+        }
+
+        proto_accounts.push_back(std::move(proto_account));
+    }
+
+    set_data(proto_groups, proto_accounts);
+}
+
 sigc::signal<void(std::string)>& AccountTreeWidget::signal_account_selected() {
     return m_signal_account_selected;
 }
