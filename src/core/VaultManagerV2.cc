@@ -13,6 +13,7 @@
  */
 
 #include "VaultManager.h"
+#include "controllers/VaultCreationOrchestrator.h"
 #include "VaultFormatV2.h"
 #include "lib/crypto/VaultCrypto.h"
 #include "io/VaultIO.h"
@@ -162,7 +163,7 @@ void VaultManager::create_vault_v2_async(
     const Glib::ustring& admin_username,
     const Glib::ustring& admin_password,
     const KeepTower::VaultSecurityPolicy& policy,
-    KeepTower::VaultCreationOrchestrator::ProgressCallback progress_callback,
+    V2VaultCreationProgressCallback progress_callback,
     std::function<void(KeepTower::VaultResult<>)> completion_callback,
     const std::optional<std::string>& yubikey_pin) {
 

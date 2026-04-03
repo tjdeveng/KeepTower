@@ -28,9 +28,6 @@
 #include "VaultError.h"
 #include "MultiUserTypes.h"
 
-// Phase 2 Day 5: VaultCreationOrchestrator integration
-#include "controllers/VaultCreationOrchestrator.h"
-
 // Phase C: VaultRuntimePreferences for vault-scoped preferences
 #include "VaultRuntimePreferences.h"
 
@@ -52,7 +49,10 @@ class VaultBackupPolicy;
 class VaultCryptoService;
 class VaultYubiKeyService;
 class VaultFileService;
+class VaultCreationOrchestrator;
 }  // namespace KeepTower
+
+using V2VaultCreationProgressCallback = std::function<void(int, int, const std::string&)>;
 
 // Forward declarations for OpenSSL types
 /** @brief OpenSSL cipher context structure (opaque type) */
@@ -335,7 +335,7 @@ public:
         const Glib::ustring& admin_username,
         const Glib::ustring& admin_password,
         const KeepTower::VaultSecurityPolicy& policy,
-        KeepTower::VaultCreationOrchestrator::ProgressCallback progress_callback,
+        V2VaultCreationProgressCallback progress_callback,
         std::function<void(KeepTower::VaultResult<>)> completion_callback,
         const std::optional<std::string>& yubikey_pin = std::nullopt);
 
