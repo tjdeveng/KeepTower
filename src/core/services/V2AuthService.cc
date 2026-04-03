@@ -109,6 +109,34 @@ VaultResult<> V2AuthService::load_fido2_credential_for_open(
     return {};
 }
 
+VaultResult<> V2AuthService::load_fido2_credential_if_present(
+    const KeySlot& slot,
+    ::YubiKeyManager& yk_manager) {
+
+    if (slot.yubikey_credential_id.empty()) {
+        return {};
+    }
+
+    return load_fido2_credential_for_open(slot, yk_manager);
+}
+
+VaultResult<std::string> V2AuthService::resolve_yubikey_pin_for_auth(
+    const KeySlot& slot,
+    const std::array<uint8_t, 32>& password_kek,
+    const std::optional<std::string>& fallback_pin) {
+
+    if (!slot.yubikey_encrypted_pin.empty()) {
+        return decrypt_yubikey_pin_for_open(slot, password_kek);
+    }
+
+    if (fallback_pin.has_value()) {
+        return fallback_pin.value();
+    }
+
+    Log::error("V2AuthService: YubiKey enrolled but no PIN is available");
+    return std::unexpected(VaultError::YubiKeyError);
+}
+
 VaultResult<std::vector<uint8_t>> V2AuthService::run_yubikey_challenge_for_open(
     const KeySlot& slot,
     const VaultSecurityPolicy& policy,

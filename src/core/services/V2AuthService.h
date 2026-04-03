@@ -38,6 +38,15 @@ public:
         const KeySlot& slot,
         ::YubiKeyManager& yk_manager);
 
+    [[nodiscard]] static VaultResult<> load_fido2_credential_if_present(
+        const KeySlot& slot,
+        ::YubiKeyManager& yk_manager);
+
+    [[nodiscard]] static VaultResult<std::string> resolve_yubikey_pin_for_auth(
+        const KeySlot& slot,
+        const std::array<uint8_t, 32>& password_kek,
+        const std::optional<std::string>& fallback_pin);
+
     [[nodiscard]] static VaultResult<std::vector<uint8_t>> run_yubikey_challenge_for_open(
         const KeySlot& slot,
         const VaultSecurityPolicy& policy,

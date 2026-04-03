@@ -149,6 +149,27 @@ TEST(V2AuthServiceUnitTests, DecryptYubiKeyPinForOpenRoundTripsEncryptedPin) {
     EXPECT_EQ(result.value(), pin);
 }
 
+TEST(V2AuthServiceUnitTests, ResolveYubiKeyPinForAuthUsesFallbackWhenEncryptedPinMissing) {
+    KeySlot slot;
+    std::array<uint8_t, 32> kek{};
+    const std::optional<std::string> fallback_pin = std::string("654321");
+
+    auto result = V2AuthService::resolve_yubikey_pin_for_auth(slot, kek, fallback_pin);
+
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(result.value(), "654321");
+}
+
+TEST(V2AuthServiceUnitTests, ResolveYubiKeyPinForAuthFailsWhenNoPinAvailable) {
+    KeySlot slot;
+    std::array<uint8_t, 32> kek{};
+
+    auto result = V2AuthService::resolve_yubikey_pin_for_auth(slot, kek, std::nullopt);
+
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), VaultError::YubiKeyError);
+}
+
 TEST(V2AuthServiceUnitTests, CombineKekWithYubiKeyResponseMatchesKeyWrapping) {
     std::array<uint8_t, 32> password_kek{};
     for (size_t i = 0; i < password_kek.size(); ++i) {

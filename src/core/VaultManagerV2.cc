@@ -902,18 +902,17 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
     params.argon2_time_cost = m_v2_header->security_policy.argon2_iterations;
     params.argon2_parallelism = m_v2_header->security_policy.argon2_parallelism;
 
-    auto old_kek_result = KekDerivationService::derive_kek(
+    auto old_kek_result = V2AuthService::derive_password_kek_for_slot(
+        *user_slot,
         old_password.raw(),
-        old_algorithm,
-        std::span<const uint8_t>(user_slot->salt.data(), user_slot->salt.size()),
-        params);
+        m_v2_header->security_policy.pbkdf2_iterations,
+        m_v2_header->security_policy);
     if (!old_kek_result) {
         Log::error("VaultManager: Failed to derive old KEK");
-        return std::unexpected(VaultError::CryptoError);
+        return std::unexpected(old_kek_result.error());
     }
 
-    std::array<uint8_t, 32> old_kek_array{};
-    std::copy(old_kek_result->begin(), old_kek_result->end(), old_kek_array.begin());
+    std::array<uint8_t, 32> old_kek_array = old_kek_result.value();
 
     std::array<uint8_t, 32> old_final_kek = old_kek_array;
 
@@ -933,45 +932,18 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
             return std::unexpected(VaultError::YubiKeyNotPresent);
         }
 
-        // Decrypt stored PIN using old password-derived KEK
-        std::string decrypted_pin;
-        if (!user_slot->yubikey_encrypted_pin.empty()) {
-            if (user_slot->yubikey_encrypted_pin.size() < KeepTower::VaultCrypto::IV_LENGTH) {
-                Log::error("VaultManager: Invalid encrypted PIN format");
-                return std::unexpected(VaultError::CryptoError);
-            }
-
-            std::vector<uint8_t> pin_iv(
-                user_slot->yubikey_encrypted_pin.begin(),
-                user_slot->yubikey_encrypted_pin.begin() + KeepTower::VaultCrypto::IV_LENGTH);
-
-            std::vector<uint8_t> pin_ciphertext(
-                user_slot->yubikey_encrypted_pin.begin() + KeepTower::VaultCrypto::IV_LENGTH,
-                user_slot->yubikey_encrypted_pin.end());
-
-            std::vector<uint8_t> pin_bytes;
-            if (!KeepTower::VaultCrypto::decrypt_data(pin_ciphertext, old_final_kek, pin_iv, pin_bytes)) {
-                Log::error("VaultManager: Failed to decrypt stored PIN with old password");
-                return std::unexpected(VaultError::CryptoError);
-            }
-
-            decrypted_pin = std::string(reinterpret_cast<const char*>(pin_bytes.data()), pin_bytes.size());
-            Log::info("VaultManager: Successfully decrypted stored PIN");
-        } else if (yubikey_pin.has_value()) {
-            // User provided PIN (first password change after vault creation)
-            decrypted_pin = yubikey_pin.value();
-            Log::info("VaultManager: Using provided PIN");
-        } else {
-            Log::error("VaultManager: YubiKey enrolled but no PIN available");
-            return std::unexpected(VaultError::YubiKeyError);
+        auto pin_result = V2AuthService::resolve_yubikey_pin_for_auth(
+            *user_slot,
+            old_kek_array,
+            yubikey_pin);
+        if (!pin_result) {
+            return std::unexpected(pin_result.error());
         }
+        std::string decrypted_pin = std::move(pin_result.value());
 
-        // Load credential ID if present
-        if (!user_slot->yubikey_credential_id.empty()) {
-            auto credential_result = V2AuthService::load_fido2_credential_for_open(*user_slot, yk_manager);
-            if (!credential_result) {
-                return std::unexpected(credential_result.error());
-            }
+        auto credential_result = V2AuthService::load_fido2_credential_if_present(*user_slot, yk_manager);
+        if (!credential_result) {
+            return std::unexpected(credential_result.error());
         }
 
         // Report progress before first touch
@@ -1042,38 +1014,18 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
             return std::unexpected(VaultError::YubiKeyNotPresent);
         }
 
-        // Get PIN (either decrypted from old or provided by user)
-        std::string pin_to_use;
-        if (!user_slot->yubikey_encrypted_pin.empty()) {
-            // Decrypt with OLD KEK (before combining with YubiKey)
-            std::vector<uint8_t> pin_iv(
-                user_slot->yubikey_encrypted_pin.begin(),
-                user_slot->yubikey_encrypted_pin.begin() + KeepTower::VaultCrypto::IV_LENGTH);
-
-            std::vector<uint8_t> pin_ciphertext(
-                user_slot->yubikey_encrypted_pin.begin() + KeepTower::VaultCrypto::IV_LENGTH,
-                user_slot->yubikey_encrypted_pin.end());
-
-            std::vector<uint8_t> pin_bytes;
-            if (!KeepTower::VaultCrypto::decrypt_data(pin_ciphertext, old_kek_array, pin_iv, pin_bytes)) {
-                Log::error("VaultManager: Failed to decrypt PIN");
-                return std::unexpected(VaultError::CryptoError);
-            }
-
-            pin_to_use = std::string(reinterpret_cast<const char*>(pin_bytes.data()), pin_bytes.size());
-        } else if (yubikey_pin.has_value()) {
-            pin_to_use = yubikey_pin.value();
-        } else {
-            Log::error("VaultManager: YubiKey enrolled but no PIN available");
-            return std::unexpected(VaultError::YubiKeyError);
+        auto pin_result = V2AuthService::resolve_yubikey_pin_for_auth(
+            *user_slot,
+            old_kek_array,
+            yubikey_pin);
+        if (!pin_result) {
+            return std::unexpected(pin_result.error());
         }
+        std::string pin_to_use = std::move(pin_result.value());
 
-        // Load credential ID if present
-        if (!user_slot->yubikey_credential_id.empty()) {
-            auto credential_result = V2AuthService::load_fido2_credential_for_open(*user_slot, yk_manager);
-            if (!credential_result) {
-                return std::unexpected(credential_result.error());
-            }
+        auto credential_result = V2AuthService::load_fido2_credential_if_present(*user_slot, yk_manager);
+        if (!credential_result) {
+            return std::unexpected(credential_result.error());
         }
 
         // Report progress before second touch
@@ -1582,18 +1534,17 @@ KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
     params.argon2_time_cost = m_v2_header->security_policy.argon2_iterations;
     params.argon2_parallelism = m_v2_header->security_policy.argon2_parallelism;
 
-    auto kek_result = KekDerivationService::derive_kek(
+    auto kek_result = V2AuthService::derive_password_kek_for_slot(
+        *user_slot,
         password.raw(),
-        user_algorithm,
-        std::span<const uint8_t>(user_slot->salt.data(), user_slot->salt.size()),
-        params);
+        m_v2_header->security_policy.pbkdf2_iterations,
+        m_v2_header->security_policy);
     if (!kek_result) {
         Log::error("VaultManager: Failed to derive KEK");
-        return std::unexpected(VaultError::CryptoError);
+        return std::unexpected(kek_result.error());
     }
 
-    std::array<uint8_t, 32> kek_array{};
-    std::copy(kek_result->begin(), kek_result->end(), kek_array.begin());
+    std::array<uint8_t, 32> kek_array = kek_result.value();
 
     auto verify_unwrap = KeyWrapping::unwrap_key(
         kek_array,
