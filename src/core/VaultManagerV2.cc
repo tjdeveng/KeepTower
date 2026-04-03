@@ -16,7 +16,6 @@
 #include "controllers/VaultCreationOrchestrator.h"
 #include "VaultFormatV2.h"
 #include "lib/crypto/VaultCrypto.h"
-#include "lib/storage/VaultIO.h"
 #include "lib/crypto/KeyWrapping.h"
 #include "PasswordHistory.h"
 #include "managers/AccountManager.h"
@@ -49,7 +48,6 @@ using KeepTower::KeySlotManager;
 using KeepTower::V2AuthService;
 using KeepTower::VaultSecurityPolicy;
 using KeepTower::VaultFormatV2;
-using KeepTower::VaultIO;
 using KeepTower::KeyWrapping;
 namespace Log = KeepTower::Log;
 
@@ -269,9 +267,10 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
     // Read vault file from disk
     std::vector<uint8_t> file_data;
     int iterations_from_file = 0;
-    if (!VaultIO::read_file(path, file_data, true, iterations_from_file)) {
+    auto read_result = KeepTower::VaultFileService::read_vault_file(path, file_data, iterations_from_file);
+    if (!read_result) {
         Log::error("VaultManager: Failed to read V2 vault file: {}", path);
-        return std::unexpected(VaultError::FileNotFound);
+        return std::unexpected(read_result.error());
     }
 
     // Parse V2 header

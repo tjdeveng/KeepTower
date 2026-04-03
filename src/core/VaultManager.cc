@@ -8,7 +8,6 @@
 #include "lib/crypto/VaultCrypto.h"
 #include "lib/fips/FipsProviderManager.h"
 #include "lib/fec/ReedSolomon.h"
-#include "lib/storage/VaultIO.h"
 #include "managers/AccountManager.h"
 #include "managers/GroupManager.h"
 #include "lib/yubikey/YubiKeyManager.h"
@@ -150,7 +149,8 @@ VaultManager::~VaultManager() noexcept {
 bool VaultManager::check_vault_requires_yubikey(const std::string& path, std::string& serial) {
     std::vector<uint8_t> file_data;
     int unused_iterations = 0;
-    if (!KeepTower::VaultIO::read_file(path, file_data, true, unused_iterations)) {
+    auto read_result = KeepTower::VaultFileService::read_vault_file(path, file_data, unused_iterations);
+    if (!read_result) {
         return false;
     }
 
@@ -258,7 +258,8 @@ bool VaultManager::save_vault(bool explicit_save) {
         }
 
         // Write to file
-        if (!KeepTower::VaultIO::write_file(m_current_vault_path, file_data, true, 0)) {
+        auto file_write_result = KeepTower::VaultFileService::write_vault_file(m_current_vault_path, file_data, true, 0);
+        if (!file_write_result) {
             KeepTower::Log::error("VaultManager: Failed to write vault file");
             return false;
         }
