@@ -429,7 +429,7 @@ void KeySlotManager::update_yubikey_encrypted_pin(
 void KeySlotManager::enroll_yubikey(
     KeySlot& slot,
     const std::array<uint8_t, 40>& wrapped_dek,
-    const std::array<uint8_t, 20>& challenge,
+    const std::array<uint8_t, 32>& challenge,
     std::string serial,
     int64_t enrolled_at,
     std::vector<uint8_t> encrypted_pin,

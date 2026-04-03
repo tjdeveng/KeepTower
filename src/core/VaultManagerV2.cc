@@ -1603,15 +1603,15 @@ KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
         return std::unexpected(VaultError::AuthenticationFailed);
     }
 
-    // Generate unique 20-byte challenge for this user (from first 20 bytes of new salt)
+    // Generate unique 32-byte challenge for this user (full SHA-256 size for FIPS-140-3 / FIDO2 hmac-secret)
     auto challenge_salt = KeyWrapping::generate_random_salt();
     if (!challenge_salt) {
         Log::error("VaultManager: Failed to generate challenge salt");
         return std::unexpected(VaultError::CryptoError);
     }
 
-    std::array<uint8_t, 20> user_challenge{};
-    std::copy_n(challenge_salt->begin(), 20, user_challenge.begin());
+    std::array<uint8_t, 32> user_challenge{};
+    std::copy_n(challenge_salt->begin(), 32, user_challenge.begin());
 
     // Perform YubiKey challenge-response (require touch = true for enrollment security)
     Log::info("VaultManager: Performing YubiKey challenge-response (touch required)");
@@ -1793,26 +1793,30 @@ KeepTower::VaultResult<> VaultManager::unenroll_yubikey_for_user(
         return std::unexpected(VaultError::CryptoError);
     }
 
-    // Use user's enrolled challenge
-    std::array<uint8_t, 20> user_challenge{};
-    std::copy_n(user_slot->yubikey_challenge.begin(), 20, user_challenge.begin());
+    std::array<uint8_t, 32> kek_array{};
+    std::copy(kek_result->begin(), kek_result->end(), kek_array.begin());
 
+    // Decrypt stored PIN (required for FIDO2 UV-required assertion)
+    auto pin_result = V2AuthService::decrypt_yubikey_pin_for_open(*user_slot, kek_array);
+    if (!pin_result) {
+        return std::unexpected(pin_result.error());
+    }
+    std::string decrypted_pin = std::move(pin_result.value());
+
+    // Use user's enrolled challenge (full 32 bytes — matches enroll_yubikey_for_user)
     auto response_result = V2AuthService::run_yubikey_challenge_for_policy(
-        std::span<const uint8_t>(user_challenge.data(), user_challenge.size()),
+        std::span<const uint8_t>(user_slot->yubikey_challenge.data(), user_slot->yubikey_challenge.size()),
         m_v2_header->security_policy,
-        std::nullopt,
+        std::string_view(decrypted_pin),
         yk_manager);
     if (!response_result) {
         return std::unexpected(response_result.error());
     }
 
-    // Combine KEK with YubiKey response for verification
-    std::array<uint8_t, 32> kek_array{};
-    std::copy(kek_result->begin(), kek_result->end(), kek_array.begin());
-
-    std::array<uint8_t, 20> yk_response_array{};
-    std::copy_n(response_result.value().begin(), 20, yk_response_array.begin());
-    auto current_kek = KeyWrapping::combine_with_yubikey(kek_array, yk_response_array);
+    // Combine KEK with YubiKey response (v2 — matches enroll_yubikey_for_user combine path)
+    auto current_kek = V2AuthService::combine_kek_with_yubikey_response_for_open(
+        kek_array,
+        std::span<const uint8_t>(response_result.value()));
 
     auto verify_unwrap = KeyWrapping::unwrap_key(current_kek, user_slot->wrapped_dek);
     if (!verify_unwrap) {
