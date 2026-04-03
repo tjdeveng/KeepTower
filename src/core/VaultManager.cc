@@ -336,6 +336,29 @@ std::vector<keeptower::AccountRecord> VaultManager::get_all_accounts() const {
     return m_account_manager->get_all_accounts();
 }
 
+std::vector<KeepTower::AccountListItem> VaultManager::get_all_accounts_view() const {
+    const auto accounts = get_all_accounts();
+    std::vector<KeepTower::AccountListItem> result;
+    result.reserve(accounts.size());
+    for (const auto& a : accounts) {
+        KeepTower::AccountListItem item;
+        item.id = a.id();
+        item.account_name = a.account_name();
+        item.user_name = a.user_name();
+        item.email = a.email();
+        item.website = a.website();
+        item.notes = a.notes();
+        for (const auto& tag : a.tags()) item.tags.push_back(tag);
+        for (int i = 0; i < a.groups_size(); ++i)
+            item.groups.push_back({a.groups(i).group_id(), a.groups(i).display_order()});
+        item.is_favorite = a.is_favorite();
+        item.is_archived = a.is_archived();
+        item.global_display_order = a.global_display_order();
+        result.push_back(std::move(item));
+    }
+    return result;
+}
+
 bool VaultManager::update_account(size_t index, const keeptower::AccountRecord& account) {
     if (!m_vault_open) {
         return false;
@@ -364,6 +387,31 @@ const keeptower::AccountRecord* VaultManager::get_account(size_t index) const {
         return nullptr;
     }
     return m_account_manager->get_account(index);
+}
+
+std::optional<KeepTower::AccountDetail> VaultManager::get_account_view(size_t index) const {
+    const auto* a = get_account(index);
+    if (!a) return std::nullopt;
+    KeepTower::AccountDetail detail;
+    detail.id = a->id();
+    detail.account_name = a->account_name();
+    detail.user_name = a->user_name();
+    detail.password = a->password();
+    detail.email = a->email();
+    detail.website = a->website();
+    detail.notes = a->notes();
+    for (const auto& tag : a->tags()) detail.tags.push_back(tag);
+    for (int i = 0; i < a->groups_size(); ++i)
+        detail.groups.push_back({a->groups(i).group_id(), a->groups(i).display_order()});
+    detail.is_favorite = a->is_favorite();
+    detail.is_archived = a->is_archived();
+    detail.is_admin_only_viewable = a->is_admin_only_viewable();
+    detail.is_admin_only_deletable = a->is_admin_only_deletable();
+    detail.global_display_order = a->global_display_order();
+    detail.created_at = a->created_at();
+    detail.modified_at = a->modified_at();
+    detail.password_changed_at = a->password_changed_at();
+    return detail;
 }
 
 size_t VaultManager::get_account_count() const {
@@ -514,6 +562,25 @@ std::vector<keeptower::AccountGroup> VaultManager::get_all_groups() const {
         return {};
     }
     return m_group_manager->get_all_groups();
+}
+
+std::vector<KeepTower::GroupView> VaultManager::get_all_groups_view() const {
+    const auto groups = get_all_groups();
+    std::vector<KeepTower::GroupView> result;
+    result.reserve(groups.size());
+    for (const auto& g : groups) {
+        KeepTower::GroupView view;
+        view.group_id = g.group_id();
+        view.group_name = g.group_name();
+        view.description = g.description();
+        view.color = g.color();
+        view.icon = g.icon();
+        view.display_order = g.display_order();
+        view.is_expanded = g.is_expanded();
+        view.is_system_group = g.is_system_group();
+        result.push_back(std::move(view));
+    }
+    return result;
 }
 
 bool VaultManager::rename_group(std::string_view group_id, std::string_view new_name) {
@@ -1580,6 +1647,24 @@ bool VaultManager::set_fips_mode(bool enable) {
     return KeepTower::FipsProviderManager::set_fips_mode(enable);
 }
 #endif
+
+std::vector<KeepTower::YubiKeyView> VaultManager::get_yubikey_list_view() const {
+#ifdef HAVE_YUBIKEY_SUPPORT
+    const auto entries = get_yubikey_list();
+    std::vector<KeepTower::YubiKeyView> result;
+    result.reserve(entries.size());
+    for (const auto& e : entries) {
+        KeepTower::YubiKeyView view;
+        view.serial = e.serial();
+        view.name = e.name();
+        view.added_at = e.added_at();
+        result.push_back(std::move(view));
+    }
+    return result;
+#else
+    return {};
+#endif
+}
 
 // Restore from most recent backup
 KeepTower::VaultResult<> VaultManager::restore_from_most_recent_backup(const std::string& vault_path) {

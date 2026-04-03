@@ -1,0 +1,72 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 tjdeveng
+
+#include "core/VaultBoundaryTypes.h"
+#include "core/VaultManager.h"
+
+#include <gtest/gtest.h>
+
+TEST(VaultBoundaryTypesTest, AccountListItemStoresListFieldsWithoutProtobuf) {
+    KeepTower::AccountListItem account;
+    account.id = "acct-1";
+    account.account_name = "Example";
+    account.user_name = "user@example.com";
+    account.email = "user@example.com";
+    account.website = "https://example.com";
+    account.notes = "notes";
+    account.tags = {"work", "shared"};
+    account.groups.push_back({"group-1", 3});
+    account.is_favorite = true;
+    account.global_display_order = 8;
+
+    ASSERT_EQ(account.id, "acct-1");
+    ASSERT_EQ(account.account_name, "Example");
+    ASSERT_EQ(account.user_name, "user@example.com");
+    ASSERT_EQ(account.tags.size(), 2U);
+    ASSERT_EQ(account.groups.size(), 1U);
+    EXPECT_EQ(account.groups.front().group_id, "group-1");
+    EXPECT_EQ(account.groups.front().display_order, 3);
+    EXPECT_TRUE(account.is_favorite);
+    EXPECT_EQ(account.global_display_order, 8);
+}
+
+TEST(VaultBoundaryTypesTest, GroupAndYubiKeyViewsExposeStableBoundaryFields) {
+    KeepTower::GroupView group;
+    group.group_id = "favorites";
+    group.group_name = "Favorites";
+    group.icon = "starred-symbolic";
+    group.is_system_group = true;
+
+    KeepTower::YubiKeyView key;
+    key.serial = "12345678";
+    key.name = "Primary";
+    key.added_at = 1700000000;
+
+    EXPECT_EQ(group.group_id, "favorites");
+    EXPECT_EQ(group.group_name, "Favorites");
+    EXPECT_EQ(group.icon, "starred-symbolic");
+    EXPECT_TRUE(group.is_system_group);
+
+    EXPECT_EQ(key.serial, "12345678");
+    EXPECT_EQ(key.name, "Primary");
+    EXPECT_EQ(key.added_at, 1700000000);
+}
+
+// ============================================================================
+// Step 2 integration: view accessors exist on VaultManager and return correct
+// protobuf-free types without requiring record.pb.h in the test itself.
+// ============================================================================
+
+TEST(VaultBoundaryTypesTest, ClosedVaultViewAccessorsReturnEmpty) {
+    VaultManager vm;
+    // Vault not opened — all view accessors must return empty without crashing.
+    EXPECT_TRUE(vm.get_all_accounts_view().empty());
+    EXPECT_TRUE(vm.get_all_groups_view().empty());
+    EXPECT_TRUE(vm.get_yubikey_list_view().empty());
+}
+
+TEST(VaultBoundaryTypesTest, AccountDetailViewReturnsNulloptForClosedVault) {
+    VaultManager vm;
+    auto detail = vm.get_account_view(0);
+    EXPECT_FALSE(detail.has_value());
+}

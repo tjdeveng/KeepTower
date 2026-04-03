@@ -188,6 +188,14 @@ vault_runtime_preferences_test = executable(
     include_directories: test_inc
 )
 
+# Vault boundary model tests (protobuf-free public model surface)
+vault_boundary_types_test = executable(
+    'vault_boundary_types_test',
+    ['test_vault_boundary_types.cc'] + vault_manager_common_sources,
+    dependencies: vault_manager_common_deps + (yubikey_dep.found() ? [yubikey_dep] : []),
+    include_directories: test_inc
+)
+
 # Reed-Solomon tests
 reed_solomon_test = executable(
     'reed_solomon_test',
@@ -631,6 +639,7 @@ test('VaultManager Tests', vault_manager_test,
 test('Password Validation Tests', password_validation_test, timeout: 30)
 test('Input Validation Tests', input_validation_test)
 test('VaultRuntimePreferences Unit Tests', vault_runtime_preferences_test)
+test('Vault Boundary Types Tests', vault_boundary_types_test)
 test('Reed-Solomon Tests', reed_solomon_test)
 test('Vault Reed-Solomon Integration', vault_reed_solomon_test)
 test('FEC Preferences Tests', fec_preferences_test)

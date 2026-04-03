@@ -25,6 +25,7 @@
 #include <mutex>
 #include <glibmm.h>
 #include "record.pb.h"
+#include "VaultBoundaryTypes.h"
 #include "VaultError.h"
 #include "MultiUserTypes.h"
 
@@ -1273,6 +1274,16 @@ public:
     [[nodiscard]] std::vector<keeptower::AccountRecord> get_all_accounts() const;
 
     /**
+     * @brief Get all accounts as protobuf-free list items
+     * @return Vector of AccountListItem (no record.pb.h dependency)
+     *
+     * Parallel to get_all_accounts(). Use this in code that should not
+     * depend on protobuf-generated types.
+     * @note Returns empty vector if vault not open
+     */
+    [[nodiscard]] std::vector<KeepTower::AccountListItem> get_all_accounts_view() const;
+
+    /**
      * @brief Update existing account
      * @param index Zero-based index of account to update
      * @param account New account data
@@ -1299,6 +1310,16 @@ public:
      * @return Pointer to account or nullptr if invalid index
      */
     const keeptower::AccountRecord* get_account(size_t index) const;
+
+    /**
+     * @brief Get account detail as a protobuf-free model
+     * @param index Zero-based index of account
+     * @return AccountDetail if found, std::nullopt if vault closed or invalid index
+     *
+     * Parallel to get_account(). Use this in code that should not
+     * depend on protobuf-generated types.
+     */
+    [[nodiscard]] std::optional<KeepTower::AccountDetail> get_account_view(size_t index) const;
 
     /**
      * @brief Get mutable pointer to account
@@ -1430,6 +1451,16 @@ public:
      * @return Vector of all groups in the vault
      */
     [[nodiscard]] std::vector<keeptower::AccountGroup> get_all_groups() const;
+
+    /**
+     * @brief Get all account groups as protobuf-free view models
+     * @return Vector of GroupView (no record.pb.h dependency)
+     *
+     * Parallel to get_all_groups(). Use this in code that should not
+     * depend on protobuf-generated types.
+     * @note Returns empty vector if vault not open
+     */
+    [[nodiscard]] std::vector<KeepTower::GroupView> get_all_groups_view() const;
 
     /**
      * @brief Rename an existing account group
@@ -1737,6 +1768,17 @@ public:
      */
     [[nodiscard]] bool current_user_requires_yubikey() const;
 #endif
+
+    /**
+     * @brief Get configured YubiKeys as protobuf-free view models
+     * @return Vector of YubiKeyView (no record.pb.h dependency)
+     *
+     * Parallel to get_yubikey_list(). Use this in code that should not
+     * depend on protobuf-generated types. Always available, regardless of
+     * HAVE_YUBIKEY_SUPPORT build flag.
+     * @note Returns empty vector if vault not open or no YubiKeys configured
+     */
+    [[nodiscard]] std::vector<KeepTower::YubiKeyView> get_yubikey_list_view() const;
 
     /**
      * @brief Verify credentials against the current vault
