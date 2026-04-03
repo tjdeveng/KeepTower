@@ -155,6 +155,28 @@ crypto_dep = declare_dependency(
 
 meson.override_dependency('keeptower-crypto', crypto_dep)
 
+# Phase D.5: Extract YubiKey hardware manager into dedicated library target.
+if yubikey_available
+  yubikey_library_sources = files(
+    'core/managers/YubiKeyManager.cc',
+  )
+
+  yubikey_library = static_library(
+    'keeptower-yubikey',
+    yubikey_library_sources,
+    dependencies: [fido2_dep, openssl_dep, gtkmm_dep],
+    include_directories: [root_inc, include_directories('.'), include_directories('core'), include_directories('core/managers')],
+  )
+
+  yubikey_dep = declare_dependency(
+    link_with: yubikey_library,
+    dependencies: [fido2_dep, openssl_dep, gtkmm_dep],
+    include_directories: [root_inc, include_directories('core')],
+  )
+
+  meson.override_dependency('keeptower-yubikey', yubikey_dep)
+endif
+
 # Application sources
 sources = files(
   'main.cc',
@@ -228,7 +250,6 @@ sources = files(
 
 # Add YubiKey support if available
 if yubikey_available
-  sources += files('core/managers/YubiKeyManager.cc')
   sources += files('ui/dialogs/YubiKeyPromptDialog.cc')
   sources += files('ui/dialogs/YubiKeyManagerDialog.cc')
 endif
@@ -248,11 +269,16 @@ src_inc = include_directories(
   'utils',
 )
 
+app_deps = common_deps + [backup_dep, fec_dep, crypto_dep, fips_dep]
+if yubikey_available
+  app_deps += [dependency('keeptower-yubikey')]
+endif
+
 # Build executable
 executable(
   project_name,
   all_sources,
-  dependencies: common_deps + [backup_dep, fec_dep, crypto_dep, fips_dep],
+  dependencies: app_deps,
   include_directories: [root_inc, src_inc],
   install: true,
 )
