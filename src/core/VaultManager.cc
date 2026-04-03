@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: 2025 tjdeveng
 
 #include "VaultManager.h"
+#include "record.pb.h"
 #include "lib/crypto/KeyWrapping.h"  // For V2 password verification
 #include "VaultFormatV2.h"  // For V2 vault parsing
 #include "lib/crypto/VaultCrypto.h"
@@ -90,6 +91,7 @@ VaultManager::VaultManager()
       m_memory_locked(false),
       m_yubikey_required(false),
       m_pbkdf2_iterations(DEFAULT_PBKDF2_ITERATIONS) {
+                m_vault_data = std::make_unique<keeptower::VaultData>();
         m_backup_policy = std::make_unique<KeepTower::VaultBackupPolicy>(
                 true, DEFAULT_BACKUP_COUNT, "");
 
@@ -193,11 +195,11 @@ bool VaultManager::save_vault(bool explicit_save) {
         }
 
         // Update timestamp
-        auto* metadata = m_vault_data.mutable_metadata();
+        auto* metadata = m_vault_data->mutable_metadata();
         metadata->set_last_modified(std::time(nullptr));
 
         // Serialize protobuf to binary
-        auto serialized_result = KeepTower::VaultSerialization::serialize(m_vault_data);
+        auto serialized_result = KeepTower::VaultSerialization::serialize(*m_vault_data);
         if (!serialized_result) {
             KeepTower::Log::error("VaultManager: Failed to serialize vault data");
             return false;
@@ -304,7 +306,7 @@ bool VaultManager::close_vault() {
     // Securely clear sensitive data
     secure_clear(m_encryption_key);
     secure_clear(m_salt);
-    m_vault_data.Clear();
+    m_vault_data->Clear();
     m_current_vault_path.clear();
 
     // Clear managers
@@ -492,7 +494,7 @@ bool VaultManager::reset_global_display_order() {
 
     const size_t account_count = get_account_count();
     for (size_t i = 0; i < account_count; i++) {
-        m_vault_data.mutable_accounts(static_cast<int>(i))->set_global_display_order(-1);
+        m_vault_data->mutable_accounts(static_cast<int>(i))->set_global_display_order(-1);
     }
 
     m_modified = true;
@@ -508,7 +510,7 @@ bool VaultManager::has_custom_global_ordering() const {
     // Using range-based loop for better safety and readability
     const size_t account_count = get_account_count();
     for (size_t i = 0; i < account_count; ++i) {
-        if (m_vault_data.accounts(i).global_display_order() >= 0) {
+        if (m_vault_data->accounts(i).global_display_order() >= 0) {
             return true;
         }
     }
@@ -791,7 +793,7 @@ bool VaultManager::apply_backup_settings(const BackupSettings& settings) {
     }
 
     if (m_vault_open && persisted_settings_changed) {
-        m_backup_policy->store_to_vault_data(m_vault_data);
+        m_backup_policy->store_to_vault_data(*m_vault_data);
         m_modified = true;
     }
 
@@ -825,7 +827,7 @@ bool VaultManager::set_rs_redundancy_percent(uint8_t percent) {
 void VaultManager::set_clipboard_timeout(int timeout_seconds) {
     m_preferences.set_clipboard_timeout(timeout_seconds);
     if (m_vault_open) {
-        auto* metadata = m_vault_data.mutable_metadata();
+        auto* metadata = m_vault_data->mutable_metadata();
         metadata->set_clipboard_timeout_seconds(timeout_seconds);
         m_modified = true;
     }
@@ -838,7 +840,7 @@ int VaultManager::get_clipboard_timeout() const {
 void VaultManager::set_auto_lock_enabled(bool enabled) {
     m_preferences.set_auto_lock_enabled(enabled);
     if (m_vault_open) {
-        auto* metadata = m_vault_data.mutable_metadata();
+        auto* metadata = m_vault_data->mutable_metadata();
         metadata->set_auto_lock_enabled(enabled);
         m_modified = true;
     }
@@ -851,7 +853,7 @@ bool VaultManager::get_auto_lock_enabled() const {
 void VaultManager::set_auto_lock_timeout(int timeout_seconds) {
     m_preferences.set_auto_lock_timeout(timeout_seconds);
     if (m_vault_open) {
-        auto* metadata = m_vault_data.mutable_metadata();
+        auto* metadata = m_vault_data->mutable_metadata();
         metadata->set_auto_lock_timeout_seconds(timeout_seconds);
         m_modified = true;
     }
@@ -864,7 +866,7 @@ int VaultManager::get_auto_lock_timeout() const {
 void VaultManager::set_undo_redo_enabled(bool enabled) {
     m_preferences.set_undo_redo_enabled(enabled);
     if (m_vault_open) {
-        auto* metadata = m_vault_data.mutable_metadata();
+        auto* metadata = m_vault_data->mutable_metadata();
         metadata->set_undo_redo_enabled(enabled);
         m_modified = true;
     }
@@ -877,7 +879,7 @@ bool VaultManager::get_undo_redo_enabled() const {
 void VaultManager::set_undo_history_limit(int limit) {
     m_preferences.set_undo_history_limit(limit);
     if (m_vault_open) {
-        auto* metadata = m_vault_data.mutable_metadata();
+        auto* metadata = m_vault_data->mutable_metadata();
         metadata->set_undo_history_limit(limit);
         m_modified = true;
     }
@@ -890,7 +892,7 @@ int VaultManager::get_undo_history_limit() const {
 void VaultManager::set_account_password_history_enabled(bool enabled) {
     m_preferences.set_account_password_history_enabled(enabled);
     if (m_vault_open) {
-        auto* metadata = m_vault_data.mutable_metadata();
+        auto* metadata = m_vault_data->mutable_metadata();
         metadata->set_account_password_history_enabled(enabled);
         m_modified = true;
     }
@@ -903,7 +905,7 @@ bool VaultManager::get_account_password_history_enabled() const {
 void VaultManager::set_account_password_history_limit(int limit) {
     m_preferences.set_account_password_history_limit(limit);
     if (m_vault_open) {
-        auto* metadata = m_vault_data.mutable_metadata();
+        auto* metadata = m_vault_data->mutable_metadata();
         metadata->set_account_password_history_limit(limit);
         m_modified = true;
     }
@@ -914,7 +916,7 @@ int VaultManager::get_account_password_history_limit() const {
 }
 
 bool VaultManager::migrate_vault_schema() {
-    return KeepTower::VaultSerialization::migrate_schema(m_vault_data, m_modified);
+    return KeepTower::VaultSerialization::migrate_schema(*m_vault_data, m_modified);
 }
 
 #ifdef HAVE_YUBIKEY_SUPPORT
@@ -967,11 +969,11 @@ std::vector<keeptower::YubiKeyEntry> VaultManager::get_yubikey_list() const {
         return result;
     }
 
-    if (!m_vault_data.has_yubikey_config()) {
+    if (!m_vault_data->has_yubikey_config()) {
         return result;
     }
 
-    const auto& yk_config = m_vault_data.yubikey_config();
+    const auto& yk_config = m_vault_data->yubikey_config();
     for (const auto& entry : yk_config.yubikey_entries()) {
         result.push_back(entry);
     }
@@ -1023,7 +1025,7 @@ bool VaultManager::add_backup_yubikey(const std::string& name) {
     }
 
     // Add to protobuf
-    auto* yk_config = m_vault_data.mutable_yubikey_config();
+    auto* yk_config = m_vault_data->mutable_yubikey_config();
     auto* entry = yk_config->add_yubikey_entries();
     entry->set_serial(device_info->serial_number);
     entry->set_name(name.empty() ? "Backup" : name);
@@ -1040,11 +1042,11 @@ bool VaultManager::remove_yubikey(const std::string& serial) {
         return false;
     }
 
-    if (!m_vault_data.has_yubikey_config()) {
+    if (!m_vault_data->has_yubikey_config()) {
         return false;
     }
 
-    auto* yk_config = m_vault_data.mutable_yubikey_config();
+    auto* yk_config = m_vault_data->mutable_yubikey_config();
 
     // Cannot remove last key
     if (yk_config->yubikey_entries_size() <= 1) {
@@ -1076,12 +1078,12 @@ bool VaultManager::is_yubikey_authorized(const std::string& serial) const {
         return false;
     }
 
-    if (!m_vault_data.has_yubikey_config()) {
+    if (!m_vault_data->has_yubikey_config()) {
         // Backward compatibility: check against file header serial
         return serial == m_yubikey_serial;
     }
 
-    const auto& yk_config = m_vault_data.yubikey_config();
+    const auto& yk_config = m_vault_data->yubikey_config();
     for (const auto& entry : yk_config.yubikey_entries()) {
         if (entry.serial() == serial) {
             return true;

@@ -128,6 +128,7 @@
 
 #include <gtest/gtest.h>
 #include "VaultManager.h"
+#include "record.pb.h"
 #include "MultiUserTypes.h"
 #include <filesystem>
 #include <fstream>

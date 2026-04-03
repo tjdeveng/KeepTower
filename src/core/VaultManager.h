@@ -24,7 +24,6 @@
 #include <optional>
 #include <mutex>
 #include <glibmm.h>
-#include "record.pb.h"
 #include "VaultBoundaryTypes.h"
 #include "VaultError.h"
 #include "MultiUserTypes.h"
@@ -42,6 +41,13 @@
 
 // Forward declarations (reduce include coupling)
 class ReedSolomon;
+
+namespace keeptower {
+class AccountRecord;
+class AccountGroup;
+class YubiKeyEntry;
+class VaultData;
+}
 
 namespace KeepTower {
 class AccountManager;
@@ -1852,7 +1858,7 @@ private:
     std::vector<uint8_t> m_yubikey_challenge;  // 64-byte challenge for this vault
 
     // In-memory vault data (protobuf)
-    keeptower::VaultData m_vault_data;
+    std::unique_ptr<keeptower::VaultData> m_vault_data;
 
     // Managers for specific responsibilities
     std::unique_ptr<KeepTower::AccountManager> m_account_manager;

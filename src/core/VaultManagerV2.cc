@@ -146,9 +146,9 @@ KeepTower::VaultResult<> VaultManager::create_vault_v2(
     };
 
     // Initialize empty vault data and managers
-    m_vault_data.Clear();  // Empty protobuf structure
-    m_account_manager = std::make_unique<KeepTower::AccountManager>(m_vault_data, m_modified);
-    m_group_manager = std::make_unique<KeepTower::GroupManager>(m_vault_data, m_modified);
+    m_vault_data->Clear();  // Empty protobuf structure
+    m_account_manager = std::make_unique<KeepTower::AccountManager>(*m_vault_data, m_modified);
+    m_group_manager = std::make_unique<KeepTower::GroupManager>(*m_vault_data, m_modified);
 
     Log::info("VaultManager: V2 vault created successfully with admin user");
     return {};
@@ -230,9 +230,9 @@ void VaultManager::create_vault_v2_async(
         };
 
         // Initialize empty vault data and managers
-        m_vault_data.Clear();
-        m_account_manager = std::make_unique<KeepTower::AccountManager>(m_vault_data, m_modified);
-        m_group_manager = std::make_unique<KeepTower::GroupManager>(m_vault_data, m_modified);
+        m_vault_data->Clear();
+        m_account_manager = std::make_unique<KeepTower::AccountManager>(*m_vault_data, m_modified);
+        m_group_manager = std::make_unique<KeepTower::GroupManager>(*m_vault_data, m_modified);
 
         Log::info("VaultManager: Async V2 vault created successfully with admin user");
 
@@ -473,11 +473,11 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
             Log::info("VaultManager: Username hash migration completed");
         }
     }
-    m_vault_data = vault_data;
+    *m_vault_data = vault_data;
     m_modified = true;  // Mark modified to save updated last_login_at
 
     // Load vault-persisted backup settings (enabled/count). Path remains runtime-local.
-    if (m_backup_policy && m_backup_policy->load_from_vault_data(m_vault_data)) {
+    if (m_backup_policy && m_backup_policy->load_from_vault_data(*m_vault_data)) {
         const VaultManager::BackupSettings backup_settings = get_backup_settings();
         Log::debug(
             "VaultManager: Loaded backup settings from V2 vault: enabled={}, count={}",
@@ -497,8 +497,8 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
     }
 
     // Initialize managers after vault data is loaded
-    m_account_manager = std::make_unique<KeepTower::AccountManager>(m_vault_data, m_modified);
-    m_group_manager = std::make_unique<KeepTower::GroupManager>(m_vault_data, m_modified);
+    m_account_manager = std::make_unique<KeepTower::AccountManager>(*m_vault_data, m_modified);
+    m_group_manager = std::make_unique<KeepTower::GroupManager>(*m_vault_data, m_modified);
 
     // Create session
     UserSession session{

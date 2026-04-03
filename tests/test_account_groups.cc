@@ -3,6 +3,7 @@
 
 #include <gtest/gtest.h>
 #include "../src/core/VaultManager.h"
+#include "../src/record.pb.h"
 #include "../src/core/MultiUserTypes.h"
 #include <filesystem>
 #include <chrono>
