@@ -916,25 +916,26 @@ bool MainWindow::save_current_account() {
     const auto website = m_account_detail_widget->get_website();
     const auto notes = m_account_detail_widget->get_notes();
 
-    // Get the current account from VaultManager
-    auto* account = m_vault_manager->get_account_mutable(m_selected_account_index);
-    if (!account) {
+    // Read current account into a local copy — no mutable pointer, all changes
+    // are applied to the copy and written back atomically via update_account().
+    const auto* read_ptr = m_vault_manager->get_account(m_selected_account_index);
+    if (!read_ptr) {
         KeepTower::Log::warning("Failed to get account at index {}", m_selected_account_index);
         return true;  // Allow navigation even if account not found
     }
+    keeptower::AccountRecord updated = *read_ptr;
 
-    // Create a temporary account record with new values for validation
-    keeptower::AccountRecord temp_account = *account;
-    temp_account.set_account_name(account_name);
-    temp_account.set_user_name(user_name);
-    temp_account.set_password(password);
-    temp_account.set_email(email);
-    temp_account.set_website(website);
-    temp_account.set_notes(notes);
+    // Apply new field values to the local copy
+    updated.set_account_name(account_name);
+    updated.set_user_name(user_name);
+    updated.set_password(password);
+    updated.set_email(email);
+    updated.set_website(website);
+    updated.set_notes(notes);
 
     // Phase 3: Use AccountService for validation
     if (m_account_service) {
-        auto validation_result = m_account_service->validate_account(temp_account);
+        auto validation_result = m_account_service->validate_account(updated);
         if (!validation_result) {
             // Convert service error to user-friendly message
             std::string error_msg;
@@ -972,7 +973,7 @@ bool MainWindow::save_current_account() {
     // Check if user has permission to edit this account (V2 multi-user vaults)
     // Standard users cannot edit admin-only-deletable accounts
     bool is_admin = is_current_user_admin();
-    if (!is_admin && account->is_admin_only_deletable()) {
+    if (!is_admin && updated.is_admin_only_deletable()) {
         // Only block save if account was actually modified
         if (m_account_detail_widget->is_modified()) {
             show_error_dialog(
@@ -981,7 +982,7 @@ bool MainWindow::save_current_account() {
                 "Only administrators can modify protected accounts."
             );
             // Reload the original account data to discard any changes
-            m_account_detail_widget->display_account(account);
+            m_account_detail_widget->display_account(read_ptr);
             return false;  // Prevent save and navigation
         }
         // Not modified, allow navigation without error
@@ -989,8 +990,8 @@ bool MainWindow::save_current_account() {
     }
 
     // Store the old account name to detect if it changed
-    const std::string old_name = account->account_name();
-    const std::string old_password = account->password();
+    const std::string old_name = read_ptr->account_name();
+    const std::string old_password = read_ptr->password();
 
     // Check password history settings
     auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
@@ -1000,8 +1001,8 @@ bool MainWindow::save_current_account() {
     // Check if password changed and prevent reuse
     if (password != old_password && history_enabled) {
         // Check against previous passwords to prevent reuse
-        for (int i = 0; i < account->password_history_size(); ++i) {
-            if (account->password_history(i) == password) {
+        for (int i = 0; i < updated.password_history_size(); ++i) {
+            if (updated.password_history(i) == password) {
                 show_error_dialog("Password reuse detected!\n\n"
                     "This password was used previously. Please choose a different password.\n\n"
                     "Using unique passwords for each change improves security.");
@@ -1011,45 +1012,43 @@ bool MainWindow::save_current_account() {
 
         // Add old password to history if it's not empty
         if (!old_password.empty()) {
-            account->add_password_history(old_password);
+            updated.add_password_history(old_password);
 
             // Enforce history limit - remove oldest entries if exceeded
-            while (account->password_history_size() > history_limit) {
+            while (updated.password_history_size() > history_limit) {
                 // Remove the first (oldest) entry
-                account->mutable_password_history()->erase(
-                    account->mutable_password_history()->begin()
+                updated.mutable_password_history()->erase(
+                    updated.mutable_password_history()->begin()
                 );
             }
         }
 
         // Update password_changed_at timestamp when password changes
-        account->set_password_changed_at(std::time(nullptr));
+        updated.set_password_changed_at(std::time(nullptr));
     }
 
-    // Update the account with current field values
-    account->set_account_name(account_name);
-    account->set_user_name(user_name);
-    account->set_password(password);
-    account->set_email(email);
-    account->set_website(website);
-    account->set_notes(notes);
-
     // Update tags
-    account->clear_tags();
+    updated.clear_tags();
     auto current_tags = m_account_detail_widget->get_all_tags();
     for (const auto& tag : current_tags) {
-        account->add_tags(tag);
+        updated.add_tags(tag);
     }
 
     // Update privacy controls (V2 multi-user vaults)
-    account->set_is_admin_only_viewable(m_account_detail_widget->get_admin_only_viewable());
-    account->set_is_admin_only_deletable(m_account_detail_widget->get_admin_only_deletable());
+    updated.set_is_admin_only_viewable(m_account_detail_widget->get_admin_only_viewable());
+    updated.set_is_admin_only_deletable(m_account_detail_widget->get_admin_only_deletable());
 
     // Update modification timestamp
-    account->set_modified_at(std::time(nullptr));
+    updated.set_modified_at(std::time(nullptr));
+
+    // Persist the updated account back to the vault atomically
+    if (!m_vault_manager->update_account(m_selected_account_index, updated)) {
+        show_error_dialog("Failed to save account changes.");
+        return false;
+    }
 
     // Refresh the account list if the name changed
-    if (old_name != account->account_name()) {
+    if (old_name != updated.account_name()) {
         update_account_list();
     }
 

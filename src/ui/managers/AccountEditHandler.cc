@@ -129,12 +129,12 @@ void AccountEditHandler::handle_delete(const std::string& context_menu_account_i
     }
 
     // Get account name for confirmation dialog
-    const auto* account = m_vault_manager->get_account(account_index);
-    if (!account) {
+    auto account_detail = m_vault_manager->get_account_view(static_cast<size_t>(account_index));
+    if (!account_detail) {
         return;
     }
 
-    const Glib::ustring account_name = account->account_name();
+    const Glib::ustring account_name = account_detail->account_name;
 
     // Adjust message based on whether undo/redo is enabled
     Glib::ustring message = "Are you sure you want to delete '" + account_name + "'?";
