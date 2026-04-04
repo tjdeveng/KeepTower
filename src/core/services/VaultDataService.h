@@ -10,6 +10,24 @@
 
 namespace KeepTower {
 
+/**
+ * @brief Manager-facing protobuf payload facade for V2 vault workflows.
+ *
+ * VaultDataService exposes the workflow-level operations needed to convert
+ * between keeptower::VaultData and its protobuf byte representation while
+ * keeping VaultManager and VaultCreationOrchestrator out of the lower-level
+ * VaultSerialization utility.
+ *
+ * **Responsibilities:**
+ * - Serialize vault payload protobufs for save/create flows
+ * - Deserialize vault payload protobufs for open flows
+ * - Apply schema migration rules and modification tracking
+ *
+ * **NOT Responsible For:**
+ * - File I/O or on-disk header handling (VaultFileService)
+ * - Encryption/decryption (VaultCryptoService)
+ * - Business workflow coordination (VaultManager, VaultCreationOrchestrator)
+ */
 class VaultDataService {
 public:
     [[nodiscard]] static VaultResult<std::vector<uint8_t>> serialize_vault_data(

@@ -13,9 +13,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Clarified storage boundaries so `VaultManager` and `VaultManagerV2` use `VaultFileService` for manager-facing file access
   - Narrowed `VaultFileService`/`VaultIO` consolidation to backup lifecycle operations while preserving validated `VaultFileService` read/write semantics
   - Kept backup compatibility behavior in the storage layer, including legacy backup filename lookup support
+- **Vault Format Architecture Refactor:**
+  - Extracted `VaultFormatV2` and `VaultSerialization` into the dedicated `keeptower-vaultformat` library target
+  - Moved workflow-level V2 file/header handling behind `VaultFileService`, including version sniffing, YubiKey requirement inspection, manager-facing metadata parsing, and V2 file writing
+  - Added `VaultDataService` as the manager-facing protobuf payload facade for serialize/deserialize/migrate operations
+  - Removed direct `VaultFormatV2` and `VaultSerialization` reach-through from `VaultManager`, `VaultManagerV2`, `MainWindow`, and `VaultCreationOrchestrator`
 
 ### Documentation
 - Refreshed Doxygen architecture comments for the Phase G/H public and storage-layer boundaries (`VaultManager`, `VaultFileService`, `VaultIO`, `VaultBackupPolicy`, `VaultCreationOrchestrator`)
+- Closed out Phase I boundary documentation for the workflow/file-format split (`VaultFileService`, `VaultDataService`, `VaultCreationOrchestrator`)
 
 ## [0.3.4] - 2026-04-02
 

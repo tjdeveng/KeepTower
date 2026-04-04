@@ -437,8 +437,9 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
     m_current_vault_path = path;
     m_v2_header = metadata.vault_header;
 
-    // CRITICAL BUG FIX: user_slot still points to file_header.vault_header.key_slots,
-    // but we just copied to m_v2_header. We need to find the corresponding slot in
+    // CRITICAL BUG FIX: user_slot still points to metadata.vault_header.key_slots,
+    // but we just copied that header into m_v2_header. We need to find the
+    // corresponding slot in
     // m_v2_header so that modifications persist when we save.
     KeySlot* user_slot_in_header = nullptr;
     for (auto& slot : m_v2_header->key_slots) {

@@ -105,6 +105,13 @@ This document outlines the planned features and improvements for KeepTower, orga
   - Admin tool to clear password history if needed
   - Note: This is separate from account password history (already implemented)
 
+### Internal Architecture Modernization (v0.3.x)
+- [x] **Phase I:** Vault format/workflow boundary reduction - **COMPLETED**
+  - [x] Extract `VaultFormatV2` and `VaultSerialization` into `keeptower-vaultformat`
+  - [x] Route workflow-facing V2 file/header operations through `VaultFileService`
+  - [x] Add `VaultDataService` for workflow-facing protobuf payload serialization and schema migration
+  - [x] Remove direct format-layer reach-through from manager, UI, and orchestrator workflow code
+
 ### User Experience
 - [x] Refined dark/light theme with accent colors
 - [x] Basic keyboard shortcuts (Ctrl+Q, Ctrl+Z, Ctrl+Shift+Z, Ctrl+comma) - **v0.2.7-beta**

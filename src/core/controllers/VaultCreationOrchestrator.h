@@ -50,6 +50,7 @@ class VaultFileService;
  * - YubiKey operations (VaultYubiKeyService)
  * - Low-level storage primitives (VaultIO)
  * - Direct file I/O details beyond the VaultFileService facade
+ * - Protobuf payload serialization details beyond the VaultDataService facade
  * - State management (VaultManager)
  *
  * @section creation_steps Creation Steps
@@ -60,7 +61,7 @@ class VaultFileService;
  * 4. **YubiKey Enrollment** (if enabled) - Two-touch process
  * 5. **Create Admin Key Slot** - Wrap DEK with KEK
  * 6. **Create Vault Header** - Initialize security policy
- * 7. **Serialize & Encrypt** - Protect vault data
+ * 7. **Serialize & Encrypt** - Protect vault data via VaultDataService and crypto
  * 8. **Write to File** - Persist via VaultFileService
  *
  * @section progress_reporting Progress Reporting

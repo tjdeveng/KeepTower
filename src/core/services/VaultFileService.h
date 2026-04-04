@@ -34,16 +34,17 @@ namespace KeepTower {
  *
  * **Responsibilities:**
  * 1. Reading V2 vault files from disk for manager/orchestrator flows
- * 2. Writing V2 vault files atomically with the existing service contract
- * 3. Format version detection for workflow code
- * 4. Backup creation, restoration, listing, and cleanup via the storage layer
- * 5. Preserving service-specific error mapping and behavior guarantees
+ * 2. Building and writing V2 vault files atomically with the existing service contract
+ * 3. Parsing manager-facing V2 header metadata for workflow code
+ * 4. Format version detection for workflow code
+ * 5. Backup creation, restoration, listing, and cleanup via the storage layer
+ * 6. Preserving service-specific error mapping and behavior guarantees
  *
  * **NOT Responsible For:**
  * - Encryption/decryption (VaultCryptoService)
  * - YubiKey operations (VaultYubiKeyService)
  * - Raw compatibility-oriented storage primitives (see VaultIO)
- * - Vault parsing/serialization (VaultFormat classes)
+ * - Protobuf vault-data serialization or schema migration (VaultDataService)
  * - Business logic (VaultManager)
  *
  * @section file_formats File Formats
@@ -135,6 +136,14 @@ namespace KeepTower {
  */
 class VaultFileService {
 public:
+    /**
+     * @brief Manager-facing V2 header metadata extracted from file bytes.
+     *
+     * This is the reduced view of the on-disk V2 header exposed to workflow
+     * code. It intentionally hides the lower-level VaultFormatV2::V2FileHeader
+     * type while preserving the fields needed for authentication and payload
+     * decryption.
+     */
     struct V2VaultMetadata {
         uint32_t pbkdf2_iterations = 0;
         uint8_t fec_redundancy_percent = 0;
@@ -151,14 +160,14 @@ public:
     /**
      * @brief Read vault file from disk
      *
-    * Reads a complete vault file into memory (V2 only).
+        * Reads a complete vault file into memory (V2 only).
      *
      * @param path Absolute path to vault file
      * @param data Output buffer for file contents
-    * @param pbkdf2_iterations Reserved (always set to 0 for V2)
+        * @param pbkdf2_iterations Reserved (always set to 0 for V2)
      * @return VaultResult<void> Success or VaultError
      *
-    * @note V1 vault files are no longer supported and will return UnsupportedVersion.
+        * @note V1 vault files are no longer supported and will return UnsupportedVersion.
      * @note data will contain complete file contents (including headers)
      */
     [[nodiscard]] static VaultResult<> read_vault_file(
@@ -174,12 +183,12 @@ public:
      * @brief Write vault file atomically to disk
      *
      * Performs an atomic write operation using temporary file + rename.
-    * Writes a V2 vault file atomically. V1 vault files are not supported.
+        * Writes a V2 vault file atomically. V1 vault files are not supported.
      *
      * @param path Absolute path to target vault file
      * @param data Complete vault data to write
-    * @param is_v2_vault Must be true (V2). If false, returns UnsupportedVersion.
-    * @param pbkdf2_iterations Reserved (ignored)
+        * @param is_v2_vault Must be true (V2). If false, returns UnsupportedVersion.
+        * @param pbkdf2_iterations Reserved (ignored)
      * @return VaultResult<void> Success or VaultError
      *
      * @note Automatically sets file permissions to 0600 (owner only)
