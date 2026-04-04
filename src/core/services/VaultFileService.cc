@@ -221,15 +221,29 @@ std::optional<uint32_t> VaultFileService::detect_vault_version(
 std::optional<uint32_t> VaultFileService::detect_vault_version_from_file(
     const std::string& path) {
 
-    std::vector<uint8_t> data;
-    int iterations;
+    try {
+        std::ifstream file(path, std::ios::binary);
+        if (!file) {
+            return std::nullopt;
+        }
 
-    auto result = read_vault_file(path, data, iterations);
-    if (!result) {
+        std::vector<uint8_t> header_data(1024);
+        file.read(reinterpret_cast<char*>(header_data.data()),
+                  static_cast<std::streamsize>(header_data.size()));
+
+        if (!file) {
+            const std::streamsize bytes_read = file.gcount();
+            if (bytes_read <= 0) {
+                return std::nullopt;
+            }
+            header_data.resize(static_cast<size_t>(bytes_read));
+        }
+
+        return detect_vault_version(header_data);
+    } catch (const std::exception& e) {
+        Log::error("VaultFileService: Exception detecting vault version from file: {}", e.what());
         return std::nullopt;
     }
-
-    return detect_vault_version(data);
 }
 
 // ============================================================================

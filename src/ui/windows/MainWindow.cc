@@ -15,7 +15,7 @@
 #include "../dialogs/GroupRenameDialog.h"
 #include "../dialogs/YubiKeyPromptDialog.h"
 #include "../../core/VaultError.h"
-#include "../../lib/vaultformat/VaultFormatV2.h"
+#include "../../core/services/VaultFileService.h"
 #include "../../core/commands/AccountCommands.h"
 #include "../../core/repositories/AccountRepository.h"
 #include "../../core/repositories/GroupRepository.h"
@@ -28,7 +28,6 @@
 #include "../../utils/Log.h"
 #include "config.h"
 #include <cstring>  // For memset
-#include <fstream>   // For reading vault files
 
 using KeepTower::safe_ustring_to_string;
 #ifdef HAVE_YUBIKEY_SUPPORT
@@ -1671,28 +1670,7 @@ void MainWindow::show_group_context_menu(const std::string& group_id, Gtk::Widge
 // ============================================================================
 
 std::optional<uint32_t> MainWindow::detect_vault_version(const std::string& vault_path) {
-    // Read vault file header to detect version
-    std::ifstream file(vault_path, std::ios::binary);
-    if (!file) {
-        return std::nullopt;
-    }
-
-    // Read enough data for header detection (magic + version)
-    std::vector<uint8_t> header_data(1024);  // Plenty for header
-    file.read(reinterpret_cast<char*>(header_data.data()), header_data.size());
-    if (!file) {
-        // File too small or error
-        size_t bytes_read = file.gcount();
-        header_data.resize(bytes_read);
-    }
-
-    // Use VaultFormatV2::detect_version to determine format
-    auto version_result = KeepTower::VaultFormatV2::detect_version(header_data);
-    if (!version_result) {
-        return std::nullopt;  // Invalid vault or error
-    }
-
-    return *version_result;
+    return KeepTower::VaultFileService::detect_vault_version_from_file(vault_path);
 }
 
 void MainWindow::handle_v2_vault_open(const std::string& vault_path) {
