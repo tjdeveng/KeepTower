@@ -3,7 +3,7 @@
 // File: src/core/services/VaultFileService.cc
 
 #include "VaultFileService.h"
-#include "../VaultFormatV2.h"
+#include "lib/vaultformat/VaultFormatV2.h"
 #include "lib/storage/VaultIO.h"
 #include "../../utils/Log.h"
 

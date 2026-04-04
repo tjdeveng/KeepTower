@@ -4,14 +4,14 @@
 #include "VaultManager.h"
 #include "record.pb.h"
 #include "lib/crypto/KeyWrapping.h"  // For V2 password verification
-#include "VaultFormatV2.h"  // For V2 vault parsing
+#include "lib/vaultformat/VaultFormatV2.h"  // For V2 vault parsing
 #include "lib/crypto/VaultCrypto.h"
 #include "lib/fips/FipsProviderManager.h"
 #include "lib/fec/ReedSolomon.h"
 #include "managers/AccountManager.h"
 #include "managers/GroupManager.h"
 #include "lib/yubikey/YubiKeyManager.h"
-#include "serialization/VaultSerialization.h"
+#include "lib/vaultformat/VaultSerialization.h"
 #include "lib/crypto/VaultCryptoService.h"
 #include "services/VaultFileService.h"
 #include "services/VaultYubiKeyService.h"

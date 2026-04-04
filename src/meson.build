@@ -133,6 +133,27 @@ fec_dep = declare_dependency(
 
 meson.override_dependency('keeptower-fec', fec_dep)
 
+# Phase I: Extract vault format and serialization into dedicated library target.
+vaultformat_library_sources = files(
+  'lib/vaultformat/VaultFormatV2.cc',
+  'lib/vaultformat/VaultSerialization.cc',
+)
+
+vaultformat_library = static_library(
+  'keeptower-vaultformat',
+  vaultformat_library_sources,
+  dependencies: [protobuf_dep, libcorrect_dep],
+  include_directories: [root_inc, include_directories('.'), include_directories('core')],
+)
+
+vaultformat_dep = declare_dependency(
+  link_with: vaultformat_library,
+  dependencies: [protobuf_dep, fec_dep],
+  include_directories: [root_inc, include_directories('core')],
+)
+
+meson.override_dependency('keeptower-vaultformat', vaultformat_dep)
+
 # Phase D.4: Extract FIPS provider management into dedicated library target.
 fips_library_sources = files(
   'lib/fips/FipsProviderManager.cc',
@@ -252,9 +273,7 @@ sources = files(
   'core/controllers/VaultCreationOrchestrator.cc',
   'core/MultiUserTypes.cc',
   'core/MultiUserTypesSerDe.cc',
-  'core/VaultFormatV2.cc',
   'core/PasswordHistory.cc',
-  'core/serialization/VaultSerialization.cc',
   'core/managers/AccountManager.cc',
   'core/managers/GroupManager.cc',
   'utils/ImportExport.cc',
@@ -287,7 +306,7 @@ src_inc = include_directories(
   'utils',
 )
 
-app_deps = common_deps + [backup_dep, storage_dep, fec_dep, crypto_dep, fips_dep]
+app_deps = common_deps + [backup_dep, storage_dep, fec_dep, vaultformat_dep, crypto_dep, fips_dep]
 if yubikey_available
   app_deps += [dependency('keeptower-yubikey')]
 endif

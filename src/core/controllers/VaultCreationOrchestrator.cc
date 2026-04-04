@@ -9,7 +9,7 @@
 #include "../services/UsernameHashService.h"
 #include "../services/KekDerivationService.h"
 #include "lib/crypto/KeyWrapping.h"
-#include "../VaultFormatV2.h"
+#include "lib/vaultformat/VaultFormatV2.h"
 #include "../PasswordHistory.h"
 #include "lib/crypto/VaultCrypto.h"
 #include "../../utils/Log.h"

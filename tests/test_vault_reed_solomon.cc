@@ -12,7 +12,7 @@
 #include <gtest/gtest.h>
 #include "VaultManager.h"
 #include "managers/AccountManager.h"
-#include "VaultFormatV2.h"
+#include "lib/vaultformat/VaultFormatV2.h"
 #include "record.pb.h"
 #include "MultiUserTypes.h"
 #include <filesystem>

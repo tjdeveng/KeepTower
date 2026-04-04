@@ -13,7 +13,7 @@
 #include <fstream>
 #include "../src/core/VaultManager.h"
 #include "../src/core/managers/AccountManager.h"
-#include "../src/core/VaultFormatV2.h"
+#include "../src/lib/vaultformat/VaultFormatV2.h"
 #include "../src/core/MultiUserTypes.h"
 #include "record.pb.h"  // Include protobuf definitions
 

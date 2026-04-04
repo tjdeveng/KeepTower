@@ -14,7 +14,7 @@
 
 #include "VaultManager.h"
 #include "controllers/VaultCreationOrchestrator.h"
-#include "VaultFormatV2.h"
+#include "lib/vaultformat/VaultFormatV2.h"
 #include "lib/crypto/VaultCrypto.h"
 #include "lib/crypto/KeyWrapping.h"
 #include "PasswordHistory.h"

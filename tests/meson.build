@@ -40,12 +40,12 @@ vault_manager_common_sources = [
     '../src/core/MultiUserTypes.cc',
     '../src/core/MultiUserTypesSerDe.cc',
     '../src/lib/crypto/KeyWrapping.cc',
-    '../src/core/VaultFormatV2.cc',
+    '../src/lib/vaultformat/VaultFormatV2.cc',
     '../src/core/PasswordHistory.cc',
     '../src/lib/crypto/VaultCrypto.cc',
     '../src/lib/fips/FipsProviderManager.cc',
     '../src/lib/storage/VaultIO.cc',
-    '../src/core/serialization/VaultSerialization.cc',
+    '../src/lib/vaultformat/VaultSerialization.cc',
     '../src/core/managers/AccountManager.cc',
     '../src/core/managers/GroupManager.cc',
     # Phase 2 Day 5: Add orchestrator and services
@@ -763,7 +763,7 @@ test('Group Manager Unit Tests', group_manager_test)
 # VaultFormatV2 unit tests
 vault_format_v2_sources = [
     'test_vault_format_v2.cc',
-    '../src/core/VaultFormatV2.cc',
+    '../src/lib/vaultformat/VaultFormatV2.cc',
     '../src/lib/fec/ReedSolomon.cc',
     '../src/core/MultiUserTypes.cc',
     '../src/core/MultiUserTypesSerDe.cc',
@@ -853,7 +853,7 @@ test('V2AuthService Unit Tests', v2_auth_service_test)
 vault_file_service_sources = [
     'test_vault_file_service.cc',
     '../src/core/services/VaultFileService.cc',
-    '../src/core/VaultFormatV2.cc',
+    '../src/lib/vaultformat/VaultFormatV2.cc',
     '../src/lib/fec/ReedSolomon.cc',
     '../src/core/MultiUserTypes.cc',
     '../src/core/MultiUserTypesSerDe.cc',
@@ -880,7 +880,7 @@ vault_creation_orchestrator_sources = [
     '../src/core/services/KekDerivationService.cc',  # KEK derivation service (Phase 3)
     '../src/lib/crypto/KeyWrapping.cc',
     '../src/lib/crypto/VaultCrypto.cc',
-    '../src/core/VaultFormatV2.cc',
+    '../src/lib/vaultformat/VaultFormatV2.cc',
     '../src/lib/fec/ReedSolomon.cc',
     '../src/core/MultiUserTypes.cc',
     '../src/core/MultiUserTypesSerDe.cc',
@@ -916,7 +916,7 @@ multiuser_sources = [
     '../src/core/MultiUserTypes.cc',
     '../src/core/MultiUserTypesSerDe.cc',
     '../src/lib/crypto/KeyWrapping.cc',
-    '../src/core/VaultFormatV2.cc',
+    '../src/lib/vaultformat/VaultFormatV2.cc',
 ]
 multiuser_deps = [gtest_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep]
 
@@ -1025,7 +1025,7 @@ test('vault_io', vault_io_test)
 # Fixed protobuf API compatibility (string IDs)
 vault_serialization_test_sources = [
     'test_vault_serialization.cc',
-    '../src/core/serialization/VaultSerialization.cc',
+    '../src/lib/vaultformat/VaultSerialization.cc',
     proto_gen
 ]
 vault_serialization_test_deps = [gtest_dep, protobuf_dep]

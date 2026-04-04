@@ -15,7 +15,7 @@
 #include "../dialogs/GroupRenameDialog.h"
 #include "../dialogs/YubiKeyPromptDialog.h"
 #include "../../core/VaultError.h"
-#include "../../core/VaultFormatV2.h"
+#include "../../lib/vaultformat/VaultFormatV2.h"
 #include "../../core/commands/AccountCommands.h"
 #include "../../core/repositories/AccountRepository.h"
 #include "../../core/repositories/GroupRepository.h"

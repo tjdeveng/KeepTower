@@ -10,7 +10,7 @@
  */
 
 #include <gtest/gtest.h>
-#include "../src/core/VaultFormatV2.h"
+#include "../src/lib/vaultformat/VaultFormatV2.h"
 #include "../src/core/VaultError.h"
 #include <vector>
 #include <cstring>

@@ -10,7 +10,7 @@
 
 #include "../src/lib/crypto/KeyWrapping.h"
 #include "../src/core/MultiUserTypes.h"
-#include "../src/core/VaultFormatV2.h"
+#include "../src/lib/vaultformat/VaultFormatV2.h"
 #include <cassert>
 #include <iostream>
 #include <vector>

@@ -10,7 +10,7 @@
  */
 
 #include <gtest/gtest.h>
-#include "../src/core/serialization/VaultSerialization.h"
+#include "../src/lib/vaultformat/VaultSerialization.h"
 #include "record.pb.h"
 
 using namespace KeepTower;

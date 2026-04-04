@@ -15,7 +15,7 @@
 #include <gtest/gtest.h>
 #include <glibmm/init.h>
 #include "VaultManager.h"
-#include "VaultFormatV2.h"
+#include "lib/vaultformat/VaultFormatV2.h"
 #include <filesystem>
 #include <fstream>
 

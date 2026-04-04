@@ -4,7 +4,7 @@
 
 #include <gtest/gtest.h>
 #include "../src/core/services/VaultFileService.h"
-#include "../src/core/VaultFormatV2.h"
+#include "../src/lib/vaultformat/VaultFormatV2.h"
 #include <filesystem>
 #include <fstream>
 #include <vector>
