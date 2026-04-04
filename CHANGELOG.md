@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Storage Architecture Refactor:**
+  - Extracted `VaultIO` into the dedicated `keeptower-storage` library target
+  - Clarified storage boundaries so `VaultManager` and `VaultManagerV2` use `VaultFileService` for manager-facing file access
+  - Narrowed `VaultFileService`/`VaultIO` consolidation to backup lifecycle operations while preserving validated `VaultFileService` read/write semantics
+  - Kept backup compatibility behavior in the storage layer, including legacy backup filename lookup support
+
+### Documentation
+- Refreshed Doxygen architecture comments for the Phase G/H public and storage-layer boundaries (`VaultManager`, `VaultFileService`, `VaultIO`, `VaultBackupPolicy`, `VaultCreationOrchestrator`)
+
 ## [0.3.4] - 2026-04-02
 
 ### Fixed
