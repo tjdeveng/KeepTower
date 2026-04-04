@@ -53,6 +53,7 @@ vault_manager_common_sources = [
     '../src/core/services/KeySlotManager.cc',
     '../src/core/services/VaultYubiKeyService.cc',
     '../src/core/services/VaultFileService.cc',
+    '../src/core/services/VaultDataService.cc',
     '../src/core/services/V2AuthService.cc',
     '../src/lib/backup/VaultBackupPolicy.cc',
     '../src/core/services/UsernameHashService.cc',  # Username hashing service
@@ -879,6 +880,7 @@ vault_creation_orchestrator_sources = [
     '../src/lib/crypto/VaultCryptoService.cc',
     '../src/core/services/VaultYubiKeyService.cc',
     '../src/core/services/VaultFileService.cc',
+    '../src/core/services/VaultDataService.cc',
     '../src/core/services/UsernameHashService.cc',
     '../src/core/services/KekDerivationService.cc',  # KEK derivation service (Phase 3)
     '../src/lib/crypto/KeyWrapping.cc',
@@ -1039,6 +1041,23 @@ vault_serialization_test = executable(
 )
 
 test('vault_serialization', vault_serialization_test)
+
+vault_data_service_test_sources = [
+    'test_vault_data_service.cc',
+    proto_gen,
+    '../src/core/services/VaultDataService.cc',
+]
+
+vault_data_service_test_deps = [gtest_dep, protobuf_dep, vaultformat_dep]
+
+vault_data_service_test = executable(
+    'vault_data_service_test',
+    vault_data_service_test_sources,
+    dependencies: vault_data_service_test_deps,
+    include_directories: test_inc
+)
+
+test('vault_data_service', vault_data_service_test)
 
 # AccountViewController tests (Phase 1 refactoring)
 account_view_controller_test_sources = [

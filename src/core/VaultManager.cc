@@ -10,7 +10,7 @@
 #include "managers/AccountManager.h"
 #include "managers/GroupManager.h"
 #include "lib/yubikey/YubiKeyManager.h"
-#include "lib/vaultformat/VaultSerialization.h"
+#include "services/VaultDataService.h"
 #include "lib/crypto/VaultCryptoService.h"
 #include "services/VaultFileService.h"
 #include "services/VaultYubiKeyService.h"
@@ -166,7 +166,7 @@ bool VaultManager::save_vault(bool explicit_save) {
         metadata->set_last_modified(std::time(nullptr));
 
         // Serialize protobuf to binary
-        auto serialized_result = KeepTower::VaultSerialization::serialize(*m_vault_data);
+        auto serialized_result = KeepTower::VaultDataService::serialize_vault_data(*m_vault_data);
         if (!serialized_result) {
             KeepTower::Log::error("VaultManager: Failed to serialize vault data");
             return false;
@@ -860,7 +860,7 @@ int VaultManager::get_account_password_history_limit() const {
 }
 
 bool VaultManager::migrate_vault_schema() {
-    return KeepTower::VaultSerialization::migrate_schema(*m_vault_data, m_modified);
+    return KeepTower::VaultDataService::migrate_vault_schema(*m_vault_data, m_modified);
 }
 
 #ifdef HAVE_YUBIKEY_SUPPORT

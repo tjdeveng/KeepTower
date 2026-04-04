@@ -14,7 +14,6 @@
 
 #include "VaultManager.h"
 #include "controllers/VaultCreationOrchestrator.h"
-#include "lib/vaultformat/VaultFormatV2.h"
 #include "lib/crypto/VaultCrypto.h"
 #include "lib/crypto/KeyWrapping.h"
 #include "PasswordHistory.h"
@@ -23,6 +22,7 @@
 #include "lib/yubikey/YubiKeyManager.h"
 #include "lib/crypto/VaultCryptoService.h"
 #include "services/VaultFileService.h"
+#include "services/VaultDataService.h"
 #include "lib/backup/VaultBackupPolicy.h"
 #include "services/KeySlotManager.h"
 #include "services/VaultYubiKeyService.h"
@@ -47,7 +47,6 @@ using KeepTower::KekDerivationService;
 using KeepTower::KeySlotManager;
 using KeepTower::V2AuthService;
 using KeepTower::VaultSecurityPolicy;
-using KeepTower::VaultFormatV2;
 using KeepTower::KeyWrapping;
 namespace Log = KeepTower::Log;
 
@@ -274,18 +273,18 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
     }
 
     // Parse V2 header
-    auto header_result = VaultFormatV2::read_header(file_data);
-    if (!header_result) {
+    auto metadata_result = KeepTower::VaultFileService::read_v2_metadata(file_data);
+    if (!metadata_result) {
         Log::error("VaultManager: Failed to parse V2 vault header");
-        return std::unexpected(header_result.error());
+        return std::unexpected(metadata_result.error());
     }
 
-    auto [file_header, data_offset] = header_result.value();
+    auto metadata = std::move(metadata_result.value());
 
     auto user_slot_result = V2AuthService::resolve_user_slot_for_open(
-        file_header.vault_header.key_slots,
+        metadata.vault_header.key_slots,
         username.raw(),
-        file_header.vault_header.security_policy);
+        metadata.vault_header.security_policy);
     if (!user_slot_result) {
         return std::unexpected(user_slot_result.error());
     }
@@ -297,8 +296,8 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
     auto kek_result = V2AuthService::derive_password_kek_for_slot(
         *user_slot,
         password.raw(),
-        file_header.pbkdf2_iterations,
-        file_header.vault_header.security_policy);
+        metadata.pbkdf2_iterations,
+        metadata.vault_header.security_policy);
     if (!kek_result) {
         return std::unexpected(kek_result.error());
     }
@@ -348,7 +347,7 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
 
         auto response_result = V2AuthService::run_yubikey_challenge_for_open(
             *user_slot,
-            file_header.vault_header.security_policy,
+            metadata.vault_header.security_policy,
             decrypted_pin,
             yk_manager);
         if (!response_result) {
@@ -386,8 +385,8 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
     }
 
     // FIPS-140-3: Lock policy-level YubiKey challenge (shared by all users)
-    if (file_header.vault_header.security_policy.require_yubikey) {
-        auto& policy_challenge = file_header.vault_header.security_policy.yubikey_challenge;
+    if (metadata.vault_header.security_policy.require_yubikey) {
+        auto& policy_challenge = metadata.vault_header.security_policy.yubikey_challenge;
         if (lock_memory(policy_challenge.data(), policy_challenge.size())) {
             Log::debug("VaultManager: Locked V2 policy YubiKey challenge in memory");
         }
@@ -402,30 +401,31 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
     }
 
     // Extract encrypted data (after header)
-    if (data_offset >= file_data.size()) {
-        Log::error("VaultManager: Invalid data offset: {}", data_offset);
+    if (metadata.data_offset >= file_data.size()) {
+        Log::error("VaultManager: Invalid data offset: {}", metadata.data_offset);
         return std::unexpected(VaultError::CorruptedFile);
     }
 
     std::vector<uint8_t> ciphertext(
-        file_data.begin() + data_offset,
+        file_data.begin() + static_cast<std::ptrdiff_t>(metadata.data_offset),
         file_data.end());
 
     // Decrypt vault data
     std::vector<uint8_t> plaintext;
-    std::span<const uint8_t> iv_span(file_header.data_iv);
+    std::span<const uint8_t> iv_span(metadata.data_iv);
     if (!KeepTower::VaultCrypto::decrypt_data(ciphertext, m_v2_dek, iv_span, plaintext)) {
         Log::error("VaultManager: Failed to decrypt vault data");
         return std::unexpected(VaultError::DecryptionFailed);
     }
 
     // Parse protobuf
-    keeptower::VaultData vault_data;
-    if (!vault_data.ParseFromArray(plaintext.data(), plaintext.size())) {
+    auto vault_data_result = KeepTower::VaultDataService::deserialize_vault_data(plaintext);
+    if (!vault_data_result) {
         Log::error("VaultManager: Failed to parse vault data");
         secure_clear(plaintext);
         return std::unexpected(VaultError::CorruptedFile);
     }
+    keeptower::VaultData vault_data = std::move(vault_data_result.value());
     secure_clear(plaintext);
 
     // Update last login timestamp
@@ -435,7 +435,7 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
     m_vault_open = true;
     m_is_v2_vault = true;
     m_current_vault_path = path;
-    m_v2_header = file_header.vault_header;
+    m_v2_header = metadata.vault_header;
 
     // CRITICAL BUG FIX: user_slot still points to file_header.vault_header.key_slots,
     // but we just copied to m_v2_header. We need to find the corresponding slot in
@@ -457,7 +457,7 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
 
     // Check if user needs username hash migration
     // Status 0xFF = authenticated via old algorithm, must migrate to new
-    bool migration_active = (file_header.vault_header.security_policy.migration_flags & 0x01) != 0;
+    bool migration_active = (metadata.vault_header.security_policy.migration_flags & 0x01) != 0;
     if (migration_active && user_slot_in_header->migration_status == 0xFF) {
         Log::info("VaultManager: Authenticated user requires username hash migration");
 
@@ -487,9 +487,9 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
 
     // Extract FEC settings from V2 header
     // Note: Header always has FEC enabled (per spec), so check data FEC setting instead
-    m_use_reed_solomon = file_header.fec_redundancy_percent > 0;
+    m_use_reed_solomon = metadata.fec_redundancy_percent > 0;
     if (m_use_reed_solomon) {
-        m_rs_redundancy_percent = file_header.fec_redundancy_percent;
+        m_rs_redundancy_percent = metadata.fec_redundancy_percent;
         Log::info("VaultManager: V2 vault has data FEC enabled (redundancy: {}%)", m_rs_redundancy_percent);
     } else {
         Log::info("VaultManager: V2 vault has data FEC disabled (header FEC still enabled at 20% per spec)");

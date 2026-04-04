@@ -6,6 +6,7 @@
 #include "lib/crypto/VaultCryptoService.h"
 #include "../services/VaultYubiKeyService.h"
 #include "../services/VaultFileService.h"
+#include "../services/VaultDataService.h"
 #include "../services/UsernameHashService.h"
 #include "../services/KekDerivationService.h"
 #include "lib/crypto/KeyWrapping.h"
@@ -499,10 +500,11 @@ VaultCreationOrchestrator::encrypt_vault_data(const std::array<uint8_t, 32>& dek
     // Empty groups list (no groups yet)
 
     // Serialize to binary
-    std::vector<uint8_t> plaintext(vault_data.ByteSizeLong());
-    if (!vault_data.SerializeToArray(plaintext.data(), plaintext.size())) {
-        return std::unexpected(VaultError::SerializationFailed);
+    auto plaintext_result = VaultDataService::serialize_vault_data(vault_data);
+    if (!plaintext_result) {
+        return std::unexpected(plaintext_result.error());
     }
+    std::vector<uint8_t> plaintext = std::move(plaintext_result.value());
 
     // Encrypt with DEK
     auto encrypted = m_crypto->encrypt_vault_data(plaintext, dek);
