@@ -3,10 +3,12 @@
 
 /**
  * @file VaultManager.h
- * @brief Secure password vault management with AES-256-GCM encryption
+ * @brief Public vault-management facade for KeepTower vault workflows
  *
- * This file contains the VaultManager class which handles encrypted storage
- * of password records using modern cryptographic standards.
+ * This file contains the public VaultManager interface used by the UI and
+ * application layers. The header intentionally exposes boundary/view types
+ * instead of protobuf-generated storage types, keeping serialization details
+ * out of the public API surface.
  */
 
 #ifndef VAULTMANAGER_H
@@ -101,22 +103,29 @@ private:
 /**
  * @brief Manages encrypted password vaults with AES-256-GCM encryption
  *
- * VaultManager provides secure storage and retrieval of password records
- * using industry-standard encryption and key derivation.
+ * VaultManager coordinates secure vault operations across the core services
+ * layer. It owns the application-facing workflow for opening, saving, and
+ * mutating vault state while delegating specialized work to helper services.
  *
+ * @section vault_manager_architecture Architecture Notes
+ * - Public methods exchange boundary/view types rather than protobuf types
+ * - V2 vault creation is delegated to VaultCreationOrchestrator
+ * - Manager-facing file access goes through VaultFileService
+ * - Serialization, crypto, backup, and YubiKey details remain in lower layers
+ * - Header dependencies are intentionally kept light to reduce transitive coupling
+
  * @section vault_manager_features Features
- * - AES-256-GCM authenticated encryption
- * - PBKDF2-SHA256 key derivation (100,000 iterations default)
- * - Atomic file operations with automatic backups
- * - Memory protection with mlock() and secure erasure
- * - File format versioning for future compatibility
+ * - V2 multi-user vault lifecycle management
+ * - AES-256-GCM authenticated encryption and PBKDF2-based key derivation
+ * - Automatic backup policy integration during explicit saves
+ * - Memory protection with mlock() and secure erasure where available
+ * - Boundary-type API suitable for UI and application consumers
  *
  * @section vault_manager_security Security
- * - Encryption keys derived from user password using PBKDF2
- * - Random salt (32 bytes) per vault
- * - Random IV (12 bytes) per encryption operation
+ * - Encryption keys derived from user credentials via the crypto services layer
+ * - Random salt/IV material generated per vault or encryption operation
  * - Authentication tags verify data integrity
- * - Sensitive data cleared with OPENSSL_cleanse()
+ * - Sensitive data cleared with OPENSSL_cleanse() and secure_clear helpers
  *
  * @section vault_manager_usage Usage Example
  * @code
@@ -132,10 +141,10 @@ private:
  *     // Handle error: create_result.error()
  * }
  *
- * // Add account
- * keeptower::AccountRecord account;
- * account.set_account_name("Example");
- * account.set_user_name("user@example.com");
+ * // Add account through boundary types rather than protobuf records
+ * KeepTower::AccountCreateRequest account;
+ * account.account_name = "Example";
+ * account.username = "user@example.com";
  * vm.add_account(account);
  *
  * // Save and close

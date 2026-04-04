@@ -29,7 +29,8 @@ class VaultFileService;
  *
  * VaultCreationOrchestrator coordinates the complex process of creating a V2 vault
  * by delegating to specialized service classes. This follows the Orchestrator/Coordinator
- * pattern and maintains Single Responsibility Principle.
+ * pattern and maintains Single Responsibility Principle while keeping manager-facing
+ * workflow code separate from lower-level storage primitives.
  *
  * **Design Philosophy:**
  * - **Orchestration Only**: Coordinates services, doesn't implement logic
@@ -47,7 +48,8 @@ class VaultFileService;
  * **NOT Responsible For:**
  * - Cryptographic operations (VaultCryptoService)
  * - YubiKey operations (VaultYubiKeyService)
- * - File I/O (VaultFileService)
+ * - Low-level storage primitives (VaultIO)
+ * - Direct file I/O details beyond the VaultFileService facade
  * - State management (VaultManager)
  *
  * @section creation_steps Creation Steps
@@ -59,7 +61,7 @@ class VaultFileService;
  * 5. **Create Admin Key Slot** - Wrap DEK with KEK
  * 6. **Create Vault Header** - Initialize security policy
  * 7. **Serialize & Encrypt** - Protect vault data
- * 8. **Write to File** - Atomic write with FEC
+ * 8. **Write to File** - Persist via VaultFileService
  *
  * @section progress_reporting Progress Reporting
  *
@@ -178,11 +180,11 @@ public:
      * - Flexibility (can swap implementations)
      * - Explicit dependencies
      *
-     * @param crypto Cryptographic operations service
-     * @param yubikey YubiKey operations service
-     * @param file File I/O operations service
+    * @param crypto Cryptographic operations service
+    * @param yubikey YubiKey operations service
+    * @param file Manager-facing file service used for vault persistence
      *
-     * @note Services are shared_ptr to allow sharing with VaultManager
+    * @note Services are shared_ptr to allow sharing with VaultManager
      * @note All services must be non-null
      */
     VaultCreationOrchestrator(

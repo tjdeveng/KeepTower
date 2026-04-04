@@ -3,11 +3,11 @@
 
 /**
  * @file VaultIO.h
- * @brief Secure file I/O operations for vault persistence
+ * @brief Low-level storage primitives for vault persistence and compatibility
  *
- * This file contains the VaultIO utility class which handles all file system
- * operations for vault storage, including atomic writes, backup management,
- * and secure file permissions.
+ * This file contains the VaultIO utility class for the keeptower-storage layer.
+ * It provides low-level file and backup helpers used by storage-oriented code,
+ * including VaultBackupPolicy and selected VaultFileService backup operations.
  */
 
 #ifndef KEEPTOWER_VAULTIO_H
@@ -22,17 +22,24 @@
 namespace KeepTower {
 
 /**
- * @brief Utility class for secure vault file I/O operations
+ * @brief Low-level utility class for secure vault file I/O operations
  *
- * VaultIO provides static methods for reading, writing, and managing vault files
- * with atomic operations, backup creation/rotation, and secure permissions.
+ * VaultIO provides raw storage operations for vault files, including legacy
+ * compatibility handling that the higher-level VaultFileService facade does not
+ * expose directly.
  *
  * @section vault_io_features Features
+ * - Library-owned storage helpers for the keeptower-storage target
  * - Atomic file writes using temporary files and rename
  * - Secure file permissions (0600 on Unix systems)
- * - Timestamped backup creation and management
+ * - Timestamped backup creation and management with compatibility-aware lookup
  * - Directory synchronization for durability
  * - Support for both V1 and V2 vault formats
+
+ * @section vault_io_layering Layering Notes
+ * - Manager/orchestrator code should prefer VaultFileService rather than VaultIO
+ * - VaultIO remains the lower-level storage primitive and compatibility utility
+ * - Backup helpers intentionally recognize both legacy and newer compatible names
  *
  * @section vault_io_security Security Considerations
  * - Files written with owner-only read/write permissions
@@ -54,7 +61,7 @@ namespace KeepTower {
  *     // Handle error
  * }
  *
- * // Create backup before modifying
+ * // Create low-level backup before modifying
  * auto backup_result = VaultIO::create_backup("/path/vault.dat");
  * VaultIO::cleanup_old_backups("/path/vault.dat", 5);
  * @endcode
@@ -182,9 +189,9 @@ public:
     /**
      * @brief Restore vault from most recent backup
      *
-     * Finds the most recent timestamped backup file and restores it by copying
-     * over the current vault file. Falls back to legacy .backup format if no
-     * timestamped backups exist.
+    * Finds the most recent timestamped backup file and restores it by copying
+    * over the current vault file. Falls back to legacy single-file backup
+    * compatibility if no timestamped backups exist.
      *
     * @param path Path to the vault file to restore
     * @param backup_dir Optional custom backup directory (empty=same as vault)
@@ -216,7 +223,8 @@ public:
      *
      * @throws No exceptions (catches filesystem errors)
      *
-     * @note Returns empty vector if directory doesn't exist or on error
+    * @note Returns empty vector if directory doesn't exist or on error
+    * @note Created backups currently use the legacy `path.backup.*` convention
      * @note Ignores non-regular files (directories, symlinks, etc.)
      *
      * @par Example:

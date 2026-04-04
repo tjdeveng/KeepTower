@@ -15,31 +15,31 @@
 namespace KeepTower {
 
 /**
- * @brief Service for vault file I/O operations
+ * @brief Manager-facing storage facade for V2 vault workflows
  *
- * VaultFileService encapsulates ALL file system operations related to vault files,
- * following the Single Responsibility Principle. This service is responsible ONLY
- * for reading, writing, backup management, and format detection - no cryptographic
- * operations or business logic.
+ * VaultFileService is the high-level storage facade used by VaultManager and
+ * VaultCreationOrchestrator. It defines the storage contract expected by the
+ * core workflow layer while delegating lower-level storage primitives to the
+ * keeptower-storage library where appropriate.
  *
  * **Design Principles:**
- * - **SRP Compliance**: ONLY file I/O operations, nothing else
+ * - **Facade Role**: Presents manager-friendly V2 storage operations
  * - **Stateless**: All methods are static or operate on passed parameters
- * - **Thread-Safe**: All operations are thread-safe (no shared mutable state)
- * - **Atomic Operations**: Writes use temporary files + rename for atomicity
- * - **Error Recovery**: FEC-aware reading with recovery support
+ * - **Atomic Operations**: Writes preserve the validated V2 service semantics
+ * - **Delegation Friendly**: Backup helpers reuse lower-level storage utilities
+ * - **Compatibility Aware**: Preserves existing caller-visible behavior
  *
  * **Responsibilities:**
- * 1. Reading vault files from disk (with FEC recovery)
- * 2. Writing vault files atomically (temp file + rename)
- * 3. Format version detection (V2)
- * 4. Backup creation and restoration
- * 5. Backup rotation and cleanup
- * 6. Secure file permissions (0600 on Unix)
+ * 1. Reading V2 vault files from disk for manager/orchestrator flows
+ * 2. Writing V2 vault files atomically with the existing service contract
+ * 3. Format version detection for workflow code
+ * 4. Backup creation, restoration, listing, and cleanup via the storage layer
+ * 5. Preserving service-specific error mapping and behavior guarantees
  *
  * **NOT Responsible For:**
  * - Encryption/decryption (VaultCryptoService)
  * - YubiKey operations (VaultYubiKeyService)
+ * - Raw compatibility-oriented storage primitives (see VaultIO)
  * - Vault parsing/serialization (VaultFormat classes)
  * - Business logic (VaultManager)
  *
@@ -64,10 +64,9 @@ namespace KeepTower {
  *
  * @section backup_management Backup Management
  *
- * Backups are created with ISO 8601 timestamps:
- * - Format: `vault_name.YYYY-MM-DDTHH-MM-SS.backup`
- * - Example: `myvault.vault.2026-01-10T18-30-45.backup`
- * - Automatic cleanup keeps only N most recent backups
+ * Backup lifecycle operations are exposed through this facade, but the lower-level
+ * naming and enumeration logic is implemented in VaultIO. The facade preserves the
+ * manager-facing contract while the storage layer handles compatibility details.
  *
  * @section vault_file_service_security Security Considerations
  *
@@ -117,9 +116,12 @@ namespace KeepTower {
  * - **Integration Tests**: End-to-end with actual VaultManager
  * - **Atomic Write Tests**: Verify no partial writes
  * - **Backup Tests**: Creation, restoration, rotation
- * - **Format Detection**: V1 vs V2 vs invalid
+ * - **Format Detection**: Valid V2 vs invalid/unsupported inputs
  * - **Error Handling**: Permission errors, disk full, etc.
  *
+ * @note This facade is intentionally V2-oriented. Compatibility-heavy raw file
+ *       behavior remains in VaultIO.
+
  * @note This service is NOT thread-safe for concurrent writes to the same file
  *       (by design - vault files should only be accessed by one process)
  *
@@ -215,19 +217,17 @@ public:
     // ========================================================================
 
     /**
-     * @brief Create timestamped backup of vault file
+    * @brief Create backup of vault file using the storage-layer backup policy
      *
-     * Creates a backup copy of the vault file with ISO 8601 timestamp.
-     * Backup is created in the same directory as the vault file unless
-     * a different backup directory is specified.
+    * Creates a backup copy of the vault file and returns the created backup path.
+    * The exact on-disk naming scheme is delegated to the lower-level storage layer.
      *
      * @param vault_path Absolute path to vault file to backup
      * @param backup_dir Optional custom backup directory (empty = same as vault)
      * @return VaultResult<std::string> Backup file path on success, error otherwise
      *
-     * @note Backup format: `vault_name.YYYY-MM-DDTHH-MM-SS.backup`
-     * @note Does not modify original vault file
-     * @note Backup includes complete file (headers, data, FEC)
+    * @note Does not modify original vault file
+    * @note Backup includes complete file contents (headers, data, FEC)
      */
     [[nodiscard]] static VaultResult<std::string> create_backup(
         std::string_view vault_path,
@@ -236,16 +236,14 @@ public:
     /**
      * @brief Restore vault from most recent backup
      *
-     * Finds the most recent backup file and restores it to the original
-     * vault location. Original vault is moved to .old before restoration.
+        * Finds the most recent compatible backup file and restores it to the original
+        * vault location using the storage-layer implementation.
      *
      * @param vault_path Absolute path to vault file to restore
      * @param backup_dir Optional custom backup directory (empty = same as vault)
      * @return VaultResult<> Success or error
      *
-     * @note Original vault moved to `vault_path.old` for safety
-     * @note Fails if no backups exist
-     * @note Automatically cleans up .old file after successful restoration
+        * @note Fails if no backups exist
      */
     [[nodiscard]] static VaultResult<> restore_from_backup(
         std::string_view vault_path,
@@ -254,14 +252,14 @@ public:
     /**
      * @brief List all backup files for a vault
      *
-     * Returns list of backup file paths sorted by timestamp (newest first).
+        * Returns backup file paths sorted newest first according to the storage layer.
      *
      * @param vault_path Absolute path to vault file
      * @param backup_dir Optional custom backup directory (empty = same as vault)
      * @return std::vector<std::string> List of backup paths (sorted, newest first)
      *
      * @note Returns empty vector if no backups exist
-     * @note Backup files must match pattern: `basename.YYYY-MM-DDTHH-MM-SS.backup`
+        * @note Both legacy and newer compatible backup naming patterns may be recognized
      */
     [[nodiscard]] static std::vector<std::string> list_backups(
         std::string_view vault_path,

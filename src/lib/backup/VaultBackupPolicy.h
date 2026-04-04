@@ -17,8 +17,10 @@ namespace KeepTower {
 /**
  * @brief Encapsulates backup configuration and backup/restore policy actions.
  *
- * Keeps backup-related state and filesystem operations out of VaultManager while
- * preserving existing behavior and limits.
+ * Keeps backup-related state and policy decisions out of VaultManager while
+ * delegating low-level filesystem work to the storage layer. This preserves the
+ * existing backup behavior and retention limits without exposing storage details
+ * to manager-facing code.
  */
 class VaultBackupPolicy {
 public:
@@ -65,14 +67,19 @@ public:
     void store_to_vault_data(keeptower::VaultData& vault_data) const;
 
     /**
-     * @brief Create and rotate backups if policy allows for this save.
+    * @brief Create and rotate backups if policy allows for this save.
      *
-     * Non-fatal by design: failures are logged but do not abort save flow.
+    * Non-fatal by design: failures are logged but do not abort save flow.
+    * The policy determines when backup work should run; the storage layer
+    * performs the underlying file and backup operations.
      */
     void maybe_create_backup(std::string_view vault_path, bool explicit_save) const;
 
     /**
-     * @brief Restore vault from most recent backup according to configured path policy.
+    * @brief Restore vault from most recent backup according to configured path policy.
+    *
+    * Uses the storage layer's compatibility-aware backup lookup so both legacy
+    * and newer backup naming conventions can be restored transparently.
      */
     [[nodiscard]] VaultResult<> restore_from_most_recent_backup(std::string_view vault_path) const;
 
