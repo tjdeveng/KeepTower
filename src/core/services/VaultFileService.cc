@@ -236,6 +236,25 @@ VaultResult<> VaultFileService::write_v2_vault(
     return write_vault_file(path, file_data, true, 0);
 }
 
+VaultResult<VaultFileService::V2VaultMetadata> VaultFileService::read_v2_metadata(
+    const std::vector<uint8_t>& file_data) {
+    auto parse_result = VaultFormatV2::read_header(file_data);
+    if (!parse_result) {
+        return std::unexpected(parse_result.error());
+    }
+
+    auto [file_header, data_offset] = *parse_result;
+
+    V2VaultMetadata metadata;
+    metadata.pbkdf2_iterations = file_header.pbkdf2_iterations;
+    metadata.fec_redundancy_percent = file_header.fec_redundancy_percent;
+    metadata.vault_header = std::move(file_header.vault_header);
+    metadata.data_salt = file_header.data_salt;
+    metadata.data_iv = file_header.data_iv;
+    metadata.data_offset = data_offset;
+    return metadata;
+}
+
 // ============================================================================
 // Format Detection
 // ============================================================================

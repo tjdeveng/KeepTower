@@ -167,6 +167,54 @@ TEST_F(VaultFileServiceTest, WriteV2Vault_WritesHeaderAndScrubsUsernames) {
     EXPECT_EQ(written_ciphertext, ciphertext);
 }
 
+TEST_F(VaultFileServiceTest, ReadV2Metadata_ReturnsManagerFacingHeaderData) {
+    VaultHeaderV2 vault_header;
+    vault_header.security_policy.pbkdf2_iterations = 600000;
+    vault_header.security_policy.require_yubikey = true;
+
+    KeySlot slot;
+    slot.active = true;
+    slot.username = "admin";
+    slot.yubikey_enrolled = true;
+    slot.yubikey_serial = "YK-OPEN-1";
+    slot.username_hash[0] = 'a';
+    slot.username_hash_size = 1;
+    vault_header.key_slots.push_back(slot);
+
+    const std::array<uint8_t, 12> data_iv = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+    const std::array<uint8_t, 32> data_salt = {
+        21, 22, 23, 24, 25, 26, 27, 28,
+        29, 30, 31, 32, 33, 34, 35, 36,
+        37, 38, 39, 40, 41, 42, 43, 44,
+        45, 46, 47, 48, 49, 50, 51, 52};
+    const std::vector<uint8_t> ciphertext = {0x10, 0x20, 0x30, 0x40};
+
+    ASSERT_TRUE(VaultFileService::write_v2_vault(
+        test_vault_path.string(),
+        vault_header,
+        600000,
+        data_salt,
+        data_iv,
+        ciphertext,
+        true,
+        20).has_value());
+
+    const auto file_bytes = read_all_bytes(test_vault_path);
+    auto metadata_result = VaultFileService::read_v2_metadata(file_bytes);
+    ASSERT_TRUE(metadata_result.has_value());
+
+    const auto& metadata = *metadata_result;
+    EXPECT_EQ(metadata.pbkdf2_iterations, 600000u);
+    EXPECT_EQ(metadata.fec_redundancy_percent, 20u);
+    EXPECT_EQ(metadata.data_salt, data_salt);
+    EXPECT_EQ(metadata.data_iv, data_iv);
+    ASSERT_EQ(metadata.vault_header.key_slots.size(), 1u);
+    EXPECT_TRUE(metadata.vault_header.security_policy.require_yubikey);
+    EXPECT_TRUE(metadata.vault_header.key_slots[0].username.empty());
+    EXPECT_EQ(metadata.vault_header.key_slots[0].yubikey_serial, "YK-OPEN-1");
+    EXPECT_LT(metadata.data_offset, file_bytes.size());
+}
+
 TEST_F(VaultFileServiceTest, ReadVaultFile_FileNotFound) {
     std::vector<uint8_t> data;
     int iterations;

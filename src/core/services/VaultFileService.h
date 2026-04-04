@@ -9,6 +9,7 @@
 #include "../MultiUserTypes.h"
 #include <cstdint>
 #include <optional>
+#include <array>
 #include <span>
 #include <string>
 #include <string_view>
@@ -134,6 +135,15 @@ namespace KeepTower {
  */
 class VaultFileService {
 public:
+    struct V2VaultMetadata {
+        uint32_t pbkdf2_iterations = 0;
+        uint8_t fec_redundancy_percent = 0;
+        VaultHeaderV2 vault_header;
+        std::array<uint8_t, 32> data_salt{};
+        std::array<uint8_t, 12> data_iv{};
+        size_t data_offset = 0;
+    };
+
     // ========================================================================
     // File Reading Operations
     // ========================================================================
@@ -208,6 +218,18 @@ public:
         const std::vector<uint8_t>& ciphertext,
         bool enable_header_fec = true,
         uint8_t data_fec_redundancy = 0);
+
+    /**
+     * @brief Parse V2 vault metadata from already-loaded file bytes
+     *
+     * Extracts the manager-facing header information required for authentication
+     * and decrypting the payload while hiding the lower-level format type.
+     *
+     * @param file_data Complete V2 vault file bytes
+     * @return V2VaultMetadata on success, VaultError on parse failure
+     */
+    [[nodiscard]] static VaultResult<V2VaultMetadata> read_v2_metadata(
+        const std::vector<uint8_t>& file_data);
 
     // ========================================================================
     // Format Detection
