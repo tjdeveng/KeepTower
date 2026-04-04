@@ -4,7 +4,6 @@
 #include "VaultManager.h"
 #include "record.pb.h"
 #include "lib/crypto/KeyWrapping.h"  // For V2 password verification
-#include "lib/vaultformat/VaultFormatV2.h"  // For V2 vault parsing
 #include "lib/crypto/VaultCrypto.h"
 #include "lib/fips/FipsProviderManager.h"
 #include "lib/fec/ReedSolomon.h"
@@ -188,48 +187,27 @@ bool VaultManager::save_vault(bool explicit_save) {
             KeepTower::Log::error("VaultManager: V2 header not initialized");
             return false;
         }
-        KeepTower::VaultFormatV2::V2FileHeader file_header;
-        file_header.pbkdf2_iterations = m_v2_header->security_policy.pbkdf2_iterations;
-        file_header.vault_header = *m_v2_header;
-
-        // Securely clear plaintext usernames from header before serialization (security requirement)
-        // Usernames are kept in memory (m_v2_header) for UI display but NOT written to disk
-        // Use secure_clear_std_string to overwrite memory before clearing
-        KeepTower::Log::debug("VaultManager: Clearing {} usernames before V2 header serialization", file_header.vault_header.key_slots.size());
-        for (auto& slot : file_header.vault_header.key_slots) {
-            secure_clear_std_string(slot.username);
-        }
-        std::copy(data_iv.begin(),
-                  std::min(data_iv.begin() + static_cast<std::ptrdiff_t>(32), data_iv.end()),
-                  file_header.data_salt.begin());
-        std::copy(data_iv.begin(),
-                  std::min(data_iv.begin() + static_cast<std::ptrdiff_t>(12), data_iv.end()),
-                  file_header.data_iv.begin());
-
         // Write header with FEC - header ALWAYS uses FEC (minimum 20% per spec)
-        // Pass user's data FEC redundancy; write_header will enforce 20% minimum for header
+        // Pass user's data FEC redundancy; write_v2_vault will enforce 20% minimum for header
         const bool enable_header_fec = true;  // Header FEC is always enabled
         const uint8_t data_fec_redundancy = m_use_reed_solomon ? m_rs_redundancy_percent : 0;
-        auto write_result = KeepTower::VaultFormatV2::write_header(file_header, enable_header_fec, data_fec_redundancy);
-        if (!write_result) {
-            KeepTower::Log::error("VaultManager: Failed to write V2 header");
+        auto file_write_result = KeepTower::VaultFileService::write_v2_vault(
+            m_current_vault_path,
+            *m_v2_header,
+            m_v2_header->security_policy.pbkdf2_iterations,
+            data_iv,
+            data_iv,
+            ciphertext,
+            enable_header_fec,
+            data_fec_redundancy);
+        if (!file_write_result) {
+            KeepTower::Log::error("VaultManager: Failed to write V2 vault file");
             return false;
         }
-
-        // Combine header + encrypted data
-        std::vector<uint8_t> file_data = write_result.value();
-        file_data.insert(file_data.end(), ciphertext.begin(), ciphertext.end());
 
         // Create backup before saving (only on explicit save, non-fatal if it fails)
         if (m_backup_policy) {
             m_backup_policy->maybe_create_backup(m_current_vault_path, explicit_save);
-        }
-
-        // Write to file
-        auto file_write_result = KeepTower::VaultFileService::write_vault_file(m_current_vault_path, file_data, true, 0);
-        if (!file_write_result) {
-            KeepTower::Log::error("VaultManager: Failed to write vault file");
-            return false;
         }
 
         m_modified = false;

@@ -9,11 +9,9 @@
 #include "../services/UsernameHashService.h"
 #include "../services/KekDerivationService.h"
 #include "lib/crypto/KeyWrapping.h"
-#include "lib/vaultformat/VaultFormatV2.h"
 #include "../PasswordHistory.h"
 #include "lib/crypto/VaultCrypto.h"
 #include "../../utils/Log.h"
-#include "../../utils/SecureMemory.h"  // For secure_clear_std_string
 #include "../record.pb.h"
 #include <glibmm/main.h>
 #include <thread>
@@ -529,58 +527,16 @@ VaultCreationOrchestrator::write_vault_file(
     const VaultHeaderV2& header,
     const EncryptionResult& encrypted)
 {
-    // Build V2FileHeader
-    VaultFormatV2::V2FileHeader file_header;
-    file_header.magic = VaultFormatV2::VAULT_MAGIC;
-    file_header.version = VaultFormatV2::VAULT_VERSION_V2;
-    file_header.pbkdf2_iterations = params.policy.pbkdf2_iterations;
-    file_header.vault_header = header;
-
-    // Securely clear plaintext usernames from header before serialization (security requirement)
-    // Usernames are kept in the 'header' parameter for caller's use but NOT written to disk
-    // Use secure_clear_std_string to overwrite memory before clearing
-    Log::info("VaultCreationOrchestrator: Clearing {} usernames before serialization", file_header.vault_header.key_slots.size());
-    for (auto& slot : file_header.vault_header.key_slots) {
-        Log::info("VaultCreationOrchestrator: BEFORE clear - username: '{}' (active={})", slot.username, slot.active);
-        secure_clear_std_string(slot.username);
-        Log::info("VaultCreationOrchestrator: AFTER clear - username: '{}' (length={})", slot.username, slot.username.length());
-    }
-
-    // Copy encryption metadata
-    // Note: data_salt is generated during encryption (in encrypted.iv derivation)
-    // For now, use zeros for salt (will be refactored when adding proper salt generation)
-    file_header.data_salt = {};
-
-    // Copy IV from encryption result
-    if (encrypted.iv.size() != 12) {
-        return std::unexpected(VaultError::CryptoError);
-    }
-    std::copy_n(encrypted.iv.begin(), 12, file_header.data_iv.begin());
-
-    // FEC settings
-    // TODO: Add FEC settings to VaultSecurityPolicy
-    // For now, disable FEC (FEC percentage = 0)
-    file_header.header_flags = 0;  // FEC disabled
-    file_header.fec_redundancy_percent = 0;
-
-    // Serialize V2FileHeader
-    auto header_bytes_result = VaultFormatV2::write_header(file_header);
-    if (!header_bytes_result) {
-        return std::unexpected(header_bytes_result.error());
-    }
-
-    // Combine header + encrypted data
-    std::vector<uint8_t> file_data = *header_bytes_result;
-    file_data.insert(file_data.end(),
-                     encrypted.ciphertext.begin(),
-                     encrypted.ciphertext.end());
-
-    // Write to file atomically
-    return m_file->write_vault_file(
+    // Write to file atomically using the service-level V2 writer.
+    return m_file->write_v2_vault(
         params.path,
-        file_data,
-        true,  // is_v2 format
-        0      // FEC percentage (already handled in header)
+        header,
+        params.policy.pbkdf2_iterations,
+        {},
+        encrypted.iv,
+        encrypted.ciphertext,
+        true,
+        0
     );
 }
 

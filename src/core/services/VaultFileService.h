@@ -6,8 +6,10 @@
 #define KEEPTOWER_VAULT_FILE_SERVICE_H
 
 #include "../VaultError.h"
+#include "../MultiUserTypes.h"
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -179,6 +181,33 @@ public:
         const std::vector<uint8_t>& data,
         bool is_v2_vault,
         int pbkdf2_iterations = 0);
+
+    /**
+     * @brief Build and write a V2 vault file from encrypted components
+     *
+     * Assembles the V2 on-disk header, clears plaintext usernames before
+     * serialization, appends encrypted payload data, and persists the complete
+     * file atomically using the standard vault write semantics.
+     *
+     * @param path Absolute path to target vault file
+     * @param vault_header Vault header to serialize
+     * @param pbkdf2_iterations PBKDF2 iteration count to store in the file header
+     * @param data_salt Stored data salt bytes (copied up to 32 bytes)
+     * @param data_iv Stored data IV bytes (must be exactly 12 bytes)
+     * @param ciphertext Encrypted vault payload
+     * @param enable_header_fec Whether to enable header FEC encoding
+     * @param data_fec_redundancy User-selected data FEC redundancy percentage
+     * @return VaultResult<void> Success or VaultError
+     */
+    [[nodiscard]] static VaultResult<> write_v2_vault(
+        const std::string& path,
+        const VaultHeaderV2& vault_header,
+        uint32_t pbkdf2_iterations,
+        std::span<const uint8_t> data_salt,
+        std::span<const uint8_t> data_iv,
+        const std::vector<uint8_t>& ciphertext,
+        bool enable_header_fec = true,
+        uint8_t data_fec_redundancy = 0);
 
     // ========================================================================
     // Format Detection

@@ -118,6 +118,55 @@ TEST_F(VaultFileServiceTest, ReadVaultFile_ValidV2File) {
     EXPECT_GE(data.size(), 8u) << "Should read complete file";
 }
 
+TEST_F(VaultFileServiceTest, WriteV2Vault_WritesHeaderAndScrubsUsernames) {
+    VaultHeaderV2 vault_header;
+    vault_header.security_policy.pbkdf2_iterations = 750000;
+    const std::array<uint8_t, 64> expected_username_hash = {'h', 'a', 's', 'h'};
+
+    KeySlot slot;
+    slot.active = true;
+    slot.username = "alice";
+    slot.username_hash = expected_username_hash;
+    slot.username_hash_size = 4;
+    vault_header.key_slots.push_back(slot);
+
+    const std::array<uint8_t, 12> data_iv = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+    const std::array<uint8_t, 32> data_salt = {
+        10, 11, 12, 13, 14, 15, 16, 17,
+        18, 19, 20, 21, 22, 23, 24, 25,
+        26, 27, 28, 29, 30, 31, 32, 33,
+        34, 35, 36, 37, 38, 39, 40, 41};
+    const std::vector<uint8_t> ciphertext = {0xAA, 0xBB, 0xCC, 0xDD};
+
+    auto result = VaultFileService::write_v2_vault(
+        test_vault_path.string(),
+        vault_header,
+        750000,
+        data_salt,
+        data_iv,
+        ciphertext,
+        true,
+        30);
+
+    ASSERT_TRUE(result.has_value());
+
+    const auto file_bytes = read_all_bytes(test_vault_path);
+    auto header_result = VaultFormatV2::read_header(file_bytes);
+    ASSERT_TRUE(header_result.has_value());
+
+    const auto& [file_header, data_offset] = *header_result;
+    ASSERT_EQ(file_header.pbkdf2_iterations, 750000u);
+    ASSERT_EQ(file_header.data_salt, data_salt);
+    ASSERT_EQ(file_header.data_iv, data_iv);
+    ASSERT_EQ(file_header.vault_header.key_slots.size(), 1u);
+    EXPECT_TRUE(file_header.vault_header.key_slots[0].username.empty());
+    EXPECT_EQ(file_header.vault_header.key_slots[0].username_hash, expected_username_hash);
+    EXPECT_EQ(file_header.vault_header.key_slots[0].username_hash_size, 4u);
+
+    const std::vector<uint8_t> written_ciphertext(file_bytes.begin() + static_cast<std::ptrdiff_t>(data_offset), file_bytes.end());
+    EXPECT_EQ(written_ciphertext, ciphertext);
+}
+
 TEST_F(VaultFileServiceTest, ReadVaultFile_FileNotFound) {
     std::vector<uint8_t> data;
     int iterations;

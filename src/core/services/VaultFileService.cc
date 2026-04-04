@@ -6,6 +6,7 @@
 #include "lib/vaultformat/VaultFormatV2.h"
 #include "lib/storage/VaultIO.h"
 #include "../../utils/Log.h"
+#include "../../utils/SecureMemory.h"
 
 #include <algorithm>
 #include <chrono>
@@ -194,6 +195,45 @@ VaultResult<> VaultFileService::write_vault_file(
 
         return std::unexpected(VaultError::FileWriteError);
     }
+}
+
+VaultResult<> VaultFileService::write_v2_vault(
+    const std::string& path,
+    const VaultHeaderV2& vault_header,
+    uint32_t pbkdf2_iterations,
+    std::span<const uint8_t> data_salt,
+    std::span<const uint8_t> data_iv,
+    const std::vector<uint8_t>& ciphertext,
+    bool enable_header_fec,
+    uint8_t data_fec_redundancy) {
+    if (data_iv.size() != VaultFormatV2::V2FileHeader{}.data_iv.size()) {
+        Log::error("VaultFileService: Invalid V2 data IV size: {}", data_iv.size());
+        return std::unexpected(VaultError::InvalidData);
+    }
+
+    VaultFormatV2::V2FileHeader file_header{};
+    file_header.pbkdf2_iterations = pbkdf2_iterations;
+    file_header.vault_header = vault_header;
+
+    for (auto& slot : file_header.vault_header.key_slots) {
+        secure_clear_std_string(slot.username);
+    }
+
+    std::copy_n(data_salt.begin(), std::min(data_salt.size(), file_header.data_salt.size()), file_header.data_salt.begin());
+    std::copy_n(data_iv.begin(), file_header.data_iv.size(), file_header.data_iv.begin());
+
+    auto header_bytes_result = VaultFormatV2::write_header(
+        file_header,
+        enable_header_fec,
+        data_fec_redundancy);
+    if (!header_bytes_result) {
+        return std::unexpected(header_bytes_result.error());
+    }
+
+    std::vector<uint8_t> file_data = *header_bytes_result;
+    file_data.insert(file_data.end(), ciphertext.begin(), ciphertext.end());
+
+    return write_vault_file(path, file_data, true, 0);
 }
 
 // ============================================================================
