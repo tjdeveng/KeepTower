@@ -246,6 +246,39 @@ std::optional<uint32_t> VaultFileService::detect_vault_version_from_file(
     }
 }
 
+bool VaultFileService::check_vault_requires_yubikey(
+    const std::string& path,
+    std::string& serial) {
+    std::vector<uint8_t> file_data;
+    int unused_iterations = 0;
+
+    auto read_result = read_vault_file(path, file_data, unused_iterations);
+    if (!read_result) {
+        return false;
+    }
+
+    auto parse_result = VaultFormatV2::read_header(file_data);
+    if (!parse_result) {
+        return false;
+    }
+
+    const auto& [header, _data_offset] = *parse_result;
+    const auto& vault_header = header.vault_header;
+
+    if (vault_header.security_policy.require_yubikey) {
+        return true;
+    }
+
+    for (const auto& slot : vault_header.key_slots) {
+        if (slot.active && slot.yubikey_enrolled) {
+            serial = slot.yubikey_serial;
+            return true;
+        }
+    }
+
+    return false;
+}
+
 // ============================================================================
 // Backup Management
 // ============================================================================

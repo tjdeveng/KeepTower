@@ -212,6 +212,20 @@ public:
     [[nodiscard]] static std::optional<uint32_t> detect_vault_version_from_file(
         const std::string& path);
 
+    /**
+     * @brief Check whether a vault requires YubiKey authentication.
+     *
+     * Reads and parses the V2 vault header to determine whether YubiKey is
+     * required by policy or by any active enrolled user slot.
+     *
+     * @param path Absolute path to vault file
+     * @param serial Output parameter for an enrolled YubiKey serial, if present
+     * @return true if YubiKey is required, false otherwise or on error
+     */
+    [[nodiscard]] static bool check_vault_requires_yubikey(
+        const std::string& path,
+        std::string& serial);
+
     // ========================================================================
     // Backup Management
     // ========================================================================

@@ -63,6 +63,35 @@ protected:
         file.write(dummy_data.c_str(), static_cast<std::streamsize>(dummy_data.size()));
     }
 
+    void create_v2_vault_with_header(const fs::path& path,
+                                     bool require_yubikey,
+                                     bool enrolled_slot,
+                                     const std::string& yubikey_serial = "") {
+        KeepTower::VaultFormatV2::V2FileHeader file_header;
+        file_header.pbkdf2_iterations = 100000;
+        file_header.vault_header.security_policy.require_yubikey = require_yubikey;
+
+        if (enrolled_slot) {
+            KeepTower::KeySlot slot;
+            slot.active = true;
+            slot.yubikey_enrolled = true;
+            slot.yubikey_serial = yubikey_serial;
+            file_header.vault_header.key_slots.push_back(slot);
+        }
+
+        auto header_bytes_result = KeepTower::VaultFormatV2::write_header(file_header);
+        ASSERT_TRUE(header_bytes_result.has_value());
+
+        std::ofstream file(path, std::ios::binary | std::ios::trunc);
+        const auto& header_bytes = header_bytes_result.value();
+        file.write(reinterpret_cast<const char*>(header_bytes.data()),
+                   static_cast<std::streamsize>(header_bytes.size()));
+
+        const std::vector<uint8_t> encrypted_data = {0xDE, 0xAD, 0xBE, 0xEF};
+        file.write(reinterpret_cast<const char*>(encrypted_data.data()),
+                   static_cast<std::streamsize>(encrypted_data.size()));
+    }
+
     static std::vector<uint8_t> read_all_bytes(const fs::path& path) {
         std::ifstream file(path, std::ios::binary);
         return std::vector<uint8_t>(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
@@ -268,6 +297,30 @@ TEST_F(VaultFileServiceTest, DetectVaultVersionFromFile_Valid) {
 TEST_F(VaultFileServiceTest, DetectVaultVersionFromFile_FileNotFound) {
     auto version = VaultFileService::detect_vault_version_from_file("/nonexistent/vault.vault");
     EXPECT_FALSE(version.has_value()) << "Should return nullopt for missing file";
+}
+
+TEST_F(VaultFileServiceTest, CheckVaultRequiresYubiKey_PolicyRequired) {
+    create_v2_vault_with_header(test_vault_path, true, false);
+
+    std::string serial;
+    EXPECT_TRUE(VaultFileService::check_vault_requires_yubikey(test_vault_path.string(), serial));
+    EXPECT_TRUE(serial.empty());
+}
+
+TEST_F(VaultFileServiceTest, CheckVaultRequiresYubiKey_ActiveEnrolledSlotReturnsSerial) {
+    create_v2_vault_with_header(test_vault_path, false, true, "YK-123456");
+
+    std::string serial;
+    EXPECT_TRUE(VaultFileService::check_vault_requires_yubikey(test_vault_path.string(), serial));
+    EXPECT_EQ(serial, "YK-123456");
+}
+
+TEST_F(VaultFileServiceTest, CheckVaultRequiresYubiKey_NoRequirement) {
+    create_v2_vault_with_header(test_vault_path, false, false);
+
+    std::string serial;
+    EXPECT_FALSE(VaultFileService::check_vault_requires_yubikey(test_vault_path.string(), serial));
+    EXPECT_TRUE(serial.empty());
 }
 
 // ============================================================================
