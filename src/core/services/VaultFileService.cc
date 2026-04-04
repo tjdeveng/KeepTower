@@ -4,6 +4,7 @@
 
 #include "VaultFileService.h"
 #include "../VaultFormatV2.h"
+#include "lib/storage/VaultIO.h"
 #include "../../utils/Log.h"
 
 #include <algorithm>
@@ -238,186 +239,37 @@ std::optional<uint32_t> VaultFileService::detect_vault_version_from_file(
 VaultResult<std::string> VaultFileService::create_backup(
     std::string_view vault_path,
     std::string_view backup_dir) {
-
-    try {
-        const fs::path vault(vault_path);
-
-        // Check source file exists
-        if (!fs::exists(vault)) {
-            Log::error("VaultFileService: Source vault does not exist: {}", vault_path);
-            return std::unexpected(VaultError::FileNotFound);
-        }
-
-        // Determine backup directory
-        const fs::path backup_path = backup_dir.empty()
-            ? vault.parent_path()
-            : fs::path(backup_dir);
-
-        // Create backup directory if needed
-        if (!backup_path.empty() && !fs::exists(backup_path)) {
-            fs::create_directories(backup_path);
-        }
-
-        // Generate timestamp (ISO 8601 format, safe for filenames)
-        auto now = std::chrono::system_clock::now();
-        auto time_t_now = std::chrono::system_clock::to_time_t(now);
-        std::tm local_time{};
-
-#ifdef _WIN32
-        localtime_s(&local_time, &time_t_now);
-#else
-        localtime_r(&time_t_now, &local_time);
-#endif
-
-        std::ostringstream timestamp;
-        timestamp << std::put_time(&local_time, "%Y-%m-%dT%H-%M-%S");
-
-        // Build backup filename: basename.timestamp.backup
-        const std::string backup_filename =
-            vault.filename().string() + "." + timestamp.str() + ".backup";
-
-        const fs::path backup_file = backup_path / backup_filename;
-
-        // Copy file
-        fs::copy_file(vault, backup_file, fs::copy_options::overwrite_existing);
-
-        Log::info("VaultFileService: Created backup: {}", backup_file.string());
-
-        return backup_file.string();
-
-    } catch (const std::exception& e) {
-        Log::error("VaultFileService: Exception creating backup: {}", e.what());
-        return std::unexpected(VaultError::FileWriteFailed);
+    auto backup_result = VaultIO::create_backup(vault_path, backup_dir);
+    if (!backup_result) {
+        Log::error("VaultFileService: Failed to create backup for: {}", vault_path);
+        return std::unexpected(backup_result.error());
     }
+
+    return backup_result;
 }
 
 VaultResult<> VaultFileService::restore_from_backup(
     std::string_view vault_path,
     std::string_view backup_dir) {
-
-    try {
-        // Find most recent backup
-        auto backups = list_backups(vault_path, backup_dir);
-        if (backups.empty()) {
-            Log::error("VaultFileService: No backups found for: {}", vault_path);
-            return std::unexpected(VaultError::FileNotFound);
-        }
-
-        const fs::path vault(vault_path);
-        const fs::path backup(backups[0]);  // Most recent (list is sorted)
-        const fs::path old_vault = fs::path(vault_path).string() + ".old";
-
-        // Move current vault to .old
-        if (fs::exists(vault)) {
-            fs::rename(vault, old_vault);
-        }
-
-        // Copy backup to vault location
-        try {
-            fs::copy_file(backup, vault, fs::copy_options::overwrite_existing);
-
-            // Success - remove .old file
-            if (fs::exists(old_vault)) {
-                fs::remove(old_vault);
-            }
-
-            Log::info("VaultFileService: Restored from backup: {}", backup.string());
-            return {};
-
-        } catch (const std::exception& e) {
-            // Restore failed - restore .old file
-            if (fs::exists(old_vault)) {
-                fs::rename(old_vault, vault);
-            }
-
-            Log::error("VaultFileService: Failed to restore backup: {}", e.what());
-            return std::unexpected(VaultError::FileWriteError);
-        }
-
-    } catch (const std::exception& e) {
-        Log::error("VaultFileService: Exception restoring backup: {}", e.what());
-        return std::unexpected(VaultError::FileWriteFailed);
-    }
+    return VaultIO::restore_from_backup(vault_path, backup_dir);
 }
 
 std::vector<std::string> VaultFileService::list_backups(
     std::string_view vault_path,
     std::string_view backup_dir) {
-
-    std::vector<std::string> backups;
-
-    try {
-        const fs::path vault(vault_path);
-        const std::string vault_filename = vault.filename().string();
-
-        // Determine backup directory
-        const fs::path search_dir = backup_dir.empty()
-            ? vault.parent_path()
-            : fs::path(backup_dir);
-
-        if (!fs::exists(search_dir)) {
-            return backups;
-        }
-
-        // Scan directory for matching backups
-        for (const auto& entry : fs::directory_iterator(search_dir)) {
-            if (!entry.is_regular_file()) {
-                continue;
-            }
-
-            const std::string filename = entry.path().filename().string();
-
-            // Check if filename matches pattern: vault_name.*.backup
-            const std::string prefix = vault_filename + ".";
-            const std::string suffix = ".backup";
-
-            if (filename.size() > prefix.size() + suffix.size() &&
-                filename.substr(0, prefix.size()) == prefix &&
-                filename.substr(filename.size() - suffix.size()) == suffix) {
-
-                backups.push_back(entry.path().string());
-            }
-        }
-
-        // Sort by filename (timestamp is in filename, so lexicographic sort works)
-        std::sort(backups.begin(), backups.end(), std::greater<>());  // Newest first
-
-    } catch (const std::exception& e) {
-        Log::warning("VaultFileService: Exception listing backups: {}", e.what());
-    }
-
-    return backups;
+    return VaultIO::list_backups(vault_path, backup_dir);
 }
 
 void VaultFileService::cleanup_old_backups(
     std::string_view vault_path,
     int max_backups,
     std::string_view backup_dir) {
-
     if (max_backups <= 0) {
         Log::warning("VaultFileService: Invalid max_backups: {}", max_backups);
         return;
     }
 
-    try {
-        auto backups = list_backups(vault_path, backup_dir);
-
-        // Delete backups beyond max_backups limit
-        if (backups.size() > static_cast<size_t>(max_backups)) {
-            for (size_t i = static_cast<size_t>(max_backups); i < backups.size(); ++i) {
-                try {
-                    fs::remove(backups[i]);
-                    Log::debug("VaultFileService: Deleted old backup: {}", backups[i]);
-                } catch (const std::exception& e) {
-                    Log::warning("VaultFileService: Failed to delete backup {}: {}",
-                               backups[i], e.what());
-                }
-            }
-        }
-
-    } catch (const std::exception& e) {
-        Log::warning("VaultFileService: Exception during backup cleanup: {}", e.what());
-    }
+    VaultIO::cleanup_old_backups(vault_path, max_backups, backup_dir);
 }
 
 // ============================================================================

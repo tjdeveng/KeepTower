@@ -859,7 +859,7 @@ vault_file_service_sources = [
     '../src/core/MultiUserTypesSerDe.cc',
     '../src/core/PasswordHistory.cc'
 ]
-vault_file_service_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep]
+vault_file_service_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep, storage_dep]
 
 vault_file_service_test = executable(
     'vault_file_service_test',
@@ -887,7 +887,7 @@ vault_creation_orchestrator_sources = [
     '../src/core/PasswordHistory.cc',
     proto_gen
 ]
-vault_creation_orchestrator_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, yubikey_dep, argon2_dep]
+vault_creation_orchestrator_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, yubikey_dep, argon2_dep, storage_dep]
 
 # TODO: Fix corrupted test file
 # vault_creation_orchestrator_test = executable(

@@ -28,6 +28,24 @@
 
 namespace KeepTower {
 
+namespace {
+
+bool is_service_style_backup_name(const std::string& vault_filename, const std::string& filename) {
+    const std::string prefix = vault_filename + ".";
+    const std::string suffix = ".backup";
+
+    return filename.size() > prefix.size() + suffix.size() &&
+           filename.starts_with(prefix) &&
+           filename.ends_with(suffix);
+}
+
+bool is_legacy_style_backup_name(const std::string& vault_filename, const std::string& filename) {
+    const std::string prefix = vault_filename + ".backup.";
+    return filename.starts_with(prefix);
+}
+
+}  // namespace
+
 bool VaultIO::read_file(
     const std::string& path,
     std::vector<uint8_t>& data,
@@ -255,17 +273,17 @@ bool VaultIO::write_file(
     }
 }
 
-VaultResult<> VaultIO::create_backup(std::string_view path, std::string_view backup_dir) {
+VaultResult<std::string> VaultIO::create_backup(std::string_view path, std::string_view backup_dir) {
     namespace fs = std::filesystem;
     std::string path_str(path);
     std::string backup_dir_str(backup_dir);
 
     try {
         if (!fs::exists(path_str)) {
-            return {};  // No file to backup
+            return std::unexpected(VaultError::FileNotFound);
         }
 
-        // Generate timestamp: YYYYmmdd_HHMMSS_milliseconds
+        // Generate timestamp using the legacy storage naming convention.
         auto now = std::chrono::system_clock::now();
         auto time = std::chrono::system_clock::to_time_t(now);
         auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -277,7 +295,7 @@ VaultResult<> VaultIO::create_backup(std::string_view path, std::string_view bac
         // Determine backup location
         fs::path vault_path(path_str);
         std::string backup_filename = vault_path.filename().string() + ".backup." + timestamp.str();
-        std::string backup_path;
+        fs::path backup_path;
 
         if (backup_dir_str.empty()) {
             // Store in same directory as vault
@@ -292,26 +310,25 @@ VaultResult<> VaultIO::create_backup(std::string_view path, std::string_view bac
                 Log::info("Created backup directory: {}", backup_dir_str);
             }
 
-            backup_path = (backup_directory / backup_filename).string();
+            backup_path = backup_directory / backup_filename;
         }
 
         fs::copy_file(path_str, backup_path, fs::copy_options::overwrite_existing);
-        Log::info("Created backup: {}", backup_path);
+        Log::info("Created backup: {}", backup_path.string());
 
-        return {};
+        return backup_path.string();
     } catch (const fs::filesystem_error& e) {
         Log::warning("Failed to create backup: {}", e.what());
-        // Don't fail the operation if backup fails
-        return {};
+        return std::unexpected(VaultError::FileWriteFailed);
     }
 }
 
-VaultResult<> VaultIO::restore_from_backup(std::string_view path) {
+VaultResult<> VaultIO::restore_from_backup(std::string_view path, std::string_view backup_dir) {
     namespace fs = std::filesystem;
     std::string path_str(path);
 
     // Get all backups and restore from the most recent
-    auto backups = list_backups(path);
+    auto backups = list_backups(path, backup_dir);
 
     try {
         if (backups.empty()) {
@@ -345,8 +362,6 @@ std::vector<std::string> VaultIO::list_backups(std::string_view path, std::strin
     fs::path vault_path(path_str);
     std::string vault_filename = vault_path.filename().string();
     std::string backup_dir_str(backup_dir);
-    std::string backup_pattern = vault_filename + ".backup.";
-
     try {
         // Determine search directory
         fs::path search_dir;
@@ -369,7 +384,8 @@ std::vector<std::string> VaultIO::list_backups(std::string_view path, std::strin
             }
 
             std::string filename = entry.path().filename().string();
-            if (filename.starts_with(backup_pattern)) {
+            if (is_legacy_style_backup_name(vault_filename, filename) ||
+                is_service_style_backup_name(vault_filename, filename)) {
                 backups.push_back(entry.path().string());
             }
         }

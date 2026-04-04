@@ -157,16 +157,16 @@ public:
      * @brief Create a timestamped backup of a vault file
      *
         * Creates a backup with format: `path.backup.timestamp`
-     * Timestamp format: YYYYmmdd_HHMMSS_milliseconds
+    * Timestamp format: YYYYmmdd_HHMMSS_milliseconds
      *
      * @param path Path to the vault file to backup
      * @param backup_dir Optional custom backup directory (empty=same as vault)
-     * @return VaultResult<> indicating success or error
+    * @return VaultResult<std::string> containing the created backup path on success
      *
      * @throws No exceptions (catches filesystem errors)
      *
-     * @note Non-fatal operation - returns success even if source file doesn't exist
-     * @note Overwrites existing backup with same timestamp (unlikely but possible)
+    * @note Returns FileNotFound if the source vault does not exist
+    * @note Overwrites existing backup with same timestamp (unlikely but possible)
      * @note If backup_dir specified, creates directory if it doesn't exist
      *
      * @par Example:
@@ -177,7 +177,7 @@ public:
      * }
      * @endcode
      */
-    [[nodiscard]] static VaultResult<> create_backup(std::string_view path, std::string_view backup_dir = "");
+    [[nodiscard]] static VaultResult<std::string> create_backup(std::string_view path, std::string_view backup_dir = "");
 
     /**
      * @brief Restore vault from most recent backup
@@ -186,7 +186,8 @@ public:
      * over the current vault file. Falls back to legacy .backup format if no
      * timestamped backups exist.
      *
-     * @param path Path to the vault file to restore
+    * @param path Path to the vault file to restore
+    * @param backup_dir Optional custom backup directory (empty=same as vault)
      * @return VaultResult<> indicating success or FileNotFound/FileReadFailed
      *
      * @throws No exceptions (catches filesystem errors)
@@ -201,12 +202,12 @@ public:
      * }
      * @endcode
      */
-    [[nodiscard]] static VaultResult<> restore_from_backup(std::string_view path);
+    [[nodiscard]] static VaultResult<> restore_from_backup(std::string_view path, std::string_view backup_dir = "");
 
     /**
      * @brief List all backup files for a vault, sorted newest first
      *
-        * Searches for files matching the pattern: `path.backup.*`
+        * Searches for files matching either `path.backup.*` or `basename.*.backup`
      * Returns paths sorted by timestamp (newest first).
      *
      * @param path Path to the vault file

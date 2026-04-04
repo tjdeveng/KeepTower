@@ -7,8 +7,6 @@
 #include "record.pb.h"
 #include "utils/Log.h"
 
-#include <filesystem>
-
 namespace KeepTower {
 
 VaultBackupPolicy::VaultBackupPolicy(bool enabled, int max_backups, std::string backup_path)
@@ -85,23 +83,13 @@ void VaultBackupPolicy::maybe_create_backup(std::string_view vault_path, bool ex
 }
 
 VaultResult<> VaultBackupPolicy::restore_from_most_recent_backup(std::string_view vault_path) const {
-    namespace fs = std::filesystem;
-
-    auto backups = VaultIO::list_backups(vault_path, m_backup_path);
-    if (backups.empty()) {
-        Log::error("VaultBackupPolicy: No backups found for vault");
-        return std::unexpected(VaultError::FileNotFound);
+    auto restore_result = VaultIO::restore_from_backup(vault_path, m_backup_path);
+    if (!restore_result) {
+        Log::error("VaultBackupPolicy: Failed to restore backup for vault");
+        return std::unexpected(restore_result.error());
     }
 
-    try {
-        const std::string& most_recent_backup = backups[0];
-        fs::copy_file(most_recent_backup, std::string(vault_path), fs::copy_options::overwrite_existing);
-        Log::info("VaultBackupPolicy: Restored vault from backup: {}", most_recent_backup);
-        return {};
-    } catch (const fs::filesystem_error& e) {
-        Log::error("VaultBackupPolicy: Failed to restore from backup: {}", e.what());
-        return std::unexpected(VaultError::FileReadFailed);
-    }
+    return {};
 }
 
 }  // namespace KeepTower
