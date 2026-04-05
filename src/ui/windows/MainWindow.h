@@ -204,6 +204,9 @@ protected:
     /** @brief Configure menu actions, role actions, and keyboard shortcuts. */
     void setup_window_actions();
 
+    /** @brief Connect controller/manager signal callbacks used by MainWindow. */
+    void setup_controller_signal_wiring();
+
     /** @brief True when the UI currently has an open vault session. */
     [[nodiscard]] bool has_open_vault() const noexcept;
 

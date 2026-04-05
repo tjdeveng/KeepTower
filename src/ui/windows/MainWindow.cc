@@ -389,27 +389,7 @@ MainWindow::MainWindow()
     );
 
     setup_window_actions();
-
-    // Connect AutoLockManager signals
-    m_auto_lock_manager->signal_auto_lock_triggered().connect(
-        [this]() {
-            on_auto_lock_timeout();  // Returns bool but signal is void
-        });
-
-    // Connect ClipboardManager signals
-    m_clipboard_manager->signal_copied().connect(
-        [this]() {
-            // Update status to show password copied (don't show the password itself)
-            m_status_label.set_text("Password copied to clipboard");
-        });
-
-    m_clipboard_manager->signal_cleared().connect(
-        [this]() {
-            // Update status when clipboard is cleared
-            if (m_vault_ui_coordinator && m_vault_ui_coordinator->vault_open()) {
-                m_status_label.set_text("Clipboard cleared");
-            }
-        });
+    setup_controller_signal_wiring();
 
     // Load and apply sort direction from settings
     {
@@ -686,6 +666,29 @@ void MainWindow::setup_window_actions() {
 
     // Setup keyboard shortcuts via MenuManager
     m_menu_manager->setup_keyboard_shortcuts(get_application());
+}
+
+void MainWindow::setup_controller_signal_wiring() {
+    // Connect AutoLockManager signals
+    m_auto_lock_manager->signal_auto_lock_triggered().connect(
+        [this]() {
+            on_auto_lock_timeout();  // Returns bool but signal is void
+        });
+
+    // Connect ClipboardManager signals
+    m_clipboard_manager->signal_copied().connect(
+        [this]() {
+            // Update status to show password copied (don't show the password itself)
+            m_status_label.set_text("Password copied to clipboard");
+        });
+
+    m_clipboard_manager->signal_cleared().connect(
+        [this]() {
+            // Update status when clipboard is cleared
+            if (m_vault_ui_coordinator && m_vault_ui_coordinator->vault_open()) {
+                m_status_label.set_text("Clipboard cleared");
+            }
+        });
 }
 
 MainWindow::~MainWindow() {
