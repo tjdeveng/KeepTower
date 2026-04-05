@@ -429,81 +429,8 @@ MainWindow::MainWindow()
 
     setup_primary_widget_signal_wiring();
 
-    // Connect AccountTreeWidget signals to MainWindow handlers
-    if (m_account_tree_widget) {
-        m_signal_connections.push_back(
-            m_account_tree_widget->signal_account_selected().connect(
-                [this](const std::string& account_id) {
-                    if (m_account_selection_coordinator) {
-                        m_account_selection_coordinator->handle_account_selected(
-                            account_id,
-                            has_open_vault());
-                    }
-                }
-            )
-        );
+    setup_account_tree_signal_wiring();
 
-        m_signal_connections.push_back(
-            m_account_tree_widget->signal_group_selected().connect(
-                [this](const std::string& group_id) {
-                    filter_accounts_by_group(group_id);
-                }
-            )
-        );
-
-        m_signal_connections.push_back(
-            m_account_tree_widget->signal_favorite_toggled().connect(
-                [this](const std::string& account_id) {
-                    int idx = find_account_index_by_id(account_id);
-                    if (idx >= 0) {
-                        on_favorite_toggled(idx);
-                    }
-                }
-            )
-        );
-
-        m_signal_connections.push_back(
-            m_account_tree_widget->signal_account_right_click().connect(
-                [this](const std::string& account_id, Gtk::Widget* widget, double x, double y) {
-                    if (m_account_tree_interaction_coordinator) {
-                        m_account_tree_interaction_coordinator->show_account_context_menu(account_id, widget, x, y);
-                    }
-                }
-            )
-        );
-
-        m_signal_connections.push_back(
-            m_account_tree_widget->signal_group_right_click().connect(
-                [this](const std::string& group_id, Gtk::Widget* widget, double x, double y) {
-                    if (m_account_tree_interaction_coordinator) {
-                        m_account_tree_interaction_coordinator->show_group_context_menu(group_id, widget, x, y);
-                    }
-                }
-            )
-        );
-
-        m_signal_connections.push_back(
-            m_account_tree_widget->signal_account_reordered().connect(
-                [this](const std::string& account_id, const std::string& target_group_id, int new_index) {
-                    if (m_account_tree_interaction_coordinator) {
-                        m_account_tree_interaction_coordinator->handle_account_reordered(
-                            account_id,
-                            target_group_id,
-                            new_index);
-                    }
-                }
-            )
-        );
-        m_signal_connections.push_back(
-            m_account_tree_widget->signal_group_reordered().connect(
-                [this](const std::string& group_id, int new_index) {
-                    if (m_account_tree_interaction_coordinator) {
-                        m_account_tree_interaction_coordinator->handle_group_reordered(group_id, new_index);
-                    }
-                }
-            )
-        );
-    }
         // [REMOVED] Legacy TreeView star column click logic (migrated to AccountTreeWidget)
 
     // Phase 5k: Setup activity monitoring for auto-lock via AutoLockHandler
@@ -681,6 +608,85 @@ void MainWindow::setup_primary_widget_signal_wiring() {
     m_signal_connections.push_back(
         m_sort_button.signal_clicked().connect(
             sigc::mem_fun(*this, &MainWindow::on_sort_button_clicked)
+        )
+    );
+}
+
+void MainWindow::setup_account_tree_signal_wiring() {
+    if (!m_account_tree_widget) {
+        return;
+    }
+
+    m_signal_connections.push_back(
+        m_account_tree_widget->signal_account_selected().connect(
+            [this](const std::string& account_id) {
+                if (m_account_selection_coordinator) {
+                    m_account_selection_coordinator->handle_account_selected(
+                        account_id,
+                        has_open_vault());
+                }
+            }
+        )
+    );
+
+    m_signal_connections.push_back(
+        m_account_tree_widget->signal_group_selected().connect(
+            [this](const std::string& group_id) {
+                filter_accounts_by_group(group_id);
+            }
+        )
+    );
+
+    m_signal_connections.push_back(
+        m_account_tree_widget->signal_favorite_toggled().connect(
+            [this](const std::string& account_id) {
+                int idx = find_account_index_by_id(account_id);
+                if (idx >= 0) {
+                    on_favorite_toggled(idx);
+                }
+            }
+        )
+    );
+
+    m_signal_connections.push_back(
+        m_account_tree_widget->signal_account_right_click().connect(
+            [this](const std::string& account_id, Gtk::Widget* widget, double x, double y) {
+                if (m_account_tree_interaction_coordinator) {
+                    m_account_tree_interaction_coordinator->show_account_context_menu(account_id, widget, x, y);
+                }
+            }
+        )
+    );
+
+    m_signal_connections.push_back(
+        m_account_tree_widget->signal_group_right_click().connect(
+            [this](const std::string& group_id, Gtk::Widget* widget, double x, double y) {
+                if (m_account_tree_interaction_coordinator) {
+                    m_account_tree_interaction_coordinator->show_group_context_menu(group_id, widget, x, y);
+                }
+            }
+        )
+    );
+
+    m_signal_connections.push_back(
+        m_account_tree_widget->signal_account_reordered().connect(
+            [this](const std::string& account_id, const std::string& target_group_id, int new_index) {
+                if (m_account_tree_interaction_coordinator) {
+                    m_account_tree_interaction_coordinator->handle_account_reordered(
+                        account_id,
+                        target_group_id,
+                        new_index);
+                }
+            }
+        )
+    );
+    m_signal_connections.push_back(
+        m_account_tree_widget->signal_group_reordered().connect(
+            [this](const std::string& group_id, int new_index) {
+                if (m_account_tree_interaction_coordinator) {
+                    m_account_tree_interaction_coordinator->handle_group_reordered(group_id, new_index);
+                }
+            }
         )
     );
 }

@@ -216,6 +216,9 @@ protected:
     /** @brief Connect top-level window widget signals owned directly by MainWindow. */
     void setup_primary_widget_signal_wiring();
 
+    /** @brief Connect AccountTreeWidget signals owned by MainWindow. */
+    void setup_account_tree_signal_wiring();
+
     /** @brief Initialize status label presentation and default button sensitivity. */
     void setup_initial_widget_state();
 
