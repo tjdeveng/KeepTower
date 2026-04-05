@@ -50,13 +50,13 @@ vault_manager_common_sources = [
     # Phase 2 Day 5: Add orchestrator and services
     '../src/core/controllers/VaultCreationOrchestrator.cc',
     '../src/lib/crypto/VaultCryptoService.cc',
+    '../src/lib/crypto/UsernameHashService.cc',
     '../src/core/services/KeySlotManager.cc',
     '../src/core/services/VaultYubiKeyService.cc',
     '../src/core/services/VaultFileService.cc',
     '../src/core/services/VaultDataService.cc',
     '../src/core/services/V2AuthService.cc',
     '../src/lib/backup/VaultBackupPolicy.cc',
-    '../src/core/services/UsernameHashService.cc',  # Username hashing service
     '../src/core/services/KekDerivationService.cc',  # KEK derivation service (Phase 3)
     proto_gen
 ]
@@ -470,12 +470,12 @@ yubikey_manager_characterization_test = executable(
 # Username Hashing tests (Phase 1: Core Hashing Infrastructure)
 username_hashing_sources = [
     'test_username_hashing.cc',
-    '../src/core/services/UsernameHashService.cc',
 ]
 
 username_hashing_deps = [
     gtest_dep,
-    openssl_dep
+    openssl_dep,
+    crypto_dep
 ]
 
 # Add argon2 if available
@@ -836,7 +836,6 @@ v2_auth_service_sources = [
     'test_v2_auth_service.cc',
     '../src/core/services/V2AuthService.cc',
     '../src/core/services/KeySlotManager.cc',
-    '../src/core/services/UsernameHashService.cc',
     '../src/core/services/KekDerivationService.cc',
     '../src/lib/crypto/VaultCrypto.cc',
     '../src/lib/crypto/KeyWrapping.cc',
@@ -878,10 +877,10 @@ test('VaultFileService Unit Tests', vault_file_service_test)
 vault_creation_orchestrator_sources = [
     '../src/core/controllers/VaultCreationOrchestrator.cc',
     '../src/lib/crypto/VaultCryptoService.cc',
+    '../src/lib/crypto/UsernameHashService.cc',
     '../src/core/services/VaultYubiKeyService.cc',
     '../src/core/services/VaultFileService.cc',
     '../src/core/services/VaultDataService.cc',
-    '../src/core/services/UsernameHashService.cc',
     '../src/core/services/KekDerivationService.cc',  # KEK derivation service (Phase 3)
     '../src/lib/crypto/KeyWrapping.cc',
     '../src/lib/crypto/VaultCrypto.cc',

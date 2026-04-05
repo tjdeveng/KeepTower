@@ -4,7 +4,7 @@
 #include "KeySlotManager.h"
 
 #include "../PasswordHistory.h"
-#include "UsernameHashService.h"
+#include "lib/crypto/UsernameHashService.h"
 #include "../../utils/Log.h"
 
 #include <optional>

@@ -17,7 +17,7 @@
  */
 
 #include <gtest/gtest.h>
-#include "core/services/UsernameHashService.h"
+#include "lib/crypto/UsernameHashService.h"
 #include <array>
 #include <random>
 

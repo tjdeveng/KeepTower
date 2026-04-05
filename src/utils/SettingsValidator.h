@@ -8,7 +8,7 @@
 #include <string>
 #include <string_view>
 #include <giomm/settings.h>
-#include "../core/services/UsernameHashService.h"
+#include "../lib/crypto/UsernameHashService.h"
 
 /**
  * @brief Validates and enforces security constraints on GSettings values

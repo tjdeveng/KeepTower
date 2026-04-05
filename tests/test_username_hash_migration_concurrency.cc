@@ -15,7 +15,7 @@
 
 #include "../src/core/VaultManager.h"
 #include "../src/core/MultiUserTypes.h"
-#include "../src/core/services/UsernameHashService.h"
+#include "../src/lib/crypto/UsernameHashService.h"
 #include "../src/lib/crypto/VaultCrypto.h"
 #include "../src/lib/storage/VaultIO.h"
 #include "../src/lib/vaultformat/VaultFormatV2.h"

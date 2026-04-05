@@ -27,7 +27,7 @@
 
 #pragma once
 
-#include "../VaultError.h"
+#include "core/VaultError.h"
 #include <array>
 #include <cstdint>
 #include <expected>
@@ -168,11 +168,11 @@ public:
             case Algorithm::SHA3_256:
             case Algorithm::PBKDF2_SHA256:
             case Algorithm::ARGON2ID:
-                return 32;  // 256 bits
+                return 32;
             case Algorithm::SHA3_384:
-                return 48;  // 384 bits
+                return 48;
             case Algorithm::SHA3_512:
-                return 64;  // 512 bits
+                return 64;
             default:
                 return 0;
         }
@@ -227,74 +227,30 @@ public:
     }
 
 private:
-    // ========================================================================
-    // Private Implementation Methods (One Per Algorithm)
-    // ========================================================================
-
-    /**
-     * @brief Hash username using SHA3-256
-     * @param username Plaintext username
-     * @param salt 16-byte salt
-     * @return 32-byte hash or error
-     */
     [[nodiscard]] static std::expected<std::vector<uint8_t>, VaultError>
     hash_sha3_256(std::string_view username,
                   std::span<const uint8_t, 16> salt);
 
-    /**
-     * @brief Hash username using SHA3-384
-     * @param username Plaintext username
-     * @param salt 16-byte salt
-     * @return 48-byte hash or error
-     */
     [[nodiscard]] static std::expected<std::vector<uint8_t>, VaultError>
     hash_sha3_384(std::string_view username,
                   std::span<const uint8_t, 16> salt);
 
-    /**
-     * @brief Hash username using SHA3-512
-     * @param username Plaintext username
-     * @param salt 16-byte salt
-     * @return 64-byte hash or error
-     */
     [[nodiscard]] static std::expected<std::vector<uint8_t>, VaultError>
     hash_sha3_512(std::string_view username,
                   std::span<const uint8_t, 16> salt);
 
-    /**
-     * @brief Hash username using PBKDF2-HMAC-SHA256
-     * @param username Plaintext username
-     * @param salt 16-byte salt
-     * @param iterations Iteration count (default: 10000)
-     * @return 32-byte hash or error
-     */
     [[nodiscard]] static std::expected<std::vector<uint8_t>, VaultError>
     hash_pbkdf2_sha256(std::string_view username,
                        std::span<const uint8_t, 16> salt,
                        uint32_t iterations);
 
 #ifdef ENABLE_ARGON2
-    /**
-     * @brief Hash username using Argon2id
-     * @param username Plaintext username
-     * @param salt 16-byte salt
-     * @param iterations Time cost (default: 3)
-     * @return 32-byte hash or error
-     * @note Only available if ENABLE_ARGON2 build flag is set
-     * @note Returns error in FIPS mode
-     */
     [[nodiscard]] static std::expected<std::vector<uint8_t>, VaultError>
     hash_argon2id(std::string_view username,
                   std::span<const uint8_t, 16> salt,
                   uint32_t iterations);
-#endif  // ENABLE_ARGON2
+#endif
 
-    /**
-     * @brief Constant-time memory comparison (timing-attack resistant)
-     * @param a First buffer
-     * @param b Second buffer
-     * @return true if buffers are equal, false otherwise
-     */
     [[nodiscard]] static bool
     constant_time_compare(std::span<const uint8_t> a,
                           std::span<const uint8_t> b) noexcept;

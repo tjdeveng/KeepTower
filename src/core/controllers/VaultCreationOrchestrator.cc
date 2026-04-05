@@ -7,7 +7,7 @@
 #include "../services/VaultYubiKeyService.h"
 #include "../services/VaultFileService.h"
 #include "../services/VaultDataService.h"
-#include "../services/UsernameHashService.h"
+#include "lib/crypto/UsernameHashService.h"
 #include "../services/KekDerivationService.h"
 #include "lib/crypto/KeyWrapping.h"
 #include "../PasswordHistory.h"

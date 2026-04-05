@@ -176,6 +176,7 @@ meson.override_dependency('keeptower-fips', fips_dep)
 # Phase D.3: Extract crypto primitives/services into dedicated library target.
 crypto_library_sources = files(
   'lib/crypto/KeyWrapping.cc',
+  'lib/crypto/UsernameHashService.cc',
   'lib/crypto/VaultCrypto.cc',
   'lib/crypto/VaultCryptoService.cc',
 )
@@ -183,7 +184,7 @@ crypto_library_sources = files(
 crypto_library = static_library(
   'keeptower-crypto',
   crypto_library_sources,
-  dependencies: [openssl_dep, gtkmm_dep],
+  dependencies: [openssl_dep, gtkmm_dep, argon2_dep],
   include_directories: [root_inc, include_directories('.'), include_directories('core')],
 )
 
@@ -269,7 +270,6 @@ sources = files(
   'core/services/VaultFileService.cc',
   'core/services/VaultDataService.cc',
   'core/services/V2AuthService.cc',
-  'core/services/UsernameHashService.cc',
   'core/services/KekDerivationService.cc',
   'core/controllers/VaultCreationOrchestrator.cc',
   'core/MultiUserTypes.cc',

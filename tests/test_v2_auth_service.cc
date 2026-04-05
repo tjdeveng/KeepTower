@@ -4,7 +4,7 @@
 #include <gtest/gtest.h>
 
 #include "../src/core/services/V2AuthService.h"
-#include "../src/core/services/UsernameHashService.h"
+#include "../src/lib/crypto/UsernameHashService.h"
 #include "../src/lib/crypto/VaultCrypto.h"
 #include "../src/lib/crypto/KeyWrapping.h"
 
