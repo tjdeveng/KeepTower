@@ -201,6 +201,23 @@ protected:
      *  @param message Error message to display */
     void show_error_dialog(const Glib::ustring& message);
 
+    /** @brief True when the UI currently has an open vault session. */
+    [[nodiscard]] bool has_open_vault() const noexcept;
+
+    /** @brief True when a selected account is available for the current open vault. */
+    [[nodiscard]] bool has_selected_account() const noexcept;
+
+    /** @brief Enforce an open-vault precondition, reporting through the status label. */
+    [[nodiscard]] bool require_open_vault_status(std::string_view message);
+
+    /** @brief Enforce an open-vault precondition, reporting through an error dialog. */
+    [[nodiscard]] bool require_open_vault_error(const Glib::ustring& message);
+
+    /** @brief Enforce an open-vault precondition, reporting through an alert dialog. */
+    [[nodiscard]] bool require_open_vault_alert(
+        const Glib::ustring& title,
+        const Glib::ustring& detail);
+
     /** @brief Validate field length against maximum
      *  @param field_name Name of field for error message
      *  @param value Field value to validate

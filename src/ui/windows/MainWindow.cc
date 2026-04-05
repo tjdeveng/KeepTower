@@ -707,9 +707,50 @@ void MainWindow::on_close_vault() {
     }
 }
 
+bool MainWindow::has_open_vault() const noexcept {
+    return m_vault_ui_coordinator && m_vault_ui_coordinator->vault_open();
+}
+
+bool MainWindow::has_selected_account() const noexcept {
+    return has_open_vault() && m_selected_account_index >= 0;
+}
+
+bool MainWindow::require_open_vault_status(std::string_view message) {
+    if (has_open_vault()) {
+        return true;
+    }
+
+    if (!message.empty()) {
+        m_status_label.set_text(std::string(message));
+    }
+    return false;
+}
+
+bool MainWindow::require_open_vault_error(const Glib::ustring& message) {
+    if (has_open_vault()) {
+        return true;
+    }
+
+    show_error_dialog(message);
+    return false;
+}
+
+bool MainWindow::require_open_vault_alert(
+    const Glib::ustring& title,
+    const Glib::ustring& detail) {
+    if (has_open_vault()) {
+        return true;
+    }
+
+    auto dialog = Gtk::AlertDialog::create(title);
+    dialog->set_detail(detail);
+    dialog->set_buttons({"OK"});
+    dialog->choose(*this, {});
+    return false;
+}
+
 void MainWindow::on_add_account() {
-    if (!m_vault_ui_coordinator || !m_vault_ui_coordinator->vault_open()) {
-        m_status_label.set_text("Please open or create a vault first");
+    if (!require_open_vault_status("Please open or create a vault first")) {
         return;
     }
 
@@ -757,7 +798,7 @@ void MainWindow::on_star_column_clicked(const Gtk::TreeModel::Path& /*path*/) {
 }
 
 void MainWindow::on_favorite_toggled(int account_index) {
-    if (!m_vault_ui_coordinator || !m_vault_ui_coordinator->vault_open()) {
+    if (!has_open_vault()) {
         return;
     }
 
@@ -896,7 +937,7 @@ void MainWindow::display_account_details(int index) {
  */
 bool MainWindow::save_current_account() {
     // Only save if we have a valid account selected
-    if (m_selected_account_index < 0 || !m_vault_ui_coordinator || !m_vault_ui_coordinator->vault_open()) {
+    if (!has_selected_account()) {
         return true;  // Nothing to save, allow continue
     }
 
@@ -1294,7 +1335,7 @@ void MainWindow::on_preferences() {
 }
 
 void MainWindow::on_delete_account() {
-    if (!m_vault_ui_coordinator || !m_vault_ui_coordinator->vault_open()) {
+    if (!has_open_vault()) {
         return;
     }
 
@@ -1306,8 +1347,7 @@ void MainWindow::on_delete_account() {
 }
 
 void MainWindow::on_import_from_csv() {
-    if (!m_vault_ui_coordinator || !m_vault_ui_coordinator->vault_open()) {
-        show_error_dialog("Please open a vault first before importing accounts.");
+    if (!require_open_vault_error("Please open a vault first before importing accounts.")) {
         return;
     }
 
@@ -1319,8 +1359,7 @@ void MainWindow::on_import_from_csv() {
 }
 
 void MainWindow::on_export_to_csv() {
-    if (!m_vault_ui_coordinator || !m_vault_ui_coordinator->vault_open()) {
-        show_error_dialog("Please open a vault first before exporting accounts.");
+    if (!require_open_vault_error("Please open a vault first before exporting accounts.")) {
         return;
     }
 
@@ -1333,7 +1372,7 @@ void MainWindow::on_export_to_csv() {
 
 
 void MainWindow::on_generate_password() {
-    if (!m_vault_ui_coordinator || !m_vault_ui_coordinator->vault_open() || m_selected_account_index < 0) {
+    if (!has_selected_account()) {
         return;
     }
 
@@ -1374,12 +1413,7 @@ void MainWindow::on_test_yubikey() {
 
 #ifdef HAVE_YUBIKEY_SUPPORT
 void MainWindow::on_manage_yubikeys() {
-    // Check if vault is open first
-    if (!m_vault_ui_coordinator || !m_vault_ui_coordinator->vault_open()) {
-        auto dialog = Gtk::AlertDialog::create("No Vault Open");
-        dialog->set_detail("Please open a vault first.");
-        dialog->set_buttons({"OK"});
-        dialog->choose(*this, {});
+    if (!require_open_vault_alert("No Vault Open", "Please open a vault first.")) {
         return;
     }
 
@@ -1389,7 +1423,7 @@ void MainWindow::on_manage_yubikeys() {
 #endif
 
 void MainWindow::on_undo() {
-    if (!m_vault_ui_coordinator || !m_vault_ui_coordinator->vault_open()) {
+    if (!has_open_vault()) {
         return;
     }
 
@@ -1402,7 +1436,7 @@ void MainWindow::on_undo() {
 }
 
 void MainWindow::on_redo() {
-    if (!m_vault_ui_coordinator || !m_vault_ui_coordinator->vault_open()) {
+    if (!has_open_vault()) {
         return;
     }
 
@@ -1475,7 +1509,7 @@ bool MainWindow::is_undo_redo_enabled() const {
  * @note Does nothing if vault is not open
  */
 void MainWindow::on_create_group() {
-    if (!m_vault_ui_coordinator || !m_vault_ui_coordinator->vault_open()) {
+    if (!has_open_vault()) {
         return;
     }
 
@@ -1500,7 +1534,7 @@ void MainWindow::on_create_group() {
  * @note Does nothing if vault is not open or group_id is empty
  */
 void MainWindow::on_rename_group(const std::string& group_id, const Glib::ustring& current_name) {
-    if (!m_vault_ui_coordinator || !m_vault_ui_coordinator->vault_open() || group_id.empty()) {
+    if (!has_open_vault() || group_id.empty()) {
         return;
     }
 
@@ -1509,7 +1543,7 @@ void MainWindow::on_rename_group(const std::string& group_id, const Glib::ustrin
 }
 
 void MainWindow::on_delete_group(const std::string& group_id) {
-    if (!m_vault_ui_coordinator || !m_vault_ui_coordinator->vault_open() || group_id.empty()) {
+    if (!has_open_vault() || group_id.empty()) {
         return;
     }
 
