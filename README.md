@@ -55,7 +55,7 @@ A secure, modern password manager built with C++23 and GTK4.
   - All algorithms FIPS-approved (AES-256-GCM, PBKDF2-HMAC-SHA256, SHA-256)
   - User-configurable in Preferences → Security
   - **Note:** KeepTower uses FIPS-validated modules but is not itself FIPS-certified
-  - See [FIPS_COMPLIANCE.md](FIPS_COMPLIANCE.md) for details
+  - See [docs/developer/FIPS_COMPLIANCE.md](docs/developer/FIPS_COMPLIANCE.md) for details
 - Secure memory clearing prevents data remnants
 - Memory locking prevents swap file exposure
 - Clipboard auto-clear (30 seconds)
@@ -63,7 +63,7 @@ A secure, modern password manager built with C++23 and GTK4.
 - Optional YubiKey hardware 2FA for vault encryption
 - Backward-compatible vault format with versioning
 - Reed-Solomon error correction protects against bit rot and corruption
-- Comprehensive unit test suite (103 tests)
+- Comprehensive automated test suite with focused regression coverage
 
 ## Building
 
@@ -72,7 +72,7 @@ A secure, modern password manager built with C++23 and GTK4.
 - C++23 compatible compiler (GCC 13+ or Clang 16+)
 - GTKmm 4.0 (>= 4.10) - Available in Ubuntu 24.04+, Fedora 39+
 - **OpenSSL 3.5.0 or higher** (required for FIPS-140-3 support)
-  - See [FIPS_SETUP_GUIDE.md](FIPS_SETUP_GUIDE.md) for FIPS configuration
+  - See [docs/developer/FIPS_SETUP_GUIDE.md](docs/developer/FIPS_SETUP_GUIDE.md) for FIPS configuration
 - Protocol Buffers (>= 3.0)
 - libcorrect (for Reed-Solomon error correction)
   - Fedora: `dnf install libcorrect-devel`
@@ -127,7 +127,6 @@ meson install -C build
 
 ## Usage
 
-```bash
 ### Creating YubiKey-Protected Vaults
 
 To create a vault with YubiKey hardware 2FA:
@@ -212,7 +211,6 @@ KeepTower supports importing and exporting password data in multiple formats:
 For detailed format specifications, see `docs/EXPORT_FORMATS.md`.
 
 ### Power User Tips
-```
 
 ### Configuring Preferences
 

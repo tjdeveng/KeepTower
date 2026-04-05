@@ -33,17 +33,14 @@
   <content_rating type="oars-1.1" />
 
   <releases>
-    <release version="0.3.4" date="2026-01-21">
+    <release version="0.3.4" date="2026-04-02">
       <description>
-        <p>Security Enhancement: KEK Derivation Algorithm Selection (Phase 4)</p>
+        <p>Backup settings architecture stabilization and documentation refresh.</p>
         <ul>
-          <li>Implement per-keyslot KEK derivation algorithm storage and selection</li>
-          <li>Add PBKDF2-HMAC-SHA256, PBKDF2-HMAC-SHA512, and Argon2id KEK derivation support</li>
-          <li>Add UI for KEK algorithm selection with FIPS-140 compliance validation</li>
-          <li>Display current vault's KEK and username hash algorithms in Preferences</li>
-          <li>Fix GCC 13 compilation errors (missing vector header, std::format compatibility)</li>
-          <li>Fix assertion failure when opening vaults with new KEK configuration</li>
-          <li>Update documentation with comprehensive KEK algorithm guide</li>
+          <li>Restore vault-scoped backup preference semantics while keeping runtime defaults consistent</li>
+          <li>Replace legacy per-field backup wrappers with aggregate settings helpers</li>
+          <li>Expand regression coverage for backup preference load, save, and clamping behavior</li>
+          <li>Fix Doxygen output directory handling for build-root generation</li>
         </ul>
       </description>
     </release>

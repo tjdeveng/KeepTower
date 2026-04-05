@@ -48,23 +48,58 @@ jobs:
           VERSION=$(grep "version:" meson.build | head -1 | sed "s/.*version: '\(.*\)'.*/\1/")
           echo "Detected version: v$VERSION"
 
+          obsolete_pages=(
+            "Faq.md"
+            "GettingStarted.md"
+            "UserGuide.md"
+            "VaultSecurityAlgorithms.md"
+          )
+
           # User documentation (auto-discover all numbered files)
-          # Converts: XX-topic-name.md → Topic-Name.md (except 00-home.md → Home.md)
+          # Converts known docs/user files to canonical GitHub Wiki page names.
           for file in docs/user/[0-9][0-9]-*.md; do
             if [ -f "$file" ]; then
               basename=$(basename "$file" .md)
 
-              # Special case: 00-home.md → Home.md
-              if [[ "$basename" == "00-home" ]]; then
-                wikiname="Home"
-              else
-                # Convert: 01-getting-started → Getting-Started
-                wikiname=$(echo "$basename" | sed 's/^[0-9][0-9]-//' | sed -r 's/(^|-)([a-z])/\U\2/g')
-              fi
+              case "$basename" in
+                "00-home")
+                  wikiname="Home"
+                  ;;
+                "01-getting-started")
+                  wikiname="Getting-Started"
+                  ;;
+                "02-installation")
+                  wikiname="Installation"
+                  ;;
+                "03-user-guide")
+                  wikiname="User-Guide"
+                  ;;
+                "04-faq")
+                  wikiname="FAQ"
+                  ;;
+                "05-security")
+                  wikiname="Security"
+                  ;;
+                "06-vault-security-algorithms")
+                  wikiname="Vault-Security-Algorithms"
+                  ;;
+                *)
+                  echo "Skipping unknown wiki source file: $basename.md"
+                  continue
+                  ;;
+              esac
 
               echo "Syncing: $basename.md → $wikiname.md"
               # Substitute @VERSION@ with actual version from meson.build
               sed "s/@VERSION@/v$VERSION/g" "$file" > "wiki/${wikiname}.md"
+            fi
+          done
+
+          # Remove stale legacy wiki page names left over from older sync schemes.
+          for page in "${obsolete_pages[@]}"; do
+            if [ -f "wiki/$page" ]; then
+              rm "wiki/$page"
+              echo "Removed obsolete wiki page: $page"
             fi
           done
 

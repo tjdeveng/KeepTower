@@ -21,15 +21,15 @@ KeepTower fills a specific niche:
 
 ### Is KeepTower ready for production use?
 
-**Current Status:** v0.2.5-beta
+**Current Status:** v@VERSION@
 
-- ✅ **Encryption:** Production-ready (AES-256-GCM, PBKDF2)
-- ✅ **Core features:** Stable and tested (12/12 tests passing)
-- ✅ **YubiKey 2FA:** Hardware security implemented
-- ✅ **Import/Export:** Multi-format support (CSV, KeePass, 1Password)
-- ⚠️ **UI/Features:** Beta stage, polish ongoing
+- ✅ **Encryption:** Production-ready (AES-256-GCM, PBKDF2, optional FIPS-ready OpenSSL 3.5+)
+- ✅ **Core features:** Stable and covered by a broad automated Meson test suite
+- ✅ **YubiKey 2FA:** Hardware-backed FIDO2 flows supported
+- ✅ **Import/Export:** CSV, KeePass XML, and 1Password 1PIF support
+- ✅ **Architecture:** Recent audit and documentation hardening completed
 
-**Recommendation:** Suitable for personal use and testing. All critical security features are implemented and the code is open source for community review.
+**Recommendation:** Suitable for real-world Linux use. As with any security tool, keep backups, use a strong password, and validate the workflow that matters in your environment.
 
 ### Is it free?
 

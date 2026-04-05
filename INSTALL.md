@@ -143,7 +143,7 @@ These are automatically called by `meson install` unless `DESTDIR` is set (packa
 
 **Runtime:**
 - GTKmm 4.0 >= 4.10
-- OpenSSL >= 1.1.0
+- OpenSSL >= 3.5.0
 - Protocol Buffers >= 3.0
 - libcorrect (Reed-Solomon error correction)
 

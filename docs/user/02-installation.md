@@ -7,7 +7,7 @@ This guide covers installation of KeepTower on various Linux distributions.
 KeepTower requires the following libraries:
 - GTKmm 4.0 (GTK4 C++ bindings)
 - Protocol Buffers (libprotobuf)
-- OpenSSL 3.x
+- OpenSSL 3.5.0+
 - libcorrect (Reed-Solomon error correction)
 - GIO/GLib 2.68+
 - Meson build system
@@ -20,9 +20,12 @@ KeepTower requires the following libraries:
 ### Install Dependencies
 
 ```bash
-sudo dnf install gtkmm4.0-devel protobuf-devel openssl-devel \
-    libcorrect-devel meson ninja-build gcc-c++ git
+sudo dnf install gcc-c++ meson ninja-build pkg-config \
+    gtkmm4.0-devel protobuf-devel openssl-devel \
+    libcorrect-devel gtest-devel desktop-file-utils appstream
 ```
+
+**Note:** KeepTower can auto-build a local OpenSSL 3.5.x toolchain if your system OpenSSL is older.
 
 ### Build from Source
 
@@ -54,15 +57,19 @@ sudo meson install -C build
 ```bash
 sudo apt update
 sudo apt install libgtkmm-4.0-dev libprotobuf-dev protobuf-compiler \
-    libssl-dev libcorrect-dev meson ninja-build g++ git
+    libssl-dev libgtest-dev cmake git desktop-file-utils appstream
+
+# Build and install libcorrect (not in Ubuntu repos)
+git clone https://github.com/quiet/libcorrect.git /tmp/libcorrect
+cd /tmp/libcorrect
+mkdir build && cd build
+cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr ..
+make -j$(nproc)
+sudo make install
+sudo ldconfig
 ```
 
-**Note:** On older Ubuntu versions, you may need to add a PPA for GTK4:
-
-```bash
-sudo add-apt-repository ppa:ubuntu-toolchain-r/test
-sudo apt update
-```
+**Note:** KeepTower can auto-build a local OpenSSL 3.5.x toolchain if your system OpenSSL is older.
 
 ### Build from Source
 
@@ -170,7 +177,7 @@ After building, run the test suite to verify everything works:
 meson test -C build
 ```
 
-All tests should pass. If any fail, please report an issue on GitHub.
+The full Meson suite should pass. If any tests fail, please report an issue on GitHub.
 
 ---
 

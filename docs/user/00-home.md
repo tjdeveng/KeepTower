@@ -63,16 +63,15 @@ See **[[Installation]]** for detailed instructions for your distribution.
 ## Version
 
 **Current Version:** @VERSION@
-**Release Date:** January 21, 2026
+**Release Date:** April 2, 2026
 
 ### Recent Updates (v0.3.4)
 
-- ✅ Per-keyslot KEK derivation algorithm selection (PBKDF2-SHA256/SHA512, Argon2id)
-- ✅ UI integration for KEK algorithm selection with FIPS-140 compliance
-- ✅ Username hashing with configurable algorithms (SHA3-256, PBKDF2, Argon2id)
-- ✅ Display current vault's security algorithms in Preferences
-- ✅ Comprehensive vault security algorithms documentation
-- ✅ GCC 13 compatibility fixes for broader platform support
+- ✅ Backup settings architecture refactor with vault-scoped preference semantics restored
+- ✅ Centralized backup settings validation via aggregate `BackupPreferences` helpers
+- ✅ Expanded regression coverage for backup preference load/save behavior
+- ✅ Doxygen output generation fixed for build-root path handling
+- ✅ API documentation regenerated cleanly for the current release
 
 ## Support
 
