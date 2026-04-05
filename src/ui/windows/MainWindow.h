@@ -201,6 +201,9 @@ protected:
      *  @param message Error message to display */
     void show_error_dialog(const Glib::ustring& message);
 
+    /** @brief Construct constructor-owned managers, handlers, and coordinators. */
+    void initialize_collaborators();
+
     /** @brief Configure menu actions, role actions, and keyboard shortcuts. */
     void setup_window_actions();
 

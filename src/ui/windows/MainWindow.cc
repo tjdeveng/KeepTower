@@ -221,6 +221,24 @@ MainWindow::MainWindow()
             show_error_dialog(error_msg);
         });
 
+    initialize_collaborators();
+
+    setup_window_actions();
+    setup_controller_signal_wiring();
+    setup_initial_sort_direction();
+    setup_account_detail_signal_wiring();
+    setup_layout_and_css();
+    setup_initial_widget_state();
+    setup_primary_widget_signal_wiring();
+    setup_account_tree_signal_wiring();
+
+    // [REMOVED] Legacy TreeView star column click logic (migrated to AccountTreeWidget)
+
+    setup_post_wiring_runtime_state();
+}
+
+void MainWindow::initialize_collaborators() {
+
     // Phase 1.3: Initialize security controllers
     m_auto_lock_manager = std::make_unique<KeepTower::AutoLockManager>();
     m_clipboard_manager = std::make_unique<KeepTower::ClipboardManager>(get_clipboard());
@@ -387,23 +405,6 @@ MainWindow::MainWindow()
         [this]() { return is_current_user_admin(); },
         [this]() { return prompt_save_if_modified(); }
     );
-
-    setup_window_actions();
-    setup_controller_signal_wiring();
-    setup_initial_sort_direction();
-    setup_account_detail_signal_wiring();
-
-    setup_layout_and_css();
-
-    setup_initial_widget_state();
-
-    setup_primary_widget_signal_wiring();
-
-    setup_account_tree_signal_wiring();
-
-    // [REMOVED] Legacy TreeView star column click logic (migrated to AccountTreeWidget)
-
-    setup_post_wiring_runtime_state();
 }
 
 void MainWindow::setup_window_actions() {
