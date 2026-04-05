@@ -34,9 +34,18 @@ proto_gen = custom_target('record_proto_test',
   depend_files: files('../src/record.proto')
 )
 
+# Direct source inclusion policy for tests:
+# - Prefer extracted Meson dependencies for backup/storage/fec/vaultformat/
+#   crypto/fips/yubikey code.
+# - Keep direct .cc inclusion only for app-layer code that has no dedicated
+#   library target yet, or when a test intentionally white-boxes implementation
+#   details of a controller/service/widget.
+# - Do not re-add extracted library implementation files to tests for
+#   convenience; add the correct dependency instead.
+
 # Common app-layer sources for VaultManager-oriented tests.
-# Library-owned code should come from Meson dependencies unless a test is
-# intentionally white-boxing private implementation.
+# These remain direct because they model application integration behavior rather
+# than isolated library linkage.
 vault_manager_common_app_sources = [
     '../src/core/VaultManager.cc',
     '../src/core/VaultManagerV2.cc',
@@ -240,6 +249,10 @@ file_dialog_extension_test = executable(
     include_directories: test_inc
 )
 
+# White-box controller tests: compile controller implementation directly because
+# there is no dedicated controller library target and the tests intentionally
+# exercise implementation-level flow behavior.
+
 # VaultIO flow controller tests (SRP/DIP refactor validation)
 vault_io_flow_controllers_sources = [
     'test_vault_io_flow_controllers.cc',
@@ -255,6 +268,8 @@ vault_io_flow_controllers_test = executable(
     ],
     include_directories: test_inc
 )
+
+# White-box utility tests for non-library helpers.
 
 # PasswordGenerator utility tests (temporary password generation)
 password_generator_test = executable(
@@ -351,6 +366,10 @@ settings_validator_test = executable(
     ],
     include_directories: test_inc
 )
+
+# White-box UI/service-adjacent tests. These intentionally compile the
+# implementation under test directly because the app-layer presenters and
+# helpers do not have standalone library targets.
 
 # Preferences presenter tests (vault-open backup persistence semantics)
 preferences_presenter_sources = [
@@ -638,6 +657,10 @@ account_groups_test = executable(
 
 test('Account Groups Tests', account_groups_test)
 
+# Direct manager/service/unit tests below are intentional white-box targets.
+# They validate app-layer implementations that still live outside extracted
+# libraries, so keeping their .cc files direct is expected in Phase L.
+
 # Group Manager unit tests (direct testing for coverage)
 group_manager_sources = [
     'test_group_manager.cc',
@@ -918,6 +941,11 @@ vault_data_service_test = executable(
 )
 
 test('vault_data_service', vault_data_service_test)
+
+# Controller/widget/repository/service tests below intentionally white-box the
+# concrete implementation under test. These are not candidates for dependency-
+# only linkage unless those app-layer components are extracted into dedicated
+# libraries in a later phase.
 
 # AccountViewController tests (Phase 1 refactoring)
 account_view_controller_test_sources = [
