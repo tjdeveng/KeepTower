@@ -4,8 +4,8 @@
 #include "V2AuthService.h"
 
 #include "KeySlotManager.h"
-#include "KekDerivationService.h"
 #include "lib/crypto/KeyWrapping.h"
+#include "lib/crypto/KekDerivationService.h"
 #include "lib/crypto/VaultCrypto.h"
 #include "lib/yubikey/YubiKeyManager.h"
 #include "../../utils/Log.h"

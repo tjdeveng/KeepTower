@@ -18,7 +18,8 @@
  */
 
 #include <gtest/gtest.h>
-#include "core/services/KekDerivationService.h"
+#include "core/services/KekDerivationSettingsAdapter.h"
+#include "lib/crypto/KekDerivationService.h"
 #include "lib/crypto/VaultCrypto.h"
 #include <glibmm/init.h>
 #include <giomm/init.h>
@@ -410,7 +411,7 @@ protected:
 TEST_F(KekDerivationSettingsTest, GetAlgorithm_PBKDF2Preference) {
     settings_->set_string("username-hash-algorithm", "pbkdf2");
 
-    auto algorithm = KekDerivationService::get_algorithm_from_settings(settings_);
+    auto algorithm = KekDerivationSettingsAdapter::get_algorithm(settings_);
 
     EXPECT_EQ(algorithm, KekDerivationService::Algorithm::PBKDF2_HMAC_SHA256);
 }
@@ -419,7 +420,7 @@ TEST_F(KekDerivationSettingsTest, GetAlgorithm_Argon2idPreference) {
     settings_->set_string("username-hash-algorithm", "argon2id");
     settings_->set_boolean("fips-mode-enabled", false);
 
-    auto algorithm = KekDerivationService::get_algorithm_from_settings(settings_);
+    auto algorithm = KekDerivationSettingsAdapter::get_algorithm(settings_);
 
     EXPECT_EQ(algorithm, KekDerivationService::Algorithm::ARGON2ID);
 }
@@ -428,7 +429,7 @@ TEST_F(KekDerivationSettingsTest, GetAlgorithm_SHA3FallbackToPBKDF2) {
     // SHA3 is appropriate for username hashing but NOT for password-based KEK derivation
     settings_->set_string("username-hash-algorithm", "sha3-256");
 
-    auto algorithm = KekDerivationService::get_algorithm_from_settings(settings_);
+    auto algorithm = KekDerivationSettingsAdapter::get_algorithm(settings_);
 
     EXPECT_EQ(algorithm, KekDerivationService::Algorithm::PBKDF2_HMAC_SHA256)
         << "SHA3 should automatically fallback to PBKDF2 for KEK derivation";
@@ -438,7 +439,7 @@ TEST_F(KekDerivationSettingsTest, GetAlgorithm_FIPSModeForcesPBKDF2) {
     settings_->set_string("username-hash-algorithm", "argon2id");
     settings_->set_boolean("fips-mode-enabled", true);
 
-    auto algorithm = KekDerivationService::get_algorithm_from_settings(settings_);
+    auto algorithm = KekDerivationSettingsAdapter::get_algorithm(settings_);
 
     EXPECT_EQ(algorithm, KekDerivationService::Algorithm::PBKDF2_HMAC_SHA256)
         << "FIPS mode should force PBKDF2 regardless of preference";
@@ -449,7 +450,7 @@ TEST_F(KekDerivationSettingsTest, GetParameters_ReadsFromSettings) {
     settings_->set_uint("username-argon2-memory-kb", 131072);  // 128 MB
     settings_->set_uint("username-argon2-iterations", 5);
 
-    auto params = KekDerivationService::get_parameters_from_settings(settings_);
+    auto params = KekDerivationSettingsAdapter::get_parameters(settings_);
 
     EXPECT_EQ(params.pbkdf2_iterations, 600000u);
     EXPECT_EQ(params.argon2_memory_kb, 131072u);
@@ -458,7 +459,7 @@ TEST_F(KekDerivationSettingsTest, GetParameters_ReadsFromSettings) {
 }
 
 TEST_F(KekDerivationSettingsTest, GetParameters_HandlesNullSettings) {
-    auto params = KekDerivationService::get_parameters_from_settings(nullptr);
+    auto params = KekDerivationSettingsAdapter::get_parameters(nullptr);
 
     // Should return defaults
     EXPECT_EQ(params.pbkdf2_iterations, 600000u);

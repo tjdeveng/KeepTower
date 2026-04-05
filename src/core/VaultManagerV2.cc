@@ -27,7 +27,7 @@
 #include "services/KeySlotManager.h"
 #include "services/VaultYubiKeyService.h"
 #include "lib/crypto/UsernameHashService.h"
-#include "services/KekDerivationService.h"
+#include "lib/crypto/KekDerivationService.h"
 #include "services/V2AuthService.h"
 #include "../utils/Log.h"
 #include "../utils/SecureMemory.h"

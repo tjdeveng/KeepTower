@@ -57,7 +57,7 @@ vault_manager_common_sources = [
     '../src/core/services/VaultDataService.cc',
     '../src/core/services/V2AuthService.cc',
     '../src/lib/backup/VaultBackupPolicy.cc',
-    '../src/core/services/KekDerivationService.cc',  # KEK derivation service (Phase 3)
+    '../src/lib/crypto/KekDerivationService.cc',
     proto_gen
 ]
 
@@ -614,7 +614,8 @@ username_hash_migration_concurrency_test = executable(
 # KEK Derivation tests (Phase 1: Core KEK Derivation Service)
 kek_derivation_sources = [
     'test_kek_derivation.cc',
-    '../src/core/services/KekDerivationService.cc',
+    '../src/lib/crypto/KekDerivationService.cc',
+    '../src/core/services/KekDerivationSettingsAdapter.cc',
 ]
 
 kek_derivation_deps = [
@@ -836,7 +837,7 @@ v2_auth_service_sources = [
     'test_v2_auth_service.cc',
     '../src/core/services/V2AuthService.cc',
     '../src/core/services/KeySlotManager.cc',
-    '../src/core/services/KekDerivationService.cc',
+    '../src/lib/crypto/KekDerivationService.cc',
     '../src/lib/crypto/VaultCrypto.cc',
     '../src/lib/crypto/KeyWrapping.cc',
     '../src/core/MultiUserTypes.cc',
@@ -877,11 +878,11 @@ test('VaultFileService Unit Tests', vault_file_service_test)
 vault_creation_orchestrator_sources = [
     '../src/core/controllers/VaultCreationOrchestrator.cc',
     '../src/lib/crypto/VaultCryptoService.cc',
+    '../src/lib/crypto/KekDerivationService.cc',
     '../src/lib/crypto/UsernameHashService.cc',
     '../src/core/services/VaultYubiKeyService.cc',
     '../src/core/services/VaultFileService.cc',
     '../src/core/services/VaultDataService.cc',
-    '../src/core/services/KekDerivationService.cc',  # KEK derivation service (Phase 3)
     '../src/lib/crypto/KeyWrapping.cc',
     '../src/lib/crypto/VaultCrypto.cc',
     '../src/lib/fec/ReedSolomon.cc',
