@@ -8,6 +8,7 @@ gtest_dep = dependency('gtest', main: true, required: true)
 giomm_dep = dependency('giomm-2.68')
 backup_dep = dependency('keeptower-backup')
 storage_dep = dependency('keeptower-storage')
+fec_dep = dependency('keeptower-fec')
 vaultformat_dep = dependency('keeptower-vaultformat')
 crypto_dep = dependency('keeptower-crypto')
 fips_dep = dependency('keeptower-fips')
@@ -33,36 +34,38 @@ proto_gen = custom_target('record_proto_test',
   depend_files: files('../src/record.proto')
 )
 
-# Common VaultManager dependencies (for V2 vault support)
-vault_manager_common_sources = [
+# Common app-layer sources for VaultManager-oriented tests.
+# Library-owned code should come from Meson dependencies unless a test is
+# intentionally white-boxing private implementation.
+vault_manager_common_app_sources = [
     '../src/core/VaultManager.cc',
     '../src/core/VaultManagerV2.cc',
-    '../src/lib/fec/ReedSolomon.cc',
     '../src/core/MultiUserTypes.cc',
     '../src/core/MultiUserTypesSerDe.cc',
-    '../src/lib/crypto/KeyWrapping.cc',
     '../src/core/PasswordHistory.cc',
-    '../src/lib/crypto/VaultCrypto.cc',
-    '../src/lib/fips/FipsProviderManager.cc',
-    '../src/lib/storage/VaultIO.cc',
     '../src/core/managers/AccountManager.cc',
     '../src/core/managers/GroupManager.cc',
-    # Phase 2 Day 5: Add orchestrator and services
     '../src/core/controllers/VaultCreationOrchestrator.cc',
-    '../src/lib/crypto/VaultCryptoService.cc',
-    '../src/lib/crypto/UsernameHashService.cc',
     '../src/core/services/KeySlotManager.cc',
     '../src/core/services/VaultYubiKeyService.cc',
     '../src/core/services/VaultFileService.cc',
     '../src/core/services/VaultDataService.cc',
     '../src/core/services/V2AuthService.cc',
-    '../src/lib/backup/VaultBackupPolicy.cc',
-    '../src/lib/crypto/KekDerivationService.cc',
     proto_gen
 ]
 
-# Common dependencies for all tests using vault_manager_common_sources
-# These tests all link against KekDerivationService which requires argon2
+# Common dependencies for tests using vault_manager_common_app_sources.
+# These tests exercise app-layer code that sits on top of the extracted
+# storage/format/crypto/fips/backup libraries.
+vault_manager_arch_deps = [
+    backup_dep,
+    storage_dep,
+    fec_dep,
+    vaultformat_dep,
+    crypto_dep,
+    fips_dep,
+]
+
 vault_manager_common_deps = [
     gtest_dep,
     protobuf_dep,
@@ -70,23 +73,21 @@ vault_manager_common_deps = [
     giomm_dep,
     libcorrect_dep,
     argon2_dep,
-    backup_dep,
-    vaultformat_dep,
-    crypto_dep,
-    fips_dep
 ]
+
+vault_manager_common_deps += vault_manager_arch_deps
+
+vault_manager_common_test_deps = vault_manager_common_deps
+if yubikey_available
+    vault_manager_common_test_deps += [yubikey_dep]
+endif
 
 # VaultManager tests
 vault_manager_sources = [
     'test_vault_manager.cc',
-] + vault_manager_common_sources
+ ] + vault_manager_common_app_sources
 
-vault_manager_deps = vault_manager_common_deps
-
-# Add YubiKey support if available
-if yubikey_available
-    vault_manager_deps += [yubikey_dep]
-endif
+vault_manager_deps = vault_manager_common_test_deps
 
 vault_manager_test = executable(
     'vault_manager_test',
@@ -98,13 +99,9 @@ vault_manager_test = executable(
 # FIPS mode tests
 fips_mode_sources = [
     'test_fips_mode.cc',
-] + vault_manager_common_sources
+] + vault_manager_common_app_sources
 
-fips_mode_deps = vault_manager_common_deps + []
-
-if yubikey_available
-    fips_mode_deps += [yubikey_dep]
-endif
+fips_mode_deps = vault_manager_common_test_deps
 
 fips_mode_test = executable(
     'fips_mode_test',
@@ -117,21 +114,9 @@ fips_mode_test = executable(
 memory_locking_sources = [
     'test_memory_locking.cc',
     '../src/core/VaultManagerV2.cc',
-] + vault_manager_common_sources
+] + vault_manager_common_app_sources
 
-memory_locking_deps = [
-    gtest_dep,
-    protobuf_dep,
-    openssl_dep,
-    giomm_dep,
-    libcorrect_dep,
-    argon2_dep,
-    vaultformat_dep
-]
-
-if yubikey_available
-    memory_locking_deps += [yubikey_dep]
-endif
+memory_locking_deps = vault_manager_common_test_deps
 
 memory_locking_test = executable(
     'memory_locking_test',
@@ -154,13 +139,9 @@ password_validation_test = executable(
 # Security features test (standalone verification)
 security_sources = [
     'test_security_features.cc',
-    ] + vault_manager_common_sources
+    ] + vault_manager_common_app_sources
 
-
-security_deps = [protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep, vaultformat_dep]
-if yubikey_available
-    security_deps += [yubikey_dep]
-endif
+security_deps = vault_manager_common_test_deps
 
 security_features_test = executable(
     'test_security_features',
@@ -194,8 +175,8 @@ vault_runtime_preferences_test = executable(
 # Vault boundary model tests (protobuf-free public model surface)
 vault_boundary_types_test = executable(
     'vault_boundary_types_test',
-    ['test_vault_boundary_types.cc'] + vault_manager_common_sources,
-    dependencies: vault_manager_common_deps + (yubikey_dep.found() ? [yubikey_dep] : []),
+    ['test_vault_boundary_types.cc'] + vault_manager_common_app_sources,
+    dependencies: vault_manager_common_test_deps,
     include_directories: test_inc
 )
 
@@ -214,13 +195,9 @@ reed_solomon_test = executable(
 # Vault Reed-Solomon integration tests
 vault_rs_sources = [
     'test_vault_reed_solomon.cc',
-    ] + vault_manager_common_sources
+    ] + vault_manager_common_app_sources
 
-
-vault_rs_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep, vaultformat_dep]
-if yubikey_available
-    vault_rs_deps += [yubikey_dep]
-endif
+vault_rs_deps = vault_manager_common_test_deps
 
 vault_reed_solomon_test = executable(
     'vault_reed_solomon_test',
@@ -232,13 +209,9 @@ vault_reed_solomon_test = executable(
 # FEC preferences tests
 fec_pref_sources = [
     'test_fec_preferences.cc',
-    ] + vault_manager_common_sources
+    ] + vault_manager_common_app_sources
 
-
-fec_pref_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep, vaultformat_dep]
-if yubikey_available
-    fec_pref_deps += [yubikey_dep]
-endif
+fec_pref_deps = vault_manager_common_test_deps
 
 fec_preferences_test = executable(
     'fec_preferences_test',
@@ -383,13 +356,10 @@ settings_validator_test = executable(
 preferences_presenter_sources = [
     'test_preferences_presenter.cc',
     '../src/ui/dialogs/preferences/PreferencesPresenter.cc',
-    ] + vault_manager_common_sources
+    ] + vault_manager_common_app_sources
 
 
-preferences_presenter_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep, vaultformat_dep]
-if yubikey_available
-    preferences_presenter_deps += [yubikey_dep]
-endif
+preferences_presenter_deps = vault_manager_common_test_deps
 
 preferences_presenter_test = executable(
     'preferences_presenter_test',
@@ -401,13 +371,9 @@ preferences_presenter_test = executable(
 # Vault helper function tests (unit tests for refactored helpers)
 vault_helpers_sources = [
     'test_vault_helpers.cc',
-    ] + vault_manager_common_sources
+    ] + vault_manager_common_app_sources
 
-
-vault_helpers_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep, vaultformat_dep]
-if yubikey_available
-    vault_helpers_deps += [yubikey_dep]
-endif
+vault_helpers_deps = vault_manager_common_test_deps
 
 vault_helpers_test = executable(
     'vault_helpers_test',
@@ -427,13 +393,9 @@ fuzzy_match_test = executable(
 # Undo/Redo tests
 undo_redo_sources = [
     'test_undo_redo.cc',
-    ] + vault_manager_common_sources
+    ] + vault_manager_common_app_sources
 
-
-undo_redo_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep, vaultformat_dep]
-if yubikey_available
-    undo_redo_deps += [yubikey_dep]
-endif
+undo_redo_deps = vault_manager_common_test_deps
 
 undo_redo_test = executable(
     'undo_redo_test',
@@ -493,27 +455,11 @@ username_hashing_test = executable(
 # Username Hash Migration tests (Phase 1: Two-phase authentication and migration)
 username_hash_migration_sources = [
     'test_username_hash_migration.cc',
-    vault_manager_common_sources,
+    vault_manager_common_app_sources,
     proto_gen,
 ]
 
-username_hash_migration_deps = [
-    gtest_dep,
-    openssl_dep,
-    protobuf_dep,
-    giomm_dep,
-    libcorrect_dep,
-    vaultformat_dep,
-]
-
-# Add optional dependencies
-if argon2_available
-    username_hash_migration_deps += [argon2_dep]
-endif
-
-if yubikey_available
-    username_hash_migration_deps += [yubikey_dep]
-endif
+username_hash_migration_deps = vault_manager_common_test_deps
 
 username_hash_migration_test = executable(
     'username_hash_migration_test',
@@ -525,25 +471,9 @@ username_hash_migration_test = executable(
 # Username Hash Migration Priority 2 tests (advanced scenarios)
 username_hash_migration_priority2_sources = [
     'test_username_hash_migration_priority2.cc',
-    ] + vault_manager_common_sources
+    ] + vault_manager_common_app_sources
 
-username_hash_migration_priority2_deps = [
-    gtest_dep,
-    openssl_dep,
-    protobuf_dep,
-    giomm_dep,
-    libcorrect_dep,
-    vaultformat_dep,
-]
-
-# Add optional dependencies
-if argon2_available
-    username_hash_migration_priority2_deps += [argon2_dep]
-endif
-
-if yubikey_available
-    username_hash_migration_priority2_deps += [yubikey_dep]
-endif
+username_hash_migration_priority2_deps = vault_manager_common_test_deps
 
 username_hash_migration_priority2_test = executable(
     'username_hash_migration_priority2_test',
@@ -555,25 +485,9 @@ username_hash_migration_priority2_test = executable(
 # Username Hash Migration Priority 3 tests (performance, security, edge cases)
 username_hash_migration_priority3_sources = [
     'test_username_hash_migration_priority3.cc',
-    ] + vault_manager_common_sources
+    ] + vault_manager_common_app_sources
 
-username_hash_migration_priority3_deps = [
-    gtest_dep,
-    openssl_dep,
-    protobuf_dep,
-    giomm_dep,
-    libcorrect_dep,
-    vaultformat_dep,
-]
-
-# Add optional dependencies
-if argon2_available
-    username_hash_migration_priority3_deps += [argon2_dep]
-endif
-
-if yubikey_available
-    username_hash_migration_priority3_deps += [yubikey_dep]
-endif
+username_hash_migration_priority3_deps = vault_manager_common_test_deps
 
 username_hash_migration_priority3_test = executable(
     'username_hash_migration_priority3_test',
@@ -585,24 +499,9 @@ username_hash_migration_priority3_test = executable(
 # Username Hash Migration Concurrency tests (Phase 3)
 username_hash_migration_concurrency_sources = [
     'test_username_hash_migration_concurrency.cc',
-    ] + vault_manager_common_sources
+    ] + vault_manager_common_app_sources
 
-username_hash_migration_concurrency_deps = [
-    gtest_dep,
-    openssl_dep,
-    protobuf_dep,
-    giomm_dep,
-    libcorrect_dep,
-    vaultformat_dep,
-]
-
-if argon2_available
-    username_hash_migration_concurrency_deps += [argon2_dep]
-endif
-
-if yubikey_available
-    username_hash_migration_concurrency_deps += [yubikey_dep]
-endif
+username_hash_migration_concurrency_deps = vault_manager_common_test_deps
 
 username_hash_migration_concurrency_test = executable(
     'username_hash_migration_concurrency_test',
@@ -694,13 +593,9 @@ test('KEK Derivation Tests', kek_derivation_test, env: ['GSETTINGS_SCHEMA_DIR=' 
 # Secure memory tests
 secure_memory_sources = [
     'test_secure_memory.cc',
-    ] + vault_manager_common_sources
+    ] + vault_manager_common_app_sources
 
-
-secure_memory_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep, vaultformat_dep]
-if yubikey_available
-    secure_memory_deps += [yubikey_dep]
-endif
+secure_memory_deps = vault_manager_common_test_deps
 
 secure_memory_test = executable(
     'secure_memory_test',
@@ -714,13 +609,9 @@ test('Secure Memory Tests', secure_memory_test)
 # Undo/Redo preferences integration tests
 undo_redo_prefs_sources = [
     'test_undo_redo_preferences.cc',
-    ] + vault_manager_common_sources
+    ] + vault_manager_common_app_sources
 
-
-undo_redo_prefs_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep, vaultformat_dep]
-if yubikey_available
-    undo_redo_prefs_deps += [yubikey_dep]
-endif
+undo_redo_prefs_deps = vault_manager_common_test_deps
 
 undo_redo_prefs_test = executable(
     'undo_redo_prefs_test',
@@ -734,13 +625,9 @@ test('Undo/Redo Preferences Tests', undo_redo_prefs_test, env: ['GSETTINGS_SCHEM
 # Account Groups tests
 account_groups_sources = [
     'test_account_groups.cc',
-    ] + vault_manager_common_sources
+    ] + vault_manager_common_app_sources
 
-
-account_groups_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep, vaultformat_dep]
-if yubikey_available
-    account_groups_deps += [yubikey_dep]
-endif
+account_groups_deps = vault_manager_common_test_deps
 
 account_groups_test = executable(
     'account_groups_test',
@@ -936,11 +823,8 @@ test('Multi-User Infrastructure Tests', multiuser_test)
 v2_auth_sources = [
     'test_vault_manager_v2.cc',
     '../src/core/VaultManagerV2.cc',
-] + vault_manager_common_sources
-v2_auth_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep, vaultformat_dep]
-if yubikey_available
-    v2_auth_deps += [yubikey_dep]
-endif
+] + vault_manager_common_app_sources
+v2_auth_deps = vault_manager_common_test_deps
 
 v2_auth_test = executable(
     'v2_auth_test',
@@ -955,19 +839,8 @@ test('V2 Authentication Integration Tests', v2_auth_test, timeout: 60)
 password_history_test_sources = [
     'test_password_history.cc',
     '../src/core/VaultManagerV2.cc',
-] + vault_manager_common_sources
-password_history_test_deps = [
-    gtest_dep,
-    protobuf_dep,
-    openssl_dep,
-    giomm_dep,
-    libcorrect_dep,
-    argon2_dep,
-    vaultformat_dep
-]
-if yubikey_available
-    password_history_test_deps += [yubikey_dep]
-endif
+] + vault_manager_common_app_sources
+password_history_test_deps = vault_manager_common_test_deps
 
 password_history_test = executable(
     'password_history_test',
@@ -1066,21 +939,9 @@ account_view_controller_test_sources = [
     '../src/core/repositories/AccountRepository.cc',
     '../src/core/repositories/GroupRepository.cc',
     '../src/core/VaultManagerV2.cc',
-] + vault_manager_common_sources
+ ] + vault_manager_common_app_sources
 
-account_view_controller_test_deps = [
-    gtest_dep,
-    protobuf_dep,
-    openssl_dep,
-    giomm_dep,
-    libcorrect_dep,
-    argon2_dep,
-    vaultformat_dep
-]
-
-if yubikey_available
-    account_view_controller_test_deps += [yubikey_dep]
-endif
+account_view_controller_test_deps = vault_manager_common_test_deps
 
 account_view_controller_test = executable(
     'account_view_controller_test',
@@ -1203,21 +1064,9 @@ account_repository_test_sources = [
     'test_account_repository.cc',
     '../src/core/repositories/AccountRepository.cc',
     '../src/core/VaultManagerV2.cc',
-] + vault_manager_common_sources
+ ] + vault_manager_common_app_sources
 
-account_repository_test_deps = [
-    gtest_dep,
-    protobuf_dep,
-    openssl_dep,
-    giomm_dep,
-    libcorrect_dep,
-    argon2_dep,
-    vaultformat_dep
-]
-
-if yubikey_available
-    account_repository_test_deps += [yubikey_dep]
-endif
+account_repository_test_deps = vault_manager_common_test_deps
 
 account_repository_test = executable(
     'account_repository_test',
@@ -1233,21 +1082,9 @@ group_repository_test_sources = [
     'test_group_repository.cc',
     '../src/core/repositories/GroupRepository.cc',
     '../src/core/VaultManagerV2.cc',
-] + vault_manager_common_sources
+ ] + vault_manager_common_app_sources
 
-group_repository_test_deps = [
-    gtest_dep,
-    protobuf_dep,
-    openssl_dep,
-    giomm_dep,
-    libcorrect_dep,
-    argon2_dep,
-    vaultformat_dep
-]
-
-if yubikey_available
-    group_repository_test_deps += [yubikey_dep]
-endif
+group_repository_test_deps = vault_manager_common_test_deps
 
 group_repository_test = executable(
     'group_repository_test',
@@ -1264,21 +1101,9 @@ account_service_test_sources = [
     '../src/core/services/AccountService.cc',
     '../src/core/repositories/AccountRepository.cc',
     '../src/core/VaultManagerV2.cc',
-] + vault_manager_common_sources
+ ] + vault_manager_common_app_sources
 
-account_service_test_deps = [
-    gtest_dep,
-    protobuf_dep,
-    openssl_dep,
-    giomm_dep,
-    libcorrect_dep,
-    argon2_dep,
-    vaultformat_dep
-]
-
-if yubikey_available
-    account_service_test_deps += [yubikey_dep]
-endif
+account_service_test_deps = vault_manager_common_test_deps
 
 account_service_test = executable(
     'account_service_test',
@@ -1295,21 +1120,9 @@ group_service_test_sources = [
     '../src/core/services/GroupService.cc',
     '../src/core/repositories/GroupRepository.cc',
     '../src/core/VaultManagerV2.cc',
-] + vault_manager_common_sources
+ ] + vault_manager_common_app_sources
 
-group_service_test_deps = [
-    gtest_dep,
-    protobuf_dep,
-    openssl_dep,
-    giomm_dep,
-    libcorrect_dep,
-    argon2_dep,
-    vaultformat_dep
-]
-
-if yubikey_available
-    group_service_test_deps += [yubikey_dep]
-endif
+group_service_test_deps = vault_manager_common_test_deps
 
 group_service_test = executable(
     'group_service_test',
