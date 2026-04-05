@@ -503,18 +503,36 @@ void AccountTreeWidget::select_account_by_id(const std::string& account_id) {
         return;
     }
 
-    // Find the account row widget with this ID and trigger its selection
+    bool found = false;
+
+    // Verify that the requested account exists in the current view before
+    // emitting selection. Signal handlers can synchronously rebuild rows.
     for (auto* account_row : m_account_rows) {
         if (account_row && account_row->account_id() == account_id) {
-            // Trigger the selection signal which will propagate to MainWindow
-            on_account_row_selected(account_id);
-            // Also update visual state
-            account_row->set_selected(true);
-            return;  // Found and selected
+            found = true;
+            break;
         }
     }
 
-    // Account not found in current view (might be filtered out)
-    g_debug("AccountTreeWidget::select_account_by_id: Account '%s' not found in current view",
+    if (!found) {
+        // Account not found in current view (might be filtered out)
+        g_debug("AccountTreeWidget::select_account_by_id: Account '%s' not found in current view",
+                account_id.c_str());
+        return;
+    }
+
+    // Trigger the selection signal which will propagate to MainWindow.
+    // This may rebuild the widget tree, so do not retain row pointers across it.
+    on_account_row_selected(account_id);
+
+    // Re-resolve the row after signal delivery before updating visual state.
+    for (auto* account_row : m_account_rows) {
+        if (account_row && account_row->account_id() == account_id) {
+            account_row->set_selected(true);
+            return;
+        }
+    }
+
+    g_debug("AccountTreeWidget::select_account_by_id: Account '%s' no longer present after selection callback",
             account_id.c_str());
 }

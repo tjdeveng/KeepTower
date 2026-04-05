@@ -1153,6 +1153,30 @@ clipboard_manager_test = executable(
 
 test('clipboard_manager', clipboard_manager_test)
 
+# AccountTreeWidget tests (selection/rebuild regression coverage)
+account_tree_widget_test_sources = [
+    'test_account_tree_widget.cc',
+    '../src/ui/widgets/AccountTreeWidget.cc',
+    '../src/ui/widgets/AccountRowWidget.cc',
+    '../src/ui/widgets/GroupRowWidget.cc',
+    proto_gen
+]
+
+account_tree_widget_test_deps = [
+    gtest_dep,
+    gtkmm_dep,
+    protobuf_dep
+]
+
+account_tree_widget_test = executable(
+    'account_tree_widget_test',
+    account_tree_widget_test_sources,
+    dependencies: account_tree_widget_test_deps,
+    include_directories: test_inc
+)
+
+test('account_tree_widget', account_tree_widget_test)
+
 # ThemeController tests (Issue #5 refactor)
 theme_controller_test_sources = [
     'test_theme_controller.cc',
