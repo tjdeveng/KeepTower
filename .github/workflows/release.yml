@@ -268,14 +268,15 @@ jobs:
 
     - name: Package documentation
       run: |
+        DOCS_ARCHIVE="$GITHUB_WORKSPACE/keeptower-${{ needs.create-release.outputs.version }}-docs.tar.gz"
         cd build/docs/api
-        tar -czf ../../keeptower-${{ needs.create-release.outputs.version }}-docs.tar.gz html/
-        cd ../..
+        tar -czf "$DOCS_ARCHIVE" html/
 
     - name: Upload Documentation Asset
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
+        DOCS_ARCHIVE="$GITHUB_WORKSPACE/keeptower-${{ needs.create-release.outputs.version }}-docs.tar.gz"
         gh release upload ${{ needs.create-release.outputs.version }} \
-          keeptower-${{ needs.create-release.outputs.version }}-docs.tar.gz \
+          "$DOCS_ARCHIVE" \
           --clobber
