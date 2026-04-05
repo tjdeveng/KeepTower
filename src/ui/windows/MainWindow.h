@@ -66,6 +66,7 @@ namespace Gtk { class Box; class HeaderBar; class Button; class MenuButton; clas
 #include "../managers/UserAccountHandler.h"
 
 // Coordinators
+#include "../coordinators/AccountSelectionCoordinator.h"
 #include "../coordinators/VaultUiCoordinator.h"
 
 /**
@@ -396,6 +397,7 @@ protected:
     std::unique_ptr<ThemeController> m_theme_controller;          ///< Applies/monitors app theme preference
     std::unique_ptr<KeepTower::AutoLockManager> m_auto_lock_manager;         ///< Manages inactivity timeout
     std::unique_ptr<KeepTower::ClipboardManager> m_clipboard_manager;        ///< Manages clipboard auto-clear
+    std::unique_ptr<AccountSelectionCoordinator> m_account_selection_coordinator; ///< Coordinates account selection and detail synchronization
 
     // Phase 5: Managers for MainWindow reduction
     std::unique_ptr<UI::DialogManager> m_dialog_manager;          ///< Centralized dialog management

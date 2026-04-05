@@ -190,6 +190,15 @@ MainWindow::MainWindow()
     // Instantiate new widgets
     m_account_tree_widget = std::make_unique<AccountTreeWidget>();
     m_account_detail_widget = std::make_unique<AccountDetailWidget>();
+    m_account_selection_coordinator = std::make_unique<AccountSelectionCoordinator>(
+        m_vault_manager.get(),
+        m_account_detail_widget.get(),
+        m_selected_account_index,
+        [this]() { return save_current_account(); },
+        [this](const std::string& account_id) { return find_account_index_by_id(account_id); },
+        [this]() { update_tag_filter_dropdown(); },
+        [this]() { return is_current_user_admin(); }
+    );
 
     // Phase 1: Initialize view controllers
     m_account_controller = std::make_unique<AccountViewController>(m_vault_manager.get());
@@ -587,17 +596,10 @@ MainWindow::MainWindow()
         m_signal_connections.push_back(
             m_account_tree_widget->signal_account_selected().connect(
                 [this](const std::string& account_id) {
-                    // Save current account BEFORE switching to new one
-                    if (m_selected_account_index >= 0 && m_vault_ui_coordinator && m_vault_ui_coordinator->vault_open()) {
-                        save_current_account();
-                    }
-
-                    int idx = find_account_index_by_id(account_id);
-                    if (idx >= 0) {
-                        display_account_details(idx);
-                        update_tag_filter_dropdown();
-                    } else {
-                        KeepTower::Log::warning("MainWindow: Could not find account with id: {}", account_id);
+                    if (m_account_selection_coordinator) {
+                        m_account_selection_coordinator->handle_account_selected(
+                            account_id,
+                            has_open_vault());
                     }
                 }
             )
