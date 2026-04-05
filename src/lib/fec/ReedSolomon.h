@@ -93,7 +93,8 @@ public:
     /** @brief Move constructor - transfers Reed-Solomon context */
     ReedSolomon(ReedSolomon&&) noexcept;
 
-    /** @brief Move assignment - transfers Reed-Solomon context */
+    /** @brief Move assignment - transfers Reed-Solomon context.
+     *  @return Reference to this ReedSolomon instance after reassignment. */
     ReedSolomon& operator=(ReedSolomon&&) noexcept;
 
     /**

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2025 tjdeveng
-
-/**
- * @file VaultManager.h
- * @brief Public vault-management facade for KeepTower vault workflows
+    /**
+     * @brief Add new account to vault from protobuf-free detail model.
+     * @param detail Account data to add.
+     * @return True if added successfully, false on error.
  *
  * This file contains the public VaultManager interface used by the UI and
  * application layers. The header intentionally exposes boundary/view types
@@ -61,6 +61,12 @@ class VaultFileService;
 class VaultCreationOrchestrator;
 }  // namespace KeepTower
 
+/**
+ * @brief Progress callback used during V2 vault creation workflows.
+ *
+ * The callback receives the current step, total step count, and a short
+ * status message suitable for UI progress reporting.
+ */
 using V2VaultCreationProgressCallback = std::function<void(int, int, const std::string&)>;
 
 // Forward declarations for OpenSSL types
@@ -1271,14 +1277,14 @@ public:
     // Account operations
 
     /**
-         * @brief Add new account to vault from protobuf-free detail model
-         * @param detail Account data to add
-     * @return true if added successfully, false on error
+     * @brief Add new account to vault from protobuf-free detail model.
+     * @param detail Account data to add.
+     * @return True if added successfully, false on error.
      *
      * @note Requires vault to be open
      * @note Call save_vault() to persist changes
      */
-        [[nodiscard]] bool add_account(const KeepTower::AccountDetail& detail);
+    [[nodiscard]] bool add_account(const KeepTower::AccountDetail& detail);
 
     /**
          * @brief Get all accounts as protobuf-free list items
@@ -1667,15 +1673,18 @@ public:
 
     /**
      * @brief Apply backup settings in one operation.
-     * @return false if count is out of supported range.
+     * @param settings Backup settings snapshot to apply.
+     * @return False if the count is out of supported range.
      */
     [[nodiscard]] bool apply_backup_settings(const BackupSettings& settings);
 
-    /** @brief Get current backup settings snapshot. */
+    /** @brief Get current backup settings snapshot.
+     *  @return Current backup settings. */
     [[nodiscard]] BackupSettings get_backup_settings() const;
 
     /**
      * @brief Restore vault from most recent backup
+        * @param vault_path Vault file path whose latest backup should be restored.
      * @return Expected void or VaultError
      *
      * Finds the most recent timestamped backup and restores it.
@@ -1763,7 +1772,7 @@ public:
 
 
     /**
-     * @brief Access the underlying AccountManager (null when vault is closed)
+    * @brief Access the underlying AccountManager (null when vault is closed)
      * @return Raw pointer to AccountManager or nullptr
      *
      * For use by core-internal classes that need protobuf-level account access.
@@ -1772,12 +1781,17 @@ public:
     [[nodiscard]] KeepTower::AccountManager* account_manager() noexcept {
         return m_account_manager.get();
     }
+
+    /**
+     * @brief Access the underlying AccountManager (const overload).
+     * @return Raw pointer to AccountManager or nullptr.
+     */
     [[nodiscard]] const KeepTower::AccountManager* account_manager() const noexcept {
         return m_account_manager.get();
     }
 
     /**
-     * @brief Access the underlying GroupManager (null when vault is closed)
+    * @brief Access the underlying GroupManager (null when vault is closed)
      * @return Raw pointer to GroupManager or nullptr
      *
      * For use by core-internal classes that need protobuf-level group access.
@@ -1786,6 +1800,11 @@ public:
     [[nodiscard]] KeepTower::GroupManager* group_manager() noexcept {
         return m_group_manager.get();
     }
+
+    /**
+     * @brief Access the underlying GroupManager (const overload).
+     * @return Raw pointer to GroupManager or nullptr.
+     */
     [[nodiscard]] const KeepTower::GroupManager* group_manager() const noexcept {
         return m_group_manager.get();
     }

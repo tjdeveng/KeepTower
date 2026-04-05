@@ -152,6 +152,7 @@ public:
      *
      * This signal intentionally does not expose the copied text to
      * listeners to reduce the chance of sensitive data propagation.
+    * @return Signal reference for connection.
      */
     [[nodiscard]] sigc::signal<void()>& signal_copied() { return m_signal_copied; }
 

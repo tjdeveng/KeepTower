@@ -51,47 +51,92 @@
 
 namespace KeepTower {
 
+/**
+ * @brief Stateless serializer/parser for the V2 vault file header format.
+ *
+ * VaultFormatV2 owns the on-disk framing rules for V2 headers, including
+ * version detection, header serialization, and header-level FEC handling.
+ */
 class VaultFormatV2 {
 public:
-    static constexpr uint32_t VAULT_MAGIC = 0x4B505457;
-    static constexpr uint32_t VAULT_VERSION_V2 = 2;
-    static constexpr uint8_t HEADER_FLAG_FEC_ENABLED = 0x01;
-    static constexpr uint8_t MIN_HEADER_FEC_REDUNDANCY = 20;
-    static constexpr uint32_t MAX_HEADER_SIZE = 1024 * 1024;
+    static constexpr uint32_t VAULT_MAGIC = 0x4B505457;              ///< Magic number for KeepTower vault files.
+    static constexpr uint32_t VAULT_VERSION_V2 = 2;                  ///< Supported V2 on-disk version.
+    static constexpr uint8_t HEADER_FLAG_FEC_ENABLED = 0x01;         ///< Header bit flag indicating header FEC is enabled.
+    static constexpr uint8_t MIN_HEADER_FEC_REDUNDANCY = 20;         ///< Minimum redundancy percent for header protection.
+    static constexpr uint32_t MAX_HEADER_SIZE = 1024 * 1024;         ///< Maximum supported serialized header size in bytes.
 
+    /**
+     * @brief Parsed V2 file header plus authentication metadata.
+     */
     struct V2FileHeader {
-        uint32_t magic = VAULT_MAGIC;
-        uint32_t version = VAULT_VERSION_V2;
-        uint32_t pbkdf2_iterations = 100000;
-        uint32_t header_size = 0;
-        uint8_t header_flags = 0;
-        uint8_t fec_redundancy_percent = 0;
+        uint32_t magic = VAULT_MAGIC;                  ///< File magic value.
+        uint32_t version = VAULT_VERSION_V2;          ///< Parsed vault format version.
+        uint32_t pbkdf2_iterations = 100000;          ///< Legacy/open-time PBKDF2 iteration hint.
+        uint32_t header_size = 0;                     ///< Serialized protected header size in bytes.
+        uint8_t header_flags = 0;                     ///< Header flags bitfield.
+        uint8_t fec_redundancy_percent = 0;           ///< Stored header FEC redundancy percent.
 
-        VaultHeaderV2 vault_header;
+        VaultHeaderV2 vault_header;                   ///< Structured security policy and key-slot header.
 
-        std::array<uint8_t, 32> data_salt;
-        std::array<uint8_t, 12> data_iv;
+        std::array<uint8_t, 32> data_salt;           ///< Salt for data-encryption derivation.
+        std::array<uint8_t, 12> data_iv;             ///< IV for encrypted vault payload.
     };
 
+    /**
+     * @brief Serialize a V2 header to on-disk bytes.
+     * @param header Parsed header fields to serialize.
+     * @param enable_header_fec True to protect the header with FEC.
+     * @param user_fec_redundancy User-configured redundancy percent for data/header policy.
+     * @return Encoded header bytes or an error.
+     */
     [[nodiscard]] static KeepTower::VaultResult<std::vector<uint8_t>>
     write_header(const V2FileHeader& header,
                  bool enable_header_fec = true,
                  uint8_t user_fec_redundancy = 0);
 
+    /**
+     * @brief Parse a V2 header from raw file bytes.
+     * @param file_data Complete file bytes or a prefix containing the header.
+     * @return Parsed header and header byte length, or an error.
+     */
     [[nodiscard]] static KeepTower::VaultResult<std::pair<V2FileHeader, size_t>>
     read_header(const std::vector<uint8_t>& file_data);
 
+    /**
+     * @brief Detect the vault format version from raw file bytes.
+     * @param file_data Raw file bytes.
+     * @return Parsed version number or an error.
+     */
     [[nodiscard]] static KeepTower::VaultResult<uint32_t>
     detect_version(const std::vector<uint8_t>& file_data);
 
+    /**
+     * @brief Validate whether raw bytes appear to be a supported V2 vault.
+     * @param file_data Raw file bytes.
+     * @return True when the magic/version/header framing are valid for V2.
+     */
     [[nodiscard]] static bool is_valid_v2_vault(const std::vector<uint8_t>& file_data);
 
 private:
+    /**
+     * @brief Encode header bytes with FEC protection.
+     * @param header_data Serialized header bytes.
+     * @param encoding_redundancy Redundancy used when encoding.
+     * @param stored_redundancy Redundancy value recorded in the file.
+     * @return Protected header bytes or an error.
+     */
     [[nodiscard]] static KeepTower::VaultResult<std::vector<uint8_t>>
     apply_header_fec(const std::vector<uint8_t>& header_data,
                      uint8_t encoding_redundancy,
                      uint8_t stored_redundancy);
 
+    /**
+     * @brief Decode FEC-protected header bytes.
+     * @param protected_data Encoded header bytes with redundancy payload.
+     * @param original_size Original unprotected header size.
+     * @param redundancy Stored redundancy percent.
+     * @return Decoded header bytes or an error.
+     */
     [[nodiscard]] static KeepTower::VaultResult<std::vector<uint8_t>>
     remove_header_fec(const std::vector<uint8_t>& protected_data,
                       uint32_t original_size,

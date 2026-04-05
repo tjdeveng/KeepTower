@@ -124,6 +124,7 @@ public:
      *
      * Displays PIN entry field for users with YubiKey enrolled.
      * Call this before running dialog if YubiKey is enrolled.
+    * @param required True when YubiKey PIN entry should be shown and required.
      */
     void set_yubikey_required(bool required);
 

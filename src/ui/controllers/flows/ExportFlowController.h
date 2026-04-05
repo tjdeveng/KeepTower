@@ -32,10 +32,13 @@ public:
         ExportOperationPort export_op;
     };
 
-    /** @brief Construct controller with concrete flow ports. */
+    /** @brief Construct controller with concrete flow ports.
+     *  @param ports Concrete dialog/auth/export ports used by the flow. */
     explicit ExportFlowController(Ports ports);
 
-    /** @brief Start export flow from current vault context. */
+    /** @brief Start export flow from current vault context.
+     *  @param current_vault_path Path to the currently open vault.
+     *  @param vault_open True when a vault is currently open. */
     void start_export(const std::string& current_vault_path, bool vault_open);
 
 private:

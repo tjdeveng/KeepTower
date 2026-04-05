@@ -25,10 +25,12 @@ public:
         ImportOperationPort import_op;
     };
 
-    /** @brief Construct controller with concrete flow ports. */
+    /** @brief Construct controller with concrete flow ports.
+     *  @param ports Concrete dialog/import ports used by the flow. */
     explicit ImportFlowController(Ports ports);
 
-    /** @brief Start import flow and invoke callback when UI refresh is needed. */
+    /** @brief Start import flow and invoke callback when UI refresh is needed.
+     *  @param on_update Callback invoked after a successful import updates data. */
     void start_import(const UpdateCallback& on_update);
 
 private:

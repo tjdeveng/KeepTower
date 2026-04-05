@@ -89,12 +89,12 @@ CITE_BIB_FILES         =
 #---------------------------------------------------------------------------
 QUIET                  = NO
 WARNINGS               = YES
-WARN_IF_UNDOCUMENTED   = NO
+WARN_IF_UNDOCUMENTED   = YES
 WARN_IF_DOC_ERROR      = YES
-WARN_IF_INCOMPLETE_DOC = NO
-WARN_NO_PARAMDOC       = NO
+WARN_IF_INCOMPLETE_DOC = YES
+WARN_NO_PARAMDOC       = YES
 WARN_IF_UNDOC_ENUM_VAL = NO
-WARN_AS_ERROR          = NO
+WARN_AS_ERROR          = YES
 WARN_FORMAT            = "$file:$line: $text"
 WARN_LINE_FORMAT       = "at line $line of file $file"
 WARN_LOGFILE           =
@@ -105,9 +105,7 @@ WARN_LOGFILE           =
 INPUT                  = @DOXYGEN_INPUT_DIRECTORY@
 INPUT_ENCODING         = UTF-8
 INPUT_FILE_ENCODING    =
-FILE_PATTERNS          = *.cc \
-                         *.cpp \
-                         *.h \
+FILE_PATTERNS          = *.h \
                          *.hpp \
                          *.md
 RECURSIVE              = YES
@@ -117,7 +115,7 @@ EXCLUDE_PATTERNS       = */build/* \
                          */tests/* \
                          */.git/* \
                          */record.pb.*
-EXCLUDE_SYMBOLS        =
+EXCLUDE_SYMBOLS        = *::operator= *::~*
 EXAMPLE_PATH           =
 EXAMPLE_PATTERNS       = *
 EXAMPLE_RECURSIVE      = NO

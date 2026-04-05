@@ -47,6 +47,9 @@ inline std::string safe_ustring_to_string(const Glib::ustring& ustr, const char*
  * gtkmm widgets expect valid UTF-8, and will error/warn on invalid sequences.
  *
  * This returns a valid UTF-8 string, replacing invalid sequences with U+FFFD.
+ * @param text Source byte sequence to sanitize.
+ * @param field_name Optional field label used in warning logs.
+ * @return Valid UTF-8 string safe for UI display.
  */
 inline std::string make_valid_utf8(std::string_view text, const char* field_name = "text") {
     if (text.empty()) {

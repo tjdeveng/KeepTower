@@ -39,11 +39,15 @@ enum class ExportError {
 
 /**
  * @brief Convert import error to human-readable string
+ * @param error Import error value to stringify.
+ * @return Stable human-readable description.
  */
 std::string import_error_to_string(ImportError error);
 
 /**
  * @brief Convert export error to human-readable string
+ * @param error Export error value to stringify.
+ * @return Stable human-readable description.
  */
 std::string export_error_to_string(ExportError error);
 

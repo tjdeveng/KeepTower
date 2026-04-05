@@ -121,6 +121,10 @@ public:
 
     /**
      * @brief Store action references for enable/disable operations
+     * @param export_action Export action reference.
+     * @param change_password_action Change-password action reference.
+     * @param logout_action Logout action reference.
+     * @param manage_users_action Manage-users action reference.
      */
     void set_action_references(
         Glib::RefPtr<Gio::SimpleAction> export_action,

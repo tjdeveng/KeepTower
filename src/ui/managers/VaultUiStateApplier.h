@@ -52,19 +52,25 @@ public:
     VaultUiStateApplier(VaultUiStateApplier&&) = delete;
     VaultUiStateApplier& operator=(VaultUiStateApplier&&) = delete;
 
-    /** @brief Apply UI changes for "vault opened" state. */
+    /** @brief Apply UI changes for "vault opened" state.
+     *  @param vault_path Opened vault path shown in status UI.
+     *  @param username Optional authenticated username for the session label. */
     void set_vault_opened(const std::string& vault_path, const std::string& username = "");
 
     /** @brief Apply UI changes for "vault closed" state. */
     void set_vault_closed();
 
-    /** @brief Apply UI changes for lock/unlock transitions. */
+    /** @brief Apply UI changes for lock/unlock transitions.
+     *  @param locked True when the vault is currently locked.
+     *  @param vault_open True when any vault is currently open. */
     void set_vault_locked(bool locked, bool vault_open);
 
-    /** @brief Update the session label text. */
+    /** @brief Update the session label text.
+     *  @param session_text Optional session label text to display. */
     void set_session_text(const std::optional<std::string>& session_text);
 
-    /** @brief Update the status label text. */
+    /** @brief Update the status label text.
+     *  @param message Status message to display. */
     void set_status(const std::string& message);
 
 private:

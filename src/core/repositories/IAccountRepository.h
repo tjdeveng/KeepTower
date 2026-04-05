@@ -35,6 +35,8 @@ enum class RepositoryError {
 
 /**
  * @brief Convert error to human-readable string
+ * @param error Repository error value to stringify.
+ * @return Stable human-readable description.
  */
 [[nodiscard]] constexpr std::string_view to_string(RepositoryError error) noexcept {
     switch (error) {

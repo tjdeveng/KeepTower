@@ -50,7 +50,8 @@ public:
     AsyncRunner(AsyncRunner&&) = delete;
     AsyncRunner& operator=(AsyncRunner&&) = delete;
 
-    /** @brief Check whether a task is currently running. */
+    /** @brief Check whether a task is currently running.
+     *  @return True when a task is currently executing. */
     [[nodiscard]] bool is_busy() const noexcept {
         return m_is_busy.load(std::memory_order_acquire);
     }

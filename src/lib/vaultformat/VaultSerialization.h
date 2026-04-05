@@ -17,10 +17,34 @@
 
 namespace KeepTower {
 
+/**
+ * @brief Stateless protobuf serialization helpers for vault payloads.
+ *
+ * VaultSerialization owns the low-level protobuf encode/decode and schema
+ * migration mechanics used by higher-level workflow services.
+ */
 class VaultSerialization {
 public:
+    /**
+     * @brief Serialize vault protobuf data into bytes.
+     * @param vault_data Vault protobuf object to serialize.
+     * @return Serialized byte buffer or an error.
+     */
     static VaultResult<std::vector<uint8_t>> serialize(const keeptower::VaultData& vault_data);
+
+    /**
+     * @brief Deserialize vault protobuf data from bytes.
+     * @param data Serialized vault payload bytes.
+     * @return Parsed vault protobuf object or an error.
+     */
     static VaultResult<keeptower::VaultData> deserialize(const std::vector<uint8_t>& data);
+
+    /**
+     * @brief Apply schema migrations to a parsed vault protobuf object.
+     * @param vault_data Vault protobuf object to migrate.
+     * @param modified Set to true when a migration changed the object.
+     * @return True when migration succeeded.
+     */
     static bool migrate_schema(keeptower::VaultData& vault_data, bool& modified);
 
 private:

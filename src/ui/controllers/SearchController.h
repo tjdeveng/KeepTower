@@ -83,13 +83,15 @@ public:
     /** @brief Copy constructor - SearchController is stateless */
     SearchController(const SearchController&) = default;
 
-    /** @brief Copy assignment operator */
+    /** @brief Copy assignment operator.
+     *  @return Reference to this controller after assignment. */
     SearchController& operator=(const SearchController&) = default;
 
     /** @brief Move constructor */
     SearchController(SearchController&&) = default;
 
-    /** @brief Move assignment operator */
+    /** @brief Move assignment operator.
+     *  @return Reference to this controller after assignment. */
     SearchController& operator=(SearchController&&) = default;
 
     /**

@@ -53,10 +53,10 @@ enum class SortDirection {
  */
 class AccountTreeWidget : public Gtk::Box {
 public:
-    /** @brief Construct empty tree widget */
+    /** @brief Construct empty tree widget. */
     AccountTreeWidget();
 
-    /** @brief Destructor */
+    /** @brief Destroy the tree widget. */
     ~AccountTreeWidget() override;
 
     /**
@@ -101,28 +101,36 @@ public:
     /** @brief Toggle between A-Z and Z-A */
     void toggle_sort_direction();
 
-    /** @brief Signal emitted on account right-click */
+    /** @brief Signal emitted on account right-click.
+     *  @return Signal carrying account ID, anchor widget, and click coordinates. */
     sigc::signal<void(std::string, Gtk::Widget*, double, double)>& signal_account_right_click();
 
-    /** @brief Signal emitted on group right-click */
+    /** @brief Signal emitted on group right-click.
+     *  @return Signal carrying group ID, anchor widget, and click coordinates. */
     sigc::signal<void(std::string, Gtk::Widget*, double, double)>& signal_group_right_click();
 
-    /** @brief Signal emitted when account is selected */
+    /** @brief Signal emitted when account is selected.
+     *  @return Signal carrying the selected account ID. */
     sigc::signal<void(std::string)>& signal_account_selected();
 
-    /** @brief Signal emitted when group is selected */
+    /** @brief Signal emitted when group is selected.
+     *  @return Signal carrying the selected group ID. */
     sigc::signal<void(std::string)>& signal_group_selected();
 
-    /** @brief Signal emitted when favorite is toggled */
+    /** @brief Signal emitted when favorite is toggled.
+     *  @return Signal carrying the affected account ID. */
     sigc::signal<void(std::string)>& signal_favorite_toggled();
 
-    /** @brief Signal emitted when account is reordered via drag-and-drop */
+    /** @brief Signal emitted when account is reordered via drag-and-drop.
+     *  @return Signal carrying account ID, target group ID, and new index. */
     sigc::signal<void(std::string, std::string, int)>& signal_account_reordered();
 
-    /** @brief Signal emitted when group is reordered via drag-and-drop */
+    /** @brief Signal emitted when group is reordered via drag-and-drop.
+     *  @return Signal carrying group ID and new index. */
     sigc::signal<void(std::string, int)>& signal_group_reordered();
 
-    /** @brief Signal emitted when sort direction changes */
+    /** @brief Signal emitted when sort direction changes.
+     *  @return Signal carrying the new sort direction. */
     sigc::signal<void(SortDirection)>& signal_sort_direction_changed();
 
     /**

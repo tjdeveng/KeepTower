@@ -145,12 +145,12 @@ public:
      * decryption.
      */
     struct V2VaultMetadata {
-        uint32_t pbkdf2_iterations = 0;
-        uint8_t fec_redundancy_percent = 0;
-        VaultHeaderV2 vault_header;
-        std::array<uint8_t, 32> data_salt{};
-        std::array<uint8_t, 12> data_iv{};
-        size_t data_offset = 0;
+        uint32_t pbkdf2_iterations = 0;        ///< Legacy/open-time PBKDF2 iteration hint.
+        uint8_t fec_redundancy_percent = 0;    ///< Stored data/header FEC redundancy percent.
+        VaultHeaderV2 vault_header;            ///< Parsed security policy and key-slot header.
+        std::array<uint8_t, 32> data_salt{};  ///< Salt used for data encryption/decryption.
+        std::array<uint8_t, 12> data_iv{};    ///< IV used for data encryption/decryption.
+        size_t data_offset = 0;               ///< Byte offset where encrypted payload begins.
     };
 
     // ========================================================================

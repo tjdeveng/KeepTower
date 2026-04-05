@@ -103,7 +103,8 @@ protected:
     /** @brief Move constructor - allows command transfer */
     Command(Command&&) = default;
 
-    /** @brief Move assignment operator - allows command reassignment */
+    /** @brief Move assignment operator - allows command reassignment.
+     *  @return Reference to this command after reassignment. */
     Command& operator=(Command&&) = default;
 };
 

@@ -34,6 +34,8 @@ enum class PasswordGeneratorError : int {
  *
  * Intended for logs, diagnostics, and tests. The returned strings are stable
  * identifiers (not localized UI text).
+ * @param error Error value to stringify.
+ * @return Stable human-readable identifier for the error.
  */
 [[nodiscard]] constexpr std::string_view to_string(PasswordGeneratorError error) noexcept {
     switch (error) {
@@ -71,27 +73,32 @@ public:
     [[nodiscard]] static std::expected<std::string, PasswordGeneratorError>
     generate_temporary_password(size_t length);
 
-    /** @brief Uppercase letters used by the generator. */
+    /** @brief Uppercase letters used by the generator.
+     *  @return Uppercase character set. */
     [[nodiscard]] static constexpr std::string_view uppercase_charset() noexcept {
         return "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     }
 
-    /** @brief Lowercase letters used by the generator. */
+    /** @brief Lowercase letters used by the generator.
+     *  @return Lowercase character set. */
     [[nodiscard]] static constexpr std::string_view lowercase_charset() noexcept {
         return "abcdefghijklmnopqrstuvwxyz";
     }
 
-    /** @brief Digits used by the generator. */
+    /** @brief Digits used by the generator.
+     *  @return Digit character set. */
     [[nodiscard]] static constexpr std::string_view digits_charset() noexcept {
         return "0123456789";
     }
 
-    /** @brief Symbols used by the generator. */
+    /** @brief Symbols used by the generator.
+     *  @return Symbol character set. */
     [[nodiscard]] static constexpr std::string_view symbols_charset() noexcept {
         return "!@#$%^&*-_=+";
     }
 
-    /** @brief Convenience union of all characters used by the generator. */
+    /** @brief Convenience union of all characters used by the generator.
+     *  @return Complete generator character set. */
     [[nodiscard]] static constexpr std::string_view all_charset() noexcept {
         return "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*-_=+";
     }

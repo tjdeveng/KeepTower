@@ -76,7 +76,8 @@ public:
     /** @brief Move constructor - transfers ownership of repositories */
     AccountViewController(AccountViewController&&) = default;
 
-    /** @brief Move assignment - transfers ownership of repositories */
+   /** @brief Move assignment - transfers ownership of repositories.
+    *  @return Reference to this controller after reassignment. */
     AccountViewController& operator=(AccountViewController&&) = default;
 
     /**
@@ -138,6 +139,7 @@ public:
      * @brief Signal emitted when account list is updated
      *
      * Parameters: (viewable_accounts, groups, total_accounts)
+        * @return Signal carrying the refreshed accounts, groups, and total count.
      */
     sigc::signal<void(const std::vector<keeptower::AccountRecord>&,
                       const std::vector<keeptower::AccountGroup>&,
@@ -147,6 +149,7 @@ public:
      * @brief Signal emitted when favorite status is toggled
      *
      * Parameters: (account_index, is_favorite)
+        * @return Signal carrying the account index and favorite state.
      */
     sigc::signal<void(size_t, bool)>& signal_favorite_toggled();
 
@@ -154,6 +157,7 @@ public:
      * @brief Signal emitted when an error occurs
      *
      * Parameters: (error_message)
+        * @return Signal carrying the error message.
      */
     sigc::signal<void(const std::string&)>& signal_error();
 

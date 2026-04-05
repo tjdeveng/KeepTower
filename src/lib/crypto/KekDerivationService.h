@@ -62,6 +62,8 @@ public:
 
     /**
      * @brief Check whether an algorithm is FIPS-140-3 approved.
+     * @param algorithm Algorithm to inspect.
+     * @return True when the algorithm is FIPS-approved.
      */
     [[nodiscard]] static constexpr bool is_fips_approved(Algorithm algorithm) noexcept {
         return algorithm == Algorithm::PBKDF2_HMAC_SHA256;
@@ -69,6 +71,8 @@ public:
 
     /**
      * @brief Return KEK output size in bytes.
+     * @param algorithm Algorithm whose output size is requested.
+     * @return Output size in bytes for the algorithm.
      */
     [[nodiscard]] static constexpr size_t get_output_size([[maybe_unused]] Algorithm algorithm) noexcept {
         return 32;
@@ -76,6 +80,8 @@ public:
 
     /**
      * @brief Convert algorithm enum to a human-readable name.
+     * @param algorithm Algorithm to stringify.
+     * @return Human-readable algorithm name.
      */
     [[nodiscard]] static constexpr std::string_view algorithm_to_string(Algorithm algorithm) noexcept {
         switch (algorithm) {

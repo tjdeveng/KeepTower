@@ -167,7 +167,8 @@ public:
     /** @brief Handle "Close vault" UI action. */
     void on_close_vault();
 
-    /** @brief Continue V2 open flow after selecting a vault path. */
+    /** @brief Continue V2 open flow after selecting a vault path.
+     *  @param vault_path Path to the vault selected by the user. */
     void handle_v2_vault_open(const std::string& vault_path);
 
     /** @brief Update session label/status based on current state. */
@@ -176,40 +177,58 @@ public:
     /** @brief Update menus based on the current user's role. */
     void update_menu_for_role();
 
-    /** @brief Apply lock/unlock UI state and status message. */
+    /**
+     * @brief Apply lock/unlock UI state and status message.
+     * @param locked True when the vault should be presented as locked.
+     * @param status Status text to show after applying the state.
+     */
     void apply_lock_state_ui(bool locked, const std::string& status);
 
-    /** @brief Get read-only coordinator state. */
+    /** @brief Get read-only coordinator state.
+     *  @return Immutable coordinator state snapshot. */
     [[nodiscard]] const VaultState& state() const noexcept { return m_state; }
 
-    /** @brief True when a vault is currently open. */
+    /** @brief True when a vault is currently open.
+     *  @return True when a vault session is active. */
     [[nodiscard]] bool vault_open() const noexcept { return m_state.vault_open; }
 
-    /** @brief True when the open vault is locked. */
+    /** @brief True when the open vault is locked.
+     *  @return True when the active vault requires re-authentication. */
     [[nodiscard]] bool is_locked() const noexcept { return m_state.is_locked; }
 
-    /** @brief Get the current vault path. */
+    /** @brief Get the current vault path.
+     *  @return Current vault path, or empty when no vault is open. */
     [[nodiscard]] const Glib::ustring& current_vault_path() const noexcept { return m_state.current_vault_path; }
 
-    /** @brief Mutable reference to vault_open flag (internal wiring). */
+    /** @brief Mutable reference to vault_open flag (internal wiring).
+     *  @return Mutable vault-open flag reference. */
     [[nodiscard]] bool& vault_open_ref() noexcept { return m_state.vault_open; }
 
-    /** @brief Mutable reference to is_locked flag (internal wiring). */
+    /** @brief Mutable reference to is_locked flag (internal wiring).
+     *  @return Mutable lock-state flag reference. */
     [[nodiscard]] bool& is_locked_ref() noexcept { return m_state.is_locked; }
 
-    /** @brief Mutable reference to current vault path (internal wiring). */
+    /** @brief Mutable reference to current vault path (internal wiring).
+     *  @return Mutable current-vault-path reference. */
     [[nodiscard]] Glib::ustring& current_vault_path_ref() noexcept { return m_state.current_vault_path; }
 
-    /** @brief Mutable reference to cached master password (internal wiring). */
+    /** @brief Mutable reference to cached master password (internal wiring).
+     *  @return Mutable session password cache used by open/save flows. */
     [[nodiscard]] std::string& cached_master_password_ref() noexcept { return m_state.cached_master_password; }
 
-    /** @brief True if an open vault is a V2 (multi-user) vault. */
+    /** @brief True if an open vault is a V2 (multi-user) vault.
+     *  @return True when the active vault uses the V2 format. */
     [[nodiscard]] bool is_v2_vault_open() const noexcept;
 
-    /** @brief True if the current authenticated user is an administrator. */
+    /** @brief True if the current authenticated user is an administrator.
+     *  @return True when the authenticated user has admin role. */
     [[nodiscard]] bool is_current_user_admin() const noexcept;
 
-    /** @brief Finalize UI state after a vault is opened and authenticated. */
+    /**
+     * @brief Finalize UI state after a vault is opened and authenticated.
+     * @param vault_path Opened vault path.
+     * @param username Authenticated username for the session label/state.
+     */
     void complete_vault_opening(const std::string& vault_path, const std::string& username);
 
 private:

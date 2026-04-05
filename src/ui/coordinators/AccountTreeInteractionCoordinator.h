@@ -26,11 +26,29 @@ class GroupHandler;
 class MenuManager;
 }
 
+/**
+ * @brief Coordinates account-tree context menus and reorder actions.
+ *
+ * This coordinator translates widget-level context menu and drag-and-drop
+ * events into higher-level account/group operations using injected handlers.
+ */
 class AccountTreeInteractionCoordinator {
 public:
+    /** @brief Callback used to resolve vault indices from account IDs. */
     using FindAccountIndexByIdFn = std::function<int(const std::string&)>;
+
+    /** @brief Callback used to refresh the account list after reorder actions. */
     using UpdateAccountListFn = std::function<void()>;
 
+    /**
+     * @brief Construct the coordinator with injected collaborators.
+     * @param vault_manager Vault manager used for move/delete operations.
+     * @param menu_manager Menu manager that owns popover menus.
+     * @param group_handler Group handler for group operations.
+     * @param account_edit_handler Account edit handler for account operations.
+     * @param find_account_index_by_id Callback that resolves account IDs to vault indices.
+     * @param update_account_list Callback that refreshes the account list after mutations.
+     */
     AccountTreeInteractionCoordinator(
         VaultManager* vault_manager,
         UI::MenuManager* menu_manager,
@@ -44,14 +62,46 @@ public:
     AccountTreeInteractionCoordinator(AccountTreeInteractionCoordinator&&) = delete;
     AccountTreeInteractionCoordinator& operator=(AccountTreeInteractionCoordinator&&) = delete;
 
+    /**
+     * @brief Show the account context menu at the requested widget position.
+     * @param account_id Account under the cursor.
+     * @param widget Anchor widget for the popover.
+     * @param x X coordinate within the widget.
+     * @param y Y coordinate within the widget.
+     */
     void show_account_context_menu(const std::string& account_id, Gtk::Widget* widget, double x, double y);
+
+    /**
+     * @brief Show the group context menu at the requested widget position.
+     * @param group_id Group under the cursor.
+     * @param widget Anchor widget for the popover.
+     * @param x X coordinate within the widget.
+     * @param y Y coordinate within the widget.
+     */
     void show_group_context_menu(const std::string& group_id, Gtk::Widget* widget, double x, double y);
 
+    /**
+     * @brief Persist an account reorder initiated from drag-and-drop.
+     * @param account_id Account being moved.
+     * @param target_group_id Destination group identifier.
+     * @param new_index New index within the destination scope.
+     */
     void handle_account_reordered(const std::string& account_id, const std::string& target_group_id, int new_index);
+
+    /**
+     * @brief Persist a group reorder initiated from drag-and-drop.
+     * @param group_id Group being moved.
+     * @param new_index New index among groups.
+     */
     void handle_group_reordered(const std::string& group_id, int new_index);
 
+    /** @brief Delete the account currently captured for the context menu. */
     void handle_delete_account_action();
+
+    /** @brief Rename the group currently captured for the context menu. */
     void handle_rename_group_action();
+
+    /** @brief Delete the group currently captured for the context menu. */
     void handle_delete_group_action();
 
 private:

@@ -47,6 +47,8 @@ enum class ServiceError {
 
 /**
  * @brief Convert service error to human-readable string
+ * @param error Service error value to stringify.
+ * @return Stable human-readable description.
  */
 [[nodiscard]] constexpr std::string_view to_string(ServiceError error) noexcept {
     switch (error) {
@@ -68,6 +70,8 @@ enum class ServiceError {
 
 /**
  * @brief Convert repository error to service error
+ * @param repo_error Repository error to translate.
+ * @return Equivalent service-layer error.
  */
 [[nodiscard]] constexpr ServiceError to_service_error(RepositoryError repo_error) noexcept {
     switch (repo_error) {

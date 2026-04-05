@@ -130,6 +130,8 @@ public:
         std::string file_path;                   ///< Actual file path written
         bool memory_locked;                      ///< Whether DEK was successfully locked in memory
 
+        /** @brief Construct an empty creation result.
+         *  @note Initializes DEK storage and memory-lock flag to safe defaults. */
         CreationResult() : dek{}, memory_locked(false) {}
     };
 

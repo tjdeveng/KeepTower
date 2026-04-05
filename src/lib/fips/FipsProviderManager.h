@@ -19,21 +19,27 @@ public:
 
     /**
      * Initialize process-global OpenSSL provider/FIPS state once.
+        * @param enable True to request FIPS mode during initialization.
+        * @return True when OpenSSL providers were initialized successfully.
      */
     [[nodiscard]] static bool init_fips_mode(bool enable = false);
 
     /**
      * Query whether FIPS provider is available after initialization.
+        * @return True when the FIPS provider is available for use.
      */
     [[nodiscard]] static bool is_fips_available();
 
     /**
      * Query whether FIPS mode is currently enabled.
+        * @return True when FIPS mode is currently enabled.
      */
     [[nodiscard]] static bool is_fips_enabled();
 
     /**
      * Toggle FIPS mode at runtime.
+        * @param enable True to enable FIPS mode, false to disable it.
+        * @return True when the requested mode was applied successfully.
      */
     [[nodiscard]] static bool set_fips_mode(bool enable);
 

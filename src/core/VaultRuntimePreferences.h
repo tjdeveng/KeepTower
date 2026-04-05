@@ -176,15 +176,17 @@ public:
     }
 
     /**
-     * @brief Reset all preferences to schema defaults
-     *
-     * Used when vault is closed to ensure consistent defaults.
-     */
-    /**
      * @brief Sync all preferences from vault metadata values
      *
      * Loads preference values from vault metadata into the cache.
      * Called by VaultManager after loading a vault file.
+        * @param clipboard_timeout Clipboard-clear timeout in seconds.
+        * @param auto_lock_enabled True when auto-lock is enabled.
+        * @param auto_lock_timeout Auto-lock timeout in seconds.
+        * @param undo_redo_enabled True when undo/redo is enabled.
+        * @param undo_history_limit Maximum undo history depth.
+        * @param password_history_enabled True when password history is enabled.
+        * @param password_history_limit Maximum password history depth.
      */
     void sync_from_vault_metadata(
         int clipboard_timeout,
@@ -204,6 +206,11 @@ public:
         m_account_password_history_limit = password_history_limit;
     }
 
+    /**
+     * @brief Reset all preferences to schema defaults.
+     *
+     * Used when vault is closed to ensure consistent defaults.
+     */
     void reset_to_defaults() noexcept {
         m_clipboard_timeout_seconds = 30;
         m_auto_lock_enabled = true;

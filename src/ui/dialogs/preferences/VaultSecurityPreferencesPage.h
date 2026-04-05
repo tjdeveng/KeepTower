@@ -57,19 +57,24 @@ public:
      */
     void on_dialog_shown();
 
-    /** @brief Exposes the FIPS mode checkbox (primarily for tests). */
+    /** @brief Exposes the FIPS mode checkbox (primarily for tests).
+     *  @return Reference to the FIPS mode checkbox. */
     [[nodiscard]] Gtk::CheckButton& fips_mode_check() noexcept { return m_fips_mode_check; }
 
-    /** @brief Exposes the username hash algorithm combo box (primarily for tests). */
+    /** @brief Exposes the username hash algorithm combo box (primarily for tests).
+     *  @return Reference to the username hash algorithm combo. */
     [[nodiscard]] Gtk::ComboBoxText& username_hash_combo() noexcept { return m_username_hash_combo; }
 
-    /** @brief Exposes PBKDF2 iterations spin button (may be null if not constructed). */
+    /** @brief Exposes PBKDF2 iterations spin button (may be null if not constructed).
+     *  @return Pointer to the PBKDF2 iterations spin button. */
     [[nodiscard]] Gtk::SpinButton* pbkdf2_iterations_spin() noexcept { return m_pbkdf2_iterations_spin; }
 
-    /** @brief Exposes Argon2 memory spin button (may be null if not constructed). */
+    /** @brief Exposes Argon2 memory spin button (may be null if not constructed).
+     *  @return Pointer to the Argon2 memory spin button. */
     [[nodiscard]] Gtk::SpinButton* argon2_memory_spin() noexcept { return m_argon2_memory_spin; }
 
-    /** @brief Exposes Argon2 time cost spin button (may be null if not constructed). */
+    /** @brief Exposes Argon2 time cost spin button (may be null if not constructed).
+     *  @return Pointer to the Argon2 time-cost spin button. */
     [[nodiscard]] Gtk::SpinButton* argon2_time_spin() noexcept { return m_argon2_time_spin; }
 
 private:

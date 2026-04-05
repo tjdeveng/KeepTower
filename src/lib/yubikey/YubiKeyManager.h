@@ -98,6 +98,7 @@ public:
             error_message.clear();
         }
 
+        /** @brief Destructor securely erases any captured response material. */
         ~ChallengeResponse() {
             secure_erase();
         }

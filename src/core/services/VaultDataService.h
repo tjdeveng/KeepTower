@@ -30,12 +30,28 @@ namespace KeepTower {
  */
 class VaultDataService {
 public:
+    /**
+     * @brief Serialize vault protobuf data for save/create workflows.
+     * @param vault_data Vault protobuf object to serialize.
+     * @return Serialized byte buffer or an error.
+     */
     [[nodiscard]] static VaultResult<std::vector<uint8_t>> serialize_vault_data(
         const keeptower::VaultData& vault_data);
 
+    /**
+     * @brief Deserialize vault protobuf data for open workflows.
+     * @param data Serialized vault payload bytes.
+     * @return Parsed vault protobuf object or an error.
+     */
     [[nodiscard]] static VaultResult<keeptower::VaultData> deserialize_vault_data(
         const std::vector<uint8_t>& data);
 
+    /**
+     * @brief Apply schema migrations and modification tracking.
+     * @param vault_data Vault protobuf object to migrate.
+     * @param modified Set to true when migration changed the object.
+     * @return True when migration succeeded.
+     */
     [[nodiscard]] static bool migrate_vault_schema(
         keeptower::VaultData& vault_data,
         bool& modified);

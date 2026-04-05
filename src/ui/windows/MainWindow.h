@@ -137,7 +137,10 @@ namespace UI {
  */
 class MainWindow : public Gtk::ApplicationWindow {
 public:
+    /** @brief Construct the main KeepTower application window. */
     MainWindow();
+
+    /** @brief Destroy the main window and owned UI collaborators. */
     virtual ~MainWindow();
 
 protected:
@@ -158,14 +161,29 @@ protected:
     void on_toggle_password_visibility();  ///< Show/hide password
     void on_undo();  ///< Undo last operation
     void on_redo();  ///< Redo last undone operation
-    void on_star_column_clicked(const Gtk::TreeModel::Path& path);  ///< Toggle favorite by clicking star column (legacy)
-    void on_favorite_toggled(int account_index);  ///< Handle favorite toggle from AccountRowWidget
-    [[nodiscard]] bool is_undo_redo_enabled() const;  ///< Check if undo/redo is enabled in preferences
+    /** @brief Toggle favorite state from the legacy star-column path.
+     *  @param path Tree path corresponding to the clicked account row. */
+    void on_star_column_clicked(const Gtk::TreeModel::Path& path);
+
+    /** @brief Handle favorite toggle requests from AccountRowWidget.
+     *  @param account_index Vault index of the toggled account. */
+    void on_favorite_toggled(int account_index);
+
+    /** @brief Check whether undo/redo commands are enabled in preferences.
+     *  @return True when undo/redo UI should be enabled. */
+    [[nodiscard]] bool is_undo_redo_enabled() const;
     void on_tags_entry_activate();  ///< Add tag when Enter is pressed
-    void add_tag_chip(const std::string& tag);  ///< Add a tag chip to the flowbox
-    void remove_tag_chip(const std::string& tag);  ///< Remove a tag chip
+    /** @brief Add a visual tag chip to the flowbox.
+     *  @param tag Tag text to display. */
+    void add_tag_chip(const std::string& tag);
+
+    /** @brief Remove a visual tag chip.
+     *  @param tag Tag text to remove. */
+    void remove_tag_chip(const std::string& tag);
     void update_tags_display();  ///< Refresh tags display from current account
-    std::vector<std::string> get_current_tags();  ///< Get tags from current account
+    /** @brief Get the currently edited tag values.
+     *  @return Current tag list from the detail widget state. */
+    std::vector<std::string> get_current_tags();
     void update_tag_filter_dropdown();  ///< Update tag filter dropdown with all unique tags
     void on_tag_filter_changed();  ///< Handle tag filter selection change
     void on_field_filter_changed();  ///< Handle search field filter selection change
@@ -178,16 +196,25 @@ protected:
 
     // Group management handlers
     void on_create_group();  ///< Show dialog to create new group
-    void on_rename_group(const std::string& group_id, const Glib::ustring& current_name);  ///< Rename a group
-    void on_delete_group(const std::string& group_id);  ///< Delete a group
+    /** @brief Rename a group.
+     *  @param group_id Stable identifier of the group to rename.
+     *  @param current_name Current display name shown to the user. */
+    void on_rename_group(const std::string& group_id, const Glib::ustring& current_name);
+    /** @brief Delete a group.
+     *  @param group_id Stable identifier of the group to delete. */
+    void on_delete_group(const std::string& group_id);
 
     // Security handlers (Phase 5k: delegated to AutoLockHandler)
     void on_user_activity();  ///< Reset inactivity timer (delegates to AutoLockHandler)
-    bool on_auto_lock_timeout();  ///< Auto-lock vault after inactivity (delegates to AutoLockHandler)
+    /** @brief Auto-lock vault after inactivity (delegates to AutoLockHandler).
+     *  @return True to keep the timeout active. */
+    bool on_auto_lock_timeout();
     void lock_vault();  ///< Lock the vault requiring re-authentication (delegates to AutoLockHandler)
 
     // Helper methods
-    bool save_current_account();  ///< Returns false if validation fails
+    /** @brief Persist the currently edited account details.
+     *  @return False when validation or save fails. */
+    bool save_current_account();
 
     /** @brief Refresh account list display (delegates to AccountTreeWidget) */
     void update_account_list();
@@ -237,19 +264,28 @@ protected:
     /** @brief Apply the final constructor-owned runtime state after signal wiring. */
     void setup_post_wiring_runtime_state();
 
-    /** @brief True when the UI currently has an open vault session. */
+    /** @brief True when the UI currently has an open vault session.
+     *  @return True when a vault is open in the current window. */
     [[nodiscard]] bool has_open_vault() const noexcept;
 
-    /** @brief True when a selected account is available for the current open vault. */
+    /** @brief True when a selected account is available for the current open vault.
+     *  @return True when an account is selected and addressable. */
     [[nodiscard]] bool has_selected_account() const noexcept;
 
-    /** @brief Enforce an open-vault precondition, reporting through the status label. */
+    /** @brief Enforce an open-vault precondition, reporting through the status label.
+     *  @param message Status message shown when no vault is open.
+     *  @return True when a vault is open and the caller may proceed. */
     [[nodiscard]] bool require_open_vault_status(std::string_view message);
 
-    /** @brief Enforce an open-vault precondition, reporting through an error dialog. */
+    /** @brief Enforce an open-vault precondition, reporting through an error dialog.
+     *  @param message Error detail shown when no vault is open.
+     *  @return True when a vault is open and the caller may proceed. */
     [[nodiscard]] bool require_open_vault_error(const Glib::ustring& message);
 
-    /** @brief Enforce an open-vault precondition, reporting through an alert dialog. */
+    /** @brief Enforce an open-vault precondition, reporting through an alert dialog.
+     *  @param title Alert title shown when no vault is open.
+     *  @param detail Alert body shown when no vault is open.
+     *  @return True when a vault is open and the caller may proceed. */
     [[nodiscard]] bool require_open_vault_alert(
         const Glib::ustring& title,
         const Glib::ustring& detail);
@@ -265,8 +301,14 @@ protected:
      *  @param email Email address to validate
      *  @return true if format is valid */
     bool validate_email_format(const Glib::ustring& email);
-    bool prompt_save_if_modified();  ///< Prompt to save if vault modified, return false if user cancels
-    void update_undo_redo_sensitivity(bool can_undo, bool can_redo);  ///< Update undo/redo menu item sensitivity
+    /** @brief Prompt to save when the vault has unsaved changes.
+     *  @return False when the user cancels the pending action. */
+    bool prompt_save_if_modified();
+
+    /** @brief Update undo/redo menu item sensitivity.
+     *  @param can_undo True when undo is currently available.
+     *  @param can_redo True when redo is currently available. */
+    void update_undo_redo_sensitivity(bool can_undo, bool can_redo);
     // [REMOVED] Legacy drag-and-drop setup (handled by AccountTreeWidget)
 
     // Phase 2: Repository management
@@ -309,9 +351,19 @@ protected:
      */
     void reset_services();
     // V2 multi-user vault helpers
-    std::optional<uint32_t> detect_vault_version(const std::string& vault_path);  ///< Detect if vault is V1 or V2
-    void handle_v2_vault_open(const std::string& vault_path);  ///< Handle V2 user authentication (delegates to V2AuthenticationHandler)
-    void complete_vault_opening(const std::string& vault_path, const std::string& username);  ///< Complete vault opening after authentication
+    /** @brief Detect whether a vault path points to a V1 or V2 vault.
+     *  @param vault_path Path to the vault file.
+     *  @return Detected vault version when readable. */
+    std::optional<uint32_t> detect_vault_version(const std::string& vault_path);
+
+    /** @brief Handle V2 user authentication (delegates to V2AuthenticationHandler).
+     *  @param vault_path Path to the vault file. */
+    void handle_v2_vault_open(const std::string& vault_path);
+
+    /** @brief Complete vault opening after authentication.
+     *  @param vault_path Path to the opened vault.
+     *  @param username Authenticated username for session display/state. */
+    void complete_vault_opening(const std::string& vault_path, const std::string& username);
     void update_session_display();  ///< Update header bar with session info (username, role)
 
     // Phase 4: Permissions & role-based UI
@@ -319,8 +371,13 @@ protected:
     void on_logout();  ///< Logout from V2 vault (return to login screen)
     void on_manage_users();  ///< Admin: Show user management dialog
     void update_menu_for_role();  ///< Update menu item visibility based on user role
-    [[nodiscard]] bool is_v2_vault_open() const noexcept;  ///< Check if V2 vault is currently open
-    [[nodiscard]] bool is_current_user_admin() const noexcept;  ///< Check if current user is administrator
+    /** @brief Check if a V2 vault is currently open.
+     *  @return True when the active session is a V2 vault. */
+    [[nodiscard]] bool is_v2_vault_open() const noexcept;
+
+    /** @brief Check if the current user is an administrator.
+     *  @return True when the current authenticated user has admin role. */
+    [[nodiscard]] bool is_current_user_admin() const noexcept;
 
     // Helper methods for widget-based UI
 

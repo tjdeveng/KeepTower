@@ -135,6 +135,7 @@ class SecureBuffer {
 public:
     /**
      * @brief Construct from existing data (copies and takes ownership)
+        * @param data Sensitive value to copy into the secure buffer.
      */
     explicit SecureBuffer(const T& data) : data_(data) {}
 
@@ -174,12 +175,14 @@ public:
     }
 
     /**
-     * @brief Get const reference to data
+     * @brief Get const reference to data.
+     * @return Immutable reference to the wrapped sensitive value.
      */
     [[nodiscard]] const T& get() const { return data_; }
 
     /**
-     * @brief Get mutable reference to data
+        * @brief Get mutable reference to data.
+        * @return Mutable reference to the wrapped sensitive value.
      */
     [[nodiscard]] T& get() { return data_; }
 
@@ -312,6 +315,7 @@ public:
 
     /**
      * @brief Move constructor - securely clears source
+     * @param other Source secure string to move from.
      */
     SecureString(SecureString&& other) noexcept
         : str_(std::move(other.str_)) {
@@ -320,6 +324,8 @@ public:
 
     /**
      * @brief Move assignment - securely clears both source and destination
+        * @param other Source secure string to move from.
+        * @return Reference to this secure string.
      */
     SecureString& operator=(SecureString&& other) noexcept {
         if (this != &other) {
