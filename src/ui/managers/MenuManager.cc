@@ -108,13 +108,12 @@ Glib::RefPtr<Gio::Menu> MenuManager::create_primary_menu() {
 }
 
 Gtk::PopoverMenu* MenuManager::create_account_context_menu(
-    const std::string& account_id,
+    const std::string& /*account_id*/,
     int account_index,
     Gtk::Widget* widget,
     const std::function<void(const std::string&)>& add_to_group_callback,
     const std::function<void(const std::string&)>& remove_from_group_callback)
 {
-    m_context_menu_account_id = account_id;
     auto menu = Gio::Menu::create();
 
     if (m_vault_manager) {
@@ -187,7 +186,6 @@ Gtk::PopoverMenu* MenuManager::create_group_context_menu(
     const std::string& group_id,
     Gtk::Widget* widget)
 {
-    m_context_menu_group_id = group_id;
     auto menu = Gio::Menu::create();
 
     // Create Group section (always available)

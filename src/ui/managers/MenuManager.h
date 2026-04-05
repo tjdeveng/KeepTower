@@ -139,10 +139,6 @@ private:
     Glib::RefPtr<Gio::SimpleAction> m_logout_action;
     Glib::RefPtr<Gio::SimpleAction> m_manage_users_action;
 
-    // Context menu state
-    std::string m_context_menu_account_id;
-    std::string m_context_menu_group_id;
-
     /**
      * @brief Helper to add an action to the window
      */

@@ -66,6 +66,7 @@ namespace Gtk { class Box; class HeaderBar; class Button; class MenuButton; clas
 #include "../managers/UserAccountHandler.h"
 
 // Coordinators
+#include "../coordinators/AccountTreeInteractionCoordinator.h"
 #include "../coordinators/AccountSelectionCoordinator.h"
 #include "../coordinators/VaultUiCoordinator.h"
 
@@ -173,8 +174,6 @@ protected:
     void on_create_group();  ///< Show dialog to create new group
     void on_rename_group(const std::string& group_id, const Glib::ustring& current_name);  ///< Rename a group
     void on_delete_group(const std::string& group_id);  ///< Delete a group
-    void on_add_account_to_group(int account_index, const std::string& group_id);  ///< Add account to group
-    void on_remove_account_from_group(int account_index, const std::string& group_id);  ///< Remove account from group
 
     // Security handlers (Phase 5k: delegated to AutoLockHandler)
     void on_user_activity();  ///< Reset inactivity timer (delegates to AutoLockHandler)
@@ -298,31 +297,6 @@ protected:
      *  @param group_id Group unique identifier */
     void filter_accounts_by_group(const std::string& group_id);
 
-    /** @brief Display account context menu at pointer position
-     *  @param account_id Account unique identifier
-     *  @param widget Widget to position menu relative to
-     *  @param x X coordinate
-     *  @param y Y coordinate */
-    void show_account_context_menu(const std::string& account_id, Gtk::Widget* widget, double x, double y);
-
-    /** @brief Display group context menu at pointer position
-     *  @param group_id Group unique identifier
-     *  @param widget Widget to position menu relative to
-     *  @param x X coordinate
-     *  @param y Y coordinate */
-    void show_group_context_menu(const std::string& group_id, Gtk::Widget* widget, double x, double y);
-
-    /** @brief Handle account drag-and-drop reorder
-     *  @param account_id Account being moved
-     *  @param target_group_id Destination group ID
-     *  @param new_index New position index */
-    void on_account_reordered(const std::string& account_id, const std::string& target_group_id, int new_index);
-
-    /** @brief Handle group drag-and-drop reorder
-     *  @param group_id Group being moved
-     *  @param new_index New position index */
-    void on_group_reordered(const std::string& group_id, int new_index);
-
     // Member widgets
     Gtk::Box m_main_box;              ///< Main vertical container
     Gtk::HeaderBar m_header_bar;      ///< Application header bar with title and buttons
@@ -366,10 +340,6 @@ protected:
     sigc::connection m_row_inserted_conn;     ///< Connection for detecting drag-and-drop reordering
     std::vector<sigc::connection> m_signal_connections;  ///< Persistent widget signal connections
 
-    // Context menu state
-    std::string m_context_menu_account_id;  ///< Account ID for current context menu
-    std::string m_context_menu_group_id;     ///< Group ID for current context menu
-
     // V2 multi-user session state
     Gtk::Label m_session_label;              ///< Display current user and role in header
 
@@ -397,6 +367,7 @@ protected:
     std::unique_ptr<ThemeController> m_theme_controller;          ///< Applies/monitors app theme preference
     std::unique_ptr<KeepTower::AutoLockManager> m_auto_lock_manager;         ///< Manages inactivity timeout
     std::unique_ptr<KeepTower::ClipboardManager> m_clipboard_manager;        ///< Manages clipboard auto-clear
+    std::unique_ptr<AccountTreeInteractionCoordinator> m_account_tree_interaction_coordinator; ///< Coordinates account-tree menus and reorder interactions
     std::unique_ptr<AccountSelectionCoordinator> m_account_selection_coordinator; ///< Coordinates account selection and detail synchronization
 
     // Phase 5: Managers for MainWindow reduction

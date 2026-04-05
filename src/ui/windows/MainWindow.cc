@@ -132,9 +132,6 @@ MainWindow::MainWindow()
     m_add_account_button.set_tooltip_text("Add Account");
     m_header_bar.pack_end(m_add_account_button);
 
-    // Phase 5: Create primary menu via MenuManager
-    m_primary_menu = m_menu_manager->create_primary_menu();
-
     m_menu_button.set_icon_name("open-menu-symbolic");
     m_menu_button.set_menu_model(m_primary_menu);
     m_menu_button.set_tooltip_text("Main Menu");
@@ -234,6 +231,10 @@ MainWindow::MainWindow()
     // Phase 5: Initialize MenuManager
     m_menu_manager = std::make_unique<UI::MenuManager>(*this, m_vault_manager.get());
 
+    // Phase 5: Create primary menu via MenuManager
+    m_primary_menu = m_menu_manager->create_primary_menu();
+    m_menu_button.set_menu_model(m_primary_menu);
+
     // Phase 5: Initialize VaultUiStateApplier
     UI::VaultUiStateApplier::UIWidgets widgets{
         &m_save_button,
@@ -289,6 +290,15 @@ MainWindow::MainWindow()
                 m_account_tree_widget->select_account_by_id(account_id);
             }
         }
+    );
+
+    m_account_tree_interaction_coordinator = std::make_unique<AccountTreeInteractionCoordinator>(
+        m_vault_manager.get(),
+        m_menu_manager.get(),
+        m_group_handler.get(),
+        m_account_edit_handler.get(),
+        [this](const std::string& account_id) { return find_account_index_by_id(account_id); },
+        [this]() { update_account_list(); }
     );
 
     // Issue #5: Vault UI coordinator (owns vault state + vault open wiring)
@@ -382,22 +392,20 @@ MainWindow::MainWindow()
     std::map<std::string, std::function<void()>> action_callbacks = {
         {"preferences", [this]() { on_preferences(); }},
         {"import-csv", [this]() { on_import_from_csv(); }},
-        {"delete-account", [this]() { on_delete_account(); }},
+        {"delete-account", [this]() {
+            if (m_account_tree_interaction_coordinator) {
+                m_account_tree_interaction_coordinator->handle_delete_account_action();
+            }
+        }},
         {"create-group", [this]() { on_create_group(); }},
         {"rename-group", [this]() {
-            if (!m_context_menu_group_id.empty() && m_vault_manager) {
-                auto groups = m_vault_manager->get_all_groups_view();
-                for (const auto& group : groups) {
-                    if (group.group_id == m_context_menu_group_id) {
-                        on_rename_group(m_context_menu_group_id, group.group_name);
-                        break;
-                    }
-                }
+            if (m_account_tree_interaction_coordinator) {
+                m_account_tree_interaction_coordinator->handle_rename_group_action();
             }
         }},
         {"delete-group", [this]() {
-            if (!m_context_menu_group_id.empty()) {
-                on_delete_group(m_context_menu_group_id);
+            if (m_account_tree_interaction_coordinator) {
+                m_account_tree_interaction_coordinator->handle_delete_group_action();
             }
         }},
         {"undo", [this]() { on_undo(); }},
@@ -627,7 +635,9 @@ MainWindow::MainWindow()
         m_signal_connections.push_back(
             m_account_tree_widget->signal_account_right_click().connect(
                 [this](const std::string& account_id, Gtk::Widget* widget, double x, double y) {
-                    show_account_context_menu(account_id, widget, x, y);
+                    if (m_account_tree_interaction_coordinator) {
+                        m_account_tree_interaction_coordinator->show_account_context_menu(account_id, widget, x, y);
+                    }
                 }
             )
         );
@@ -635,7 +645,9 @@ MainWindow::MainWindow()
         m_signal_connections.push_back(
             m_account_tree_widget->signal_group_right_click().connect(
                 [this](const std::string& group_id, Gtk::Widget* widget, double x, double y) {
-                    show_group_context_menu(group_id, widget, x, y);
+                    if (m_account_tree_interaction_coordinator) {
+                        m_account_tree_interaction_coordinator->show_group_context_menu(group_id, widget, x, y);
+                    }
                 }
             )
         );
@@ -643,14 +655,21 @@ MainWindow::MainWindow()
         m_signal_connections.push_back(
             m_account_tree_widget->signal_account_reordered().connect(
                 [this](const std::string& account_id, const std::string& target_group_id, int new_index) {
-                    on_account_reordered(account_id, target_group_id, new_index);
+                    if (m_account_tree_interaction_coordinator) {
+                        m_account_tree_interaction_coordinator->handle_account_reordered(
+                            account_id,
+                            target_group_id,
+                            new_index);
+                    }
                 }
             )
         );
         m_signal_connections.push_back(
             m_account_tree_widget->signal_group_reordered().connect(
                 [this](const std::string& group_id, int new_index) {
-                    on_group_reordered(group_id, new_index);
+                    if (m_account_tree_interaction_coordinator) {
+                        m_account_tree_interaction_coordinator->handle_group_reordered(group_id, new_index);
+                    }
                 }
             )
         );
@@ -1342,10 +1361,7 @@ void MainWindow::on_delete_account() {
     }
 
     // Phase 5j: Delegate to AccountEditHandler
-    m_account_edit_handler->handle_delete(m_context_menu_account_id);
-
-    // Clear context menu state
-    m_context_menu_account_id.clear();
+    m_account_edit_handler->handle_delete({});
 }
 
 void MainWindow::on_import_from_csv() {
@@ -1583,122 +1599,6 @@ void MainWindow::filter_accounts_by_group(const std::string& group_id) {
         }
     }
     m_account_tree_widget->set_data(groups, filtered_accounts);
-}
-
-// Handle account drag-and-drop reorder
-void MainWindow::on_account_reordered(const std::string& account_id, const std::string& target_group_id, int new_index) {
-    if (!m_vault_manager) return;
-    int idx = find_account_index_by_id(account_id);
-    if (idx < 0) return;
-
-    g_debug("MainWindow::on_account_reordered - account_id=%s, target_group_id='%s', index=%d",
-            account_id.c_str(), target_group_id.c_str(), new_index);
-
-    // Handle group membership changes
-    if (target_group_id.empty()) {
-        // Empty group_id means dropped into "All Accounts" view
-        // This is just a view of all accounts, not a group container
-        // Don't change group membership - use context menu to remove from groups
-        g_debug("  Dropped into All Accounts - no group membership changes");
-        return;  // No-op
-    } else {
-        // Adding to a group - just add without removing from other groups
-        // This allows accounts to be members of multiple groups
-        if (!m_vault_manager->is_account_in_group(idx, target_group_id)) {
-            if (!m_vault_manager->add_account_to_group(idx, target_group_id)) {
-                KeepTower::Log::warning("Failed to add account to group");
-                return;
-            }
-        }
-    }
-
-    // Defer UI refresh until after drag operation completes (next idle cycle)
-    // This prevents destroying widgets while drag is still in progress
-    Glib::signal_idle().connect_once([this]() {
-        update_account_list();
-    });
-}
-
-// Handle group drag-and-drop reorder
-void MainWindow::on_group_reordered(const std::string& group_id, int new_index) {
-    if (!m_vault_manager) return;
-    if (!m_vault_manager->reorder_group(group_id, new_index)) {
-        KeepTower::Log::warning("Failed to reorder group");
-        return;
-    }
-
-    // Defer UI refresh until after drag operation completes
-    Glib::signal_idle().connect_once([this]() {
-        update_account_list();
-    });
-}
-
-void MainWindow::show_account_context_menu(const std::string& account_id, Gtk::Widget* widget, double x, double y) {
-    // Find the account index
-    int account_index = find_account_index_by_id(account_id);
-    if (account_index < 0) {
-        return;
-    }
-
-    // Store account_id for use in callbacks
-    m_context_menu_account_id = account_id;
-
-    // Phase 5: Use MenuManager to create context menu
-    auto popover = m_menu_manager->create_account_context_menu(
-        account_id,
-        account_index,
-        widget,
-        [this](const std::string& gid) {
-            if (!m_context_menu_account_id.empty() && m_vault_manager) {
-                int idx = find_account_index_by_id(m_context_menu_account_id);
-                if (idx >= 0) {
-                    if (m_vault_manager->add_account_to_group(idx, gid)) {
-                        update_account_list();
-                    }
-                }
-            }
-        },
-        [this](const std::string& gid) {
-            if (!m_context_menu_account_id.empty() && m_vault_manager) {
-                int idx = find_account_index_by_id(m_context_menu_account_id);
-                if (idx >= 0) {
-                    if (m_vault_manager->remove_account_from_group(idx, gid)) {
-                        update_account_list();
-                    }
-                }
-            }
-        }
-    );
-
-    // Position at click location
-    Gdk::Rectangle rect;
-    rect.set_x(static_cast<int>(x));
-    rect.set_y(static_cast<int>(y));
-    rect.set_width(1);
-    rect.set_height(1);
-    popover->set_pointing_to(rect);
-
-    popover->popup();
-}
-
-void MainWindow::show_group_context_menu(const std::string& group_id, Gtk::Widget* widget, double x, double y) {
-    // Don't show menu for Favorites (it's fully system-managed)
-    if (group_id == "favorites") {
-        return;
-    }
-
-    // Phase 5: Use MenuManager to create context menu
-    auto popover = m_menu_manager->create_group_context_menu(group_id, widget);
-
-    // Position at click location
-    Gdk::Rectangle rect;
-    rect.set_x(static_cast<int>(x));
-    rect.set_y(static_cast<int>(y));
-    rect.set_width(1);
-    rect.set_height(1);
-    popover->set_pointing_to(rect);
-
-    popover->popup();
 }
 
 // ============================================================================

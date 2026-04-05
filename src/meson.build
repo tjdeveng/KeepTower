@@ -248,6 +248,7 @@ sources = files(
   'ui/controllers/ClipboardManager.cc',
   'ui/controllers/flows/ExportFlowController.cc',
   'ui/controllers/flows/ImportFlowController.cc',
+  'ui/coordinators/AccountTreeInteractionCoordinator.cc',
   'ui/coordinators/AccountSelectionCoordinator.cc',
   'ui/coordinators/VaultUiCoordinator.cc',
   'ui/managers/DialogManager.cc',
