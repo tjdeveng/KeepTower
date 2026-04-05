@@ -1063,6 +1063,26 @@ account_tree_widget_test = executable(
 
 test('account_tree_widget', account_tree_widget_test)
 
+# AccountDetailWidget tests (dirty-state regression coverage)
+account_detail_widget_test_sources = [
+    'test_account_detail_widget.cc',
+    '../src/ui/widgets/AccountDetailWidget.cc'
+]
+
+account_detail_widget_test_deps = [
+    gtest_dep,
+    gtkmm_dep
+]
+
+account_detail_widget_test = executable(
+    'account_detail_widget_test',
+    account_detail_widget_test_sources,
+    dependencies: account_detail_widget_test_deps,
+    include_directories: test_inc
+)
+
+test('account_detail_widget', account_detail_widget_test)
+
 # ThemeController tests (Issue #5 refactor)
 theme_controller_test_sources = [
     'test_theme_controller.cc',

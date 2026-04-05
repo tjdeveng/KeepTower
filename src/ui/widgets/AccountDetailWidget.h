@@ -130,6 +130,8 @@ public:
     sigc::signal<void()> signal_copy_password();
 
 private:
+    void mark_modified();
+
     // UI Layout containers
     Gtk::Box m_details_box;
     Gtk::Paned m_details_paned;  // Horizontal resizable split for fields + notes

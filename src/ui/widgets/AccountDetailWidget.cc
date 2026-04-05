@@ -342,7 +342,7 @@ void AccountDetailWidget::set_delete_button_sensitive(bool sensitive) {
 
 void AccountDetailWidget::set_password(const std::string& password) {
     m_password_entry.set_text(password);
-    m_signal_modified.emit();
+    mark_modified();
 }
 
 void AccountDetailWidget::focus_account_name_entry() {
@@ -366,6 +366,11 @@ sigc::signal<void()> AccountDetailWidget::signal_copy_password() {
     return m_signal_copy_password;
 }
 
+void AccountDetailWidget::mark_modified() {
+    m_is_modified = true;
+    m_signal_modified.emit();
+}
+
 void AccountDetailWidget::on_show_password_clicked() {
     m_password_visible = !m_password_visible;
     m_password_entry.set_visibility(m_password_visible);
@@ -378,8 +383,7 @@ void AccountDetailWidget::on_show_password_clicked() {
 }
 
 void AccountDetailWidget::on_entry_changed() {
-    m_is_modified = true;
-    m_signal_modified.emit();
+    mark_modified();
 }
 
 void AccountDetailWidget::on_tag_entry_activate() {
@@ -387,7 +391,7 @@ void AccountDetailWidget::on_tag_entry_activate() {
     if (!tag.empty()) {
         add_tag_chip(tag);
         m_tags_entry.set_text("");
-        m_signal_modified.emit();
+        mark_modified();
     }
 }
 
@@ -407,7 +411,7 @@ void AccountDetailWidget::add_tag_chip(const std::string& tag) {
     remove_button->add_css_class("flat");
     remove_button->signal_clicked().connect([this, chip_box, tag]() {
         remove_tag_chip(tag);
-        m_signal_modified.emit();
+        mark_modified();
     });
     chip_box->append(*remove_button);
 

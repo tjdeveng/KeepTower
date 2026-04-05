@@ -1002,6 +1002,10 @@ bool MainWindow::save_current_account() {
         return true;  // Invalid state, but don't block navigation
     }
 
+    if (!m_account_detail_widget->is_modified()) {
+        return true;  // No in-progress edits, avoid re-dirtying the vault on close/save flows
+    }
+
     // Get values from detail widget
     const auto account_name = m_account_detail_widget->get_account_name();
     const auto user_name = m_account_detail_widget->get_user_name();
@@ -1137,6 +1141,8 @@ bool MainWindow::save_current_account() {
     if (old_name != detail.account_name) {
         update_account_list();
     }
+
+    m_account_detail_widget->reset_modified_flag();
 
     return true;  // Save successful
 }
