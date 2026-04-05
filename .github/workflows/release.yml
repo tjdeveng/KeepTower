@@ -241,17 +241,32 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Install Doxygen
+    - name: Cache Doxygen
+      id: cache-doxygen
+      uses: actions/cache@v4
+      with:
+        path: /tmp/doxygen-install
+        key: doxygen-${{ runner.os }}-${{ hashFiles('.github/doxygen-version.txt') }}
+        restore-keys: |
+          doxygen-${{ runner.os }}-
+
+    - name: Install documentation dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y doxygen graphviz
+        sudo apt-get install -y curl graphviz
+
+    - name: Install pinned Doxygen
+      run: bash scripts/install-doxygen.sh /tmp/doxygen-install /tmp/doxygen-download
+
+    - name: Expose Doxygen on PATH
+      run: echo "/tmp/doxygen-install/bin" >> $GITHUB_PATH
 
     - name: Generate documentation
-      run: doxygen Doxyfile
+      run: bash scripts/run-doxygen.sh
 
     - name: Package documentation
       run: |
-        cd docs/api
+        cd build/docs/api
         tar -czf ../../keeptower-${{ needs.create-release.outputs.version }}-docs.tar.gz html/
         cd ../..
 

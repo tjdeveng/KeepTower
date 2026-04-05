@@ -345,17 +345,32 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Install Doxygen
+    - name: Cache Doxygen
+      id: cache-doxygen
+      uses: actions/cache@v4
+      with:
+        path: /tmp/doxygen-install
+        key: doxygen-${{ runner.os }}-${{ hashFiles('.github/doxygen-version.txt') }}
+        restore-keys: |
+          doxygen-${{ runner.os }}-
+
+    - name: Install documentation dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y doxygen graphviz
+        sudo apt-get install -y curl graphviz
+
+    - name: Install pinned Doxygen
+      run: bash scripts/install-doxygen.sh /tmp/doxygen-install /tmp/doxygen-download
+
+    - name: Expose Doxygen on PATH
+      run: echo "/tmp/doxygen-install/bin" >> $GITHUB_PATH
 
     - name: Generate documentation
-      run: doxygen Doxyfile
+      run: bash scripts/run-doxygen.sh
 
     - name: Check documentation built
       run: |
-        if [ ! -f docs/api/html/index.html ]; then
+        if [ ! -f build/docs/api/html/index.html ]; then
           echo "Documentation failed to build!"
           exit 1
         fi
@@ -365,7 +380,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: api-documentation
-        path: docs/api/html/
+        path: build/docs/api/html/
         retention-days: 30
 
   security:
