@@ -431,14 +431,9 @@ MainWindow::MainWindow()
 
     setup_account_tree_signal_wiring();
 
-        // [REMOVED] Legacy TreeView star column click logic (migrated to AccountTreeWidget)
+    // [REMOVED] Legacy TreeView star column click logic (migrated to AccountTreeWidget)
 
-    // Phase 5k: Setup activity monitoring for auto-lock via AutoLockHandler
-    m_auto_lock_handler->setup_activity_monitoring();
-
-    // Initially disable search and details
-    m_search_entry.set_sensitive(false);
-    clear_account_details();
+    setup_post_wiring_runtime_state();
 }
 
 void MainWindow::setup_window_actions() {
@@ -705,6 +700,15 @@ void MainWindow::setup_initial_widget_state() {
     m_save_button.set_sensitive(false);
     m_close_button.set_sensitive(false);
     m_add_account_button.set_sensitive(false);
+}
+
+void MainWindow::setup_post_wiring_runtime_state() {
+    // Phase 5k: Setup activity monitoring for auto-lock via AutoLockHandler
+    m_auto_lock_handler->setup_activity_monitoring();
+
+    // Initially disable search and details
+    m_search_entry.set_sensitive(false);
+    clear_account_details();
 }
 
 MainWindow::~MainWindow() {
