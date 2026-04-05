@@ -388,59 +388,7 @@ MainWindow::MainWindow()
         [this]() { return prompt_save_if_modified(); }
     );
 
-    // Phase 5: Setup window actions via MenuManager (after MenuManager is initialized)
-    std::map<std::string, std::function<void()>> action_callbacks = {
-        {"preferences", [this]() { on_preferences(); }},
-        {"import-csv", [this]() { on_import_from_csv(); }},
-        {"delete-account", [this]() {
-            if (m_account_tree_interaction_coordinator) {
-                m_account_tree_interaction_coordinator->handle_delete_account_action();
-            }
-        }},
-        {"create-group", [this]() { on_create_group(); }},
-        {"rename-group", [this]() {
-            if (m_account_tree_interaction_coordinator) {
-                m_account_tree_interaction_coordinator->handle_rename_group_action();
-            }
-        }},
-        {"delete-group", [this]() {
-            if (m_account_tree_interaction_coordinator) {
-                m_account_tree_interaction_coordinator->handle_delete_group_action();
-            }
-        }},
-        {"undo", [this]() { on_undo(); }},
-        {"redo", [this]() { on_redo(); }},
-#ifdef HAVE_YUBIKEY_SUPPORT
-        {"test-yubikey", [this]() { on_test_yubikey(); }},
-        {"manage-yubikeys", [this]() { on_manage_yubikeys(); }},
-#endif
-    };
-    m_menu_manager->setup_actions(action_callbacks);
-
-    // Setup help menu actions
-    m_menu_manager->setup_help_actions();
-
-    // Setup V2-specific actions separately to capture return values
-    m_export_action = add_action("export-csv", sigc::mem_fun(*this, &MainWindow::on_export_to_csv));
-    m_change_password_action = add_action("change-password", sigc::mem_fun(*this, &MainWindow::on_change_my_password));
-    m_logout_action = add_action("logout", sigc::mem_fun(*this, &MainWindow::on_logout));
-    m_manage_users_action = add_action("manage-users", sigc::mem_fun(*this, &MainWindow::on_manage_users));
-
-    // Pass action references to MenuManager for enable/disable
-    m_menu_manager->set_action_references(
-        m_export_action,
-        m_change_password_action,
-        m_logout_action,
-        m_manage_users_action
-    );
-
-    // Initially disable V2-only actions
-    m_change_password_action->set_enabled(false);
-    m_logout_action->set_enabled(false);
-    m_manage_users_action->set_enabled(false);
-
-    // Setup keyboard shortcuts via MenuManager
-    m_menu_manager->setup_keyboard_shortcuts(get_application());
+    setup_window_actions();
 
     // Connect AutoLockManager signals
     m_auto_lock_manager->signal_auto_lock_triggered().connect(
@@ -682,6 +630,62 @@ MainWindow::MainWindow()
     // Initially disable search and details
     m_search_entry.set_sensitive(false);
     clear_account_details();
+}
+
+void MainWindow::setup_window_actions() {
+    // Phase 5: Setup window actions via MenuManager (after MenuManager is initialized)
+    std::map<std::string, std::function<void()>> action_callbacks = {
+        {"preferences", [this]() { on_preferences(); }},
+        {"import-csv", [this]() { on_import_from_csv(); }},
+        {"delete-account", [this]() {
+            if (m_account_tree_interaction_coordinator) {
+                m_account_tree_interaction_coordinator->handle_delete_account_action();
+            }
+        }},
+        {"create-group", [this]() { on_create_group(); }},
+        {"rename-group", [this]() {
+            if (m_account_tree_interaction_coordinator) {
+                m_account_tree_interaction_coordinator->handle_rename_group_action();
+            }
+        }},
+        {"delete-group", [this]() {
+            if (m_account_tree_interaction_coordinator) {
+                m_account_tree_interaction_coordinator->handle_delete_group_action();
+            }
+        }},
+        {"undo", [this]() { on_undo(); }},
+        {"redo", [this]() { on_redo(); }},
+#ifdef HAVE_YUBIKEY_SUPPORT
+        {"test-yubikey", [this]() { on_test_yubikey(); }},
+        {"manage-yubikeys", [this]() { on_manage_yubikeys(); }},
+#endif
+    };
+    m_menu_manager->setup_actions(action_callbacks);
+
+    // Setup help menu actions
+    m_menu_manager->setup_help_actions();
+
+    // Setup V2-specific actions separately to capture return values
+    m_export_action = add_action("export-csv", sigc::mem_fun(*this, &MainWindow::on_export_to_csv));
+    m_change_password_action = add_action("change-password", sigc::mem_fun(*this, &MainWindow::on_change_my_password));
+    m_logout_action = add_action("logout", sigc::mem_fun(*this, &MainWindow::on_logout));
+    m_manage_users_action = add_action("manage-users", sigc::mem_fun(*this, &MainWindow::on_manage_users));
+
+    // Pass action references to MenuManager for enable/disable
+    m_menu_manager->set_action_references(
+        m_export_action,
+        m_change_password_action,
+        m_logout_action,
+        m_manage_users_action
+    );
+
+    // Initially disable V2-only actions
+    m_change_password_action->set_enabled(false);
+    m_logout_action->set_enabled(false);
+    m_manage_users_action->set_enabled(false);
+
+    // Setup keyboard shortcuts via MenuManager
+    m_menu_manager->setup_keyboard_shortcuts(get_application());
 }
 
 MainWindow::~MainWindow() {
