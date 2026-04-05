@@ -111,6 +111,12 @@ This document outlines the planned features and improvements for KeepTower, orga
   - [x] Route workflow-facing V2 file/header operations through `VaultFileService`
   - [x] Add `VaultDataService` for workflow-facing protobuf payload serialization and schema migration
   - [x] Remove direct format-layer reach-through from manager, UI, and orchestrator workflow code
+- [x] **Phase K:** MainWindow decomposition stabilization - **COMPLETED**
+  - [x] Consolidate action precondition helpers for MainWindow event handlers
+  - [x] Extract selection/detail synchronization into focused coordinator glue
+  - [x] Extract account/group context-menu and tree interaction coordination
+  - [x] Reduce constructor wiring into focused setup/initialization steps
+  - [x] Stabilize re-entrant GTK selection/update behavior with regression coverage
 
 ### User Experience
 - [x] Refined dark/light theme with accent colors

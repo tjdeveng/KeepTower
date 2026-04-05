@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **MainWindow UI Re-entrancy Regression:**
+  - Fixed a grouped-account add flow segfault caused by re-entrant selection callbacks rebuilding `AccountTreeWidget` rows during `select_account_by_id()`
+  - Hardened selection logic to re-resolve the target row after callback delivery instead of dereferencing stale row pointers across synchronous UI rebuilds
+  - Added focused regression coverage for selection-triggered tree rebuilds in `tests/test_account_tree_widget.cc`
+
 ### Changed
 - **Storage Architecture Refactor:**
   - Extracted `VaultIO` into the dedicated `keeptower-storage` library target
@@ -18,10 +24,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Moved workflow-level V2 file/header handling behind `VaultFileService`, including version sniffing, YubiKey requirement inspection, manager-facing metadata parsing, and V2 file writing
   - Added `VaultDataService` as the manager-facing protobuf payload facade for serialize/deserialize/migrate operations
   - Removed direct `VaultFormatV2` and `VaultSerialization` reach-through from `VaultManager`, `VaultManagerV2`, `MainWindow`, and `VaultCreationOrchestrator`
+- **MainWindow Phase K Closeout:**
+  - Completed Phase K decomposition work across action preconditions, selection/detail orchestration, context-menu/group interaction glue, and constructor wiring cleanup
+  - Documented the phase stabilization result around GTK callback re-entrancy and added regression coverage for the repaired selection path
 
 ### Documentation
 - Refreshed Doxygen architecture comments for the Phase G/H public and storage-layer boundaries (`VaultManager`, `VaultFileService`, `VaultIO`, `VaultBackupPolicy`, `VaultCreationOrchestrator`)
 - Closed out Phase I boundary documentation for the workflow/file-format split (`VaultFileService`, `VaultDataService`, `VaultCreationOrchestrator`)
+- Closed out Phase K MainWindow decomposition notes and stabilization results
 
 ## [0.3.4] - 2026-04-02
 

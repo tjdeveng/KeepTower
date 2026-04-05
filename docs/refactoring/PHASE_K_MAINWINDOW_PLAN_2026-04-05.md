@@ -1,6 +1,7 @@
 # Phase K Plan: MainWindow Decomposition
 
 Date: 2026-04-05
+Status: Closed
 
 ## Objective
 Complete the next architecture modernization phase by reducing `MainWindow` orchestration and UI glue complexity while preserving behavior.
@@ -125,6 +126,42 @@ Validation:
 Commit target:
 - `docs(changelog): close out Phase K`
 
+## Closeout Summary
+
+### Completed Work
+- K.1 completed via consolidated action precondition helpers for vault-open and selected-account flows.
+- K.2 completed via `AccountSelectionCoordinator` extraction for selection/detail synchronization.
+- K.3 completed via `AccountTreeInteractionCoordinator` extraction for context menu and group interaction glue.
+- K.4 completed via constructor setup decomposition into focused initialization and wiring helpers.
+- K.5 completed with targeted stabilization, regression analysis, and documentation updates.
+
+### Final MainWindow Size
+- `src/ui/windows/MainWindow.cc`: 1821 lines
+- `src/ui/windows/MainWindow.h`: 420 lines
+
+### Stabilization Notes
+- A runtime regression surfaced during K.4 review: `open vault -> select grouped account -> Add Account` could segfault.
+- Root cause was a re-entrant selection path in `AccountTreeWidget::select_account_by_id()`:
+  - selection callbacks could synchronously rebuild tree rows
+  - the method then touched a stale row pointer after callback delivery
+- Fix landed in commit `f752920` by re-resolving the selected row after signal delivery instead of retaining row pointers across re-entrant callbacks.
+- Added regression coverage in `tests/test_account_tree_widget.cc` for synchronous rebuild-during-selection behavior.
+
+### Validation Performed
+- Manual smoke validation:
+  - original grouped-account add workflow reproduced and re-checked after fix
+  - additional manual group/account creation exercised the repaired path
+- Automated validation:
+  - `meson compile -C build`
+  - `meson test -C build account_tree_widget --print-errorlogs`
+  - `meson test -C build 'UI Features Tests' 'Settings Validator Tests' 'VaultManager Tests' 'V2AuthService Unit Tests' 'Username Hash Migration Tests' 'Username Hash Migration Priority 2 Tests' --print-errorlogs`
+  - `meson test -C build --suite migration --print-errorlogs`
+
+### Outcome
+- Constructor composition cleanup is complete.
+- The phase exited with no known blocking regressions in the validated MainWindow-adjacent flows.
+- The highest-risk finding from the phase was callback re-entrancy, not constructor extraction itself.
+
 ## Exit Criteria
 - `MainWindow.cc` reduced with measurable responsibility shift from orchestration methods into dedicated collaborators.
 - No behavior regressions in UI and V2 flows.
@@ -134,3 +171,7 @@ Commit target:
 - Signal lifetime bugs during extraction: keep ownership in `MainWindow`, move behavior only.
 - Hidden coupling in callbacks: migrate in narrow slices with immediate compile + tests.
 - Avoid broad renames during decomposition slices to keep diffs reviewable.
+
+## Phase Retrospective
+- The phase plan was effective when executed in narrow slices with immediate validation and commit boundaries.
+- The main stabilization lesson is that UI callback extraction around GTK widgets must assume synchronous re-entrancy until proven otherwise.

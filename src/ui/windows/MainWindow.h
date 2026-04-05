@@ -12,6 +12,8 @@ namespace Gtk { class Box; class HeaderBar; class Button; class MenuButton; clas
  * Refactoring Status:
  * - Phase 1: Extracted controllers (AccountViewController, SearchController, etc.)
  * - Phase 2: Integrated Repository Pattern for data access layer
+ * - Phase J: Delegated vault lifecycle orchestration to VaultUiCoordinator and focused handlers
+ * - Phase K: Reduced constructor/wiring complexity and extracted selection/tree interaction glue
  * - Ongoing: Gradually replacing direct VaultManager data calls with repository calls
  */
 
@@ -104,8 +106,10 @@ namespace UI {
  *
  * @section main_window_architecture Architecture
  * MainWindow uses a layered architecture:
- * - Controllers: Handle specific UI concerns (AccountViewController, SearchController)
- * - Repositories: Provide data access abstraction (AccountRepository, GroupRepository)
+ * - Controllers: Handle focused UI concerns (AccountViewController, SearchController, ThemeController)
+ * - Coordinators/handlers: Own event glue and workflow orchestration (`VaultUiCoordinator`,
+ *   `AccountSelectionCoordinator`, `AccountTreeInteractionCoordinator`, specialized handlers)
+ * - Repositories/services: Provide data access and business-policy abstraction
  * - VaultManager: Handles vault-level operations (open, close, save, encryption)
  *
  * @section main_window_features Window Features
@@ -127,7 +131,9 @@ namespace UI {
  * @section main_window_refactoring Refactoring Progress
  * - Phase 1 (Complete): Extracted controllers from MainWindow
  * - Phase 2 (Complete): Integrated Repository Pattern
- * - Phase 3 (Pending): Service layer for business logic
+ * - Phase 3 (Complete): Service layer adoption for business logic collaborators
+ * - Phase J (Complete): Vault/UI orchestration extraction
+ * - Phase K (Complete): Selection/tree interaction extraction and constructor composition cleanup
  */
 class MainWindow : public Gtk::ApplicationWindow {
 public:
