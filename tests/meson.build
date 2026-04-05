@@ -192,11 +192,11 @@ vault_boundary_types_test = executable(
 # Reed-Solomon tests
 reed_solomon_test = executable(
     'reed_solomon_test',
-    ['test_reed_solomon.cc', '../src/lib/fec/ReedSolomon.cc'],
+    ['test_reed_solomon.cc'],
 
     dependencies: [
         gtest_dep,
-        libcorrect_dep
+        fec_dep
     ],
     include_directories: test_inc
 )
@@ -532,14 +532,14 @@ username_hash_migration_concurrency_test = executable(
 # KEK Derivation tests (Phase 1: Core KEK Derivation Service)
 kek_derivation_sources = [
     'test_kek_derivation.cc',
-    '../src/lib/crypto/KekDerivationService.cc',
     '../src/core/services/KekDerivationSettingsAdapter.cc',
 ]
 
 kek_derivation_deps = [
     gtest_dep,
     gtkmm_dep,
-    openssl_dep
+    openssl_dep,
+    crypto_dep
 ]
 
 # Add argon2 if available
