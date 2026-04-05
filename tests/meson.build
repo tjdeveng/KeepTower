@@ -723,9 +723,6 @@ v2_auth_service_sources = [
     'test_v2_auth_service.cc',
     '../src/core/services/V2AuthService.cc',
     '../src/core/services/KeySlotManager.cc',
-    '../src/lib/crypto/KekDerivationService.cc',
-    '../src/lib/crypto/VaultCrypto.cc',
-    '../src/lib/crypto/KeyWrapping.cc',
     '../src/core/MultiUserTypes.cc',
     '../src/core/PasswordHistory.cc',
 ]
@@ -762,21 +759,15 @@ test('VaultFileService Unit Tests', vault_file_service_test)
 # VaultCreationOrchestrator unit tests (Phase 2 Day 2)
 vault_creation_orchestrator_sources = [
     '../src/core/controllers/VaultCreationOrchestrator.cc',
-    '../src/lib/crypto/VaultCryptoService.cc',
-    '../src/lib/crypto/KekDerivationService.cc',
-    '../src/lib/crypto/UsernameHashService.cc',
     '../src/core/services/VaultYubiKeyService.cc',
     '../src/core/services/VaultFileService.cc',
     '../src/core/services/VaultDataService.cc',
-    '../src/lib/crypto/KeyWrapping.cc',
-    '../src/lib/crypto/VaultCrypto.cc',
-    '../src/lib/fec/ReedSolomon.cc',
     '../src/core/MultiUserTypes.cc',
     '../src/core/MultiUserTypesSerDe.cc',
     '../src/core/PasswordHistory.cc',
     proto_gen
 ]
-vault_creation_orchestrator_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, libcorrect_dep, yubikey_dep, argon2_dep, storage_dep, vaultformat_dep]
+vault_creation_orchestrator_deps = [gtest_dep, protobuf_dep, openssl_dep, giomm_dep, yubikey_dep, argon2_dep, storage_dep, vaultformat_dep, fec_dep, crypto_dep]
 
 # TODO: Fix corrupted test file
 # vault_creation_orchestrator_test = executable(
@@ -801,12 +792,10 @@ test('VaultCreationOrchestrator Integration Tests', vault_orchestrator_integrati
 # Multi-User Infrastructure tests
 multiuser_sources = [
     'test_multiuser.cc',
-    '../src/lib/fec/ReedSolomon.cc',
     '../src/core/MultiUserTypes.cc',
     '../src/core/MultiUserTypesSerDe.cc',
-    '../src/lib/crypto/KeyWrapping.cc',
 ]
-multiuser_deps = [gtest_dep, openssl_dep, giomm_dep, libcorrect_dep, argon2_dep, vaultformat_dep]
+multiuser_deps = [gtest_dep, openssl_dep, giomm_dep, argon2_dep, vaultformat_dep, crypto_dep]
 
 multiuser_test = executable(
     'multiuser_test',
