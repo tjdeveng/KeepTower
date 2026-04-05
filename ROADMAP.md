@@ -117,6 +117,11 @@ This document outlines the planned features and improvements for KeepTower, orga
   - [x] Extract account/group context-menu and tree interaction coordination
   - [x] Reduce constructor wiring into focused setup/initialization steps
   - [x] Stabilize re-entrant GTK selection/update behavior with regression coverage
+- [x] **Phase L:** Test build boundary cleanup and audit hardening - **COMPLETED**
+  - [x] Remove remaining extracted-library test source bypasses in favor of Meson deps
+  - [x] Document intentional white-box and app-layer direct source inclusions in `tests/meson.build`
+  - [x] Split pure boundary-model coverage from manager/app-layer accessor coverage
+  - [x] Enforce strict zero-warning Doxygen coverage for the checked-in public API surface
 
 ### User Experience
 - [x] Refined dark/light theme with accent colors
@@ -192,7 +197,7 @@ This document outlines the planned features and improvements for KeepTower, orga
 - [ ] Comprehensive keyboard navigation
 - [ ] Internationalization (i18n) framework
 - [ ] Translations (Spanish, French, German - volunteer contributors welcome)
-- [x] Complete API documentation (Doxygen)
+- [x] Complete API documentation (Doxygen, strict zero-warning policy enforced)
 - [ ] User manual and help system
 - [ ] Video tutorials and screencasts
 - [ ] Developer documentation for contributors

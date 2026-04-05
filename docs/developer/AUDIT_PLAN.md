@@ -1,9 +1,9 @@
 # KeepTower v0.3.3 Post-Refactoring Audit Plan
 
-**Status**: Pending platform testing (Fedora 43, Ubuntu 24.04)
+**Status**: Architecture/code-quality closeout completed 2026-04-05; historical platform testing checklist retained for future distro verification
 **Version**: 0.3.3.2
 **Date Created**: 2026-01-15
-**Last Updated**: 2026-01-15
+**Last Updated**: 2026-04-05
 
 ## Overview
 
@@ -15,6 +15,23 @@ After extensive refactoring (Phase 5 UI extraction, YubiKey async operations, se
 - Security standards met
 - Documentation current
 - Maintainability high
+
+## 2026-04-05 Closeout Addendum
+
+The architecture/code-quality portion of this audit has now been closed out through the Phase I, Phase K, and Phase L modernization work.
+
+### Completed Closeout Outcomes
+- Extracted-library test targets now link through their Meson dependencies instead of bypassing boundaries with direct `.cc` inclusion.
+- Remaining direct test source inclusions are documented as intentional white-box or app-layer integration coverage.
+- Ambiguous boundary-model versus app-layer accessor coverage was split into separate tests for clearer reviewability.
+- Checked-in Doxygen policy now enforces undocumented, incomplete, and missing parameter documentation as errors for the public API surface.
+
+### Validation Snapshot
+- Full Meson test suite passed after the final Phase L cleanup (`64/64`).
+- Checked-in strict Doxygen configuration passed with zero warnings.
+
+### Residual Historical Items
+- Fedora and Ubuntu platform verification steps in this document remain useful as a distro-validation checklist, but they are no longer blocking the internal architecture/code-audit closeout that triggered this plan.
 
 ---
 

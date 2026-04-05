@@ -27,11 +27,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **MainWindow Phase K Closeout:**
   - Completed Phase K decomposition work across action preconditions, selection/detail orchestration, context-menu/group interaction glue, and constructor wiring cleanup
   - Documented the phase stabilization result around GTK callback re-entrancy and added regression coverage for the repaired selection path
+- **Phase L Test Build Audit Closeout:**
+  - Removed the last extracted-library direct test source inclusions for FEC and KEK derivation in favor of `fec_dep` and `crypto_dep`
+  - Clarified the remaining direct source inclusions in `tests/meson.build` as intentional white-box or app-layer integration coverage
+  - Split pure boundary-model tests from manager/app-layer accessor coverage to make audit boundaries explicit
 
 ### Documentation
 - Refreshed Doxygen architecture comments for the Phase G/H public and storage-layer boundaries (`VaultManager`, `VaultFileService`, `VaultIO`, `VaultBackupPolicy`, `VaultCreationOrchestrator`)
 - Closed out Phase I boundary documentation for the workflow/file-format split (`VaultFileService`, `VaultDataService`, `VaultCreationOrchestrator`)
 - Closed out Phase K MainWindow decomposition notes and stabilization results
+- Added Phase L closeout documentation for test build boundary cleanup and audit hardening
+- Enforced strict zero-warning Doxygen coverage for the checked-in public API surface
 
 ## [0.3.4] - 2026-04-02
 
