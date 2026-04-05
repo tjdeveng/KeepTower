@@ -43,8 +43,10 @@ jobs:
       id: changelog
       run: |
         if [ -f CHANGELOG.md ]; then
+          CHANGELOG_VERSION="${{ steps.get_version.outputs.version }}"
+          CHANGELOG_VERSION="${CHANGELOG_VERSION#v}"
           # Extract changelog for this version
-          awk '/^## \[${{ steps.get_version.outputs.version }}/ {flag=1; next} /^## \[/ {flag=0} flag' CHANGELOG.md > release-notes.md
+          awk "/^## \\[${CHANGELOG_VERSION}\\]/ {flag=1; next} /^## \\[/ {flag=0} flag" CHANGELOG.md > release-notes.md
           if [ ! -s release-notes.md ]; then
             echo "See CHANGELOG.md for details" > release-notes.md
           fi

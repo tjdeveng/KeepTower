@@ -114,10 +114,10 @@ meson test -C build
 Doxygen API documentation can be generated with:
 
 ```bash
-doxygen Doxyfile
+bash scripts/run-doxygen.sh
 ```
 
-The HTML documentation will be created in `docs/api/html/`. Open `docs/api/html/index.html` in your browser to view it.
+The HTML documentation will be created in `build/docs/api/html/`. Open `build/docs/api/html/index.html` in your browser to view it.
 
 ## Installation
 

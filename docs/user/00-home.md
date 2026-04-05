@@ -63,15 +63,15 @@ See **[[Installation]]** for detailed instructions for your distribution.
 ## Version
 
 **Current Version:** @VERSION@
-**Release Date:** April 2, 2026
+**Release Date:** April 5, 2026
 
-### Recent Updates (v0.3.4)
+### Recent Updates (v0.3.5)
 
-- ✅ Backup settings architecture refactor with vault-scoped preference semantics restored
-- ✅ Centralized backup settings validation via aggregate `BackupPreferences` helpers
-- ✅ Expanded regression coverage for backup preference load/save behavior
-- ✅ Doxygen output generation fixed for build-root path handling
-- ✅ API documentation regenerated cleanly for the current release
+- ✅ Fixed the close-vault unsaved-changes regression after a successful save
+- ✅ Hardened account detail modified-state tracking with focused regression coverage
+- ✅ Closed out recent MainWindow and test-boundary audit hardening work for this milestone
+- ✅ Aligned release-facing docs and canonical wiki sync output
+- ✅ Hardened GitHub Actions documentation generation with pinned, validated Doxygen tooling
 
 ## Support
 

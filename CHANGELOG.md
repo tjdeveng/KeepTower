@@ -7,11 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-04-05
+
 ### Fixed
 - **MainWindow UI Re-entrancy Regression:**
   - Fixed a grouped-account add flow segfault caused by re-entrant selection callbacks rebuilding `AccountTreeWidget` rows during `select_account_by_id()`
   - Hardened selection logic to re-resolve the target row after callback delivery instead of dereferencing stale row pointers across synchronous UI rebuilds
   - Added focused regression coverage for selection-triggered tree rebuilds in `tests/test_account_tree_widget.cc`
+- **Close-Vault Dirty-State Regression:**
+  - Prevented the close-vault flow from re-triggering an unsaved-changes prompt immediately after a successful save
+  - Hardened `AccountDetailWidget` dirty-state tracking so entry edits, tag changes, and programmatic password updates consistently mark the widget modified
+  - Added focused regression coverage for account-detail modified-flag behavior
+- **Documentation CI Reliability:**
+  - Fixed GitHub Actions documentation builds to use a configured Doxygen file instead of the raw Meson template
+  - Pinned the CI Doxygen toolchain to the validated upstream `1.13.2` release to match local documentation generation behavior
 
 ### Changed
 - **Storage Architecture Refactor:**
@@ -31,6 +40,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Removed the last extracted-library direct test source inclusions for FEC and KEK derivation in favor of `fec_dep` and `crypto_dep`
   - Clarified the remaining direct source inclusions in `tests/meson.build` as intentional white-box or app-layer integration coverage
   - Split pure boundary-model tests from manager/app-layer accessor coverage to make audit boundaries explicit
+- **Release Documentation and Wiki Sync:**
+  - Refreshed release-facing documentation for the `0.3.5` milestone across the README, installation guidance, wiki home, and AppStream metadata
+  - Canonicalized wiki sync naming and removal of obsolete legacy page variants to keep published documentation navigation clean
 
 ### Documentation
 - Refreshed Doxygen architecture comments for the Phase G/H public and storage-layer boundaries (`VaultManager`, `VaultFileService`, `VaultIO`, `VaultBackupPolicy`, `VaultCreationOrchestrator`)
@@ -38,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Closed out Phase K MainWindow decomposition notes and stabilization results
 - Added Phase L closeout documentation for test build boundary cleanup and audit hardening
 - Enforced strict zero-warning Doxygen coverage for the checked-in public API surface
+- Aligned release documentation with the current build output and wiki publication flow
 
 ## [0.3.4] - 2026-04-02
 

@@ -183,5 +183,5 @@ modules:
       # Uncomment and update when ready to submit:
       # - type: git
       #   url: https://github.com/tjdeveng/KeepTower.git
-      #   tag: v0.3.4
+      #   tag: v0.3.5
       #   commit: <full-commit-hash>
