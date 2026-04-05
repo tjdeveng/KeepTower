@@ -391,31 +391,7 @@ MainWindow::MainWindow()
     setup_window_actions();
     setup_controller_signal_wiring();
     setup_initial_sort_direction();
-
-    // Connect AccountDetailWidget signals
-    if (m_account_detail_widget) {
-        // Note: We no longer save on every keystroke (signal_modified)
-        // Instead, we save when switching accounts or closing the vault
-        // This prevents password validation from running on every keystroke
-
-        m_signal_connections.push_back(
-            m_account_detail_widget->signal_delete_requested().connect([this]() {
-                on_delete_account();
-            })
-        );
-
-        m_signal_connections.push_back(
-            m_account_detail_widget->signal_generate_password().connect([this]() {
-                on_generate_password();
-            })
-        );
-
-        m_signal_connections.push_back(
-            m_account_detail_widget->signal_copy_password().connect([this]() {
-                on_copy_password();
-            })
-        );
-    }
+    setup_account_detail_signal_wiring();
 
     // Add new widgets to the paned split
     m_paned.set_start_child(*m_account_tree_widget);
@@ -689,6 +665,33 @@ void MainWindow::setup_initial_sort_direction() {
         m_sort_button.set_icon_name("view-sort-descending-symbolic");
         m_sort_button.set_tooltip_text("Sort accounts Z-A");
     }
+}
+
+void MainWindow::setup_account_detail_signal_wiring() {
+    if (!m_account_detail_widget) {
+        return;
+    }
+
+    // Note: We no longer save on every keystroke (signal_modified)
+    // Instead, we save when switching accounts or closing the vault.
+    // This prevents password validation from running on every keystroke.
+    m_signal_connections.push_back(
+        m_account_detail_widget->signal_delete_requested().connect([this]() {
+            on_delete_account();
+        })
+    );
+
+    m_signal_connections.push_back(
+        m_account_detail_widget->signal_generate_password().connect([this]() {
+            on_generate_password();
+        })
+    );
+
+    m_signal_connections.push_back(
+        m_account_detail_widget->signal_copy_password().connect([this]() {
+            on_copy_password();
+        })
+    );
 }
 
 MainWindow::~MainWindow() {
