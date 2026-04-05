@@ -657,7 +657,6 @@ test('Group Manager Unit Tests', group_manager_test)
 # VaultFormatV2 unit tests
 vault_format_v2_sources = [
     'test_vault_format_v2.cc',
-    '../src/lib/fec/ReedSolomon.cc',
     '../src/core/MultiUserTypes.cc',
     '../src/core/MultiUserTypesSerDe.cc',
     proto_gen
@@ -745,7 +744,6 @@ test('V2AuthService Unit Tests', v2_auth_service_test)
 vault_file_service_sources = [
     'test_vault_file_service.cc',
     '../src/core/services/VaultFileService.cc',
-    '../src/lib/fec/ReedSolomon.cc',
     '../src/core/MultiUserTypes.cc',
     '../src/core/MultiUserTypesSerDe.cc',
     '../src/core/PasswordHistory.cc'
