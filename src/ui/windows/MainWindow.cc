@@ -393,37 +393,7 @@ MainWindow::MainWindow()
     setup_initial_sort_direction();
     setup_account_detail_signal_wiring();
 
-    // Add new widgets to the paned split
-    m_paned.set_start_child(*m_account_tree_widget);
-    m_paned.set_end_child(*m_account_detail_widget);
-
-    m_main_box.append(m_paned);
-
-    // Add CSS styling for tag chips
-    auto css_provider = Gtk::CssProvider::create();
-    css_provider->load_from_data(R"(
-        .tag-chip {
-            background-color: alpha(@accent_bg_color, 0.2);
-            border-radius: 12px;
-            padding: 2px 4px;
-        }
-        .tag-chip:hover {
-            background-color: alpha(@accent_bg_color, 0.3);
-        }
-        .tag-chip label {
-            font-size: 0.9em;
-        }
-        .tag-chip button {
-            min-width: 16px;
-            min-height: 16px;
-            padding: 0;
-        }
-    )");
-    Gtk::StyleContext::add_provider_for_display(
-        Gdk::Display::get_default(),
-        css_provider,
-        GTK_STYLE_PROVIDER_PRIORITY_APPLICATION
-    );
+    setup_layout_and_css();
 
     setup_initial_widget_state();
 
@@ -700,6 +670,40 @@ void MainWindow::setup_initial_widget_state() {
     m_save_button.set_sensitive(false);
     m_close_button.set_sensitive(false);
     m_add_account_button.set_sensitive(false);
+}
+
+void MainWindow::setup_layout_and_css() {
+    // Add new widgets to the paned split
+    m_paned.set_start_child(*m_account_tree_widget);
+    m_paned.set_end_child(*m_account_detail_widget);
+
+    m_main_box.append(m_paned);
+
+    // Add CSS styling for tag chips
+    auto css_provider = Gtk::CssProvider::create();
+    css_provider->load_from_data(R"(
+        .tag-chip {
+            background-color: alpha(@accent_bg_color, 0.2);
+            border-radius: 12px;
+            padding: 2px 4px;
+        }
+        .tag-chip:hover {
+            background-color: alpha(@accent_bg_color, 0.3);
+        }
+        .tag-chip label {
+            font-size: 0.9em;
+        }
+        .tag-chip button {
+            min-width: 16px;
+            min-height: 16px;
+            padding: 0;
+        }
+    )");
+    Gtk::StyleContext::add_provider_for_display(
+        Gdk::Display::get_default(),
+        css_provider,
+        GTK_STYLE_PROVIDER_PRIORITY_APPLICATION
+    );
 }
 
 void MainWindow::setup_post_wiring_runtime_state() {

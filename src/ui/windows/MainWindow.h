@@ -222,6 +222,9 @@ protected:
     /** @brief Initialize status label presentation and default button sensitivity. */
     void setup_initial_widget_state();
 
+    /** @brief Configure the main layout container and register constructor-time CSS. */
+    void setup_layout_and_css();
+
     /** @brief Apply the final constructor-owned runtime state after signal wiring. */
     void setup_post_wiring_runtime_state();
 
