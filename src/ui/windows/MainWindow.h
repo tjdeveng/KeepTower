@@ -207,6 +207,9 @@ protected:
     /** @brief Connect controller/manager signal callbacks used by MainWindow. */
     void setup_controller_signal_wiring();
 
+    /** @brief Load sort preference and apply initial sort button state. */
+    void setup_initial_sort_direction();
+
     /** @brief True when the UI currently has an open vault session. */
     [[nodiscard]] bool has_open_vault() const noexcept;
 

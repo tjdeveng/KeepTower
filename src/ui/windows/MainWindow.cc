@@ -390,24 +390,7 @@ MainWindow::MainWindow()
 
     setup_window_actions();
     setup_controller_signal_wiring();
-
-    // Load and apply sort direction from settings
-    {
-        auto sort_settings = Gio::Settings::create("com.tjdeveng.keeptower");
-        Glib::ustring sort_dir = sort_settings->get_string("sort-direction");
-        SortDirection direction = (sort_dir == "descending")
-            ? SortDirection::DESCENDING : SortDirection::ASCENDING;
-        m_account_tree_widget->set_sort_direction(direction);
-
-        // Update button to match loaded direction
-        if (direction == SortDirection::ASCENDING) {
-            m_sort_button.set_icon_name("view-sort-ascending-symbolic");
-            m_sort_button.set_tooltip_text("Sort accounts A-Z");
-        } else {
-            m_sort_button.set_icon_name("view-sort-descending-symbolic");
-            m_sort_button.set_tooltip_text("Sort accounts Z-A");
-        }
-    }
+    setup_initial_sort_direction();
 
     // Connect AccountDetailWidget signals
     if (m_account_detail_widget) {
@@ -689,6 +672,23 @@ void MainWindow::setup_controller_signal_wiring() {
                 m_status_label.set_text("Clipboard cleared");
             }
         });
+}
+
+void MainWindow::setup_initial_sort_direction() {
+    auto sort_settings = Gio::Settings::create("com.tjdeveng.keeptower");
+    Glib::ustring sort_dir = sort_settings->get_string("sort-direction");
+    SortDirection direction = (sort_dir == "descending")
+        ? SortDirection::DESCENDING : SortDirection::ASCENDING;
+    m_account_tree_widget->set_sort_direction(direction);
+
+    // Update button to match loaded direction
+    if (direction == SortDirection::ASCENDING) {
+        m_sort_button.set_icon_name("view-sort-ascending-symbolic");
+        m_sort_button.set_tooltip_text("Sort accounts A-Z");
+    } else {
+        m_sort_button.set_icon_name("view-sort-descending-symbolic");
+        m_sort_button.set_tooltip_text("Sort accounts Z-A");
+    }
 }
 
 MainWindow::~MainWindow() {
