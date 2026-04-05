@@ -122,7 +122,6 @@ fips_mode_test = executable(
 # Memory locking tests (FIPS-140-3 Section 7.9 compliance)
 memory_locking_sources = [
     'test_memory_locking.cc',
-    '../src/core/VaultManagerV2.cc',
 ] + vault_manager_common_app_sources
 
 memory_locking_deps = vault_manager_common_test_deps
@@ -181,7 +180,20 @@ vault_runtime_preferences_test = executable(
     include_directories: test_inc
 )
 
-# Vault boundary model tests (protobuf-free public model surface)
+# Vault boundary model tests (pure public model/view structs with no app-layer
+# implementation linkage)
+vault_boundary_models_test = executable(
+    'vault_boundary_models_test',
+    'test_vault_boundary_models.cc',
+    dependencies: [
+        gtest_dep,
+    ],
+    include_directories: test_inc
+)
+
+# Vault boundary accessor tests. These exercise the public VaultManager view
+# accessors against a closed vault, so they still link the common app-layer
+# implementation bundle.
 vault_boundary_types_test = executable(
     'vault_boundary_types_test',
     ['test_vault_boundary_types.cc'] + vault_manager_common_app_sources,
@@ -565,6 +577,7 @@ test('VaultManager Tests', vault_manager_test,
 test('Password Validation Tests', password_validation_test, timeout: 30)
 test('Input Validation Tests', input_validation_test)
 test('VaultRuntimePreferences Unit Tests', vault_runtime_preferences_test)
+test('Vault Boundary Model Tests', vault_boundary_models_test)
 test('Vault Boundary Types Tests', vault_boundary_types_test)
 test('Reed-Solomon Tests', reed_solomon_test)
 test('Vault Reed-Solomon Integration', vault_reed_solomon_test)
@@ -832,7 +845,6 @@ test('Multi-User Infrastructure Tests', multiuser_test)
 # V2 Authentication integration tests (Phase 2)
 v2_auth_sources = [
     'test_vault_manager_v2.cc',
-    '../src/core/VaultManagerV2.cc',
 ] + vault_manager_common_app_sources
 v2_auth_deps = vault_manager_common_test_deps
 
@@ -848,7 +860,6 @@ test('V2 Authentication Integration Tests', v2_auth_test, timeout: 60)
 # Password history tests (Phase 9)
 password_history_test_sources = [
     'test_password_history.cc',
-    '../src/core/VaultManagerV2.cc',
 ] + vault_manager_common_app_sources
 password_history_test_deps = vault_manager_common_test_deps
 
@@ -953,7 +964,6 @@ account_view_controller_test_sources = [
     '../src/ui/controllers/AccountViewController.cc',
     '../src/core/repositories/AccountRepository.cc',
     '../src/core/repositories/GroupRepository.cc',
-    '../src/core/VaultManagerV2.cc',
  ] + vault_manager_common_app_sources
 
 account_view_controller_test_deps = vault_manager_common_test_deps
@@ -1078,7 +1088,6 @@ test('theme_controller', theme_controller_test, env: ['GSETTINGS_SCHEMA_DIR=' + 
 account_repository_test_sources = [
     'test_account_repository.cc',
     '../src/core/repositories/AccountRepository.cc',
-    '../src/core/VaultManagerV2.cc',
  ] + vault_manager_common_app_sources
 
 account_repository_test_deps = vault_manager_common_test_deps
@@ -1096,7 +1105,6 @@ test('account_repository', account_repository_test)
 group_repository_test_sources = [
     'test_group_repository.cc',
     '../src/core/repositories/GroupRepository.cc',
-    '../src/core/VaultManagerV2.cc',
  ] + vault_manager_common_app_sources
 
 group_repository_test_deps = vault_manager_common_test_deps
@@ -1115,7 +1123,6 @@ account_service_test_sources = [
     'test_account_service.cc',
     '../src/core/services/AccountService.cc',
     '../src/core/repositories/AccountRepository.cc',
-    '../src/core/VaultManagerV2.cc',
  ] + vault_manager_common_app_sources
 
 account_service_test_deps = vault_manager_common_test_deps
@@ -1134,7 +1141,6 @@ group_service_test_sources = [
     'test_group_service.cc',
     '../src/core/services/GroupService.cc',
     '../src/core/repositories/GroupRepository.cc',
-    '../src/core/VaultManagerV2.cc',
  ] + vault_manager_common_app_sources
 
 group_service_test_deps = vault_manager_common_test_deps
