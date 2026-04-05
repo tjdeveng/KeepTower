@@ -425,66 +425,9 @@ MainWindow::MainWindow()
         GTK_STYLE_PROVIDER_PRIORITY_APPLICATION
     );
 
-    // Setup status bar
-    m_status_label.set_margin_start(12);
-    m_status_label.set_margin_end(12);
-    m_status_label.set_margin_top(6);
-    m_status_label.set_margin_bottom(6);
-    m_status_label.set_xalign(0.0);
-    m_status_label.add_css_class("dim-label");
-    m_main_box.append(m_status_label);
+    setup_initial_widget_state();
 
-    // Configure buttons
-    m_save_button.set_sensitive(false);
-    m_close_button.set_sensitive(false);
-    m_add_account_button.set_sensitive(false);
-
-    // Connect signals
-    m_signal_connections.push_back(
-        m_new_button.signal_clicked().connect(
-            sigc::mem_fun(*this, &MainWindow::on_new_vault)
-        )
-    );
-    m_signal_connections.push_back(
-        m_open_button.signal_clicked().connect(
-            sigc::mem_fun(*this, &MainWindow::on_open_vault)
-        )
-    );
-    m_signal_connections.push_back(
-        m_save_button.signal_clicked().connect(
-            sigc::mem_fun(*this, &MainWindow::on_save_vault)
-        )
-    );
-    m_signal_connections.push_back(
-        m_close_button.signal_clicked().connect(
-            sigc::mem_fun(*this, &MainWindow::on_close_vault)
-        )
-    );
-    m_signal_connections.push_back(
-        m_add_account_button.signal_clicked().connect(
-            sigc::mem_fun(*this, &MainWindow::on_add_account)
-        )
-    );
-    m_signal_connections.push_back(
-        m_search_entry.signal_changed().connect(
-            sigc::mem_fun(*this, &MainWindow::on_search_changed)
-        )
-    );
-    m_signal_connections.push_back(
-        m_field_filter_dropdown.property_selected().signal_changed().connect(
-            sigc::mem_fun(*this, &MainWindow::on_field_filter_changed)
-        )
-    );
-    m_signal_connections.push_back(
-        m_tag_filter_dropdown.property_selected().signal_changed().connect(
-            sigc::mem_fun(*this, &MainWindow::on_tag_filter_changed)
-        )
-    );
-    m_signal_connections.push_back(
-        m_sort_button.signal_clicked().connect(
-            sigc::mem_fun(*this, &MainWindow::on_sort_button_clicked)
-        )
-    );
+    setup_primary_widget_signal_wiring();
 
     // Connect AccountTreeWidget signals to MainWindow handlers
     if (m_account_tree_widget) {
@@ -692,6 +635,70 @@ void MainWindow::setup_account_detail_signal_wiring() {
             on_copy_password();
         })
     );
+}
+
+void MainWindow::setup_primary_widget_signal_wiring() {
+    m_signal_connections.push_back(
+        m_new_button.signal_clicked().connect(
+            sigc::mem_fun(*this, &MainWindow::on_new_vault)
+        )
+    );
+    m_signal_connections.push_back(
+        m_open_button.signal_clicked().connect(
+            sigc::mem_fun(*this, &MainWindow::on_open_vault)
+        )
+    );
+    m_signal_connections.push_back(
+        m_save_button.signal_clicked().connect(
+            sigc::mem_fun(*this, &MainWindow::on_save_vault)
+        )
+    );
+    m_signal_connections.push_back(
+        m_close_button.signal_clicked().connect(
+            sigc::mem_fun(*this, &MainWindow::on_close_vault)
+        )
+    );
+    m_signal_connections.push_back(
+        m_add_account_button.signal_clicked().connect(
+            sigc::mem_fun(*this, &MainWindow::on_add_account)
+        )
+    );
+    m_signal_connections.push_back(
+        m_search_entry.signal_changed().connect(
+            sigc::mem_fun(*this, &MainWindow::on_search_changed)
+        )
+    );
+    m_signal_connections.push_back(
+        m_field_filter_dropdown.property_selected().signal_changed().connect(
+            sigc::mem_fun(*this, &MainWindow::on_field_filter_changed)
+        )
+    );
+    m_signal_connections.push_back(
+        m_tag_filter_dropdown.property_selected().signal_changed().connect(
+            sigc::mem_fun(*this, &MainWindow::on_tag_filter_changed)
+        )
+    );
+    m_signal_connections.push_back(
+        m_sort_button.signal_clicked().connect(
+            sigc::mem_fun(*this, &MainWindow::on_sort_button_clicked)
+        )
+    );
+}
+
+void MainWindow::setup_initial_widget_state() {
+    // Setup status bar
+    m_status_label.set_margin_start(12);
+    m_status_label.set_margin_end(12);
+    m_status_label.set_margin_top(6);
+    m_status_label.set_margin_bottom(6);
+    m_status_label.set_xalign(0.0);
+    m_status_label.add_css_class("dim-label");
+    m_main_box.append(m_status_label);
+
+    // Configure buttons
+    m_save_button.set_sensitive(false);
+    m_close_button.set_sensitive(false);
+    m_add_account_button.set_sensitive(false);
 }
 
 MainWindow::~MainWindow() {

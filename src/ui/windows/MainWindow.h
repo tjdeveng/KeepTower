@@ -213,6 +213,12 @@ protected:
     /** @brief Connect AccountDetailWidget signals owned by MainWindow. */
     void setup_account_detail_signal_wiring();
 
+    /** @brief Connect top-level window widget signals owned directly by MainWindow. */
+    void setup_primary_widget_signal_wiring();
+
+    /** @brief Initialize status label presentation and default button sensitivity. */
+    void setup_initial_widget_state();
+
     /** @brief True when the UI currently has an open vault session. */
     [[nodiscard]] bool has_open_vault() const noexcept;
 
