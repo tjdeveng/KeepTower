@@ -2,7 +2,7 @@
 
 This document outlines the planned features and improvements for KeepTower, organized by release milestones.
 
-## Current Version: v0.2.8-beta (In Development)
+## Current Version: v0.3.5
 
 ✅ Core vault management with AES-256-GCM encryption
 ✅ Reed-Solomon forward error correction (5-50% redundancy)
@@ -187,6 +187,17 @@ This document outlines the planned features and improvements for KeepTower, orga
 ---
 
 ## Technical Debt & Quality (Ongoing)
+
+### A+ Gap Closure Tracking
+- Primary tracking now lives in the GitHub milestone `A+ Gap Closure` rather than new standalone status markdown files.
+- Use milestone issues plus PRs/commits as the audit trail for quality work:
+  - `#25` A+ scorecard: align quality claims, roadmap, and measurable thresholds
+  - `#26` Close VaultManager/VaultManagerV2 static-analysis backlog with explicit invariants
+  - `#27` Make high-signal static analysis enforceable in CI
+  - `#28` Resolve or formalize the FIPS sanitizer leak policy
+  - `#29` Raise coverage on remaining low-coverage core paths to A+ threshold
+  - `#30` Reduce hotspot size and responsibility in VaultManager and MainWindow
+- Local documentation should stay focused on durable reference material: architecture, user docs, API docs, and design notes that cannot be expressed cleanly in an issue or PR.
 
 ### Throughout All Versions
 - [ ] Maintain >80% test coverage for all new features
