@@ -202,6 +202,32 @@ This document outlines the planned features and improvements for KeepTower, orga
 ### Current Quality Scorecard
 - This section is the canonical current repository quality scorecard.
 - Current assessed state: strong recent progress, but not A+ yet; the working target remains A+ through milestone `A+ Gap Closure`.
+- Canonical A+ definition:
+  - `Correctness and release health`
+    - Primary CI, release workflow, and documentation workflow are green on `master` for the current repository state.
+    - Full primary Meson test suite passes with no unexpected failures.
+  - `Coverage`
+    - Canonical coverage workflow reports at least `75%` line coverage and at least `80%` function coverage for the repository.
+    - New security-critical or core workflow changes are expected to land with focused tests rather than relying on aggregate coverage drift.
+  - `Static analysis`
+    - No open High or Medium safety/correctness findings remain in the tracked static-analysis backlog.
+    - High-signal static-analysis regressions fail CI rather than being report-only artifacts.
+  - `Sanitizer evidence`
+    - ASan and related sanitizer evidence is runnable for the supported test surface.
+    - Any remaining external-tool noise, such as FIPS/OpenSSL provider leak reports, must be covered by a reviewed suppression or policy note rather than an unexplained workaround.
+  - `Documentation policy`
+    - Public API documentation remains under the checked-in zero-warning Doxygen policy.
+    - `ROADMAP.md` is the canonical current scorecard; older quality/audit markdown files are historical evidence unless explicitly stated otherwise.
+  - `Maintainability hotspots`
+    - The largest responsibility-dense files are on a shrinking trend and no current hotspot exceeds `2000` lines without an explicit rationale tracked in the A+ closure issues.
+    - Boundary improvements are tracked through milestone issues and PRs rather than implied by status prose alone.
+- Non-blocking supporting goals:
+  - Continuous fuzzing, benchmarking, accessibility, i18n, and broader packaging work remain important project goals, but they are not required to declare the current A+ repository-quality bar closed.
+- Current known misses against the A+ definition:
+  - Coverage is still below the proposed canonical threshold (`70.9%` lines, `78.8%` functions in the latest recorded snapshot).
+  - Static analysis is present, but high-signal findings are not yet enforced as a CI gate.
+  - The FIPS sanitizer path still relies on a documented workaround rather than a fully reviewed final policy.
+  - Current hotspot files remain above the proposed `2000`-line ceiling without the closure rationale yet completed in `#30`.
 - Verified current signals:
   - Full local Meson suite passes: `65/65` tests green.
   - Public API documentation is enforced under a strict zero-warning Doxygen policy.
