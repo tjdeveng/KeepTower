@@ -320,6 +320,9 @@ jobs:
     - name: Configure build
       run: meson setup build
 
+    - name: Compile (generate protobuf headers)
+      run: ninja -C build
+
     - name: Run static analysis gate
       run: |
         # First enforcement slice for issue #27:
