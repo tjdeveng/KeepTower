@@ -320,21 +320,20 @@ jobs:
     - name: Configure build
       run: meson setup build
 
-    - name: Run cppcheck
+    - name: Run static analysis gate
       run: |
-        cppcheck --enable=warning,style,performance,portability \
-          --error-exitcode=0 \
-          --inline-suppr \
-          --suppress=missingIncludeSystem \
-          --std=c++23 \
-          src/ 2>&1 | tee cppcheck-report.txt
+        # First enforcement slice for issue #27:
+        # gate only zero-baseline clang-analyzer categories on the audited
+        # security-critical subset; keep known backlog checks advisory until
+        # issue #26 closes the remaining invariant debt.
+        bash scripts/run-static-analysis.sh build static-analysis-reports
 
-    - name: Upload cppcheck report
+    - name: Upload static analysis reports
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: cppcheck-report
-        path: cppcheck-report.txt
+        name: static-analysis-reports
+        path: static-analysis-reports/
         retention-days: 7
 
   documentation:
