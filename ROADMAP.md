@@ -149,7 +149,7 @@ This document outlines the planned features and improvements for KeepTower, orga
 
 ---
 
-## Long-term (v0.4.x+ - Advanced Features)
+## Long-term (v2.5.x+ - Advanced Features)
 
 ### Cloud & Synchronization
 - [ ] Optional cloud sync support
