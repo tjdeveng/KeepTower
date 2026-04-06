@@ -281,7 +281,7 @@ jobs:
           protobuf-compiler \
           libssl-dev \
           cppcheck \
-          clang-tidy \
+          clang-tidy-20 \
           cmake \
           git \
           gettext \
@@ -326,6 +326,7 @@ jobs:
         # gate only zero-baseline clang-analyzer categories on the audited
         # security-critical subset; keep known backlog checks advisory until
         # issue #26 closes the remaining invariant debt.
+        export CLANG_TIDY_BIN=clang-tidy-20
         bash scripts/run-static-analysis.sh build static-analysis-reports
 
     - name: Upload static analysis reports

@@ -11,6 +11,17 @@ cppcheck_report="$report_dir/cppcheck-report.txt"
 clang_gate_report="$report_dir/clang-tidy-gated.txt"
 clang_advisory_report="$report_dir/clang-tidy-advisory.txt"
 
+if [[ -n "${CLANG_TIDY_BIN:-}" ]]; then
+  clang_tidy_bin="$CLANG_TIDY_BIN"
+elif command -v clang-tidy-20 >/dev/null 2>&1; then
+  clang_tidy_bin="$(command -v clang-tidy-20)"
+elif command -v clang-tidy >/dev/null 2>&1; then
+  clang_tidy_bin="$(command -v clang-tidy)"
+else
+  echo "clang-tidy executable not found" >&2
+  exit 1
+fi
+
 critical_files=(
   "src/core/VaultManager.cc"
   "src/core/VaultManagerV2.cc"
@@ -52,7 +63,7 @@ run_clang_tidy_group() {
     raw_output=$(mktemp)
     sanitized_output=$(mktemp)
 
-    if clang-tidy -p "$build_dir" \
+    if "$clang_tidy_bin" -p "$build_dir" \
       --quiet \
       --system-headers=false \
       --checks="$checks" \
