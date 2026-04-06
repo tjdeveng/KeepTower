@@ -1,8 +1,10 @@
 # Testing Quality Upgrade: A → A+
 
+> Historical snapshot: this document records a dated testing-infrastructure upgrade pass. It remains useful as background evidence, but it is not the canonical current repository scorecard. Current status lives in `ROADMAP.md`, with execution tracked in GitHub milestone `A+ Gap Closure`.
+
 ## Summary
 
-Successfully upgraded KeepTower's testing infrastructure from **A** to **A+ quality** by implementing comprehensive code coverage metrics and CI/CD integration.
+This document records a pass that upgraded KeepTower's testing infrastructure by implementing comprehensive code coverage metrics and CI/CD integration.
 
 ## What Changed
 

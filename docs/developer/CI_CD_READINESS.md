@@ -1,5 +1,7 @@
 # CI/CD Readiness Report - KeepTower v0.3.0-beta
 
+> Historical snapshot: this report captures a dated CI/CD readiness assessment for an earlier release target. It remains useful as supporting evidence, but it is not the canonical current repository scorecard. Current status lives in `ROADMAP.md`, with execution tracked in GitHub milestone `A+ Gap Closure`.
+
 **Generated:** 2025-12-31
 **Status:** ✅ PRODUCTION READY
 

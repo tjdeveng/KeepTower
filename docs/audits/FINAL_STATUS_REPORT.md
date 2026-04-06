@@ -1,5 +1,7 @@
 # KeepTower Password Manager - Final Status Report
 
+> Historical snapshot: this report records a dated end-of-phase status summary from the 2025 improvement program. It is preserved as audit evidence, not as the canonical current repository status. Current status lives in `ROADMAP.md`, with ongoing closure work tracked in GitHub milestone `A+ Gap Closure`.
+
 ## Executive Summary
 
 ✅ **All CODE_REVIEW.md Items Implemented (1-21)**

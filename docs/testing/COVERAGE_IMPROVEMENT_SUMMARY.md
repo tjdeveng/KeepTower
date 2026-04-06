@@ -1,4 +1,7 @@
 # Test Coverage Improvement Summary
+
+> Historical snapshot: this document records a dated coverage-improvement session and should be treated as supporting evidence, not the canonical current repository scorecard. Current quality status lives in `ROADMAP.md`, while execution tracking lives in GitHub milestone `A+ Gap Closure`.
+
 ## Session Goal: Improve A Rating (64.4%) to A+ (75%+)
 
 ### Final Results

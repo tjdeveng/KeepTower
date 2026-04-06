@@ -1,5 +1,7 @@
 # Low-Priority Warnings - Complete Fix Report
 
+> Historical snapshot: this report captures a dated warning-cleanup pass from the earlier phased improvement program. It remains useful as supporting evidence, but it is not the canonical current repository scorecard. Current status lives in `ROADMAP.md`, with execution tracked in GitHub milestone `A+ Gap Closure`.
+
 **Date:** 2025-06-XX
 **Phase:** Phase 6 - Code Quality Cleanup
 **Status:** ✅ **COMPLETE**
@@ -588,8 +590,8 @@ Successfully eliminated **96.5% of low-priority warnings (84/87)** through syste
 ✅ **Better API design** - consistent callback parameter patterns
 ✅ **No regressions** - all tests still passing
 
-### Code Quality Status
-**Grade: A+**
+### Historical Code Quality Status
+**Grade (at time of report): A+**
 - Static Analysis: Clean (only 4 cosmetic warnings)
 - Memory Safety: Clean (Valgrind + sanitizers)
 - Test Coverage: 90% passing (3 intermittent timeouts)

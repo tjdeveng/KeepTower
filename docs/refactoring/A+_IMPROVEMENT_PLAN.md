@@ -1,5 +1,7 @@
 # A+ Rating Improvement Plan
 
+> Historical planning artifact: this document captures the December 2025 A+ improvement plan and target criteria from the phased refactor program. It remains useful as background, but the canonical current repository scorecard now lives in `ROADMAP.md`, with execution tracked in GitHub milestone `A+ Gap Closure`.
+
 **Goal:** Achieve A+ code quality rating with excellent maintainability and auditability
 **Date:** December 29, 2025
 **Current Status:** Phases 1-4 Complete, 31/31 tests passing

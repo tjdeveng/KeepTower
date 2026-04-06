@@ -199,6 +199,25 @@ This document outlines the planned features and improvements for KeepTower, orga
   - `#30` Reduce hotspot size and responsibility in VaultManager and MainWindow
 - Local documentation should stay focused on durable reference material: architecture, user docs, API docs, and design notes that cannot be expressed cleanly in an issue or PR.
 
+### Current Quality Scorecard
+- This section is the canonical current repository quality scorecard.
+- Current assessed state: strong recent progress, but not A+ yet; the working target remains A+ through milestone `A+ Gap Closure`.
+- Verified current signals:
+  - Full local Meson suite passes: `65/65` tests green.
+  - Public API documentation is enforced under a strict zero-warning Doxygen policy.
+  - Architecture-audit closeout phases I, K, and L are complete.
+- Latest recorded coverage snapshot:
+  - Line coverage: `70.9%`
+  - Function coverage: `78.8%`
+  - Source: `docs/testing/COVERAGE_IMPROVEMENT_SUMMARY.md`
+  - Status: useful baseline, but not the canonical live execution tracker for A+ closure.
+- A+ is considered closed only when the milestone issues resolve the remaining gaps:
+  - `#26` core invariant and static-analysis backlog cleanup
+  - `#27` high-signal static analysis enforced in CI
+  - `#28` reviewed sanitizer policy or root-cause fix for the FIPS path
+  - `#29` coverage raised to the agreed A+ threshold
+  - `#30` hotspot reduction in the largest responsibility-dense files
+
 ### Throughout All Versions
 - [ ] Maintain >80% test coverage for all new features
 - [ ] Performance optimization for vaults with 1000+ accounts

@@ -1,8 +1,10 @@
 # KeepTower Code Quality: A- → A+ Transformation
 
+> Historical snapshot: this document records a dated December 31, 2025 assessment from the earlier phased improvement program. It is preserved as audit evidence, not as the canonical current repository scorecard. Current status lives in `ROADMAP.md` and the GitHub milestone `A+ Gap Closure`.
+
 ## Executive Summary
 
-Successfully upgraded KeepTower from **A- overall quality** to **A+ quality** through systematic improvements across all quality dimensions.
+This document recorded a December 31, 2025 assessment that concluded KeepTower had reached **A+ quality** within that improvement pass.
 
 **Timeline:** December 31, 2025
 **Total Changes:** 130 files, 24,953 insertions
@@ -199,7 +201,7 @@ Created [.github/workflows/coverage.yml](../.github/workflows/coverage.yml) (166
 - ✅ Service layer
 - ✅ Dependency injection ready
 
-## Overall Grade: **A+** ✅
+## Historical Overall Grade (2025-12-31 assessment): **A+** ✅
 
 **From:** A- (some inconsistencies, no coverage metrics)
 **To:** A+ (professional-grade, quantifiable quality)
