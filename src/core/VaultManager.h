@@ -1810,6 +1810,11 @@ public:
     }
 
 private:
+    [[nodiscard]] KeepTower::VaultResult<KeepTower::VaultHeaderV2*> require_open_v2_header(
+        const char* operation);
+    [[nodiscard]] KeepTower::VaultResult<const KeepTower::VaultHeaderV2*> require_open_v2_header(
+        const char* operation) const;
+
     // Secure memory clearing and locking
     void secure_clear(std::vector<uint8_t>& data);
     void secure_clear(std::string& data);

@@ -129,19 +129,45 @@ VaultManager::VaultManager()
 #endif
 }
 
+KeepTower::VaultResult<KeepTower::VaultHeaderV2*> VaultManager::require_open_v2_header(
+    const char* operation) {
+    if (!m_vault_open || !m_is_v2_vault) {
+        KeepTower::Log::error("VaultManager: {} requires an open V2 vault", operation);
+        return std::unexpected(VaultError::VaultNotOpen);
+    }
+
+    if (!m_v2_header) {
+        KeepTower::Log::error("VaultManager: {} missing V2 header", operation);
+        return std::unexpected(VaultError::InvalidData);
+    }
+
+    return &*m_v2_header;
+}
+
+KeepTower::VaultResult<const KeepTower::VaultHeaderV2*> VaultManager::require_open_v2_header(
+    const char* operation) const {
+    if (!m_vault_open || !m_is_v2_vault) {
+        KeepTower::Log::error("VaultManager: {} requires an open V2 vault", operation);
+        return std::unexpected(VaultError::VaultNotOpen);
+    }
+
+    if (!m_v2_header) {
+        KeepTower::Log::error("VaultManager: {} missing V2 header", operation);
+        return std::unexpected(VaultError::InvalidData);
+    }
+
+    return &*m_v2_header;
+}
+
 VaultManager::~VaultManager() noexcept {
-    // Ensure sensitive data is securely erased
     try {
         secure_clear(m_encryption_key);
         secure_clear(m_salt);
         secure_clear(m_yubikey_challenge);
         OPENSSL_cleanse(m_v2_dek.data(), m_v2_dek.size());  // V2 vault DEK (std::array)
         (void)close_vault();  // Explicitly ignore return value in destructor
-    } catch (const std::exception& e) {
-        // Log but don't propagate - destructors must not throw
-        KeepTower::Log::error("VaultManager destructor error: {}", e.what());
     } catch (...) {
-        // Silently handle unknown exceptions in destructor
+        // Destructors must not throw.
     }
 }
 
@@ -226,22 +252,25 @@ bool VaultManager::close_vault() {
     }
 
     // FIPS-140-3 Compliance: Unlock and zeroize all cryptographic key material (Section 7.9)
-    if (m_is_v2_vault && m_v2_header.has_value()) {
+    KeepTower::VaultHeaderV2* v2_header = (m_is_v2_vault && m_v2_header)
+        ? &*m_v2_header
+        : nullptr;
+    if (v2_header) {
         // Unlock and clear V2 Data Encryption Key (DEK)
         unlock_memory(m_v2_dek.data(), m_v2_dek.size());
         OPENSSL_cleanse(m_v2_dek.data(), m_v2_dek.size());
         KeepTower::Log::debug("VaultManager: Unlocked and cleared V2 DEK");
 
         // Unlock and clear policy-level YubiKey challenge (shared by all users)
-        if (m_v2_header->security_policy.require_yubikey) {
-            auto& policy_challenge = m_v2_header->security_policy.yubikey_challenge;
+        if (v2_header->security_policy.require_yubikey) {
+            auto& policy_challenge = v2_header->security_policy.yubikey_challenge;
             unlock_memory(policy_challenge.data(), policy_challenge.size());
             OPENSSL_cleanse(policy_challenge.data(), policy_challenge.size());
             KeepTower::Log::debug("VaultManager: Unlocked and cleared V2 policy YubiKey challenge");
         }
 
         // Unlock and clear per-user YubiKey challenges
-        for (auto& slot : m_v2_header->key_slots) {
+        for (auto& slot : v2_header->key_slots) {
             if (slot.yubikey_enrolled) {
                 unlock_memory(slot.yubikey_challenge.data(), slot.yubikey_challenge.size());
                 OPENSSL_cleanse(slot.yubikey_challenge.data(), slot.yubikey_challenge.size());
@@ -259,6 +288,9 @@ bool VaultManager::close_vault() {
     // Clear managers
     m_account_manager.reset();
     m_group_manager.reset();
+
+    m_v2_header.reset();
+    m_current_session.reset();
 
 
     // Phase C: Reset vault runtime preferences to defaults when vault closes

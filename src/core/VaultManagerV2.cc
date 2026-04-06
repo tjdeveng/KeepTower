@@ -436,13 +436,18 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
     m_is_v2_vault = true;
     m_current_vault_path = path;
     m_v2_header = metadata.vault_header;
+    auto* v2_header = m_v2_header ? &*m_v2_header : nullptr;
+    if (!v2_header) {
+        Log::error("VaultManager: Failed to initialize V2 header");
+        return std::unexpected(VaultError::InvalidData);
+    }
 
     // CRITICAL BUG FIX: user_slot still points to metadata.vault_header.key_slots,
     // but we just copied that header into m_v2_header. We need to find the
     // corresponding slot in
     // m_v2_header so that modifications persist when we save.
     KeySlot* user_slot_in_header = nullptr;
-    for (auto& slot : m_v2_header->key_slots) {
+    for (auto& slot : v2_header->key_slots) {
         if (slot.active &&
             slot.username_hash == user_slot->username_hash &&
             slot.username_hash_size == user_slot->username_hash_size) {
@@ -503,12 +508,12 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
     // Create session
     UserSession session{
         .username = username.raw(),
-        .role = user_slot->role,
-        .password_change_required = user_slot->must_change_password
+        .role = user_slot_in_header->role,
+        .password_change_required = user_slot_in_header->must_change_password
     };
 
     // Check if vault policy requires YubiKey but user doesn't have one enrolled
-    if (m_v2_header->security_policy.require_yubikey && !user_slot->yubikey_enrolled) {
+    if (v2_header->security_policy.require_yubikey && !user_slot_in_header->yubikey_enrolled) {
         session.requires_yubikey_enrollment = true;
         Log::warning("VaultManager: User must enroll YubiKey (required by policy)");
     } else {
@@ -546,6 +551,14 @@ KeepTower::VaultResult<> VaultManager::add_user(
         return std::unexpected(VaultError::PermissionDenied);
     }
 
+    auto header_result = require_open_v2_header("add_user");
+    if (!header_result) {
+        return std::unexpected(header_result.error());
+    }
+    auto* v2_header = header_result.value();
+    auto& policy = v2_header->security_policy;
+    auto& key_slots = v2_header->key_slots;
+
     // Validate username
     if (username.empty()) {
         Log::error("VaultManager: Username cannot be empty");
@@ -554,15 +567,15 @@ KeepTower::VaultResult<> VaultManager::add_user(
 
     // Check for duplicate username using hash verification
     if (KeySlotManager::user_exists(
-            m_v2_header->key_slots, username.raw(), m_v2_header->security_policy)) {
+            key_slots, username.raw(), policy)) {
         Log::error("VaultManager: Username already exists");
         return std::unexpected(VaultError::UserAlreadyExists);
     }
 
     // Validate password meets policy
-    if (temporary_password.length() < m_v2_header->security_policy.min_password_length) {
+    if (temporary_password.length() < policy.min_password_length) {
         Log::error("VaultManager: Password too short (min: {} chars)",
-                   m_v2_header->security_policy.min_password_length);
+                   policy.min_password_length);
         return std::unexpected(VaultError::WeakPassword);
     }
 
@@ -579,10 +592,10 @@ KeepTower::VaultResult<> VaultManager::add_user(
     auto algorithm = KekDerivationService::Algorithm::PBKDF2_HMAC_SHA256;
 
     KekDerivationService::AlgorithmParameters params;
-    params.pbkdf2_iterations = m_v2_header->security_policy.pbkdf2_iterations;
-    params.argon2_memory_kb = m_v2_header->security_policy.argon2_memory_kb;
-    params.argon2_time_cost = m_v2_header->security_policy.argon2_iterations;
-    params.argon2_parallelism = m_v2_header->security_policy.argon2_parallelism;
+    params.pbkdf2_iterations = policy.pbkdf2_iterations;
+    params.argon2_memory_kb = policy.argon2_memory_kb;
+    params.argon2_time_cost = policy.argon2_iterations;
+    params.argon2_parallelism = policy.argon2_parallelism;
 
     auto kek_result = KekDerivationService::derive_kek(
         temporary_password.raw(),
@@ -606,7 +619,7 @@ KeepTower::VaultResult<> VaultManager::add_user(
 
     // Hash username for secure storage (following USERNAME_HASHING_SECURITY_PLAN.md)
     auto username_hash_algo = static_cast<KeepTower::UsernameHashService::Algorithm>(
-        m_v2_header->security_policy.username_hash_algorithm);
+        policy.username_hash_algorithm);
 
     std::vector<uint8_t> username_salt_vec = KeepTower::VaultCrypto::generate_random_bytes(16);
     std::array<uint8_t, 16> username_salt{};
@@ -614,7 +627,7 @@ KeepTower::VaultResult<> VaultManager::add_user(
 
     // Hash username with policy's iteration count (critical for PBKDF2/Argon2 algorithms)
     auto username_hash_result = KeepTower::UsernameHashService::hash_username(
-        username.raw(), username_hash_algo, username_salt, m_v2_header->security_policy.pbkdf2_iterations);
+        username.raw(), username_hash_algo, username_salt, policy.pbkdf2_iterations);
     if (!username_hash_result) {
         Log::error("VaultManager: Failed to hash username");
         return std::unexpected(VaultError::CryptoError);
@@ -638,7 +651,7 @@ KeepTower::VaultResult<> VaultManager::add_user(
     std::vector<uint8_t> credential_id;
 
 #ifdef HAVE_YUBIKEY_SUPPORT
-    if (yubikey_pin.has_value() && m_v2_header->security_policy.require_yubikey) {
+    if (yubikey_pin.has_value() && policy.require_yubikey) {
         Log::info("VaultManager: Enrolling YubiKey for new user");
 
         // Generate unique challenge for this user
@@ -651,7 +664,7 @@ KeepTower::VaultResult<> VaultManager::add_user(
 
         // Initialize YubiKey manager
         YubiKeyManager yk_manager;
-        const bool enforce_fips = (m_v2_header->security_policy.yubikey_algorithm != 0x01);
+        const bool enforce_fips = (policy.yubikey_algorithm != 0x01);
         if (!yk_manager.initialize(enforce_fips)) {
             Log::error("VaultManager: Failed to initialize YubiKey");
             return std::unexpected(VaultError::YubiKeyError);
@@ -674,7 +687,7 @@ KeepTower::VaultResult<> VaultManager::add_user(
 
         auto response_result = V2AuthService::run_yubikey_challenge_for_policy(
             std::span<const uint8_t>(yubikey_challenge.data(), yubikey_challenge.size()),
-            m_v2_header->security_policy,
+            policy,
             std::nullopt,
             yk_manager);
         if (!response_result) {
@@ -732,13 +745,13 @@ KeepTower::VaultResult<> VaultManager::add_user(
         std::move(credential_id));
 
     // Add initial password to history if enabled
-    if (m_v2_header->security_policy.password_history_depth > 0) {
+    if (policy.password_history_depth > 0) {
         auto history_entry = KeepTower::PasswordHistory::hash_password(temporary_password);
         if (history_entry) {
             KeySlotManager::add_password_history_entry(
                 new_slot,
                 history_entry.value(),
-                m_v2_header->security_policy.password_history_depth);
+                policy.password_history_depth);
             Log::debug("VaultManager: Added initial password to new user's history");
         } else {
             Log::warning("VaultManager: Failed to hash initial password for history");
@@ -746,7 +759,7 @@ KeepTower::VaultResult<> VaultManager::add_user(
     }
 
     auto slot_store_result = KeySlotManager::store_user_slot(
-        m_v2_header->key_slots,
+        key_slots,
         std::move(new_slot),
         VaultHeaderV2::MAX_KEY_SLOTS);
     if (!slot_store_result) {
@@ -783,10 +796,16 @@ KeepTower::VaultResult<> VaultManager::remove_user(const Glib::ustring& username
         return std::unexpected(VaultError::SelfRemovalNotAllowed);
     }
 
+    auto header_result = require_open_v2_header("remove_user");
+    if (!header_result) {
+        return std::unexpected(header_result.error());
+    }
+    auto* v2_header = header_result.value();
+
     auto deactivate_result = KeySlotManager::deactivate_user(
-        m_v2_header->key_slots,
+        v2_header->key_slots,
         username.raw(),
-        m_v2_header->security_policy);
+        v2_header->security_policy);
     if (!deactivate_result) {
         return std::unexpected(deactivate_result.error());
     }
@@ -809,25 +828,32 @@ KeepTower::VaultResult<> VaultManager::validate_new_password(
         return std::unexpected(VaultError::VaultNotOpen);
     }
 
+    auto header_result = require_open_v2_header("validate_new_password");
+    if (!header_result) {
+        return std::unexpected(header_result.error());
+    }
+    auto* v2_header = header_result.value();
+    auto& policy = v2_header->security_policy;
+
     // Find user slot using hash verification
     auto user_slot_result = KeySlotManager::require_user_slot(
-        m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
+        v2_header->key_slots, username.raw(), policy);
     if (!user_slot_result) {
         return std::unexpected(user_slot_result.error());
     }
     const KeySlot* user_slot = user_slot_result.value();
 
     // Validate new password meets minimum length
-    if (new_password.length() < m_v2_header->security_policy.min_password_length) {
+    if (new_password.length() < policy.min_password_length) {
         Log::error("VaultManager: New password too short - actual: {} chars, min: {} chars",
-                   new_password.length(), m_v2_header->security_policy.min_password_length);
+                   new_password.length(), policy.min_password_length);
         return std::unexpected(VaultError::WeakPassword);
     }
 
     // Check password history if enabled (depth > 0)
-    if (m_v2_header->security_policy.password_history_depth > 0) {
+    if (policy.password_history_depth > 0) {
         Log::debug("VaultManager: Checking password history (depth: {})",
-                   m_v2_header->security_policy.password_history_depth);
+                   policy.password_history_depth);
 
         if (KeepTower::PasswordHistory::is_password_reused(new_password, user_slot->password_history)) {
             Log::error("VaultManager: Password was used previously (reuse detected)");
@@ -864,9 +890,16 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
         return std::unexpected(VaultError::PermissionDenied);
     }
 
+    auto header_result = require_open_v2_header("change_user_password");
+    if (!header_result) {
+        return std::unexpected(header_result.error());
+    }
+    auto* v2_header = header_result.value();
+    auto& policy = v2_header->security_policy;
+
     // Find user slot using hash verification
     auto user_slot_result = KeySlotManager::require_user_slot(
-        m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
+        v2_header->key_slots, username.raw(), policy);
     if (!user_slot_result) {
         return std::unexpected(user_slot_result.error());
     }
@@ -874,17 +907,17 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
 
     // Validate new password meets policy
     Log::info("VaultManager: Password length check - length: {}, bytes: {}, required: {}",
-              new_password.length(), new_password.bytes(), m_v2_header->security_policy.min_password_length);
-    if (new_password.length() < m_v2_header->security_policy.min_password_length) {
+              new_password.length(), new_password.bytes(), policy.min_password_length);
+    if (new_password.length() < policy.min_password_length) {
         Log::error("VaultManager: New password too short - actual: {} chars, min: {} chars",
-                   new_password.length(), m_v2_header->security_policy.min_password_length);
+                   new_password.length(), policy.min_password_length);
         return std::unexpected(VaultError::WeakPassword);
     }
 
     // Check password history if enabled (depth > 0)
-    if (m_v2_header->security_policy.password_history_depth > 0) {
+    if (policy.password_history_depth > 0) {
         Log::debug("VaultManager: Checking password history (depth: {})",
-                   m_v2_header->security_policy.password_history_depth);
+                   policy.password_history_depth);
 
         if (KeepTower::PasswordHistory::is_password_reused(new_password, user_slot->password_history)) {
             Log::error("VaultManager: Password was used previously (reuse detected)");
@@ -898,16 +931,16 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
     auto old_algorithm = static_cast<KekDerivationService::Algorithm>(user_slot->kek_derivation_algorithm);
 
     KekDerivationService::AlgorithmParameters params;
-    params.pbkdf2_iterations = m_v2_header->security_policy.pbkdf2_iterations;
-    params.argon2_memory_kb = m_v2_header->security_policy.argon2_memory_kb;
-    params.argon2_time_cost = m_v2_header->security_policy.argon2_iterations;
-    params.argon2_parallelism = m_v2_header->security_policy.argon2_parallelism;
+    params.pbkdf2_iterations = policy.pbkdf2_iterations;
+    params.argon2_memory_kb = policy.argon2_memory_kb;
+    params.argon2_time_cost = policy.argon2_iterations;
+    params.argon2_parallelism = policy.argon2_parallelism;
 
     auto old_kek_result = V2AuthService::derive_password_kek_for_slot(
         *user_slot,
         old_password.raw(),
-        m_v2_header->security_policy.pbkdf2_iterations,
-        m_v2_header->security_policy);
+        policy.pbkdf2_iterations,
+        policy);
     if (!old_kek_result) {
         Log::error("VaultManager: Failed to derive old KEK");
         return std::unexpected(old_kek_result.error());
@@ -954,7 +987,7 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
 
         auto response_result = V2AuthService::run_yubikey_challenge_for_open(
             *user_slot,
-            m_v2_header->security_policy,
+            policy,
             decrypted_pin,
             yk_manager);
         if (!response_result) {
@@ -1036,7 +1069,7 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
 
         auto response_result = V2AuthService::run_yubikey_challenge_for_open(
             *user_slot,
-            m_v2_header->security_policy,
+            policy,
             pin_to_use,
             yk_manager);
         if (!response_result) {
@@ -1085,13 +1118,13 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
         std::chrono::system_clock::now().time_since_epoch().count());
 
     // Add new password to history if enabled
-    if (m_v2_header->security_policy.password_history_depth > 0) {
+    if (policy.password_history_depth > 0) {
         auto history_entry = KeepTower::PasswordHistory::hash_password(new_password);
         if (history_entry) {
             KeySlotManager::add_password_history_entry(
                 *user_slot,
                 history_entry.value(),
-                m_v2_header->security_policy.password_history_depth);
+                policy.password_history_depth);
             Log::debug("VaultManager: Added password to history (size: {})",
                        user_slot->password_history.size());
         } else {
@@ -1131,21 +1164,24 @@ KeepTower::VaultResult<> VaultManager::migrate_user_hash(
         return std::unexpected(VaultError::VaultNotOpen);
     }
 
+    auto* v2_header = &*m_v2_header;
+    auto& policy = v2_header->security_policy;
+
     // Verify migration is actually active
-    bool migration_active = (m_v2_header->security_policy.migration_flags & 0x01) != 0;
+    bool migration_active = (policy.migration_flags & 0x01) != 0;
     if (!migration_active) {
         Log::warning("VaultManager: migrate_user_hash called but migration not active (flags=0x{:02x})",
-                    m_v2_header->security_policy.migration_flags);
+                    policy.migration_flags);
         return std::unexpected(VaultError::InvalidData);
     }
 
     Log::info("VaultManager: Starting username hash migration for user: {}", username);
-    Log::info("VaultManager:   Old algorithm: 0x{:02x}", m_v2_header->security_policy.username_hash_algorithm_previous);
-    Log::info("VaultManager:   New algorithm: 0x{:02x}", m_v2_header->security_policy.username_hash_algorithm);
+    Log::info("VaultManager:   Old algorithm: 0x{:02x}", policy.username_hash_algorithm_previous);
+    Log::info("VaultManager:   New algorithm: 0x{:02x}", policy.username_hash_algorithm);
 
     // Get new algorithm from policy
     auto new_algo = static_cast<KeepTower::UsernameHashService::Algorithm>(
-        m_v2_header->security_policy.username_hash_algorithm);
+        policy.username_hash_algorithm);
 
     // Generate new salt for username (best practice: don't reuse salt across algorithms)
     std::vector<uint8_t> new_username_salt_vec = KeepTower::VaultCrypto::generate_random_bytes(16);
@@ -1155,7 +1191,7 @@ KeepTower::VaultResult<> VaultManager::migrate_user_hash(
     // Compute new username hash with new algorithm
     // Use policy's pbkdf2_iterations (critical for PBKDF2/Argon2 algorithms)
     auto new_hash_result = KeepTower::UsernameHashService::hash_username(
-        username, new_algo, new_username_salt, m_v2_header->security_policy.pbkdf2_iterations);
+        username, new_algo, new_username_salt, policy.pbkdf2_iterations);
 
     if (!new_hash_result) {
         Log::error("VaultManager: Failed to compute new username hash");
@@ -1186,7 +1222,7 @@ KeepTower::VaultResult<> VaultManager::migrate_user_hash(
     }
 
     Log::info("VaultManager: Successfully migrated user to algorithm 0x{:02x} (hash_size={}, timestamp={})",
-              m_v2_header->security_policy.username_hash_algorithm,
+              policy.username_hash_algorithm,
               user_slot->username_hash_size, user_slot->migrated_at);
 
     return {};  // Success
@@ -1210,9 +1246,12 @@ void VaultManager::change_user_password_async(
     bool yubikey_enrolled = false;
     int total_steps = 1;  // Minimum: password change without YubiKey
 
-    if (m_vault_open && m_is_v2_vault) {
+    const auto* v2_header = (m_vault_open && m_is_v2_vault && m_v2_header)
+        ? &*m_v2_header
+        : nullptr;
+    if (v2_header) {
         if (KeySlotManager::is_yubikey_enrolled_for_user(
-                m_v2_header->key_slots, username.raw(), m_v2_header->security_policy)) {
+                v2_header->key_slots, username.raw(), v2_header->security_policy)) {
             yubikey_enrolled = true;
             total_steps = 2;  // With YubiKey: verify old + combine new
         }
@@ -1322,6 +1361,12 @@ KeepTower::VaultResult<> VaultManager::clear_user_password_history(
         return std::unexpected(VaultError::VaultNotOpen);
     }
 
+    auto header_result = require_open_v2_header("clear_user_password_history");
+    if (!header_result) {
+        return std::unexpected(header_result.error());
+    }
+    auto* v2_header = header_result.value();
+
     // Check permissions: user clearing own history OR admin clearing any
     bool is_self = (m_current_session && m_current_session->username == username.raw());
     bool is_admin = (m_current_session && m_current_session->role == UserRole::ADMINISTRATOR);
@@ -1332,7 +1377,7 @@ KeepTower::VaultResult<> VaultManager::clear_user_password_history(
 
     // Find user slot using hash verification
     auto user_slot_result = KeySlotManager::require_user_slot(
-        m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
+        v2_header->key_slots, username.raw(), v2_header->security_policy);
     if (!user_slot_result) {
         return std::unexpected(user_slot_result.error());
     }
@@ -1376,18 +1421,25 @@ KeepTower::VaultResult<> VaultManager::admin_reset_user_password(
         return std::unexpected(VaultError::PermissionDenied);
     }
 
+    auto header_result = require_open_v2_header("admin_reset_user_password");
+    if (!header_result) {
+        return std::unexpected(header_result.error());
+    }
+    auto* v2_header = header_result.value();
+    auto& policy = v2_header->security_policy;
+
     // Find user slot using hash verification
     auto user_slot_result = KeySlotManager::require_user_slot(
-        m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
+        v2_header->key_slots, username.raw(), policy);
     if (!user_slot_result) {
         return std::unexpected(user_slot_result.error());
     }
     KeySlot* user_slot = user_slot_result.value();
 
     // Validate new password meets policy
-    if (new_temporary_password.length() < m_v2_header->security_policy.min_password_length) {
+    if (new_temporary_password.length() < policy.min_password_length) {
         Log::error("VaultManager: New password too short (min: {} chars)",
-                   m_v2_header->security_policy.min_password_length);
+                   policy.min_password_length);
         return std::unexpected(VaultError::WeakPassword);
     }
 
@@ -1402,10 +1454,10 @@ KeepTower::VaultResult<> VaultManager::admin_reset_user_password(
     auto user_algorithm = static_cast<KekDerivationService::Algorithm>(user_slot->kek_derivation_algorithm);
 
     KekDerivationService::AlgorithmParameters params;
-    params.pbkdf2_iterations = m_v2_header->security_policy.pbkdf2_iterations;
-    params.argon2_memory_kb = m_v2_header->security_policy.argon2_memory_kb;
-    params.argon2_time_cost = m_v2_header->security_policy.argon2_iterations;
-    params.argon2_parallelism = m_v2_header->security_policy.argon2_parallelism;
+    params.pbkdf2_iterations = policy.pbkdf2_iterations;
+    params.argon2_memory_kb = policy.argon2_memory_kb;
+    params.argon2_time_cost = policy.argon2_iterations;
+    params.argon2_parallelism = policy.argon2_parallelism;
 
     auto new_kek_result = KekDerivationService::derive_kek(
         new_temporary_password.raw(),
@@ -1445,7 +1497,7 @@ KeepTower::VaultResult<> VaultManager::admin_reset_user_password(
         KeySlotManager::clear_yubikey_enrollment(*user_slot);
 
         // If vault policy requires YubiKey, user will need to re-enroll after password change
-        if (m_v2_header->security_policy.require_yubikey) {
+        if (policy.require_yubikey) {
             Log::info("VaultManager: User will need to re-enroll YubiKey (required by policy)");
         }
     }
@@ -1489,17 +1541,24 @@ KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
         return std::unexpected(VaultError::PermissionDenied);
     }
 
+    auto header_result = require_open_v2_header("enroll_yubikey_for_user");
+    if (!header_result) {
+        return std::unexpected(header_result.error());
+    }
+    auto* v2_header = header_result.value();
+    auto& policy = v2_header->security_policy;
+
     // Find user slot using hash verification
 #ifdef HAVE_YUBIKEY_SUPPORT
     auto user_slot_result = KeySlotManager::require_user_slot(
-        m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
+        v2_header->key_slots, username.raw(), policy);
     if (!user_slot_result) {
         return std::unexpected(user_slot_result.error());
     }
     KeySlot* user_slot = user_slot_result.value();
 #else
     auto user_slot_result = KeySlotManager::require_user_slot(
-        m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
+        v2_header->key_slots, username.raw(), policy);
     if (!user_slot_result) {
         return std::unexpected(user_slot_result.error());
     }
@@ -1527,16 +1586,16 @@ KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
     }
 
     KekDerivationService::AlgorithmParameters params;
-    params.pbkdf2_iterations = m_v2_header->security_policy.pbkdf2_iterations;
-    params.argon2_memory_kb = m_v2_header->security_policy.argon2_memory_kb;
-    params.argon2_time_cost = m_v2_header->security_policy.argon2_iterations;
-    params.argon2_parallelism = m_v2_header->security_policy.argon2_parallelism;
+    params.pbkdf2_iterations = policy.pbkdf2_iterations;
+    params.argon2_memory_kb = policy.argon2_memory_kb;
+    params.argon2_time_cost = policy.argon2_iterations;
+    params.argon2_parallelism = policy.argon2_parallelism;
 
     auto kek_result = V2AuthService::derive_password_kek_for_slot(
         *user_slot,
         password.raw(),
-        m_v2_header->security_policy.pbkdf2_iterations,
-        m_v2_header->security_policy);
+        policy.pbkdf2_iterations,
+        policy);
     if (!kek_result) {
         Log::error("VaultManager: Failed to derive KEK");
         return std::unexpected(kek_result.error());
@@ -1584,7 +1643,7 @@ KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
     }
     auto response_result = V2AuthService::run_yubikey_challenge_for_policy(
         std::span<const uint8_t>(user_challenge.data(), user_challenge.size()),
-        m_v2_header->security_policy,
+        policy,
         std::string_view(yubikey_pin),
         yk_manager,
         true,
@@ -1681,17 +1740,24 @@ KeepTower::VaultResult<> VaultManager::unenroll_yubikey_for_user(
         return std::unexpected(VaultError::PermissionDenied);
     }
 
+    auto header_result = require_open_v2_header("unenroll_yubikey_for_user");
+    if (!header_result) {
+        return std::unexpected(header_result.error());
+    }
+    auto* v2_header = header_result.value();
+    auto& policy = v2_header->security_policy;
+
     // Find user slot using hash verification
 #ifdef HAVE_YUBIKEY_SUPPORT
     auto user_slot_result = KeySlotManager::require_user_slot(
-        m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
+        v2_header->key_slots, username.raw(), policy);
     if (!user_slot_result) {
         return std::unexpected(user_slot_result.error());
     }
     KeySlot* user_slot = user_slot_result.value();
 #else
     auto user_slot_result = KeySlotManager::require_user_slot(
-        m_v2_header->key_slots, username.raw(), m_v2_header->security_policy);
+        v2_header->key_slots, username.raw(), policy);
     if (!user_slot_result) {
         return std::unexpected(user_slot_result.error());
     }
@@ -1727,10 +1793,10 @@ KeepTower::VaultResult<> VaultManager::unenroll_yubikey_for_user(
     auto user_algorithm = static_cast<KekDerivationService::Algorithm>(user_slot->kek_derivation_algorithm);
 
     KekDerivationService::AlgorithmParameters params;
-    params.pbkdf2_iterations = m_v2_header->security_policy.pbkdf2_iterations;
-    params.argon2_memory_kb = m_v2_header->security_policy.argon2_memory_kb;
-    params.argon2_time_cost = m_v2_header->security_policy.argon2_iterations;
-    params.argon2_parallelism = m_v2_header->security_policy.argon2_parallelism;
+    params.pbkdf2_iterations = policy.pbkdf2_iterations;
+    params.argon2_memory_kb = policy.argon2_memory_kb;
+    params.argon2_time_cost = policy.argon2_iterations;
+    params.argon2_parallelism = policy.argon2_parallelism;
 
     auto kek_result = KekDerivationService::derive_kek(
         password.raw(),
@@ -1755,7 +1821,7 @@ KeepTower::VaultResult<> VaultManager::unenroll_yubikey_for_user(
     // Use user's enrolled challenge (full 32 bytes — matches enroll_yubikey_for_user)
     auto response_result = V2AuthService::run_yubikey_challenge_for_policy(
         std::span<const uint8_t>(user_slot->yubikey_challenge.data(), user_slot->yubikey_challenge.size()),
-        m_v2_header->security_policy,
+        policy,
         std::string_view(decrypted_pin),
         yk_manager);
     if (!response_result) {
@@ -1810,7 +1876,7 @@ KeepTower::VaultResult<> VaultManager::unenroll_yubikey_for_user(
     // Update current session if user unenrolled their own YubiKey
     if (m_current_session && m_current_session->username == username.raw()) {
         // Check if re-enrollment will be required by policy
-        if (m_v2_header->security_policy.require_yubikey) {
+        if (policy.require_yubikey) {
             m_current_session->requires_yubikey_enrollment = true;
             Log::info("VaultManager: Updated session - YubiKey re-enrollment required by policy");
         }
