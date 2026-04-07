@@ -33,11 +33,12 @@ critical_files=(
   "src/ui/managers/VaultIOHandler.cc"
 )
 
-# First enforcement slice for issue #27:
-# - Hard-gate only clang-analyzer categories that currently have a reviewed zero baseline.
-# - Keep known backlog checks advisory until issue #26 closes the remaining invariant debt.
-gate_checks='-*,clang-analyzer-core.*,clang-analyzer-cplusplus.*,clang-analyzer-security.*'
-advisory_checks='-*,bugprone-exception-escape,bugprone-unchecked-optional-access'
+# Tightened enforcement for issue #27:
+# - Keep the gate scoped to the audited critical-file subset.
+# - Hard-gate the zero-baseline clang-analyzer categories plus the two
+#   bugprone checks that were cleared in issue #26.
+gate_checks='-*,clang-analyzer-core.*,clang-analyzer-cplusplus.*,clang-analyzer-security.*,bugprone-exception-escape,bugprone-unchecked-optional-access'
+advisory_checks=''
 
 sanitize_clang_tidy_output() {
   sed -E \
@@ -114,8 +115,12 @@ if ! run_clang_tidy_group "$gate_checks" "$clang_gate_report" true; then
   gate_status=1
 fi
 
-echo "Running clang-tidy advisory checks on audited critical files..."
-run_clang_tidy_group "$advisory_checks" "$clang_advisory_report" false || true
+if [[ -n "$advisory_checks" ]]; then
+  echo "Running clang-tidy advisory checks on audited critical files..."
+  run_clang_tidy_group "$advisory_checks" "$clang_advisory_report" false || true
+else
+  : > "$clang_advisory_report"
+fi
 
 if [[ $gate_status -ne 0 ]]; then
   echo "Static-analysis gate failed. See $clang_gate_report for details." >&2
