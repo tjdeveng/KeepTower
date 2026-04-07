@@ -319,6 +319,101 @@ TEST_F(VaultYubiKeyServiceTest, VaultResult_ErrorPropagation) {
     EXPECT_EQ(invalid_challenge.error(), VaultError::YubiKeyError);
 }
 
+// ============================================================================
+// Service Method Validation Tests
+// ============================================================================
+
+TEST_F(VaultYubiKeyServiceTest, EnrollYubiKey_InvalidPinRejectedBeforeHardwareAccess) {
+    const std::array<uint8_t, 32> policy_challenge = {
+        1, 2, 3, 4, 5, 6, 7, 8,
+        9, 10, 11, 12, 13, 14, 15, 16,
+        17, 18, 19, 20, 21, 22, 23, 24,
+        25, 26, 27, 28, 29, 30, 31, 32};
+    const std::array<uint8_t, 32> user_challenge = {
+        33, 34, 35, 36, 37, 38, 39, 40,
+        41, 42, 43, 44, 45, 46, 47, 48,
+        49, 50, 51, 52, 53, 54, 55, 56,
+        57, 58, 59, 60, 61, 62, 63, 64};
+    bool callback_called = false;
+
+    auto result = service.enroll_yubikey(
+        "alice",
+        policy_challenge,
+        user_challenge,
+        "123",
+        1,
+        false,
+        [&](const std::string&) { callback_called = true; });
+
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), VaultError::YubiKeyError);
+    EXPECT_FALSE(callback_called);
+}
+
+TEST_F(VaultYubiKeyServiceTest, EnrollYubiKey_InvalidSlotRejectedBeforeHardwareAccess) {
+    const std::array<uint8_t, 32> policy_challenge = {
+        1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1};
+    const std::array<uint8_t, 32> user_challenge = {
+        2, 2, 2, 2, 2, 2, 2, 2,
+        2, 2, 2, 2, 2, 2, 2, 2,
+        2, 2, 2, 2, 2, 2, 2, 2,
+        2, 2, 2, 2, 2, 2, 2, 2};
+
+    auto result = service.enroll_yubikey(
+        "alice",
+        policy_challenge,
+        user_challenge,
+        "1234",
+        3);
+
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), VaultError::YubiKeyError);
+}
+
+TEST_F(VaultYubiKeyServiceTest, ChallengeResponse_RejectsEmptyChallenge) {
+    auto result = service.challenge_response({}, "1234", 1);
+
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), VaultError::YubiKeyError);
+}
+
+TEST_F(VaultYubiKeyServiceTest, ChallengeResponse_RejectsOversizedChallenge) {
+    std::vector<uint8_t> challenge(65, 0xAB);
+
+    auto result = service.challenge_response(challenge, "1234", 1);
+
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), VaultError::YubiKeyError);
+}
+
+TEST_F(VaultYubiKeyServiceTest, ChallengeResponse_RejectsInvalidPinBeforeHardwareAccess) {
+    std::vector<uint8_t> challenge(32, 0xCD);
+
+    auto result = service.challenge_response(challenge, "123", 1);
+
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), VaultError::YubiKeyError);
+}
+
+TEST_F(VaultYubiKeyServiceTest, ChallengeResponse_RejectsInvalidSlotBeforeHardwareAccess) {
+    std::vector<uint8_t> challenge(32, 0xEF);
+
+    auto result = service.challenge_response(challenge, "1234", 0);
+
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), VaultError::YubiKeyError);
+}
+
+TEST_F(VaultYubiKeyServiceTest, GetDeviceInfo_RejectsEmptyPath) {
+    auto result = service.get_device_info("");
+
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), VaultError::YubiKeyError);
+}
+
 TEST_F(VaultYubiKeyServiceTest, VaultResult_SuccessValue) {
     auto valid_challenge = VaultYubiKeyService::generate_challenge(32);
 
