@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2025 tjdeveng
 
+#include "lib/fips/FipsProviderManager.h"
+
 /**
  * @file test_fips_mode.cc
  * @brief Comprehensive test suite for FIPS-140-3 mode functionality
@@ -148,9 +150,9 @@ void disable_backups_for_test(VaultManager& manager) {
 class OpenSSLCleanupEnvironment final : public ::testing::Environment {
 public:
     ~OpenSSLCleanupEnvironment() override {
-        // Ensure OpenSSL provider/global allocations are released before
-        // LeakSanitizer runs at process exit.
-        OPENSSL_cleanup();
+        // Ensure provider unload happens before LeakSanitizer's end-of-process
+        // scan rather than relying on atexit ordering.
+        KeepTower::FipsProviderManager::cleanup_process_state();
     }
 };
 

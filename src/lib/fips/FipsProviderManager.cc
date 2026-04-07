@@ -22,8 +22,10 @@ std::atomic<bool> FipsProviderManager::s_fips_mode_enabled{false};
 
 namespace {
 std::once_flag g_openssl_cleanup_registered;
+std::mutex g_openssl_cleanup_mutex;
 OSSL_PROVIDER* g_fips_provider{nullptr};
 OSSL_PROVIDER* g_default_provider{nullptr};
+bool g_openssl_cleanup_performed{false};
 
 void log_openssl_error(const char* context) {
     unsigned long err = ERR_get_error();
@@ -37,18 +39,7 @@ void log_openssl_error(const char* context) {
 }
 
 void openssl_cleanup_at_exit() {
-    // Best-effort cleanup for sanitizer runs and orderly shutdown.
-    // Unload providers first, then clean up global OpenSSL state.
-    if (g_default_provider != nullptr) {
-        OSSL_PROVIDER_unload(g_default_provider);
-        g_default_provider = nullptr;
-    }
-    if (g_fips_provider != nullptr) {
-        OSSL_PROVIDER_unload(g_fips_provider);
-        g_fips_provider = nullptr;
-    }
-
-    OPENSSL_cleanup();
+    FipsProviderManager::cleanup_process_state();
 }
 
 void register_openssl_cleanup_once() {
@@ -122,6 +113,26 @@ bool FipsProviderManager::set_fips_mode(bool enable) {
     s_fips_mode_enabled.store(enable);
     KeepTower::Log::info("FIPS mode {} successfully", enable ? "enabled" : "disabled");
     return true;
+}
+
+void FipsProviderManager::cleanup_process_state() {
+    std::lock_guard<std::mutex> lock(g_openssl_cleanup_mutex);
+    if (g_openssl_cleanup_performed) {
+        return;
+    }
+
+    // Unload providers before tearing down OpenSSL's global state.
+    if (g_default_provider != nullptr) {
+        OSSL_PROVIDER_unload(g_default_provider);
+        g_default_provider = nullptr;
+    }
+    if (g_fips_provider != nullptr) {
+        OSSL_PROVIDER_unload(g_fips_provider);
+        g_fips_provider = nullptr;
+    }
+
+    OPENSSL_cleanup();
+    g_openssl_cleanup_performed = true;
 }
 
 bool FipsProviderManager::init(bool enable, bool& out_available, bool& out_enabled) {

@@ -43,6 +43,14 @@ public:
      */
     [[nodiscard]] static bool set_fips_mode(bool enable);
 
+    /**
+     * Explicitly unload OpenSSL providers and clean up process-global state.
+     *
+     * This is primarily useful for sanitizer/test shutdown paths where provider
+     * cleanup must happen before LeakSanitizer performs its end-of-process scan.
+     */
+    static void cleanup_process_state();
+
 private:
     // Process-global state (OpenSSL providers/default properties are process-wide).
     static std::atomic<bool> s_fips_mode_initialized;

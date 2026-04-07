@@ -225,11 +225,11 @@ This document outlines the planned features and improvements for KeepTower, orga
   - Continuous fuzzing, benchmarking, accessibility, i18n, and broader packaging work remain important project goals, but they are not required to declare the current A+ repository-quality bar closed.
 - Current known misses against the A+ definition:
   - Coverage is still below the proposed canonical threshold (`70.9%` lines, `78.8%` functions in the latest recorded snapshot).
-  - Static analysis is present, but high-signal findings are not yet enforced as a CI gate.
-  - The FIPS sanitizer path still relies on a documented workaround rather than a fully reviewed final policy.
   - Current hotspot files remain above the proposed `2000`-line ceiling without the closure rationale yet completed in `#30`.
 - Verified current signals:
   - Full local Meson suite passes: `65/65` tests green.
+  - High-signal static analysis is enforced in CI for the tracked audited subset.
+  - The FIPS mode test suite passes in `build-asan` with leak detection enabled; the old Meson leak-detection override was removed after explicit provider cleanup landed.
   - Public API documentation is enforced under a strict zero-warning Doxygen policy.
   - Architecture-audit closeout phases I, K, and L are complete.
 - Latest recorded coverage snapshot:
@@ -237,10 +237,7 @@ This document outlines the planned features and improvements for KeepTower, orga
   - Function coverage: `78.8%`
   - Source: `docs/testing/COVERAGE_IMPROVEMENT_SUMMARY.md`
   - Status: useful baseline, but not the canonical live execution tracker for A+ closure.
-- A+ is considered closed only when the milestone issues resolve the remaining gaps:
-  - `#26` core invariant and static-analysis backlog cleanup
-  - `#27` high-signal static analysis enforced in CI
-  - `#28` reviewed sanitizer policy or root-cause fix for the FIPS path
+- A+ is considered closed only when the remaining milestone gaps are resolved:
   - `#29` coverage raised to the agreed A+ threshold
   - `#30` hotspot reduction in the largest responsibility-dense files
 

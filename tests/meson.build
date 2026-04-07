@@ -598,18 +598,7 @@ test('Vault Helper Functions', vault_helpers_test)
 test('Fuzzy Match Tests', fuzzy_match_test)
 test('Undo/Redo Tests', undo_redo_test)
 
-# OpenSSL's provider subsystem (notably the FIPS module) can retain process-lifetime
-# allocations that trip LeakSanitizer even after successful OPENSSL_cleanup().
-# For ASan builds, disable leak detection for this specific test binary so the
-# rest of the sanitizer evidence run can proceed.
-sanitize_opt = get_option('b_sanitize')
-asan_enabled = sanitize_opt.contains('address')
-fips_mode_env = []
-if asan_enabled
-    fips_mode_env = ['ASAN_OPTIONS=detect_leaks=0:halt_on_error=1:abort_on_error=1:print_summary=1']
-endif
-
-test('FIPS Mode Tests', fips_mode_test, env: fips_mode_env)
+test('FIPS Mode Tests', fips_mode_test)
 test('Memory Locking Security Tests', memory_locking_test)
 test('YubiKey Algorithm Tests', yubikey_algorithms_test)
 test('YubiKeyManager Characterization Tests', yubikey_manager_characterization_test,
