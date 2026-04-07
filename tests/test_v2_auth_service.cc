@@ -7,9 +7,11 @@
 #include "../src/lib/crypto/UsernameHashService.h"
 #include "../src/lib/crypto/VaultCrypto.h"
 #include "../src/lib/crypto/KeyWrapping.h"
+#include "../src/lib/yubikey/YubiKeyManager.h"
 
 #include <algorithm>
 #include <array>
+#include <cstdlib>
 #include <span>
 #include <string>
 #include <vector>
@@ -17,6 +19,34 @@
 using namespace KeepTower;
 
 namespace {
+
+class ScopedEnvVar {
+public:
+    ScopedEnvVar(const char* name, const char* value) : m_name(name) {
+        const char* existing = std::getenv(name);
+        if (existing) {
+            m_had_previous = true;
+            m_previous_value = existing;
+        }
+        setenv(name, value, 1);
+    }
+
+    ~ScopedEnvVar() {
+        if (m_had_previous) {
+            setenv(m_name.c_str(), m_previous_value.c_str(), 1);
+        } else {
+            unsetenv(m_name.c_str());
+        }
+    }
+
+    ScopedEnvVar(const ScopedEnvVar&) = delete;
+    ScopedEnvVar& operator=(const ScopedEnvVar&) = delete;
+
+private:
+    std::string m_name;
+    bool m_had_previous{false};
+    std::string m_previous_value;
+};
 
 KeySlot make_slot_for_username(
     const std::string& username,
@@ -121,6 +151,28 @@ TEST(V2AuthServiceUnitTests, DecryptYubiKeyPinForOpenRejectsMissingEncryptedPin)
     EXPECT_EQ(result.error(), VaultError::YubiKeyError);
 }
 
+TEST(V2AuthServiceUnitTests, DecryptYubiKeyPinForOpenRejectsShortCiphertext) {
+    KeySlot slot;
+    slot.yubikey_encrypted_pin = {0x01, 0x02, 0x03};
+
+    std::array<uint8_t, 32> kek{};
+    auto result = V2AuthService::decrypt_yubikey_pin_for_open(slot, kek);
+
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), VaultError::CryptoError);
+}
+
+TEST(V2AuthServiceUnitTests, DecryptYubiKeyPinForOpenReturnsCryptoErrorWhenCiphertextInvalid) {
+    KeySlot slot;
+    slot.yubikey_encrypted_pin.resize(KeepTower::VaultCrypto::IV_LENGTH + 8, 0xA5);
+
+    std::array<uint8_t, 32> kek{};
+    auto result = V2AuthService::decrypt_yubikey_pin_for_open(slot, kek);
+
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), VaultError::CryptoError);
+}
+
 TEST(V2AuthServiceUnitTests, DecryptYubiKeyPinForOpenRoundTripsEncryptedPin) {
     const std::string pin = "123456";
 
@@ -160,6 +212,33 @@ TEST(V2AuthServiceUnitTests, ResolveYubiKeyPinForAuthUsesFallbackWhenEncryptedPi
     EXPECT_EQ(result.value(), "654321");
 }
 
+TEST(V2AuthServiceUnitTests, ResolveYubiKeyPinForAuthPrefersEncryptedPinWhenPresent) {
+    const std::string pin = "246810";
+
+    std::array<uint8_t, 32> kek{};
+    for (size_t i = 0; i < kek.size(); ++i) {
+        kek[i] = static_cast<uint8_t>(0x21 + i);
+    }
+
+    std::array<uint8_t, KeepTower::VaultCrypto::IV_LENGTH> iv{};
+    for (size_t i = 0; i < iv.size(); ++i) {
+        iv[i] = static_cast<uint8_t>(0x42 + i);
+    }
+
+    std::vector<uint8_t> ciphertext;
+    const std::vector<uint8_t> pin_bytes(pin.begin(), pin.end());
+    ASSERT_TRUE(KeepTower::VaultCrypto::encrypt_data(pin_bytes, kek, ciphertext, iv));
+
+    KeySlot slot;
+    slot.yubikey_encrypted_pin.insert(slot.yubikey_encrypted_pin.end(), iv.begin(), iv.end());
+    slot.yubikey_encrypted_pin.insert(slot.yubikey_encrypted_pin.end(), ciphertext.begin(), ciphertext.end());
+
+    auto result = V2AuthService::resolve_yubikey_pin_for_auth(slot, kek, std::string("999999"));
+
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(result.value(), pin);
+}
+
 TEST(V2AuthServiceUnitTests, ResolveYubiKeyPinForAuthFailsWhenNoPinAvailable) {
     KeySlot slot;
     std::array<uint8_t, 32> kek{};
@@ -169,6 +248,100 @@ TEST(V2AuthServiceUnitTests, ResolveYubiKeyPinForAuthFailsWhenNoPinAvailable) {
     ASSERT_FALSE(result.has_value());
     EXPECT_EQ(result.error(), VaultError::YubiKeyError);
 }
+
+TEST(V2AuthServiceUnitTests, LoadFido2CredentialForOpenRejectsMissingCredentialId) {
+    KeySlot slot;
+    YubiKeyManager manager;
+
+    auto result = V2AuthService::load_fido2_credential_for_open(slot, manager);
+
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), VaultError::YubiKeyError);
+}
+
+#ifdef HAVE_YUBIKEY_SUPPORT
+TEST(V2AuthServiceUnitTests, LoadFido2CredentialForOpenAcceptsStoredCredentialId) {
+    KeySlot slot;
+    slot.yubikey_credential_id = {0x10, 0x20, 0x30, 0x40};
+
+    YubiKeyManager manager;
+    auto result = V2AuthService::load_fido2_credential_for_open(slot, manager);
+
+    ASSERT_TRUE(result.has_value());
+}
+
+TEST(V2AuthServiceUnitTests, LoadFido2CredentialIfPresentSkipsEmptyCredentialId) {
+    KeySlot slot;
+    YubiKeyManager manager;
+
+    auto result = V2AuthService::load_fido2_credential_if_present(slot, manager);
+
+    ASSERT_TRUE(result.has_value());
+}
+
+TEST(V2AuthServiceUnitTests, LoadFido2CredentialIfPresentLoadsStoredCredentialId) {
+    KeySlot slot;
+    slot.yubikey_credential_id = {0xAB, 0xCD, 0xEF};
+
+    YubiKeyManager manager;
+    auto result = V2AuthService::load_fido2_credential_if_present(slot, manager);
+
+    ASSERT_TRUE(result.has_value());
+}
+
+TEST(V2AuthServiceUnitTests, RunYubiKeyChallengeForPolicyReturnsYubiKeyErrorWhenManagerUninitialized) {
+    VaultSecurityPolicy policy;
+    policy.yubikey_algorithm = static_cast<uint8_t>(YubiKeyAlgorithm::HMAC_SHA256);
+
+    YubiKeyManager manager;
+    const std::array<uint8_t, 4> challenge{0x01, 0x02, 0x03, 0x04};
+
+    auto result = V2AuthService::run_yubikey_challenge_for_policy(challenge, policy, std::string_view("1234"), manager);
+
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), VaultError::YubiKeyError);
+}
+
+TEST(V2AuthServiceUnitTests, RunYubiKeyChallengeForOpenReturnsYubiKeyErrorForUnsupportedAlgorithm) {
+    ScopedEnvVar disable_detect{"DISABLE_YUBIKEY_DETECT", "1"};
+
+    VaultSecurityPolicy policy;
+    policy.yubikey_algorithm = static_cast<uint8_t>(YubiKeyAlgorithm::HMAC_SHA512);
+
+    KeySlot slot;
+    slot.yubikey_challenge = {0x09, 0x08, 0x07, 0x06};
+
+    YubiKeyManager manager;
+    ASSERT_TRUE(manager.initialize(false));
+
+    auto result = V2AuthService::run_yubikey_challenge_for_open(slot, policy, "1234", manager);
+
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), VaultError::YubiKeyError);
+}
+#else
+TEST(V2AuthServiceUnitTests, LoadFido2CredentialIfPresentSkipsEmptyCredentialId) {
+    KeySlot slot;
+    YubiKeyManager manager;
+
+    auto result = V2AuthService::load_fido2_credential_if_present(slot, manager);
+
+    ASSERT_TRUE(result.has_value());
+}
+
+TEST(V2AuthServiceUnitTests, RunYubiKeyChallengeForPolicyReturnsYubiKeyErrorWithoutCompiledSupport) {
+    VaultSecurityPolicy policy;
+    policy.yubikey_algorithm = static_cast<uint8_t>(YubiKeyAlgorithm::HMAC_SHA256);
+
+    YubiKeyManager manager;
+    const std::array<uint8_t, 4> challenge{0x01, 0x02, 0x03, 0x04};
+
+    auto result = V2AuthService::run_yubikey_challenge_for_policy(challenge, policy, std::string_view("1234"), manager);
+
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), VaultError::YubiKeyError);
+}
+#endif
 
 TEST(V2AuthServiceUnitTests, CombineKekWithYubiKeyResponseMatchesKeyWrapping) {
     std::array<uint8_t, 32> password_kek{};
