@@ -9,6 +9,7 @@
 #include <gtest/gtest.h>
 
 #include <glibmm/init.h>
+#include <glibmm/main.h>
 #include <giomm/init.h>
 #include <giomm/settings.h>
 
@@ -20,6 +21,8 @@
 class ThemeControllerTest : public ::testing::Test {
 protected:
     void SetUp() override {
+        setenv("GSETTINGS_BACKEND", "memory", 1);
+
         Glib::init();
         Gio::init();
 
@@ -47,6 +50,15 @@ protected:
 
         // Ensure a known baseline for each test.
         m_settings->reset("color-scheme");
+    }
+
+    Glib::RefPtr<Gio::Settings> create_desktop_settings() {
+        try {
+            return Gio::Settings::create("org.gnome.desktop.interface");
+        } catch (const Glib::Error& e) {
+            ADD_FAILURE() << "Could not create desktop settings: " << e.what();
+            return {};
+        }
     }
 
     Glib::RefPtr<Gio::Settings> m_settings;
@@ -112,4 +124,82 @@ TEST_F(ThemeControllerTest, Start_CallsApplyAndDoesNotRequireGtkSettings) {
     controller.start();
     controller.stop();
     controller.stop();
+}
+
+TEST_F(ThemeControllerTest, ApplyNow_DefaultFollowsDesktopPreferDark) {
+    auto desktop_settings = create_desktop_settings();
+    ASSERT_TRUE(desktop_settings);
+    desktop_settings->set_string("color-scheme", "prefer-dark");
+    m_settings->set_string("color-scheme", "default");
+
+    bool applied_value = false;
+    int apply_calls = 0;
+
+    ThemeController controller(
+        m_settings,
+        [&](bool prefer_dark) {
+            applied_value = prefer_dark;
+            apply_calls++;
+        },
+        desktop_settings
+    );
+
+    controller.apply_now();
+
+    EXPECT_EQ(apply_calls, 1);
+    EXPECT_TRUE(applied_value);
+}
+
+TEST_F(ThemeControllerTest, ApplyNow_DefaultFollowsDesktopLightPreference) {
+    auto desktop_settings = create_desktop_settings();
+    ASSERT_TRUE(desktop_settings);
+    desktop_settings->set_string("color-scheme", "default");
+    m_settings->set_string("color-scheme", "default");
+
+    bool applied_value = true;
+    int apply_calls = 0;
+
+    ThemeController controller(
+        m_settings,
+        [&](bool prefer_dark) {
+            applied_value = prefer_dark;
+            apply_calls++;
+        },
+        desktop_settings
+    );
+
+    controller.apply_now();
+
+    EXPECT_EQ(apply_calls, 1);
+    EXPECT_FALSE(applied_value);
+}
+
+TEST_F(ThemeControllerTest, Start_ReactsToDesktopThemeChangesWhenFollowingDefault) {
+    auto desktop_settings = create_desktop_settings();
+    ASSERT_TRUE(desktop_settings);
+    desktop_settings->set_string("color-scheme", "default");
+    m_settings->set_string("color-scheme", "default");
+
+    bool applied_value = false;
+    int apply_calls = 0;
+
+    ThemeController controller(
+        m_settings,
+        [&](bool prefer_dark) {
+            applied_value = prefer_dark;
+            apply_calls++;
+        },
+        desktop_settings
+    );
+
+    controller.start();
+    ASSERT_GE(apply_calls, 1);
+    EXPECT_FALSE(applied_value);
+
+    desktop_settings->set_string("color-scheme", "prefer-dark");
+    while (Glib::MainContext::get_default()->iteration(false)) {
+    }
+
+    EXPECT_GE(apply_calls, 2);
+    EXPECT_TRUE(applied_value);
 }
