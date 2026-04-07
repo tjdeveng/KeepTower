@@ -762,6 +762,24 @@ v2_auth_service_test = executable(
 
 test('V2AuthService Unit Tests', v2_auth_service_test)
 
+# KeySlotManager unit tests
+key_slot_manager_sources = [
+    'test_key_slot_manager.cc',
+    '../src/core/services/KeySlotManager.cc',
+    '../src/core/MultiUserTypes.cc',
+    '../src/core/PasswordHistory.cc',
+]
+key_slot_manager_deps = [gtest_dep, openssl_dep, giomm_dep, argon2_dep, crypto_dep]
+
+key_slot_manager_test = executable(
+    'key_slot_manager_test',
+    key_slot_manager_sources,
+    dependencies: key_slot_manager_deps,
+    include_directories: test_inc
+)
+
+test('KeySlotManager Unit Tests', key_slot_manager_test)
+
 # VaultFileService unit tests
 vault_file_service_sources = [
     'test_vault_file_service.cc',

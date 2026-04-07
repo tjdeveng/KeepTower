@@ -6,6 +6,14 @@ set -e
 
 BUILD_DIR="${1:-build-coverage}"
 COVERAGE_DIR="${BUILD_DIR}/coverage"
+CAPTURE_LOG="$(mktemp)"
+FILTER_LOG="$(mktemp)"
+
+cleanup() {
+    rm -f "$CAPTURE_LOG" "$FILTER_LOG"
+}
+
+trap cleanup EXIT
 
 echo "================================"
 echo "Code Coverage Report Generator"
@@ -50,7 +58,8 @@ lcov --capture \
      --output-file "$COVERAGE_DIR/coverage.info" \
      --rc branch_coverage=1 \
      --ignore-errors mismatch,negative \
-     2>&1 | grep -v "ignoring data for external file" | tail -10
+    >"$CAPTURE_LOG" 2>&1
+grep -v "ignoring data for external file" "$CAPTURE_LOG" | tail -10 || true
 
 # Remove system headers and test files from coverage
 echo ""
@@ -65,8 +74,9 @@ lcov --remove "$COVERAGE_DIR/coverage.info" \
      '*.pb.cc' \
      --output-file "$COVERAGE_DIR/coverage-filtered.info" \
      --rc branch_coverage=1 \
-     --ignore-errors empty,mismatch \
-     2>&1 | grep -v "ignoring data for external file" | tail -10
+    --ignore-errors empty,mismatch,unused \
+    >"$FILTER_LOG" 2>&1
+grep -v "ignoring data for external file" "$FILTER_LOG" | tail -10 || true
 
 # Generate HTML report
 echo ""
@@ -91,7 +101,6 @@ if [ -f "$COVERAGE_DIR/coverage-filtered.info" ]; then
 else
     echo "  Warning: coverage-filtered.info not found, skipping summary"
 fi
-     2>&1 | grep -E "(lines|functions|branches)" | sed 's/^/  /'
 
 echo ""
 echo "================================"
