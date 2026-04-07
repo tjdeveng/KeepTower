@@ -294,6 +294,19 @@ password_generator_test = executable(
     include_directories: test_inc
 )
 
+# Import/Export shared helper tests
+import_export_common_test = executable(
+    'import_export_common_test',
+    ['test_import_export_common.cc', '../src/utils/ImportExport.cc', proto_gen],
+    dependencies: [
+        gtest_dep,
+        protobuf_dep,
+    ],
+    include_directories: test_inc
+)
+
+test('ImportExport Common Tests', import_export_common_test)
+
 # Import/Export CSV edge-case tests
 import_export_csv_sources = [
     'test_import_export_csv.cc',
