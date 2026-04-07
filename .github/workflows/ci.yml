@@ -285,8 +285,12 @@ jobs:
           cmake \
           git \
           gettext \
+          curl \
+          perl \
           desktop-file-utils \
-          libfido2-dev
+          libfido2-dev \
+          libargon2-dev \
+          libxml2-utils
 
     - name: Build and install libcorrect
       run: |
