@@ -12,6 +12,7 @@
 #include <glibmm/main.h>
 #include <giomm/init.h>
 #include <giomm/settings.h>
+#include <giomm/settingsschemasource.h>
 
 #include <cstdlib>
 #include <filesystem>
@@ -53,6 +54,16 @@ protected:
     }
 
     Glib::RefPtr<Gio::Settings> create_desktop_settings() {
+        auto schema_source = Gio::SettingsSchemaSource::get_default();
+        if (!schema_source) {
+            return {};
+        }
+
+        auto schema = schema_source->lookup("org.gnome.desktop.interface", false);
+        if (!schema) {
+            return {};
+        }
+
         try {
             return Gio::Settings::create("org.gnome.desktop.interface");
         } catch (const Glib::Error& e) {
@@ -128,7 +139,9 @@ TEST_F(ThemeControllerTest, Start_CallsApplyAndDoesNotRequireGtkSettings) {
 
 TEST_F(ThemeControllerTest, ApplyNow_DefaultFollowsDesktopPreferDark) {
     auto desktop_settings = create_desktop_settings();
-    ASSERT_TRUE(desktop_settings);
+    if (!desktop_settings) {
+        GTEST_SKIP() << "org.gnome.desktop.interface schema not available";
+    }
     desktop_settings->set_string("color-scheme", "prefer-dark");
     m_settings->set_string("color-scheme", "default");
 
@@ -152,7 +165,9 @@ TEST_F(ThemeControllerTest, ApplyNow_DefaultFollowsDesktopPreferDark) {
 
 TEST_F(ThemeControllerTest, ApplyNow_DefaultFollowsDesktopLightPreference) {
     auto desktop_settings = create_desktop_settings();
-    ASSERT_TRUE(desktop_settings);
+    if (!desktop_settings) {
+        GTEST_SKIP() << "org.gnome.desktop.interface schema not available";
+    }
     desktop_settings->set_string("color-scheme", "default");
     m_settings->set_string("color-scheme", "default");
 
@@ -176,7 +191,9 @@ TEST_F(ThemeControllerTest, ApplyNow_DefaultFollowsDesktopLightPreference) {
 
 TEST_F(ThemeControllerTest, Start_ReactsToDesktopThemeChangesWhenFollowingDefault) {
     auto desktop_settings = create_desktop_settings();
-    ASSERT_TRUE(desktop_settings);
+    if (!desktop_settings) {
+        GTEST_SKIP() << "org.gnome.desktop.interface schema not available";
+    }
     desktop_settings->set_string("color-scheme", "default");
     m_settings->set_string("color-scheme", "default");
 
