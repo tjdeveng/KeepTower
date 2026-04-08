@@ -1124,6 +1124,27 @@ theme_controller_test = executable(
 
 test('theme_controller', theme_controller_test, env: ['GSETTINGS_SCHEMA_DIR=' + meson.project_build_root() / 'data'])
 
+# AccountManager unit tests
+account_manager_test_sources = [
+    'test_account_manager.cc',
+    '../src/core/managers/AccountManager.cc',
+    proto_gen,
+]
+
+account_manager_test_deps = [
+    gtest_dep,
+    protobuf_dep,
+]
+
+account_manager_test = executable(
+    'account_manager_test',
+    account_manager_test_sources,
+    dependencies: account_manager_test_deps,
+    include_directories: test_inc
+)
+
+test('AccountManager Unit Tests', account_manager_test)
+
 # AccountRepository tests (Phase 2 refactoring)
 account_repository_test_sources = [
     'test_account_repository.cc',
