@@ -237,6 +237,22 @@ This document outlines the planned features and improvements for KeepTower, orga
   - Function coverage: `78.8%`
   - Source: `docs/testing/COVERAGE_IMPROVEMENT_SUMMARY.md`
   - Status: useful baseline, but not the canonical live execution tracker for A+ closure.
+- `#29` handoff checkpoint (`2026-04-07`):
+  - The latest full-repository snapshot above is stale relative to the most recent focused `#29` slices; do not treat it as the live post-session total without rerunning the canonical coverage workflow.
+  - Coverage infrastructure hardening and focused slices landed in:
+    - `55b81c8` `test(coverage): harden reports and cover key slots`
+    - `707ae79` `test(yubikey): cover service validation paths`
+    - `708ad72` `test(import-export): cover common error helpers`
+    - `b3d3aa9` `test(auth): cover v2 auth service helpers`
+    - `6a4706c` `test(theme): cover system theme follow mode`
+  - Focused file results validated during this session:
+    - `src/core/services/V2AuthService.cc`: `94.8%` lines, `100.0%` functions
+    - `src/ui/controllers/ThemeController.cc`: `56.9%` lines, `71.4%` functions
+  - Recommended next `#29` slice order at the next session start:
+    - `src/core/managers/AccountManager.cc` for another bounded core-logic win
+    - `src/core/VaultManager.cc` for the largest likely raw line-coverage gain
+    - `src/lib/yubikey/YubiKeyManager.cc` only after the lower-friction core paths, because it remains hardware-adjacent and more complex to test deterministically
+  - First action for the next session: rerun the canonical coverage workflow to refresh the aggregate repository totals, then reprioritize the remaining low-coverage files from that new report.
 - A+ is considered closed only when the remaining milestone gaps are resolved:
   - `#29` coverage raised to the agreed A+ threshold
   - `#30` hotspot reduction in the largest responsibility-dense files
