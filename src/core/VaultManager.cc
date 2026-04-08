@@ -507,12 +507,18 @@ std::string VaultManager::create_group(std::string_view name) {
         return "";
     }
 
+    const bool was_modified = m_modified;
     std::string group_id = m_group_manager->create_group(name);
     if (!group_id.empty()) {
         // Save vault after creating group
         if (!save_vault()) {
-            // Note: GroupManager has already modified vault_data, but save failed
-            // In production, consider rollback mechanism
+            const bool rolled_back = m_group_manager->delete_group(group_id);
+            if (!rolled_back) {
+                KeepTower::Log::error(
+                    "VaultManager: Failed to roll back group creation after save failure"
+                );
+            }
+            m_modified = was_modified;
             return "";
         }
     }

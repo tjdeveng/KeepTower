@@ -235,6 +235,28 @@ TEST_F(VaultManagerTest, AccountBoundaryViewsRoundTripThroughVaultManager) {
     EXPECT_EQ(stored_detail->password_changed_at, 333);
 }
 
+TEST_F(VaultManagerTest, CreateGroupSaveFailureRollsBackInMemoryState) {
+    const auto policy = make_test_policy();
+    ASSERT_TRUE(vault_manager->create_vault_v2(test_vault_path, test_username, test_password, policy));
+
+    const auto baseline_groups = vault_manager->get_all_groups_view();
+
+    const fs::path blocking_temp_path = fs::path(test_vault_path).concat(".tmp");
+    ASSERT_TRUE(fs::create_directory(blocking_temp_path));
+
+    EXPECT_TRUE(vault_manager->is_vault_open());
+    EXPECT_EQ(vault_manager->create_group("Work"), "");
+
+    const auto after_groups = vault_manager->get_all_groups_view();
+    EXPECT_EQ(after_groups.size(), baseline_groups.size());
+    EXPECT_TRUE(std::none_of(
+        after_groups.begin(),
+        after_groups.end(),
+        [](const KeepTower::GroupView& group) {
+            return group.group_name == "Work";
+        }));
+}
+
 TEST_F(VaultManagerTest, UpdateAndDeleteAccountUseBoundaryModelGuards) {
     auto detail = make_account_detail("closed-id", "Closed", "user");
     EXPECT_FALSE(vault_manager->add_account(detail));
