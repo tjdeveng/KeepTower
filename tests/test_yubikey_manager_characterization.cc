@@ -89,7 +89,63 @@ TEST(YubiKeyManagerCharacterization, Initialize_FipsFlagIsObservable) {
 #endif
 }
 
+TEST(YubiKeyManagerCharacterization, EnumerateDevicesWithoutInitializationReturnsEmpty) {
+    YubiKeyManager manager;
+
+    auto devices = manager.enumerate_devices();
+
+    EXPECT_TRUE(devices.empty());
+}
+
+TEST(YubiKeyManagerCharacterization, IsDeviceConnectedWithoutInitializationReturnsFalse) {
+    YubiKeyManager manager;
+
+    EXPECT_FALSE(manager.is_device_connected("any-device"));
+}
+
 #ifdef HAVE_YUBIKEY_SUPPORT
+
+TEST(YubiKeyManagerCharacterization, IsDeviceConnectedDetectionDisabledReturnsFalse) {
+    ScopedEnvVar disable_detect{"DISABLE_YUBIKEY_DETECT", "1"};
+
+    YubiKeyManager manager;
+    ASSERT_TRUE(manager.initialize(false));
+
+    EXPECT_FALSE(manager.is_device_connected("disabled-device"));
+}
+
+TEST(YubiKeyManagerCharacterization, CreateCredentialWithoutInitializationSetsExpectedError) {
+    YubiKeyManager manager;
+
+    auto credential = manager.create_credential("user-id", "1234");
+
+    EXPECT_FALSE(credential.has_value());
+    EXPECT_EQ(manager.get_last_error(), "YubiKey subsystem not initialized");
+}
+
+TEST(YubiKeyManagerCharacterization, CreateCredentialRequiresPin) {
+    YubiKeyManager manager;
+    ASSERT_TRUE(manager.initialize(false));
+
+    auto credential = manager.create_credential("user-id", "");
+
+    EXPECT_FALSE(credential.has_value());
+    EXPECT_EQ(manager.get_last_error(), "PIN required for credential creation");
+}
+
+TEST(YubiKeyManagerCharacterization, SetCredentialRejectsEmptyCredentialId) {
+    YubiKeyManager manager;
+
+    EXPECT_FALSE(manager.set_credential({}));
+    EXPECT_EQ(manager.get_last_error(), "Empty credential ID");
+}
+
+TEST(YubiKeyManagerCharacterization, SetCredentialAcceptsNonEmptyCredentialId) {
+    YubiKeyManager manager;
+    const std::array<unsigned char, 4> credential{0x10, 0x20, 0x30, 0x40};
+
+    EXPECT_TRUE(manager.set_credential(credential));
+}
 
 TEST(YubiKeyManagerCharacterization, ChallengeResponse_EmptyChallenge_FailsWithExpectedError) {
     ScopedEnvVar disable_detect{"DISABLE_YUBIKEY_DETECT", "1"};
@@ -121,6 +177,20 @@ TEST(YubiKeyManagerCharacterization, ChallengeResponse_UnsupportedAlgorithm_Fail
     EXPECT_EQ(result.error_message,
               "Algorithm HMAC-SHA512 not supported. FIDO2 hmac-secret only supports HMAC-SHA256.");
     EXPECT_EQ(manager.get_last_error(), result.error_message);
+}
+
+TEST(YubiKeyManagerCharacterization, ChallengeResponseWithoutDeviceReportsExpectedError) {
+    YubiKeyManager manager;
+    ASSERT_TRUE(manager.initialize(false));
+
+    const std::array<unsigned char, 4> challenge{0x01, 0x02, 0x03, 0x04};
+    auto result = manager.challenge_response(std::span<const unsigned char>{challenge.data(), challenge.size()});
+
+    EXPECT_FALSE(result.success);
+    EXPECT_EQ(manager.get_last_error(), result.error_message);
+    EXPECT_TRUE(
+        result.error_message == "No YubiKey FIDO2 device found" ||
+        result.error_message == "No FIDO2 credential enrolled. Please create a new vault with YubiKey.");
 }
 
 #endif
