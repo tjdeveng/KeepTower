@@ -14,10 +14,14 @@
  */
 
 #include <gtest/gtest.h>
+#include <glibmm/main.h>
 #include "../src/core/VaultManager.h"
 #include "../src/core/MultiUserTypes.h"
+#include <chrono>
+#include <atomic>
 #include <filesystem>
 #include <fstream>
+#include <thread>
 
 using namespace KeepTower;
 
@@ -43,6 +47,29 @@ protected:
 };
 
 namespace {
+bool pump_main_context_until(
+    const std::function<bool()>& predicate,
+    std::chrono::milliseconds timeout = std::chrono::seconds(5)) {
+    auto context = Glib::MainContext::get_default();
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
+
+    while (std::chrono::steady_clock::now() < deadline) {
+        if (predicate()) {
+            while (context->iteration(false)) {
+            }
+            return true;
+        }
+
+        while (context->iteration(false)) {
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    while (context->iteration(false)) {
+    }
+    return predicate();
+}
+
 AccountDetail make_v2_account_detail(
     const std::string& id,
     const std::string& account_name,
@@ -110,6 +137,43 @@ TEST_F(VaultManagerV2Test, CreateV2VaultRejectsEmptyUsername) {
 
     EXPECT_FALSE(result);
     EXPECT_EQ(result.error(), VaultError::InvalidUsername);
+}
+
+TEST_F(VaultManagerV2Test, CreateV2VaultAsyncInitializesStateAndInvokesCompletion) {
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 10;
+    policy.pbkdf2_iterations = 100000;
+
+    std::atomic<bool> completion_called{false};
+    KeepTower::VaultResult<> completion_result = {};
+
+    vault_manager.create_vault_v2_async(
+        test_vault_path.string(),
+        "admin",
+        "adminpass123",
+        policy,
+        nullptr,
+        [&](KeepTower::VaultResult<> result) {
+            completion_result = result;
+            completion_called.store(true);
+        });
+
+    ASSERT_TRUE(pump_main_context_until([&completion_called]() {
+        return completion_called.load();
+    }));
+
+    ASSERT_TRUE(completion_result);
+    EXPECT_TRUE(std::filesystem::exists(test_vault_path));
+
+    auto session = vault_manager.get_current_user_session();
+    ASSERT_TRUE(session);
+    EXPECT_EQ(session->username, "admin");
+    EXPECT_EQ(session->role, UserRole::ADMINISTRATOR);
+    EXPECT_FALSE(session->password_change_required);
+
+    auto loaded_policy = vault_manager.get_vault_security_policy();
+    ASSERT_TRUE(loaded_policy);
+    EXPECT_EQ(loaded_policy->min_password_length, 10);
 }
 
 // ============================================================================
@@ -475,6 +539,57 @@ TEST_F(VaultManagerV2Test, StandardUserCanOnlyChangeOwnPassword) {
     auto result = vault_manager.change_user_password("bob", "bobpass12345", "newbobpass12");
     EXPECT_FALSE(result);
     EXPECT_EQ(result.error(), VaultError::PermissionDenied);
+}
+
+TEST_F(VaultManagerV2Test, ChangePasswordAsyncClearsSessionFlagAndPersistsNewPassword) {
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 8;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpass123", policy));
+
+    ASSERT_TRUE(vault_manager.add_user("bob", "temppass1234", UserRole::STANDARD_USER, true));
+    ASSERT_TRUE(vault_manager.save_vault());
+    ASSERT_TRUE(vault_manager.close_vault());
+
+    auto session = vault_manager.open_vault_v2(
+        test_vault_path.string(), "bob", "temppass1234");
+    ASSERT_TRUE(session);
+    EXPECT_TRUE(session->password_change_required);
+
+    std::atomic<bool> completion_called{false};
+    KeepTower::VaultResult<> completion_result = {};
+
+    vault_manager.change_user_password_async(
+        "bob",
+        "temppass1234",
+        "newpass45678",
+        nullptr,
+        [&](KeepTower::VaultResult<> result) {
+            completion_result = result;
+            completion_called.store(true);
+        });
+
+    ASSERT_TRUE(pump_main_context_until([&completion_called]() {
+        return completion_called.load();
+    }));
+
+    ASSERT_TRUE(completion_result);
+
+    auto updated_session = vault_manager.get_current_user_session();
+    ASSERT_TRUE(updated_session);
+    EXPECT_FALSE(updated_session->password_change_required);
+
+    ASSERT_TRUE(vault_manager.save_vault());
+    ASSERT_TRUE(vault_manager.close_vault());
+
+    auto old_password_session = vault_manager.open_vault_v2(
+        test_vault_path.string(), "bob", "temppass1234");
+    EXPECT_FALSE(old_password_session);
+
+    auto new_password_session = vault_manager.open_vault_v2(
+        test_vault_path.string(), "bob", "newpass45678");
+    ASSERT_TRUE(new_password_session);
+    EXPECT_FALSE(new_password_session->password_change_required);
 }
 
 // ============================================================================
