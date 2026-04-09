@@ -42,6 +42,26 @@ protected:
     VaultManager vault_manager;
 };
 
+namespace {
+AccountDetail make_v2_account_detail(
+    const std::string& id,
+    const std::string& account_name,
+    bool admin_only_viewable = false,
+    bool admin_only_deletable = false) {
+    AccountDetail detail;
+    detail.id = id;
+    detail.account_name = account_name;
+    detail.user_name = id + "-user";
+    detail.password = "StoredSecret123!";
+    detail.email = id + "@example.com";
+    detail.website = "https://" + id + ".example.com";
+    detail.notes = "notes";
+    detail.is_admin_only_viewable = admin_only_viewable;
+    detail.is_admin_only_deletable = admin_only_deletable;
+    return detail;
+}
+}
+
 // ============================================================================
 // V2 Vault Creation Tests
 // ============================================================================
@@ -112,6 +132,12 @@ TEST_F(VaultManagerV2Test, OpenV2VaultSuccessful) {
     EXPECT_EQ(session->username, "alice");
     EXPECT_EQ(session->role, UserRole::ADMINISTRATOR);
     EXPECT_FALSE(session->password_change_required);
+}
+
+TEST_F(VaultManagerV2Test, ClosedVaultSessionAndPolicyAccessorsReturnEmpty) {
+    EXPECT_FALSE(vault_manager.get_current_user_session().has_value());
+    EXPECT_FALSE(vault_manager.get_vault_security_policy().has_value());
+    EXPECT_TRUE(vault_manager.list_users().empty());
 }
 
 TEST_F(VaultManagerV2Test, OpenV2VaultWrongPassword) {
@@ -658,6 +684,99 @@ TEST_F(VaultManagerV2Test, GetSecurityPolicyReturnsCorrectValues) {
     auto retrieved_policy = vault_manager.get_vault_security_policy();
     ASSERT_TRUE(retrieved_policy);
     EXPECT_EQ(retrieved_policy->min_password_length, 16);
+}
+
+TEST_F(VaultManagerV2Test, UpdateSecurityPolicyRejectsInvalidHashAlgorithm) {
+    VaultSecurityPolicy policy;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpassword123", policy));
+
+    auto updated_policy = policy;
+    updated_policy.username_hash_algorithm = 0x06;
+
+    auto result = vault_manager.update_security_policy(updated_policy);
+    EXPECT_FALSE(result);
+    EXPECT_EQ(result.error(), VaultError::InvalidData);
+}
+
+TEST_F(VaultManagerV2Test, StandardUserCannotUpdateSecurityPolicy) {
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 8;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpassword123", policy));
+    ASSERT_TRUE(vault_manager.add_user("bob", "bobpassword123", UserRole::STANDARD_USER));
+    ASSERT_TRUE(vault_manager.save_vault());
+    ASSERT_TRUE(vault_manager.close_vault());
+
+    ASSERT_TRUE(vault_manager.open_vault_v2(
+        test_vault_path.string(), "bob", "bobpassword123"));
+
+    auto updated_policy = policy;
+    updated_policy.min_password_length = 14;
+
+    auto result = vault_manager.update_security_policy(updated_policy);
+    EXPECT_FALSE(result);
+    EXPECT_EQ(result.error(), VaultError::PermissionDenied);
+}
+
+TEST_F(VaultManagerV2Test, UpdatedSecurityPolicyAffectsSubsequentUserValidation) {
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 8;
+    policy.pbkdf2_iterations = 100000;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpassword123", policy));
+
+    auto updated_policy = policy;
+    updated_policy.min_password_length = 14;
+    updated_policy.password_history_depth = 4;
+
+    ASSERT_TRUE(vault_manager.update_security_policy(updated_policy));
+
+    auto retrieved_policy = vault_manager.get_vault_security_policy();
+    ASSERT_TRUE(retrieved_policy);
+    EXPECT_EQ(retrieved_policy->min_password_length, 14);
+    EXPECT_EQ(retrieved_policy->password_history_depth, 4);
+
+    auto weak_add = vault_manager.add_user(
+        "bob", "short-pass-1", UserRole::STANDARD_USER, false);
+    EXPECT_FALSE(weak_add);
+    EXPECT_EQ(weak_add.error(), VaultError::WeakPassword);
+}
+
+TEST_F(VaultManagerV2Test, StandardUserCannotViewOrDeleteAdminOnlyAccounts) {
+    VaultSecurityPolicy policy;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpassword123", policy));
+    ASSERT_TRUE(vault_manager.add_user("bob", "bobpassword123", UserRole::STANDARD_USER));
+
+    ASSERT_TRUE(vault_manager.add_account(
+        make_v2_account_detail("shared", "Shared Account", false, false)));
+    ASSERT_TRUE(vault_manager.add_account(
+        make_v2_account_detail("restricted", "Restricted Account", true, true)));
+    ASSERT_TRUE(vault_manager.save_vault());
+    ASSERT_TRUE(vault_manager.close_vault());
+
+    ASSERT_TRUE(vault_manager.open_vault_v2(
+        test_vault_path.string(), "bob", "bobpassword123"));
+
+    EXPECT_TRUE(vault_manager.can_view_account(0));
+    EXPECT_TRUE(vault_manager.can_delete_account(0));
+    EXPECT_FALSE(vault_manager.can_view_account(1));
+    EXPECT_FALSE(vault_manager.can_delete_account(1));
+    EXPECT_FALSE(vault_manager.can_view_account(99));
+    EXPECT_FALSE(vault_manager.can_delete_account(99));
+}
+
+TEST_F(VaultManagerV2Test, AdministratorCanViewOrDeleteAdminOnlyAccounts) {
+    VaultSecurityPolicy policy;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpassword123", policy));
+
+    ASSERT_TRUE(vault_manager.add_account(
+        make_v2_account_detail("restricted", "Restricted Account", true, true)));
+
+    EXPECT_TRUE(vault_manager.can_view_account(0));
+    EXPECT_TRUE(vault_manager.can_delete_account(0));
 }
 
 // ============================================================================
