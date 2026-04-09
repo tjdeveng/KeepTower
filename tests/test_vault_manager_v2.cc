@@ -654,6 +654,23 @@ TEST_F(VaultManagerV2Test, ValidateNewPasswordEnforcesMinLength) {
     EXPECT_EQ(result.error(), VaultError::WeakPassword);
 }
 
+TEST_F(VaultManagerV2Test, ValidateNewPasswordRequiresOpenVault) {
+    auto result = vault_manager.validate_new_password("admin", "long-enough-password");
+    EXPECT_FALSE(result);
+    EXPECT_EQ(result.error(), VaultError::VaultNotOpen);
+}
+
+TEST_F(VaultManagerV2Test, ValidateNewPasswordRejectsUnknownUser) {
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 8;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpass123", policy));
+
+    auto result = vault_manager.validate_new_password("missing-user", "long-enough-password");
+    EXPECT_FALSE(result);
+    EXPECT_EQ(result.error(), VaultError::UserNotFound);
+}
+
 // Note: VaultSecurityPolicy doesn't have max_password_length - testing min length is sufficient
 
 TEST_F(VaultManagerV2Test, ValidateNewPasswordRejectsPasswordHistory) {
@@ -713,6 +730,22 @@ TEST_F(VaultManagerV2Test, ClearPasswordHistoryRequiresAdmin) {
     EXPECT_EQ(result.error(), VaultError::PermissionDenied);
 }
 
+TEST_F(VaultManagerV2Test, ClearPasswordHistoryRequiresOpenVault) {
+    auto result = vault_manager.clear_user_password_history("bob");
+    EXPECT_FALSE(result);
+    EXPECT_EQ(result.error(), VaultError::VaultNotOpen);
+}
+
+TEST_F(VaultManagerV2Test, ClearPasswordHistoryRejectsUnknownUser) {
+    VaultSecurityPolicy policy;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpass123", policy));
+
+    auto result = vault_manager.clear_user_password_history("missing-user");
+    EXPECT_FALSE(result);
+    EXPECT_EQ(result.error(), VaultError::UserNotFound);
+}
+
 // ============================================================================
 // Admin Password Reset Tests
 // ============================================================================
@@ -753,6 +786,38 @@ TEST_F(VaultManagerV2Test, AdminResetPasswordRequiresAdmin) {
     auto result = vault_manager.admin_reset_user_password("bob", "newpassword123");
     EXPECT_FALSE(result);
     EXPECT_EQ(result.error(), VaultError::PermissionDenied);
+}
+
+TEST_F(VaultManagerV2Test, AdminResetPasswordRejectsSelfReset) {
+    VaultSecurityPolicy policy;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpass123", policy));
+
+    auto result = vault_manager.admin_reset_user_password("admin", "newpassword123");
+    EXPECT_FALSE(result);
+    EXPECT_EQ(result.error(), VaultError::PermissionDenied);
+}
+
+TEST_F(VaultManagerV2Test, AdminResetPasswordRejectsWeakTemporaryPassword) {
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 12;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpass123", policy));
+    ASSERT_TRUE(vault_manager.add_user("bob", "bobpassword1234", UserRole::STANDARD_USER));
+
+    auto result = vault_manager.admin_reset_user_password("bob", "short");
+    EXPECT_FALSE(result);
+    EXPECT_EQ(result.error(), VaultError::WeakPassword);
+}
+
+TEST_F(VaultManagerV2Test, AdminResetPasswordRejectsUnknownUser) {
+    VaultSecurityPolicy policy;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpass123", policy));
+
+    auto result = vault_manager.admin_reset_user_password("missing-user", "newpassword123");
+    EXPECT_FALSE(result);
+    EXPECT_EQ(result.error(), VaultError::UserNotFound);
 }
 
 TEST_F(VaultManagerV2Test, AdminResetPasswordClearsHistory) {
