@@ -5,11 +5,32 @@
 
 #include <gtest/gtest.h>
 #include <glibmm/init.h>
+#include <glibmm/main.h>
 #include <gtkmm/application.h>
 #include <gtkmm/window.h>
+
+#include <chrono>
+#include <thread>
+
 #include "../src/ui/controllers/ClipboardManager.h"
 
 using namespace KeepTower;
+
+namespace {
+void pump_main_context_for(std::chrono::milliseconds duration) {
+    auto context = Glib::MainContext::get_default();
+    const auto deadline = std::chrono::steady_clock::now() + duration;
+
+    while (std::chrono::steady_clock::now() < deadline) {
+        while (context->iteration(false)) {
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    while (context->iteration(false)) {
+    }
+}
+}
 
 // Test fixture
 class ClipboardManagerTest : public ::testing::Test {
@@ -139,6 +160,67 @@ TEST_F(ClipboardManagerTest, ClearWithoutCopyIsNoOp) {
 
     EXPECT_NO_THROW(manager.clear_immediately());
     EXPECT_FALSE(manager.is_clear_pending());
+}
+
+TEST_F(ClipboardManagerTest, EnablePreservationMarksClipboardAsPreserved) {
+    ClipboardManager manager(m_clipboard);
+
+    manager.enable_preservation();
+
+    EXPECT_TRUE(manager.is_preservation_active());
+}
+
+TEST_F(ClipboardManagerTest, DisablePreservationClearsPreservationFlag) {
+    ClipboardManager manager(m_clipboard);
+
+    manager.enable_preservation();
+    ASSERT_TRUE(manager.is_preservation_active());
+
+    manager.disable_preservation();
+
+    EXPECT_FALSE(manager.is_preservation_active());
+}
+
+TEST_F(ClipboardManagerTest, ClearImmediatelySkipsOnceWhenPreservationEnabled) {
+    ClipboardManager manager(m_clipboard);
+
+    manager.copy_text("TemporaryPassword");
+    manager.enable_preservation();
+
+    manager.clear_immediately();
+
+    EXPECT_FALSE(manager.is_preservation_active());
+    EXPECT_TRUE(manager.is_clear_pending()) << "Preservation skip should not cancel the existing timer";
+}
+
+TEST_F(ClipboardManagerTest, AutoClearTimeoutEmitsClearedSignal) {
+    ClipboardManager manager(m_clipboard);
+    manager.set_clear_timeout_seconds(ClipboardManager::MIN_CLEAR_TIMEOUT);
+
+    bool cleared = false;
+    manager.signal_cleared().connect([&cleared]() {
+        cleared = true;
+    });
+
+    manager.copy_text("TimeoutPassword");
+    ASSERT_TRUE(manager.is_clear_pending());
+
+    pump_main_context_for(std::chrono::milliseconds(5500));
+
+    EXPECT_TRUE(cleared);
+    EXPECT_FALSE(manager.is_clear_pending());
+}
+
+TEST_F(ClipboardManagerTest, PreservationSafetyTimeoutExpiresAutomatically) {
+    ClipboardManager manager(m_clipboard);
+    manager.set_clear_timeout_seconds(ClipboardManager::MIN_CLEAR_TIMEOUT);
+
+    manager.enable_preservation();
+    ASSERT_TRUE(manager.is_preservation_active());
+
+    pump_main_context_for(std::chrono::milliseconds(5500));
+
+    EXPECT_FALSE(manager.is_preservation_active());
 }
 
 // ============================================================================
