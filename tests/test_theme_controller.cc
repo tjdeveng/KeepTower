@@ -17,6 +17,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <vector>
 
 #include <optional>
 
@@ -53,7 +54,7 @@ private:
 class ThemeControllerTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        setenv("GSETTINGS_BACKEND", "memory", 1);
+        m_backend_override = std::make_unique<ScopedEnvVar>("GSETTINGS_BACKEND", "memory");
 
         const char* original_schema_dir = std::getenv("GSETTINGS_SCHEMA_DIR");
         if (!original_schema_dir) {
@@ -62,9 +63,16 @@ protected:
 
         namespace fs = std::filesystem;
         m_original_schema_dir = original_schema_dir;
-        m_schema_dir = fs::temp_directory_path() / "keeptower_theme_controller_schemas";
-        fs::remove_all(m_schema_dir);
-        fs::create_directories(m_schema_dir);
+        std::string template_path =
+            (fs::temp_directory_path() / "keeptower_theme_controller_schemas_XXXXXX").string();
+        std::vector<char> mutable_template(template_path.begin(), template_path.end());
+        mutable_template.push_back('\0');
+
+        char* created_dir = mkdtemp(mutable_template.data());
+        if (!created_dir) {
+            GTEST_SKIP() << "Failed to create unique schema directory";
+        }
+        m_schema_dir = created_dir;
 
         const fs::path source_schema_path{original_schema_dir};
         const fs::path app_schema_xml = source_schema_path / "com.tjdeveng.keeptower.gschema.xml";
@@ -89,7 +97,7 @@ protected:
             << "</schemalist>\n";
         mock_schema_file.close();
 
-        setenv("GSETTINGS_SCHEMA_DIR", m_schema_dir.c_str(), 1);
+        m_schema_dir_override = std::make_unique<ScopedEnvVar>("GSETTINGS_SCHEMA_DIR", m_schema_dir.c_str());
 
         const std::string cmd = "glib-compile-schemas " + m_schema_dir.string();
         const int rc = std::system(cmd.c_str());
@@ -113,14 +121,13 @@ protected:
     void TearDown() override {
         namespace fs = std::filesystem;
 
-        if (!m_original_schema_dir.empty()) {
-            setenv("GSETTINGS_SCHEMA_DIR", m_original_schema_dir.c_str(), 1);
-        } else {
-            unsetenv("GSETTINGS_SCHEMA_DIR");
-        }
+        m_settings.reset();
+        m_schema_dir_override.reset();
+        m_backend_override.reset();
 
         if (!m_schema_dir.empty()) {
-            fs::remove_all(m_schema_dir);
+            std::error_code error;
+            fs::remove_all(m_schema_dir, error);
         }
     }
 
@@ -136,6 +143,8 @@ protected:
     Glib::RefPtr<Gio::Settings> m_settings;
     std::filesystem::path m_schema_dir;
     std::string m_original_schema_dir;
+    std::unique_ptr<ScopedEnvVar> m_schema_dir_override;
+    std::unique_ptr<ScopedEnvVar> m_backend_override;
 };
 
 TEST_F(ThemeControllerTest, ApplyNow_DarkSetsPreferDarkTrue) {
