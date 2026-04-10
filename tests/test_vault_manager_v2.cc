@@ -176,6 +176,35 @@ TEST_F(VaultManagerV2Test, CreateV2VaultAsyncInitializesStateAndInvokesCompletio
     EXPECT_EQ(loaded_policy->min_password_length, 10);
 }
 
+TEST_F(VaultManagerV2Test, CreateV2VaultReplacesExistingOpenVault) {
+    const auto second_vault_path = std::filesystem::temp_directory_path() / "test_v2_vault_second.vault";
+    if (std::filesystem::exists(second_vault_path)) {
+        std::filesystem::remove(second_vault_path);
+    }
+
+    VaultSecurityPolicy first_policy;
+    first_policy.min_password_length = 8;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "alice", "alicepass123", first_policy));
+
+    VaultSecurityPolicy second_policy;
+    second_policy.min_password_length = 14;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        second_vault_path.string(), "bob", "bobpassword12345", second_policy));
+
+    auto session = vault_manager.get_current_user_session();
+    ASSERT_TRUE(session);
+    EXPECT_EQ(session->username, "bob");
+
+    auto loaded_policy = vault_manager.get_vault_security_policy();
+    ASSERT_TRUE(loaded_policy);
+    EXPECT_EQ(loaded_policy->min_password_length, 14);
+
+    EXPECT_TRUE(std::filesystem::exists(second_vault_path));
+    EXPECT_TRUE(vault_manager.close_vault());
+    std::filesystem::remove(second_vault_path);
+}
+
 // ============================================================================
 // V2 Authentication Tests
 // ============================================================================
@@ -295,6 +324,38 @@ TEST_F(VaultManagerV2Test, OpenV2VaultNonExistentUser) {
 
     EXPECT_FALSE(session);
     EXPECT_EQ(session.error(), VaultError::AuthenticationFailed);
+}
+
+TEST_F(VaultManagerV2Test, OpenV2VaultReplacesExistingOpenVault) {
+    const auto second_vault_path = std::filesystem::temp_directory_path() / "test_v2_vault_second.vault";
+    if (std::filesystem::exists(second_vault_path)) {
+        std::filesystem::remove(second_vault_path);
+    }
+
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 8;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "alice", "alicepass123", policy));
+    ASSERT_TRUE(vault_manager.close_vault());
+
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        second_vault_path.string(), "bob", "bobpassword12345", policy));
+    ASSERT_TRUE(vault_manager.close_vault());
+
+    ASSERT_TRUE(vault_manager.open_vault_v2(
+        test_vault_path.string(), "alice", "alicepass123"));
+
+    auto second_session = vault_manager.open_vault_v2(
+        second_vault_path.string(), "bob", "bobpassword12345");
+    ASSERT_TRUE(second_session);
+    EXPECT_EQ(second_session->username, "bob");
+
+    auto current_session = vault_manager.get_current_user_session();
+    ASSERT_TRUE(current_session);
+    EXPECT_EQ(current_session->username, "bob");
+
+    EXPECT_TRUE(vault_manager.close_vault());
+    std::filesystem::remove(second_vault_path);
 }
 
 // ============================================================================
@@ -424,6 +485,22 @@ TEST_F(VaultManagerV2Test, RemoveUserAllowsMultipleAdmins) {
     // Remove admin1 (should succeed, admin2 still exists)
     auto result = vault_manager.remove_user("admin1");
     EXPECT_TRUE(result) << "Should allow removing admin when another admin exists";
+}
+
+TEST_F(VaultManagerV2Test, RemoveUserRequiresOpenVault) {
+    auto result = vault_manager.remove_user("bob");
+    EXPECT_FALSE(result);
+    EXPECT_EQ(result.error(), VaultError::VaultNotOpen);
+}
+
+TEST_F(VaultManagerV2Test, RemoveUserRejectsUnknownUser) {
+    VaultSecurityPolicy policy;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpass123", policy));
+
+    auto result = vault_manager.remove_user("missing-user");
+    EXPECT_FALSE(result);
+    EXPECT_EQ(result.error(), VaultError::UserNotFound);
 }
 
 // ============================================================================
@@ -877,6 +954,46 @@ TEST_F(VaultManagerV2Test, UpdateSecurityPolicyRejectsInvalidHashAlgorithm) {
     auto result = vault_manager.update_security_policy(updated_policy);
     EXPECT_FALSE(result);
     EXPECT_EQ(result.error(), VaultError::InvalidData);
+}
+
+TEST_F(VaultManagerV2Test, UpdateSecurityPolicyAllowsLowRecommendedValues) {
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 8;
+    policy.pbkdf2_iterations = 100000;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpassword123", policy));
+
+    auto updated_policy = policy;
+    updated_policy.min_password_length = 4;
+    updated_policy.pbkdf2_iterations = 50000;
+
+    auto result = vault_manager.update_security_policy(updated_policy);
+    ASSERT_TRUE(result);
+
+    auto retrieved_policy = vault_manager.get_vault_security_policy();
+    ASSERT_TRUE(retrieved_policy);
+    EXPECT_EQ(retrieved_policy->min_password_length, 4);
+    EXPECT_EQ(retrieved_policy->pbkdf2_iterations, 50000);
+}
+
+TEST_F(VaultManagerV2Test, UpdateSecurityPolicyAllowsAlgorithmChangeWithoutMigration) {
+    VaultSecurityPolicy policy;
+    policy.username_hash_algorithm = 0x01;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpassword123", policy));
+    ASSERT_TRUE(vault_manager.add_user("bob", "bobpassword123", UserRole::STANDARD_USER));
+
+    auto updated_policy = policy;
+    updated_policy.username_hash_algorithm = 0x02;
+    updated_policy.migration_flags = 0x00;
+
+    auto result = vault_manager.update_security_policy(updated_policy);
+    ASSERT_TRUE(result);
+
+    auto retrieved_policy = vault_manager.get_vault_security_policy();
+    ASSERT_TRUE(retrieved_policy);
+    EXPECT_EQ(retrieved_policy->username_hash_algorithm, 0x02);
+    EXPECT_EQ(retrieved_policy->migration_flags, 0x00);
 }
 
 TEST_F(VaultManagerV2Test, StandardUserCannotUpdateSecurityPolicy) {
