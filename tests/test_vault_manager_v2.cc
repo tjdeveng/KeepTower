@@ -659,6 +659,36 @@ TEST_F(VaultManagerV2Test, MustChangePasswordWorkflow) {
     EXPECT_FALSE(updated_session->password_change_required) << "Flag should be cleared after change";
 }
 
+TEST_F(VaultManagerV2Test, ChangePasswordUpdatesUserSlotPasswordState) {
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 8;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpass123", policy));
+
+    ASSERT_TRUE(vault_manager.add_user("bob", "temppass1234", UserRole::STANDARD_USER, true));
+    ASSERT_TRUE(vault_manager.save_vault());
+    ASSERT_TRUE(vault_manager.close_vault());
+
+    ASSERT_TRUE(vault_manager.open_vault_v2(
+        test_vault_path.string(), "bob", "temppass1234"));
+
+    const auto users_before_change = vault_manager.list_users();
+    const auto bob_before = std::find_if(users_before_change.begin(), users_before_change.end(),
+        [](const KeySlot& slot) { return slot.username == "bob"; });
+    ASSERT_NE(bob_before, users_before_change.end());
+    ASSERT_TRUE(bob_before->must_change_password);
+    ASSERT_EQ(bob_before->password_changed_at, 0);
+
+    ASSERT_TRUE(vault_manager.change_user_password("bob", "temppass1234", "newpass45678"));
+
+    const auto users_after_change = vault_manager.list_users();
+    const auto bob_after = std::find_if(users_after_change.begin(), users_after_change.end(),
+        [](const KeySlot& slot) { return slot.username == "bob"; });
+    ASSERT_NE(bob_after, users_after_change.end());
+    EXPECT_FALSE(bob_after->must_change_password);
+    EXPECT_NE(bob_after->password_changed_at, 0);
+}
+
 TEST_F(VaultManagerV2Test, AdminCanChangeAnyUserPassword) {
     // Create vault
     VaultSecurityPolicy policy;
@@ -671,6 +701,30 @@ TEST_F(VaultManagerV2Test, AdminCanChangeAnyUserPassword) {
     // Admin changes bob's password
     auto result = vault_manager.change_user_password("bob", "bobpass12345", "newbobpass12");
     ASSERT_TRUE(result) << "Admin should be able to change any user's password";
+
+    auto admin_session = vault_manager.get_current_user_session();
+    ASSERT_TRUE(admin_session);
+    EXPECT_EQ(admin_session->username, "admin");
+    EXPECT_FALSE(admin_session->password_change_required);
+
+    const auto users_after_change = vault_manager.list_users();
+    const auto bob_after = std::find_if(users_after_change.begin(), users_after_change.end(),
+        [](const KeySlot& slot) { return slot.username == "bob"; });
+    ASSERT_NE(bob_after, users_after_change.end());
+    EXPECT_FALSE(bob_after->must_change_password);
+    EXPECT_NE(bob_after->password_changed_at, 0);
+
+    ASSERT_TRUE(vault_manager.save_vault());
+    ASSERT_TRUE(vault_manager.close_vault());
+
+    auto old_password_session = vault_manager.open_vault_v2(
+        test_vault_path.string(), "bob", "bobpass12345");
+    EXPECT_FALSE(old_password_session);
+
+    auto new_password_session = vault_manager.open_vault_v2(
+        test_vault_path.string(), "bob", "newbobpass12");
+    ASSERT_TRUE(new_password_session);
+    EXPECT_FALSE(new_password_session->password_change_required);
 }
 
 TEST_F(VaultManagerV2Test, StandardUserCanOnlyChangeOwnPassword) {
@@ -843,6 +897,21 @@ TEST_F(VaultManagerV2Test, ValidateNewPasswordRejectsPasswordHistory) {
     EXPECT_EQ(result.error(), VaultError::PasswordReused);
 }
 
+TEST_F(VaultManagerV2Test, ValidateNewPasswordRejectsReusedPasswordFromHistory) {
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 8;
+    policy.password_history_depth = 3;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "alice", "password001", policy));
+
+    ASSERT_TRUE(vault_manager.change_user_password("alice", "password001", "password002"));
+    ASSERT_TRUE(vault_manager.change_user_password("alice", "password002", "password003"));
+
+    auto result = vault_manager.validate_new_password("alice", "password001");
+    EXPECT_FALSE(result);
+    EXPECT_EQ(result.error(), VaultError::PasswordReused);
+}
+
 TEST_F(VaultManagerV2Test, ClearUserPasswordHistorySuccessful) {
     VaultSecurityPolicy policy;
     policy.password_history_depth = 5;
@@ -856,13 +925,59 @@ TEST_F(VaultManagerV2Test, ClearUserPasswordHistorySuccessful) {
     ASSERT_TRUE(vault_manager.change_user_password("bob", "bobpass12345", "bobpass23456"));
     ASSERT_TRUE(vault_manager.change_user_password("bob", "bobpass23456", "bobpass34567"));
 
+    const auto users_before_clear = vault_manager.list_users();
+    const auto bob_before = std::find_if(users_before_clear.begin(), users_before_clear.end(),
+        [](const KeySlot& slot) { return slot.username == "bob"; });
+    ASSERT_NE(bob_before, users_before_clear.end());
+    ASSERT_FALSE(bob_before->password_history.empty());
+
     // Clear history (admin only)
     auto result = vault_manager.clear_user_password_history("bob");
     ASSERT_TRUE(result) << "Admin should be able to clear password history";
 
+    const auto users_after_clear = vault_manager.list_users();
+    const auto bob_after = std::find_if(users_after_clear.begin(), users_after_clear.end(),
+        [](const KeySlot& slot) { return slot.username == "bob"; });
+    ASSERT_NE(bob_after, users_after_clear.end());
+    EXPECT_TRUE(bob_after->password_history.empty());
+
     // Now bob can reuse old password
     auto reuse_result = vault_manager.change_user_password("bob", "bobpass34567", "bobpass12345");
     EXPECT_TRUE(reuse_result) << "Should allow password reuse after history cleared";
+}
+
+TEST_F(VaultManagerV2Test, StandardUserCanClearOwnPasswordHistory) {
+    VaultSecurityPolicy policy;
+    policy.password_history_depth = 5;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpass123", policy));
+    ASSERT_TRUE(vault_manager.add_user("bob", "bobpass12345", UserRole::STANDARD_USER));
+
+    ASSERT_TRUE(vault_manager.change_user_password("bob", "bobpass12345", "bobpass23456"));
+    ASSERT_TRUE(vault_manager.change_user_password("bob", "bobpass23456", "bobpass34567"));
+    ASSERT_TRUE(vault_manager.save_vault());
+    ASSERT_TRUE(vault_manager.close_vault());
+
+    ASSERT_TRUE(vault_manager.open_vault_v2(
+        test_vault_path.string(), "bob", "bobpass34567"));
+
+    const auto users_before_clear = vault_manager.list_users();
+    const auto bob_before = std::find_if(users_before_clear.begin(), users_before_clear.end(),
+        [](const KeySlot& slot) { return slot.username == "bob"; });
+    ASSERT_NE(bob_before, users_before_clear.end());
+    ASSERT_FALSE(bob_before->password_history.empty());
+
+    auto clear_result = vault_manager.clear_user_password_history("bob");
+    ASSERT_TRUE(clear_result) << "Standard user should be able to clear their own history";
+
+    const auto users_after_clear = vault_manager.list_users();
+    const auto bob_after = std::find_if(users_after_clear.begin(), users_after_clear.end(),
+        [](const KeySlot& slot) { return slot.username == "bob"; });
+    ASSERT_NE(bob_after, users_after_clear.end());
+    EXPECT_TRUE(bob_after->password_history.empty());
+
+    auto reuse_result = vault_manager.change_user_password("bob", "bobpass34567", "bobpass12345");
+    EXPECT_TRUE(reuse_result) << "Should allow password reuse after self-service history clear";
 }
 
 TEST_F(VaultManagerV2Test, ClearPasswordHistoryRequiresAdmin) {
@@ -921,6 +1036,29 @@ TEST_F(VaultManagerV2Test, AdminResetUserPasswordSuccessful) {
     auto bob_session = vault_manager.open_vault_v2(test_vault_path.string(), "bob", "newresetpass");
     ASSERT_TRUE(bob_session);
     EXPECT_TRUE(bob_session->password_change_required) << "Should require password change after admin reset";
+}
+
+TEST_F(VaultManagerV2Test, AdminResetPasswordUpdatesUserSlotPasswordState) {
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 8;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpass123", policy));
+    ASSERT_TRUE(vault_manager.add_user("bob", "bobpass12345", UserRole::STANDARD_USER, false));
+
+    const auto users_before_reset = vault_manager.list_users();
+    const auto bob_before = std::find_if(users_before_reset.begin(), users_before_reset.end(),
+        [](const KeySlot& slot) { return slot.username == "bob"; });
+    ASSERT_NE(bob_before, users_before_reset.end());
+    ASSERT_FALSE(bob_before->must_change_password);
+
+    ASSERT_TRUE(vault_manager.admin_reset_user_password("bob", "newresetpass"));
+
+    const auto users_after_reset = vault_manager.list_users();
+    const auto bob_after = std::find_if(users_after_reset.begin(), users_after_reset.end(),
+        [](const KeySlot& slot) { return slot.username == "bob"; });
+    ASSERT_NE(bob_after, users_after_reset.end());
+    EXPECT_TRUE(bob_after->must_change_password);
+    EXPECT_EQ(bob_after->password_changed_at, 0);
 }
 
 TEST_F(VaultManagerV2Test, AdminResetPasswordRequiresAdmin) {
@@ -984,8 +1122,21 @@ TEST_F(VaultManagerV2Test, AdminResetPasswordClearsHistory) {
     ASSERT_TRUE(vault_manager.change_user_password("bob", "bobpass12345", "bobpass23456"));
     ASSERT_TRUE(vault_manager.change_user_password("bob", "bobpass23456", "bobpass34567"));
 
+    const auto users_before_reset = vault_manager.list_users();
+    const auto bob_before = std::find_if(users_before_reset.begin(), users_before_reset.end(),
+        [](const KeySlot& slot) { return slot.username == "bob"; });
+    ASSERT_NE(bob_before, users_before_reset.end());
+    ASSERT_FALSE(bob_before->password_history.empty());
+
     // Admin resets password (clears history)
     ASSERT_TRUE(vault_manager.admin_reset_user_password("bob", "adminreset123"));
+
+    const auto users_after_reset = vault_manager.list_users();
+    const auto bob_after = std::find_if(users_after_reset.begin(), users_after_reset.end(),
+        [](const KeySlot& slot) { return slot.username == "bob"; });
+    ASSERT_NE(bob_after, users_after_reset.end());
+    EXPECT_TRUE(bob_after->password_history.empty());
+
     ASSERT_TRUE(vault_manager.save_vault());
     ASSERT_TRUE(vault_manager.close_vault());
 
