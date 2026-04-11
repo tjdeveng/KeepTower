@@ -202,6 +202,7 @@ This document outlines the planned features and improvements for KeepTower, orga
 ### Current Quality Scorecard
 - This section is the canonical current repository quality scorecard.
 - Current assessed state: strong recent progress, but not A+ yet; the working target remains A+ through milestone `A+ Gap Closure`.
+- A draft future-facing coverage policy is tracked in `docs/testing/COVERAGE_POLICY_DRAFT.md` and remains non-canonical until explicitly adopted at a later development stage.
 - Canonical A+ definition:
   - `Correctness and release health`
     - Primary CI, release workflow, and documentation workflow are green on `master` for the current repository state.
