@@ -17,6 +17,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <mutex>
 #include <vector>
 
 #include <optional>
@@ -26,43 +27,43 @@
 namespace {
 constexpr const char* kMockDesktopSchemaId = "com.tjdeveng.keeptower.mockdesktop";
 
-class ScopedEnvVar {
-public:
-    ScopedEnvVar(const char* name, const char* value)
-        : m_name(name) {
-        const char* existing = std::getenv(name);
-        if (existing) {
-            m_previous = existing;
-        }
-        setenv(name, value, 1);
+std::once_flag g_theme_test_setup_once;
+bool g_theme_test_setup_ready = false;
+std::string g_theme_test_setup_error;
+std::filesystem::path g_theme_test_schema_dir;
+
+std::optional<std::filesystem::path> find_app_schema_xml() {
+    namespace fs = std::filesystem;
+
+    std::vector<fs::path> candidates;
+    if (const char* schema_dir = std::getenv("GSETTINGS_SCHEMA_DIR")) {
+        candidates.emplace_back(schema_dir);
     }
 
-    ~ScopedEnvVar() {
-        if (m_previous.has_value()) {
-            setenv(m_name, m_previous->c_str(), 1);
-        } else {
-            unsetenv(m_name);
+    const fs::path cwd = fs::current_path();
+    candidates.push_back(cwd / "data");
+    candidates.push_back(cwd.parent_path() / "data");
+
+    for (const auto& candidate_dir : candidates) {
+        const fs::path candidate = candidate_dir / "com.tjdeveng.keeptower.gschema.xml";
+        if (fs::exists(candidate)) {
+            return candidate;
         }
     }
 
-private:
-    const char* m_name;
-    std::optional<std::string> m_previous;
-};
+    return std::nullopt;
 }
 
-class ThemeControllerTest : public ::testing::Test {
-protected:
-    void SetUp() override {
-        m_backend_override = std::make_unique<ScopedEnvVar>("GSETTINGS_BACKEND", "memory");
+void ensure_theme_test_environment() {
+    std::call_once(g_theme_test_setup_once, []() {
+        namespace fs = std::filesystem;
 
-        const char* original_schema_dir = std::getenv("GSETTINGS_SCHEMA_DIR");
-        if (!original_schema_dir) {
-            GTEST_SKIP() << "GSETTINGS_SCHEMA_DIR not set";
+        auto app_schema_xml = find_app_schema_xml();
+        if (!app_schema_xml) {
+            g_theme_test_setup_error = "Could not locate com.tjdeveng.keeptower.gschema.xml";
+            return;
         }
 
-        namespace fs = std::filesystem;
-        m_original_schema_dir = original_schema_dir;
         std::string template_path =
             (fs::temp_directory_path() / "keeptower_theme_controller_schemas_XXXXXX").string();
         std::vector<char> mutable_template(template_path.begin(), template_path.end());
@@ -70,22 +71,24 @@ protected:
 
         char* created_dir = mkdtemp(mutable_template.data());
         if (!created_dir) {
-            GTEST_SKIP() << "Failed to create unique schema directory";
-        }
-        m_schema_dir = created_dir;
-
-        const fs::path source_schema_path{original_schema_dir};
-        const fs::path app_schema_xml = source_schema_path / "com.tjdeveng.keeptower.gschema.xml";
-        if (!fs::exists(app_schema_xml)) {
-            GTEST_SKIP() << "Could not find app schema xml at " << app_schema_xml;
+            g_theme_test_setup_error = "Failed to create unique schema directory";
+            return;
         }
 
+        g_theme_test_schema_dir = created_dir;
+
+        std::error_code copy_error;
         fs::copy_file(
-            app_schema_xml,
-            m_schema_dir / "com.tjdeveng.keeptower.gschema.xml",
-            fs::copy_options::overwrite_existing);
+            *app_schema_xml,
+            g_theme_test_schema_dir / "com.tjdeveng.keeptower.gschema.xml",
+            fs::copy_options::overwrite_existing,
+            copy_error);
+        if (copy_error) {
+            g_theme_test_setup_error = "Failed to copy app schema xml: " + copy_error.message();
+            return;
+        }
 
-        std::ofstream mock_schema_file(m_schema_dir / "com.tjdeveng.keeptower.mockdesktop.gschema.xml");
+        std::ofstream mock_schema_file(g_theme_test_schema_dir / "com.tjdeveng.keeptower.mockdesktop.gschema.xml");
         mock_schema_file
             << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
             << "<schemalist>\n"
@@ -97,16 +100,30 @@ protected:
             << "</schemalist>\n";
         mock_schema_file.close();
 
-        m_schema_dir_override = std::make_unique<ScopedEnvVar>("GSETTINGS_SCHEMA_DIR", m_schema_dir.c_str());
+        setenv("GSETTINGS_BACKEND", "memory", 1);
+        setenv("GSETTINGS_SCHEMA_DIR", g_theme_test_schema_dir.c_str(), 1);
 
-        const std::string cmd = "glib-compile-schemas " + m_schema_dir.string();
+        const std::string cmd = "glib-compile-schemas " + g_theme_test_schema_dir.string();
         const int rc = std::system(cmd.c_str());
         if (rc != 0) {
-            GTEST_SKIP() << "Failed to compile GSettings schemas with: " << cmd;
+            g_theme_test_setup_error = "Failed to compile GSettings schemas with: " + cmd;
+            return;
         }
 
         Glib::init();
         Gio::init();
+        g_theme_test_setup_ready = true;
+    });
+}
+}
+
+class ThemeControllerTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        ensure_theme_test_environment();
+        if (!g_theme_test_setup_ready) {
+            GTEST_SKIP() << g_theme_test_setup_error;
+        }
 
         try {
             m_settings = Gio::Settings::create("com.tjdeveng.keeptower");
@@ -119,16 +136,7 @@ protected:
     }
 
     void TearDown() override {
-        namespace fs = std::filesystem;
-
         m_settings.reset();
-        m_schema_dir_override.reset();
-        m_backend_override.reset();
-
-        if (!m_schema_dir.empty()) {
-            std::error_code error;
-            fs::remove_all(m_schema_dir, error);
-        }
     }
 
     Glib::RefPtr<Gio::Settings> create_desktop_settings() {
@@ -141,10 +149,6 @@ protected:
     }
 
     Glib::RefPtr<Gio::Settings> m_settings;
-    std::filesystem::path m_schema_dir;
-    std::string m_original_schema_dir;
-    std::unique_ptr<ScopedEnvVar> m_schema_dir_override;
-    std::unique_ptr<ScopedEnvVar> m_backend_override;
 };
 
 TEST_F(ThemeControllerTest, ApplyNow_DarkSetsPreferDarkTrue) {
