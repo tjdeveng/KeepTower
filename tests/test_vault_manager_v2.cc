@@ -434,6 +434,64 @@ TEST_F(VaultManagerV2Test, OpenV2VaultReplacesExistingOpenVault) {
     std::filesystem::remove(second_vault_path);
 }
 
+TEST_F(VaultManagerV2Test, OpenV2VaultPersistsLastLoginTimestampAfterSave) {
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 8;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "alice", "alicepass123", policy));
+    ASSERT_TRUE(vault_manager.close_vault());
+
+    ASSERT_TRUE(vault_manager.open_vault_v2(
+        test_vault_path.string(), "alice", "alicepass123"));
+
+    const auto users_after_open = vault_manager.list_users();
+    const auto alice_after_open = std::find_if(users_after_open.begin(), users_after_open.end(),
+        [](const KeySlot& slot) { return slot.username == "alice"; });
+    ASSERT_NE(alice_after_open, users_after_open.end());
+    EXPECT_NE(alice_after_open->last_login_at, 0);
+
+    ASSERT_TRUE(vault_manager.save_vault());
+    ASSERT_TRUE(vault_manager.close_vault());
+
+    ASSERT_TRUE(vault_manager.open_vault_v2(
+        test_vault_path.string(), "alice", "alicepass123"));
+
+    const auto users_after_reopen = vault_manager.list_users();
+    const auto alice_after_reopen = std::find_if(users_after_reopen.begin(), users_after_reopen.end(),
+        [](const KeySlot& slot) { return slot.username == "alice"; });
+    ASSERT_NE(alice_after_reopen, users_after_reopen.end());
+    EXPECT_NE(alice_after_reopen->last_login_at, 0);
+}
+
+TEST_F(VaultManagerV2Test, FailedReplacementOpenClearsPreviousSession) {
+    const auto second_vault_path = std::filesystem::temp_directory_path() / "test_v2_vault_failed_replace.vault";
+    if (std::filesystem::exists(second_vault_path)) {
+        std::filesystem::remove(second_vault_path);
+    }
+
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 8;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "alice", "alicepass123", policy));
+    ASSERT_TRUE(vault_manager.close_vault());
+
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        second_vault_path.string(), "bob", "bobpassword12345", policy));
+    ASSERT_TRUE(vault_manager.close_vault());
+
+    ASSERT_TRUE(vault_manager.open_vault_v2(
+        test_vault_path.string(), "alice", "alicepass123"));
+
+    auto failed_session = vault_manager.open_vault_v2(
+        second_vault_path.string(), "bob", "wrongpassword");
+    EXPECT_FALSE(failed_session);
+    EXPECT_EQ(failed_session.error(), VaultError::AuthenticationFailed);
+    EXPECT_FALSE(vault_manager.get_current_user_session().has_value());
+    EXPECT_TRUE(vault_manager.list_users().empty());
+
+    std::filesystem::remove(second_vault_path);
+}
+
 // ============================================================================
 // User Management Tests
 // ============================================================================
