@@ -17,6 +17,7 @@
 #include <glibmm/main.h>
 #include "../src/core/VaultManager.h"
 #include "../src/core/MultiUserTypes.h"
+#include "../src/core/services/VaultFileService.h"
 #include <chrono>
 #include <atomic>
 #include <filesystem>
@@ -86,6 +87,17 @@ AccountDetail make_v2_account_detail(
     detail.is_admin_only_viewable = admin_only_viewable;
     detail.is_admin_only_deletable = admin_only_deletable;
     return detail;
+}
+
+std::vector<uint8_t> read_file_bytes(const std::filesystem::path& path) {
+    std::ifstream input(path, std::ios::binary);
+    return std::vector<uint8_t>(std::istreambuf_iterator<char>(input),
+                                std::istreambuf_iterator<char>());
+}
+
+void write_file_bytes(const std::filesystem::path& path, const std::vector<uint8_t>& bytes) {
+    std::ofstream output(path, std::ios::binary | std::ios::trunc);
+    output.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
 }
 }
 
@@ -246,6 +258,70 @@ TEST_F(VaultManagerV2Test, OpenV2VaultWrongPassword) {
 
     EXPECT_FALSE(session);
     EXPECT_EQ(session.error(), VaultError::AuthenticationFailed);
+}
+
+TEST_F(VaultManagerV2Test, OpenV2VaultFlagsEnrollmentWhenPolicyRequiresYubiKey) {
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 8;
+
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "validpass123", policy));
+    ASSERT_TRUE(vault_manager.add_user("bob", "bobpassword123", UserRole::STANDARD_USER, false));
+    policy.require_yubikey = true;
+    ASSERT_TRUE(vault_manager.update_security_policy(policy));
+    ASSERT_TRUE(vault_manager.save_vault());
+    ASSERT_TRUE(vault_manager.close_vault());
+
+    auto session = vault_manager.open_vault_v2(
+        test_vault_path.string(), "bob", "bobpassword123");
+
+    ASSERT_TRUE(session);
+    EXPECT_TRUE(session->requires_yubikey_enrollment);
+    EXPECT_FALSE(session->password_change_required);
+}
+
+TEST_F(VaultManagerV2Test, OpenV2VaultRejectsTruncatedEncryptedPayload) {
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 8;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "alice", "validpass123", policy));
+    ASSERT_TRUE(vault_manager.close_vault());
+
+    auto file_data = read_file_bytes(test_vault_path);
+    auto metadata = KeepTower::VaultFileService::read_v2_metadata(file_data);
+    ASSERT_TRUE(metadata);
+    ASSERT_LT(0u, metadata->data_offset);
+
+    file_data.resize(metadata->data_offset);
+    write_file_bytes(test_vault_path, file_data);
+
+    auto session = vault_manager.open_vault_v2(
+        test_vault_path.string(), "alice", "validpass123");
+
+    EXPECT_FALSE(session);
+    EXPECT_EQ(session.error(), VaultError::CorruptedFile);
+}
+
+TEST_F(VaultManagerV2Test, OpenV2VaultRejectsTamperedCiphertext) {
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 8;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "alice", "validpass123", policy));
+    ASSERT_TRUE(vault_manager.close_vault());
+
+    auto file_data = read_file_bytes(test_vault_path);
+    auto metadata = KeepTower::VaultFileService::read_v2_metadata(file_data);
+    ASSERT_TRUE(metadata);
+    ASSERT_LT(metadata->data_offset, file_data.size());
+
+    file_data[metadata->data_offset] ^= 0x01;
+    write_file_bytes(test_vault_path, file_data);
+
+    auto session = vault_manager.open_vault_v2(
+        test_vault_path.string(), "alice", "validpass123");
+
+    EXPECT_FALSE(session);
+    EXPECT_EQ(session.error(), VaultError::DecryptionFailed);
 }
 
 TEST_F(VaultManagerV2Test, BackupEnabledPersistsAcrossReopen) {
