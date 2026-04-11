@@ -940,6 +940,86 @@ TEST_F(VaultManagerV2Test, ChangePasswordAsyncClearsSessionFlagAndPersistsNewPas
     EXPECT_FALSE(new_password_session->password_change_required);
 }
 
+TEST_F(VaultManagerV2Test, EnrollYubiKeyRejectsInvalidPinLengthBeforeHardwareAccess) {
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 8;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpass123", policy));
+
+    auto result = vault_manager.enroll_yubikey_for_user("admin", "adminpass123", "123", nullptr);
+    EXPECT_FALSE(result);
+    EXPECT_EQ(result.error(), VaultError::YubiKeyError);
+}
+
+TEST_F(VaultManagerV2Test, EnrollYubiKeyAsyncRequiresOpenVault) {
+    std::atomic<bool> completion_called{false};
+    std::atomic<bool> progress_called{false};
+    KeepTower::VaultResult<> completion_result = {};
+
+    vault_manager.enroll_yubikey_for_user_async(
+        "admin",
+        "adminpass123",
+        "1234",
+        [&](const std::string&) {
+            progress_called.store(true);
+        },
+        [&](const KeepTower::VaultResult<>& result) {
+            completion_result = result;
+            completion_called.store(true);
+        });
+
+    ASSERT_TRUE(pump_main_context_until([&completion_called]() {
+        return completion_called.load();
+    }));
+
+    EXPECT_FALSE(completion_result);
+    EXPECT_EQ(completion_result.error(), VaultError::VaultNotOpen);
+    EXPECT_FALSE(progress_called.load());
+}
+
+TEST_F(VaultManagerV2Test, UnenrollYubiKeyRequiresPermissionForOtherUsers) {
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 8;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpass123", policy));
+    ASSERT_TRUE(vault_manager.add_user("alice", "alicepass123", UserRole::STANDARD_USER));
+    ASSERT_TRUE(vault_manager.add_user("bob", "bobpass12345", UserRole::STANDARD_USER));
+    ASSERT_TRUE(vault_manager.save_vault());
+    ASSERT_TRUE(vault_manager.close_vault());
+
+    ASSERT_TRUE(vault_manager.open_vault_v2(
+        test_vault_path.string(), "alice", "alicepass123"));
+
+    auto result = vault_manager.unenroll_yubikey_for_user("bob", "bobpass12345", nullptr);
+    EXPECT_FALSE(result);
+    EXPECT_EQ(result.error(), VaultError::PermissionDenied);
+}
+
+TEST_F(VaultManagerV2Test, UnenrollYubiKeyAsyncRequiresOpenVault) {
+    std::atomic<bool> completion_called{false};
+    std::atomic<bool> progress_called{false};
+    KeepTower::VaultResult<> completion_result = {};
+
+    vault_manager.unenroll_yubikey_for_user_async(
+        "admin",
+        "adminpass123",
+        [&](const std::string&) {
+            progress_called.store(true);
+        },
+        [&](const KeepTower::VaultResult<>& result) {
+            completion_result = result;
+            completion_called.store(true);
+        });
+
+    ASSERT_TRUE(pump_main_context_until([&completion_called]() {
+        return completion_called.load();
+    }));
+
+    EXPECT_FALSE(completion_result);
+    EXPECT_EQ(completion_result.error(), VaultError::VaultNotOpen);
+    EXPECT_FALSE(progress_called.load());
+}
+
 // ============================================================================
 // Session Management Tests
 // ============================================================================
