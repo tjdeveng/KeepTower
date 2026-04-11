@@ -57,7 +57,8 @@ lcov --capture \
      --directory "$BUILD_DIR" \
      --output-file "$COVERAGE_DIR/coverage.info" \
      --rc branch_coverage=1 \
-     --ignore-errors mismatch,negative \
+    --rc geninfo_unexecuted_blocks=1 \
+    --ignore-errors mismatch,negative,gcov,unused \
     >"$CAPTURE_LOG" 2>&1
 grep -v "ignoring data for external file" "$CAPTURE_LOG" | tail -10 || true
 

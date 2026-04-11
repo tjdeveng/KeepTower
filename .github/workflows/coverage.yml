@@ -141,6 +141,7 @@ jobs:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         file: ./build-coverage/coverage/coverage-filtered.info
         format: lcov
+        fail-on-error: false
 
     - name: Generate coverage badge
       run: |

@@ -88,7 +88,7 @@ protected:
     bool can_lock_memory() {
 #ifdef __linux__
         // Try to lock a small test buffer
-        char test_buffer[4096];
+        char test_buffer[4096] = {};
         if (mlock(test_buffer, sizeof(test_buffer)) == 0) {
             munlock(test_buffer, sizeof(test_buffer));
             return true;
