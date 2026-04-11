@@ -257,6 +257,61 @@ TEST_F(VaultManagerTest, CreateGroupSaveFailureRollsBackInMemoryState) {
         }));
 }
 
+TEST_F(VaultManagerTest, DeleteGroupSaveFailureRollsBackInMemoryState) {
+    const auto policy = make_test_policy();
+    ASSERT_TRUE(vault_manager->create_vault_v2(test_vault_path, test_username, test_password, policy));
+
+    const std::string group_id = vault_manager->create_group("Work");
+    ASSERT_FALSE(group_id.empty());
+    const auto baseline_groups = vault_manager->get_all_groups_view();
+    ASSERT_TRUE(std::any_of(
+        baseline_groups.begin(),
+        baseline_groups.end(),
+        [](const KeepTower::GroupView& group) {
+            return group.group_name == "Work";
+        }));
+
+    const fs::path blocking_temp_path = fs::path(test_vault_path).concat(".tmp");
+    ASSERT_TRUE(fs::create_directory(blocking_temp_path));
+
+    EXPECT_FALSE(vault_manager->delete_group(group_id));
+
+    const auto after_groups = vault_manager->get_all_groups_view();
+    EXPECT_TRUE(std::any_of(
+        after_groups.begin(),
+        after_groups.end(),
+        [](const KeepTower::GroupView& group) {
+            return group.group_name == "Work";
+        }));
+}
+
+TEST_F(VaultManagerTest, RenameGroupSaveFailureRollsBackInMemoryState) {
+    const auto policy = make_test_policy();
+    ASSERT_TRUE(vault_manager->create_vault_v2(test_vault_path, test_username, test_password, policy));
+
+    const std::string group_id = vault_manager->create_group("Work");
+    ASSERT_FALSE(group_id.empty());
+
+    const fs::path blocking_temp_path = fs::path(test_vault_path).concat(".tmp");
+    ASSERT_TRUE(fs::create_directory(blocking_temp_path));
+
+    EXPECT_FALSE(vault_manager->rename_group(group_id, "Renamed Work"));
+
+    const auto after_groups = vault_manager->get_all_groups_view();
+    EXPECT_TRUE(std::any_of(
+        after_groups.begin(),
+        after_groups.end(),
+        [](const KeepTower::GroupView& group) {
+            return group.group_name == "Work";
+        }));
+    EXPECT_TRUE(std::none_of(
+        after_groups.begin(),
+        after_groups.end(),
+        [](const KeepTower::GroupView& group) {
+            return group.group_name == "Renamed Work";
+        }));
+}
+
 TEST_F(VaultManagerTest, UpdateAndDeleteAccountUseBoundaryModelGuards) {
     auto detail = make_account_detail("closed-id", "Closed", "user");
     EXPECT_FALSE(vault_manager->add_account(detail));

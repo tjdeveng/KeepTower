@@ -530,8 +530,14 @@ bool VaultManager::delete_group(std::string_view group_id) {
         return false;
     }
 
+    const keeptower::VaultData snapshot = *m_vault_data;
+    const bool was_modified = m_modified;
     if (m_group_manager->delete_group(group_id)) {
-        return save_vault();
+        if (save_vault()) {
+            return true;
+        }
+        *m_vault_data = snapshot;
+        m_modified = was_modified;
     }
     return false;
 }
@@ -541,8 +547,14 @@ bool VaultManager::add_account_to_group(size_t account_index, std::string_view g
         return false;
     }
 
+    const keeptower::VaultData snapshot = *m_vault_data;
+    const bool was_modified = m_modified;
     if (m_group_manager->add_account_to_group(account_index, group_id)) {
-        return save_vault();
+        if (save_vault()) {
+            return true;
+        }
+        *m_vault_data = snapshot;
+        m_modified = was_modified;
     }
     return false;
 }
@@ -552,8 +564,14 @@ bool VaultManager::remove_account_from_group(size_t account_index, std::string_v
         return false;
     }
 
+    const keeptower::VaultData snapshot = *m_vault_data;
+    const bool was_modified = m_modified;
     if (m_group_manager->remove_account_from_group(account_index, group_id)) {
-        return save_vault();
+        if (save_vault()) {
+            return true;
+        }
+        *m_vault_data = snapshot;
+        m_modified = was_modified;
     }
     return false;
 }
@@ -565,8 +583,14 @@ bool VaultManager::reorder_account_in_group(size_t account_index,
         return false;
     }
 
+    const keeptower::VaultData snapshot = *m_vault_data;
+    const bool was_modified = m_modified;
     if (m_group_manager->reorder_account_in_group(account_index, group_id, new_order)) {
-        return save_vault();
+        if (save_vault()) {
+            return true;
+        }
+        *m_vault_data = snapshot;
+        m_modified = was_modified;
     }
     return false;
 }
@@ -618,8 +642,14 @@ bool VaultManager::rename_group(std::string_view group_id, std::string_view new_
         return false;
     }
 
+    const keeptower::VaultData snapshot = *m_vault_data;
+    const bool was_modified = m_modified;
     if (m_group_manager->rename_group(group_id, new_name)) {
-        return save_vault();
+        if (save_vault()) {
+            return true;
+        }
+        *m_vault_data = snapshot;
+        m_modified = was_modified;
     }
     return false;
 }
@@ -629,8 +659,14 @@ bool VaultManager::reorder_group(std::string_view group_id, int new_order) {
         return false;
     }
 
+    const keeptower::VaultData snapshot = *m_vault_data;
+    const bool was_modified = m_modified;
     if (m_group_manager->reorder_group(group_id, new_order)) {
-        return save_vault();
+        if (save_vault()) {
+            return true;
+        }
+        *m_vault_data = snapshot;
+        m_modified = was_modified;
     }
     return false;
 }
