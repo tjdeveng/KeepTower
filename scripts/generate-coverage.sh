@@ -53,14 +53,28 @@ mkdir -p "$COVERAGE_DIR"
 
 # Capture coverage data
 echo "Step 1: Capturing coverage data..."
+set +e
 lcov --capture \
      --directory "$BUILD_DIR" \
      --output-file "$COVERAGE_DIR/coverage.info" \
      --rc branch_coverage=1 \
-    --rc geninfo_unexecuted_blocks=1 \
-    --ignore-errors mismatch,negative,gcov,unused \
-    >"$CAPTURE_LOG" 2>&1
+     --rc geninfo_unexecuted_blocks=1 \
+     --ignore-errors mismatch,negative,gcov,unused,source,graph,count \
+     --keep-going \
+     >"$CAPTURE_LOG" 2>&1
+CAPTURE_STATUS=$?
+set -e
 grep -v "ignoring data for external file" "$CAPTURE_LOG" | tail -10 || true
+
+if [ "$CAPTURE_STATUS" -ne 0 ]; then
+    if [ -s "$COVERAGE_DIR/coverage.info" ]; then
+        echo "Warning: lcov capture returned $CAPTURE_STATUS but produced coverage.info; continuing"
+    else
+        echo "Error: lcov capture failed before producing coverage.info"
+        cat "$CAPTURE_LOG"
+        exit "$CAPTURE_STATUS"
+    fi
+fi
 
 # Remove system headers and test files from coverage
 echo ""
