@@ -10,16 +10,26 @@ on:
     paths:
       - 'src/**'
       - 'tests/**'
+      - 'scripts/generate-coverage.sh'
+      - 'scripts/ci_test_runner.py'
+      - 'scripts/build-openssl-3.5.sh'
       - 'meson.build'
       - 'meson_options.txt'
+      - '.github/libcorrect-version.txt'
+      - '.github/openssl-version.txt'
       - '.github/workflows/coverage.yml'
   pull_request:
     branches: [ master, main ]
     paths:
       - 'src/**'
       - 'tests/**'
+      - 'scripts/generate-coverage.sh'
+      - 'scripts/ci_test_runner.py'
+      - 'scripts/build-openssl-3.5.sh'
       - 'meson.build'
       - 'meson_options.txt'
+      - '.github/libcorrect-version.txt'
+      - '.github/openssl-version.txt'
   workflow_dispatch:
 
 jobs:
