@@ -1253,6 +1253,15 @@ TEST_F(VaultManagerV2Test, GetSecurityPolicyReturnsCorrectValues) {
     EXPECT_EQ(retrieved_policy->min_password_length, 16);
 }
 
+TEST_F(VaultManagerV2Test, UpdateSecurityPolicyRequiresOpenVault) {
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 14;
+
+    auto result = vault_manager.update_security_policy(policy);
+    EXPECT_FALSE(result);
+    EXPECT_EQ(result.error(), VaultError::VaultNotOpen);
+}
+
 TEST_F(VaultManagerV2Test, UpdateSecurityPolicyRejectsInvalidHashAlgorithm) {
     VaultSecurityPolicy policy;
     ASSERT_TRUE(vault_manager.create_vault_v2(
@@ -1304,6 +1313,34 @@ TEST_F(VaultManagerV2Test, UpdateSecurityPolicyAllowsAlgorithmChangeWithoutMigra
     ASSERT_TRUE(retrieved_policy);
     EXPECT_EQ(retrieved_policy->username_hash_algorithm, 0x02);
     EXPECT_EQ(retrieved_policy->migration_flags, 0x00);
+}
+
+TEST_F(VaultManagerV2Test, UpdateSecurityPolicyPersistsAcrossReopen) {
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 8;
+    policy.pbkdf2_iterations = 100000;
+    policy.password_history_depth = 2;
+    policy.username_hash_algorithm = 0x01;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpassword123", policy));
+
+    auto updated_policy = policy;
+    updated_policy.min_password_length = 14;
+    updated_policy.password_history_depth = 4;
+
+    ASSERT_TRUE(vault_manager.update_security_policy(updated_policy));
+    ASSERT_TRUE(vault_manager.save_vault());
+    ASSERT_TRUE(vault_manager.close_vault());
+
+    ASSERT_TRUE(vault_manager.open_vault_v2(
+        test_vault_path.string(), "admin", "adminpassword123"));
+
+    auto reopened_policy = vault_manager.get_vault_security_policy();
+    ASSERT_TRUE(reopened_policy);
+    EXPECT_EQ(reopened_policy->min_password_length, 14);
+    EXPECT_EQ(reopened_policy->pbkdf2_iterations, 100000u);
+    EXPECT_EQ(reopened_policy->password_history_depth, 4u);
+    EXPECT_EQ(reopened_policy->username_hash_algorithm, 0x01);
 }
 
 TEST_F(VaultManagerV2Test, OpenV2VaultMigratesUserWhenMigrationPolicyActive) {
@@ -1397,6 +1434,65 @@ TEST_F(VaultManagerV2Test, UpdateSecurityPolicyResetsMigratedUsersForNewTargetAl
     EXPECT_EQ(retrieved_policy->username_hash_algorithm_previous, 0x02);
     EXPECT_EQ(retrieved_policy->username_hash_algorithm, 0x03);
     EXPECT_EQ(retrieved_policy->migration_flags, 0x01);
+}
+
+TEST_F(VaultManagerV2Test, UpdateSecurityPolicyPreservesMigrationStatusWhenAlgorithmUnchanged) {
+    VaultSecurityPolicy policy;
+    policy.username_hash_algorithm = 0x01;
+    policy.pbkdf2_iterations = 100000;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpassword123", policy));
+    ASSERT_TRUE(vault_manager.add_user("bob", "bobpassword123", UserRole::STANDARD_USER));
+    ASSERT_TRUE(vault_manager.save_vault());
+    ASSERT_TRUE(vault_manager.close_vault());
+
+    ASSERT_TRUE(vault_manager.open_vault_v2(
+        test_vault_path.string(), "admin", "adminpassword123"));
+
+    auto migrated_policy = policy;
+    migrated_policy.username_hash_algorithm_previous = 0x01;
+    migrated_policy.username_hash_algorithm = 0x02;
+    migrated_policy.migration_flags = 0x01;
+    ASSERT_TRUE(vault_manager.update_security_policy(migrated_policy));
+    ASSERT_TRUE(vault_manager.save_vault());
+    ASSERT_TRUE(vault_manager.close_vault());
+
+    ASSERT_TRUE(vault_manager.open_vault_v2(
+        test_vault_path.string(), "bob", "bobpassword123"));
+
+    const auto migrated_users = vault_manager.list_users();
+    const auto migrated_bob = std::find_if(migrated_users.begin(), migrated_users.end(),
+        [](const KeySlot& slot) { return slot.username == "bob"; });
+    ASSERT_NE(migrated_bob, migrated_users.end());
+    ASSERT_EQ(migrated_bob->migration_status, 0x01);
+
+    ASSERT_TRUE(vault_manager.close_vault());
+    ASSERT_TRUE(vault_manager.open_vault_v2(
+        test_vault_path.string(), "admin", "adminpassword123"));
+
+    const auto users_before_policy_update = vault_manager.list_users();
+    const auto migrated_before_count = std::count_if(
+        users_before_policy_update.begin(), users_before_policy_update.end(),
+        [](const KeySlot& slot) { return slot.migration_status == 0x01; });
+
+    auto unchanged_algorithm_policy = migrated_policy;
+    unchanged_algorithm_policy.min_password_length = 18;
+    unchanged_algorithm_policy.password_history_depth = 7;
+
+    ASSERT_TRUE(vault_manager.update_security_policy(unchanged_algorithm_policy));
+
+    const auto users_after_policy_update = vault_manager.list_users();
+    const auto migrated_after_count = std::count_if(
+        users_after_policy_update.begin(), users_after_policy_update.end(),
+        [](const KeySlot& slot) { return slot.migration_status == 0x01; });
+    EXPECT_EQ(migrated_after_count, migrated_before_count);
+    EXPECT_GT(migrated_after_count, 0);
+
+    auto retrieved_policy = vault_manager.get_vault_security_policy();
+    ASSERT_TRUE(retrieved_policy);
+    EXPECT_EQ(retrieved_policy->min_password_length, 18u);
+    EXPECT_EQ(retrieved_policy->password_history_depth, 7u);
+    EXPECT_EQ(retrieved_policy->username_hash_algorithm, 0x02);
 }
 
 TEST_F(VaultManagerV2Test, StandardUserCannotUpdateSecurityPolicy) {
