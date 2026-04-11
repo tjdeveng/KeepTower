@@ -6,6 +6,7 @@
 #include "../../utils/Log.h"
 
 #include <cstdlib>
+#include <giomm/settingsschemasource.h>
 #include <string>
 
 namespace {
@@ -14,6 +15,15 @@ constexpr const char* kAppColorSchemeKey = "color-scheme";
 
 constexpr const char* kDesktopSchema = "org.gnome.desktop.interface";
 constexpr const char* kDesktopColorSchemeKey = "color-scheme";
+
+bool schema_exists(const char* schema_id) {
+    auto schema_source = Gio::SettingsSchemaSource::get_default();
+    if (!schema_source) {
+        return false;
+    }
+
+    return static_cast<bool>(schema_source->lookup(schema_id, true));
+}
 }
 
 ThemeController::ThemeController()
@@ -139,7 +149,11 @@ void ThemeController::apply_default_follow_system() {
 
     try {
         if (!m_desktop_settings) {
-            m_desktop_settings = Gio::Settings::create(kDesktopSchema);
+            if (schema_exists(kDesktopSchema)) {
+                m_desktop_settings = Gio::Settings::create(kDesktopSchema);
+            } else {
+                KeepTower::Log::debug("ThemeController: Desktop schema '{}' not available", kDesktopSchema);
+            }
         }
 
         if (m_desktop_settings) {
