@@ -21,9 +21,6 @@ on:
       - 'docs/developer/CONTRIBUTING.md'
   workflow_dispatch:  # Allow manual triggering
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   sync-wiki:
     name: Sync Docs to Wiki
@@ -34,12 +31,12 @@ jobs:
 
     steps:
       - name: Checkout main repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
       - name: Checkout wiki repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: ${{ github.repository }}.wiki
           path: wiki

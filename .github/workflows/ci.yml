@@ -11,9 +11,6 @@ on:
     branches: [ master, main, develop ]
   workflow_dispatch:
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   test:
     name: Test on ${{ matrix.os }}
@@ -29,11 +26,11 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Cache libcorrect
       id: cache-libcorrect
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: /tmp/libcorrect-install
         key: libcorrect-${{ runner.os }}-${{ hashFiles('.github/libcorrect-version.txt') }}
@@ -42,7 +39,7 @@ jobs:
 
     - name: Cache OpenSSL 3.5
       id: cache-openssl
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: /tmp/openssl-install
         key: openssl-3.5.0-${{ runner.os }}-${{ hashFiles('.github/openssl-version.txt') }}
@@ -242,7 +239,7 @@ jobs:
 
     - name: Upload test logs on failure
       if: failure()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: test-logs-${{ matrix.os }}
         path: build/meson-logs/
@@ -254,11 +251,11 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Cache libcorrect
       id: cache-libcorrect
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: /tmp/libcorrect-install
         key: libcorrect-lint-${{ hashFiles('.github/libcorrect-version.txt') }}
@@ -267,7 +264,7 @@ jobs:
 
     - name: Cache OpenSSL 3.5
       id: cache-openssl
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: /tmp/openssl-install
         key: openssl-3.5.0-lint-${{ hashFiles('.github/openssl-version.txt') }}
@@ -344,7 +341,7 @@ jobs:
 
     - name: Upload static analysis reports
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: static-analysis-reports
         path: static-analysis-reports/
@@ -356,11 +353,11 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Cache Doxygen
       id: cache-doxygen
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: /tmp/doxygen-install
         key: doxygen-${{ runner.os }}-${{ hashFiles('.github/doxygen-version.txt') }}
@@ -390,7 +387,7 @@ jobs:
         echo "Documentation built successfully"
 
     - name: Upload documentation
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: api-documentation
         path: build/docs/api/html/
@@ -406,7 +403,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master

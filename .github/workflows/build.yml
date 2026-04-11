@@ -23,9 +23,6 @@ on:
       - 'LICENSE'
   workflow_dispatch:
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   build-linux:
     name: Build on ${{ matrix.distro }}
@@ -38,12 +35,12 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Cache libcorrect
       if: startsWith(matrix.distro, 'ubuntu')
       id: cache-libcorrect
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: /tmp/libcorrect-install
         key: libcorrect-ubuntu-${{ hashFiles('.github/libcorrect-version.txt') }}
@@ -53,7 +50,7 @@ jobs:
     - name: Cache OpenSSL 3.5
       if: startsWith(matrix.distro, 'ubuntu')
       id: cache-openssl
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: /tmp/openssl-install
         key: openssl-3.5.0-ubuntu-${{ hashFiles('.github/openssl-version.txt') }}
@@ -170,7 +167,7 @@ jobs:
           "
 
     - name: Upload build artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: keeptower-${{ matrix.distro }}
         path: keeptower-*.tar.gz
@@ -182,7 +179,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Build AppImage with Fedora
       run: |
@@ -271,7 +268,7 @@ jobs:
           "
 
     - name: Upload AppImage
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: keeptower-AppImage
         path: keeptower-*.AppImage

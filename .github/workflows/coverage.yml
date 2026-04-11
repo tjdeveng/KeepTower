@@ -32,9 +32,6 @@ on:
       - '.github/openssl-version.txt'
   workflow_dispatch:
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   coverage:
     name: Generate Coverage Report
@@ -42,7 +39,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Install dependencies
       run: |
@@ -67,7 +64,7 @@ jobs:
 
     - name: Cache libcorrect
       id: cache-libcorrect
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: /tmp/libcorrect-install
         key: libcorrect-coverage-${{ hashFiles('.github/libcorrect-version.txt') }}
@@ -92,7 +89,7 @@ jobs:
 
     - name: Cache OpenSSL 3.5
       id: cache-openssl
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: /tmp/openssl-install
         key: openssl-3.5.0-coverage-${{ hashFiles('.github/openssl-version.txt') }}
@@ -170,7 +167,7 @@ jobs:
         echo "COVERAGE=$COVERAGE" >> $GITHUB_ENV
 
     - name: Upload coverage HTML report
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: coverage-report
         path: build-coverage/coverage/html/
