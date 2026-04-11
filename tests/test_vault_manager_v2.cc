@@ -464,6 +464,49 @@ TEST_F(VaultManagerV2Test, AddUserSuccessful) {
     EXPECT_TRUE(bob_it->must_change_password);
 }
 
+TEST_F(VaultManagerV2Test, AddUserRequiresOpenVault) {
+    auto result = vault_manager.add_user("bob", "temppass1234", UserRole::STANDARD_USER);
+    EXPECT_FALSE(result);
+    EXPECT_EQ(result.error(), VaultError::VaultNotOpen);
+}
+
+TEST_F(VaultManagerV2Test, AddUserRejectsEmptyUsername) {
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 8;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpass123", policy));
+
+    auto result = vault_manager.add_user("", "temppass1234", UserRole::STANDARD_USER);
+    EXPECT_FALSE(result);
+    EXPECT_EQ(result.error(), VaultError::InvalidUsername);
+}
+
+TEST_F(VaultManagerV2Test, AddUserSeedsInitialPasswordHistoryWhenEnabled) {
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 8;
+    policy.password_history_depth = 3;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpass123", policy));
+
+    ASSERT_TRUE(vault_manager.add_user("bob", "bobpass12345", UserRole::STANDARD_USER, false));
+
+    const auto users = vault_manager.list_users();
+    const auto bob_it = std::find_if(users.begin(), users.end(),
+        [](const KeySlot& slot) { return slot.username == "bob"; });
+    ASSERT_NE(bob_it, users.end());
+    EXPECT_FALSE(bob_it->must_change_password);
+    ASSERT_EQ(bob_it->password_history.size(), 1u);
+
+    ASSERT_TRUE(vault_manager.save_vault());
+    ASSERT_TRUE(vault_manager.close_vault());
+    ASSERT_TRUE(vault_manager.open_vault_v2(
+        test_vault_path.string(), "bob", "bobpass12345"));
+
+    auto validate_result = vault_manager.validate_new_password("bob", "bobpass12345");
+    EXPECT_FALSE(validate_result);
+    EXPECT_EQ(validate_result.error(), VaultError::PasswordReused);
+}
+
 TEST_F(VaultManagerV2Test, AddUserRequiresAdminPermission) {
     // Create vault
     VaultSecurityPolicy policy;
@@ -517,6 +560,29 @@ TEST_F(VaultManagerV2Test, RemoveUserSuccessful) {
     EXPECT_EQ(users[0].username, "admin");
 }
 
+TEST_F(VaultManagerV2Test, RemoveUserPersistsDeactivationAcrossReopen) {
+    VaultSecurityPolicy policy;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpass123", policy));
+    ASSERT_TRUE(vault_manager.add_user("bob", "temppass1234", UserRole::STANDARD_USER));
+
+    ASSERT_TRUE(vault_manager.remove_user("bob"));
+    ASSERT_TRUE(vault_manager.save_vault());
+    ASSERT_TRUE(vault_manager.close_vault());
+
+    auto removed_user_session = vault_manager.open_vault_v2(
+        test_vault_path.string(), "bob", "temppass1234");
+    EXPECT_FALSE(removed_user_session);
+
+    auto admin_session = vault_manager.open_vault_v2(
+        test_vault_path.string(), "admin", "adminpass123");
+    ASSERT_TRUE(admin_session);
+
+    const auto users = vault_manager.list_users();
+    ASSERT_EQ(users.size(), 1u);
+    EXPECT_EQ(users.front().username, "admin");
+}
+
 TEST_F(VaultManagerV2Test, RemoveUserPreventsSelfRemoval) {
     // Create vault
     VaultSecurityPolicy policy;
@@ -561,6 +627,23 @@ TEST_F(VaultManagerV2Test, RemoveUserAllowsMultipleAdmins) {
     // Remove admin1 (should succeed, admin2 still exists)
     auto result = vault_manager.remove_user("admin1");
     EXPECT_TRUE(result) << "Should allow removing admin when another admin exists";
+}
+
+TEST_F(VaultManagerV2Test, RemoveUserRequiresAdminPermission) {
+    VaultSecurityPolicy policy;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpass123", policy));
+    ASSERT_TRUE(vault_manager.add_user("alice", "alicepass123", UserRole::STANDARD_USER));
+    ASSERT_TRUE(vault_manager.add_user("bob", "bobpass12345", UserRole::STANDARD_USER));
+    ASSERT_TRUE(vault_manager.save_vault());
+    ASSERT_TRUE(vault_manager.close_vault());
+
+    ASSERT_TRUE(vault_manager.open_vault_v2(
+        test_vault_path.string(), "alice", "alicepass123"));
+
+    auto result = vault_manager.remove_user("bob");
+    EXPECT_FALSE(result);
+    EXPECT_EQ(result.error(), VaultError::PermissionDenied);
 }
 
 TEST_F(VaultManagerV2Test, RemoveUserRequiresOpenVault) {
