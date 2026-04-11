@@ -121,8 +121,13 @@ jobs:
         export DISABLE_YUBIKEY_DETECT=1
         sudo apt-get install -y xvfb
 
+        # Clear any stale coverage counters before running the test suites.
+        # The build step is separate, and a rebuild during test startup can otherwise
+        # leave old .gcda files out of sync with freshly written .gcno files.
+        find build-coverage -name '*.gcda' -delete
+
         # 1. General Regression Tests (excluding migration suite)
-        xvfb-run -a meson test -C build-coverage --no-suite migration --print-errorlogs --timeout-multiplier 1.5
+        xvfb-run -a meson test -C build-coverage --no-rebuild --no-suite migration --print-errorlogs --timeout-multiplier 1.5
 
         # 2. Migration Tests via Custom Runner (handles performance metrics gracefully)
         # Performance limits are likely to be exceeded in coverage builds (-O0),
