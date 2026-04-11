@@ -32,6 +32,9 @@ on:
       - '.github/openssl-version.txt'
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   coverage:
     name: Generate Coverage Report
