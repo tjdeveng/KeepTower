@@ -67,19 +67,20 @@ void VaultBackupPolicy::store_to_vault_data(keeptower::VaultData& vault_data) co
     vault_data.set_backup_count(max_backups());
 }
 
-void VaultBackupPolicy::maybe_create_backup(std::string_view vault_path, bool explicit_save) const {
+VaultResult<> VaultBackupPolicy::maybe_create_backup(std::string_view vault_path, bool explicit_save) const {
     if (!explicit_save || !m_enabled) {
-        return;
+        return {};
     }
 
     auto backup_result = VaultIO::create_backup(vault_path, m_backup_path);
     if (!backup_result) {
         Log::warning("VaultBackupPolicy: Failed to create backup: {}",
                      static_cast<int>(backup_result.error()));
-        return;
+        return std::unexpected(backup_result.error());
     }
 
     VaultIO::cleanup_old_backups(vault_path, m_max_backups, m_backup_path);
+    return {};
 }
 
 VaultResult<> VaultBackupPolicy::restore_from_most_recent_backup(std::string_view vault_path) const {

@@ -81,13 +81,13 @@ public:
     /**
     * @brief Create and rotate backups if policy allows for this save.
      *
-    * Non-fatal by design: failures are logged but do not abort save flow.
     * The policy determines when backup work should run; the storage layer
     * performs the underlying file and backup operations.
     * @param vault_path Vault file path being saved.
     * @param explicit_save True when the save was explicitly triggered by the user.
+    * @return Success when backup is created or skipped; error when backup fails.
      */
-    void maybe_create_backup(std::string_view vault_path, bool explicit_save) const;
+    [[nodiscard]] VaultResult<> maybe_create_backup(std::string_view vault_path, bool explicit_save) const;
 
     /**
     * @brief Restore vault from most recent backup according to configured path policy.

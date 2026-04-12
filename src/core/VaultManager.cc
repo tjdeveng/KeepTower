@@ -208,6 +208,15 @@ bool VaultManager::save_vault(bool explicit_save) {
         }
         secure_clear(plaintext);
 
+        // Explicit save backups must capture the pre-save on-disk state.
+        if (m_backup_policy) {
+            auto backup_result = m_backup_policy->maybe_create_backup(m_current_vault_path, explicit_save);
+            if (!backup_result) {
+                KeepTower::Log::error("VaultManager: Failed to create pre-save backup for explicit save");
+                return false;
+            }
+        }
+
         // Build V2 file format
         if (!m_v2_header.has_value()) {
             KeepTower::Log::error("VaultManager: V2 header not initialized");
@@ -229,11 +238,6 @@ bool VaultManager::save_vault(bool explicit_save) {
         if (!file_write_result) {
             KeepTower::Log::error("VaultManager: Failed to write V2 vault file");
             return false;
-        }
-
-        // Create backup before saving (only on explicit save, non-fatal if it fails)
-        if (m_backup_policy) {
-            m_backup_policy->maybe_create_backup(m_current_vault_path, explicit_save);
         }
 
         m_modified = false;

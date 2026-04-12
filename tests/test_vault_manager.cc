@@ -8,6 +8,8 @@
 #include <filesystem>
 #include <fstream>
 
+#include "lib/storage/VaultIO.h"
+
 namespace fs = std::filesystem;
 
 namespace {
@@ -40,6 +42,16 @@ KeepTower::AccountDetail make_account_detail(
     detail.modified_at = 222;
     detail.password_changed_at = 333;
     return detail;
+}
+
+std::vector<uint8_t> read_file_bytes(const fs::path& path) {
+    std::ifstream file(path, std::ios::binary);
+    if (!file.is_open()) {
+        return {};
+    }
+
+    return std::vector<uint8_t>((std::istreambuf_iterator<char>(file)),
+                                std::istreambuf_iterator<char>());
 }
 }  // namespace
 
@@ -186,6 +198,70 @@ TEST_F(VaultManagerTest, RestoreFromMostRecentBackupFailsWhenVaultOpen) {
     auto restore_result = vault_manager->restore_from_most_recent_backup(test_vault_path);
     ASSERT_FALSE(restore_result);
     EXPECT_EQ(restore_result.error(), KeepTower::VaultError::VaultAlreadyOpen);
+}
+
+TEST_F(VaultManagerTest, ExplicitSaveBackupCapturesPreSaveState) {
+    const auto policy = make_test_policy();
+    ASSERT_TRUE(vault_manager->create_vault_v2(test_vault_path, test_username, test_password, policy));
+
+    const fs::path backup_dir = test_dir / "explicit_backups";
+    VaultManager::BackupSettings settings = vault_manager->get_backup_settings();
+    settings.enabled = true;
+    settings.count = 10;
+    settings.path = backup_dir.string();
+    ASSERT_TRUE(vault_manager->apply_backup_settings(settings));
+
+    auto account_a = make_account_detail("acct-a", "Account A", "alice");
+    ASSERT_TRUE(vault_manager->add_account(account_a));
+    ASSERT_TRUE(vault_manager->save_vault(true));
+
+    auto account_b = make_account_detail("acct-b", "Account B", "bob");
+    ASSERT_TRUE(vault_manager->add_account(account_b));
+    ASSERT_TRUE(vault_manager->save_vault(true));
+
+    auto backups = KeepTower::VaultIO::list_backups(test_vault_path, backup_dir.string());
+    ASSERT_FALSE(backups.empty());
+
+    VaultManager backup_view_manager;
+    auto session = backup_view_manager.open_vault_v2(backups[0], test_username, test_password);
+    ASSERT_TRUE(session);
+    EXPECT_EQ(backup_view_manager.get_account_count(), 1u);
+
+    const auto backup_accounts = backup_view_manager.get_all_accounts_view();
+    ASSERT_EQ(backup_accounts.size(), 1u);
+    EXPECT_EQ(backup_accounts[0].account_name, "Account A");
+}
+
+TEST_F(VaultManagerTest, ExplicitSaveFailsWhenPreSaveBackupCreationFails) {
+    const auto policy = make_test_policy();
+    ASSERT_TRUE(vault_manager->create_vault_v2(test_vault_path, test_username, test_password, policy));
+
+    auto baseline_account = make_account_detail("acct-base", "Baseline", "alice");
+    ASSERT_TRUE(vault_manager->add_account(baseline_account));
+    ASSERT_TRUE(vault_manager->save_vault(true));
+
+    const std::vector<uint8_t> baseline_file_bytes = read_file_bytes(test_vault_path);
+    ASSERT_FALSE(baseline_file_bytes.empty());
+
+    const fs::path invalid_backup_target = test_dir / "backup_target_file";
+    {
+        std::ofstream marker(invalid_backup_target);
+        ASSERT_TRUE(marker.is_open());
+        marker << "not-a-directory";
+    }
+
+    VaultManager::BackupSettings settings = vault_manager->get_backup_settings();
+    settings.enabled = true;
+    settings.count = 5;
+    settings.path = invalid_backup_target.string();
+    ASSERT_TRUE(vault_manager->apply_backup_settings(settings));
+
+    auto new_account = make_account_detail("acct-new", "Unsaved", "bob");
+    ASSERT_TRUE(vault_manager->add_account(new_account));
+    EXPECT_FALSE(vault_manager->save_vault(true));
+
+    const std::vector<uint8_t> after_failed_save_bytes = read_file_bytes(test_vault_path);
+    EXPECT_EQ(after_failed_save_bytes, baseline_file_bytes);
 }
 
 TEST_F(VaultManagerTest, AccountBoundaryViewsRoundTripThroughVaultManager) {
