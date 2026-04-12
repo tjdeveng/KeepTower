@@ -957,17 +957,6 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
     if (user_slot->yubikey_enrolled) {
         Log::info("VaultManager: User has YubiKey enrolled, verifying with YubiKey");
 
-        YubiKeyManager yk_manager;
-        if (!yk_manager.initialize(is_fips_enabled())) {
-            Log::error("VaultManager: Failed to initialize YubiKey subsystem");
-            return std::unexpected(VaultError::YubiKeyError);
-        }
-
-        if (!yk_manager.is_yubikey_present()) {
-            Log::error("VaultManager: YubiKey required but not detected");
-            return std::unexpected(VaultError::YubiKeyNotPresent);
-        }
-
         auto pin_result = V2AuthService::resolve_yubikey_pin_for_auth(
             *user_slot,
             old_kek_array,
@@ -977,29 +966,39 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
         }
         std::string decrypted_pin = std::move(pin_result.value());
 
-        auto credential_result = V2AuthService::load_fido2_credential_if_present(*user_slot, yk_manager);
-        if (!credential_result) {
-            return std::unexpected(credential_result.error());
+        if (!m_yubikey_service) {
+            m_yubikey_service = std::make_shared<KeepTower::VaultYubiKeyService>();
+            Log::debug("VaultManager: Initialized VaultYubiKeyService for password change");
         }
+
+        const YubiKeyAlgorithm yk_algorithm = static_cast<YubiKeyAlgorithm>(policy.yubikey_algorithm);
+        std::vector<uint8_t> challenge_vec(
+            user_slot->yubikey_challenge.begin(),
+            user_slot->yubikey_challenge.end());
 
         // Report progress before first touch
         if (progress_callback) {
             progress_callback("Touch 1 of 2: Verifying old password with YubiKey...");
         }
 
-        auto response_result = V2AuthService::run_yubikey_challenge_for_open(
-            *user_slot,
-            policy,
+        auto old_challenge_result = m_yubikey_service->perform_authenticated_challenge(
+            challenge_vec,
+            user_slot->yubikey_credential_id,
             decrypted_pin,
-            yk_manager);
-        if (!response_result) {
-            return std::unexpected(response_result.error());
+            user_slot->yubikey_serial,
+            yk_algorithm,
+            true,  // require_touch
+            15000, // 15 second timeout
+            is_fips_enabled(),
+            KeepTower::IVaultYubiKeyService::SerialMismatchPolicy::WarnOnly);
+        if (!old_challenge_result) {
+            return std::unexpected(old_challenge_result.error());
         }
 
         // Combine KEK with YubiKey response (use v2 for variable-length responses)
         old_final_kek = V2AuthService::combine_kek_with_yubikey_response_for_open(
             old_final_kek,
-            std::span<const uint8_t>(response_result.value()));
+            std::span<const uint8_t>(old_challenge_result.value().response));
 
         Log::info("VaultManager: Old password verified with YubiKey");
     }
@@ -1039,49 +1038,43 @@ KeepTower::VaultResult<> VaultManager::change_user_password(
     if (user_slot->yubikey_enrolled) {
         Log::info("VaultManager: Preserving YubiKey enrollment with new password");
 
-        YubiKeyManager yk_manager;
-        if (!yk_manager.initialize(is_fips_enabled())) {
-            Log::error("VaultManager: Failed to initialize YubiKey subsystem");
-            return std::unexpected(VaultError::YubiKeyError);
-        }
-
-        if (!yk_manager.is_yubikey_present()) {
-            Log::error("VaultManager: YubiKey required but not detected");
-            return std::unexpected(VaultError::YubiKeyNotPresent);
-        }
-
-        auto pin_result = V2AuthService::resolve_yubikey_pin_for_auth(
+        auto pin_result2 = V2AuthService::resolve_yubikey_pin_for_auth(
             *user_slot,
             old_kek_array,
             yubikey_pin);
-        if (!pin_result) {
-            return std::unexpected(pin_result.error());
+        if (!pin_result2) {
+            return std::unexpected(pin_result2.error());
         }
-        std::string pin_to_use = std::move(pin_result.value());
+        std::string pin_to_use = std::move(pin_result2.value());
 
-        auto credential_result = V2AuthService::load_fido2_credential_if_present(*user_slot, yk_manager);
-        if (!credential_result) {
-            return std::unexpected(credential_result.error());
-        }
+        const YubiKeyAlgorithm yk_algorithm2 = static_cast<YubiKeyAlgorithm>(policy.yubikey_algorithm);
+        std::vector<uint8_t> challenge_vec2(
+            user_slot->yubikey_challenge.begin(),
+            user_slot->yubikey_challenge.end());
 
         // Report progress before second touch
         if (progress_callback) {
             progress_callback("Touch 2 of 2: Combining new password with YubiKey...");
         }
 
-        auto response_result = V2AuthService::run_yubikey_challenge_for_open(
-            *user_slot,
-            policy,
+        auto new_challenge_result = m_yubikey_service->perform_authenticated_challenge(
+            challenge_vec2,
+            user_slot->yubikey_credential_id,
             pin_to_use,
-            yk_manager);
-        if (!response_result) {
-            return std::unexpected(response_result.error());
+            user_slot->yubikey_serial,
+            yk_algorithm2,
+            true,  // require_touch
+            15000, // 15 second timeout
+            is_fips_enabled(),
+            KeepTower::IVaultYubiKeyService::SerialMismatchPolicy::WarnOnly);
+        if (!new_challenge_result) {
+            return std::unexpected(new_challenge_result.error());
         }
 
         // Combine new KEK with YubiKey response (use v2 for variable-length)
         new_final_kek = V2AuthService::combine_kek_with_yubikey_response_for_open(
             new_final_kek,
-            std::span<const uint8_t>(response_result.value()));
+            std::span<const uint8_t>(new_challenge_result.value().response));
 
         // Re-encrypt PIN with NEW password-derived KEK (before YubiKey combination)
         std::vector<uint8_t> new_encrypted_pin;
