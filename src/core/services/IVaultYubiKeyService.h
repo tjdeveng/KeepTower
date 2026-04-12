@@ -44,6 +44,16 @@ public:
     virtual ~IVaultYubiKeyService() = default;
 
     /**
+     * @brief Detect available YubiKey devices
+     *
+     * Enumerates all connected FIDO2/WebAuthn devices that are YubiKeys.
+     * May be called from UI thread for simple presence check.
+     *
+     * @return Vector of device information, or VaultError if detection fails
+     */
+    [[nodiscard]] virtual VaultResult<std::vector<DeviceInfo>> detect_devices() = 0;
+
+    /**
      * @brief Perform authenticated challenge-response
      *
      * Executes YubiKey challenge with configurable serial verification behavior.

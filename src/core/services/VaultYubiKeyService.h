@@ -98,7 +98,7 @@ public:
      * @note May return empty vector if no YubiKeys are connected
      * @note Thread-unsafe - do not call concurrently
      */
-    [[nodiscard]] VaultResult<std::vector<DeviceInfo>> detect_devices();
+    [[nodiscard]] VaultResult<std::vector<DeviceInfo>> detect_devices() override;
 
     /**
      * @brief Perform two-step YubiKey enrollment

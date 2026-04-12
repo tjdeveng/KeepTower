@@ -70,6 +70,10 @@ public:
         return std::unexpected(next_enrollment_error);
     }
 
+    KeepTower::VaultResult<std::vector<DeviceInfo>> detect_devices() override {
+        return std::vector<DeviceInfo>{};  // Empty device list by default
+    }
+
     bool authenticated_called = false;
     std::vector<uint8_t> last_challenge;
     std::vector<uint8_t> last_credential_id;
