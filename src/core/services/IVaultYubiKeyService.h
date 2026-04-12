@@ -9,6 +9,8 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <array>
+#include <functional>
 
 namespace KeepTower {
 
@@ -30,6 +32,13 @@ public:
     struct ChallengeResult {
         std::vector<uint8_t> response;
         DeviceInfo device_info;
+    };
+
+    struct EnrollmentResult {
+        std::vector<uint8_t> policy_response; ///< Policy challenge response
+        std::vector<uint8_t> user_response;   ///< User challenge response (combine with KEK)
+        std::vector<uint8_t> credential_id;  ///< FIDO2 credential ID for storage
+        DeviceInfo device_info;               ///< Device used for enrollment
     };
 
     virtual ~IVaultYubiKeyService() = default;
@@ -60,6 +69,30 @@ public:
         int timeout_ms,
         bool enforce_fips = false,
         SerialMismatchPolicy serial_mismatch_policy = SerialMismatchPolicy::StrictError) = 0;
+
+    /**
+     * @brief Perform two-step YubiKey enrollment
+     *
+     * Creates a FIDO2 credential and performs challenge-response to bind the
+     * YubiKey to a vault user slot.
+     *
+     * @param user_id User identifier for FIDO2 credential creation
+     * @param policy_challenge Fixed challenge bytes (32 bytes, may be unused)
+     * @param user_challenge Random per-user challenge bytes (32 bytes)
+     * @param pin YubiKey PIN (4-63 characters)
+     * @param slot HMAC slot to use (1 or 2)
+     * @param enforce_fips Enforce FIPS-approved operation only
+     * @param progress_callback Optional callback for touch progress messages
+     * @return EnrollmentResult with response, credential ID and device info, or error
+     */
+    [[nodiscard]] virtual VaultResult<EnrollmentResult> enroll_yubikey(
+        const std::string& user_id,
+        const std::array<uint8_t, 32>& policy_challenge,
+        const std::array<uint8_t, 32>& user_challenge,
+        const std::string& pin,
+        uint8_t slot = 1,
+        bool enforce_fips = false,
+        std::function<void(const std::string&)> progress_callback = nullptr) = 0;
 };
 
 } // namespace KeepTower

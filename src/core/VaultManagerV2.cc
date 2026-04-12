@@ -1567,19 +1567,6 @@ KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
     }
 
 #ifdef HAVE_YUBIKEY_SUPPORT
-    // Initialize YubiKey subsystem
-    YubiKeyManager yk_manager;
-    if (!yk_manager.initialize(is_fips_enabled())) {
-        Log::error("VaultManager: Failed to initialize YubiKey subsystem");
-        return std::unexpected(VaultError::YubiKeyError);
-    }
-
-    // Verify YubiKey present
-    if (!yk_manager.is_yubikey_present()) {
-        Log::error("VaultManager: No YubiKey detected");
-        return std::unexpected(VaultError::YubiKeyNotPresent);
-    }
-
     KekDerivationService::AlgorithmParameters params;
     params.pbkdf2_iterations = policy.pbkdf2_iterations;
     params.argon2_memory_kb = policy.argon2_memory_kb;
@@ -1616,49 +1603,37 @@ KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
     std::array<uint8_t, 32> user_challenge{};
     std::copy_n(challenge_salt->begin(), 32, user_challenge.begin());
 
-    // Perform YubiKey challenge-response (require touch = true for enrollment security)
-    Log::info("VaultManager: Performing YubiKey challenge-response (touch required)");
-
-    // Create FIDO2 credential for enrollment (required for FIDO2 hmac-secret extension)
-    Log::info("VaultManager: Creating FIDO2 credential for enrollment");
-    if (progress_callback) {
-        progress_callback("Touch 1 of 2: Creating YubiKey credential to verify user presence");
-    }
-    auto credential_id = yk_manager.create_credential(username.raw(), yubikey_pin);
-    if (!credential_id.has_value() || credential_id->empty()) {
-        Log::error("VaultManager: Failed to create FIDO2 credential");
-        return std::unexpected(VaultError::YubiKeyError);
-    }
-    Log::info("VaultManager: FIDO2 credential created (ID length: {})", credential_id->size());
-
-    // Perform challenge-response with the newly created credential
-    Log::info("VaultManager: Performing challenge-response for user authentication");
-    if (progress_callback) {
-        progress_callback("Touch 2 of 2: Generating cryptographic response for authentication");
-    }
-    auto response_result = V2AuthService::run_yubikey_challenge_for_policy(
-        std::span<const uint8_t>(user_challenge.data(), user_challenge.size()),
-        policy,
-        std::string_view(yubikey_pin),
-        yk_manager,
-        true,
-        15000);
-    if (!response_result) {
-        return std::unexpected(response_result.error());
+    if (!m_yubikey_service) {
+        m_yubikey_service = std::make_shared<KeepTower::VaultYubiKeyService>();
+        Log::debug("VaultManager: Initialized VaultYubiKeyService for enrollment");
     }
 
-    // Get device serial for audit trail
-    std::string device_serial;
-    auto device_info = yk_manager.get_device_info();
-    if (device_info) {
-        device_serial = device_info->serial_number;
+    const std::array<uint8_t, 32> policy_challenge{};  // unused by service implementation
+    auto enroll_result = m_yubikey_service->enroll_yubikey(
+        username.raw(),
+        policy_challenge,
+        user_challenge,
+        yubikey_pin,
+        1,                 // slot
+        is_fips_enabled(),
+        progress_callback);
+    if (!enroll_result) {
+        return std::unexpected(enroll_result.error());
+    }
+
+    Log::info("VaultManager: FIDO2 credential created (ID length: {})", enroll_result->credential_id.size());
+    std::vector<uint8_t> credential_id = std::move(enroll_result->credential_id);
+
+    // Get device serial from enrollment result
+    std::string device_serial = enroll_result->device_info.serial;
+    if (!device_serial.empty()) {
         Log::info("VaultManager: YubiKey serial: {}", device_serial);
     }
 
     // Combine KEK with YubiKey response (use v2 for variable-length responses)
     auto final_kek = V2AuthService::combine_kek_with_yubikey_response_for_open(
         kek_array,
-        std::span<const uint8_t>(response_result.value()));
+        std::span<const uint8_t>(enroll_result->user_response));
 
     // Re-wrap DEK with password+YubiKey combined KEK
     auto new_wrapped_result = KeyWrapping::wrap_key(final_kek, m_v2_dek);
@@ -1694,8 +1669,8 @@ KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
         std::move(device_serial),
         std::chrono::system_clock::now().time_since_epoch().count(),
         std::move(pin_storage),
-        std::move(*credential_id));
-    Log::info("VaultManager: Stored FIDO2 credential ID ({} bytes)", credential_id->size());
+        std::move(credential_id));
+    Log::info("VaultManager: YubiKey enrolled successfully for user");
 
     // Mark vault as modified so the new wrapped_dek gets saved
     m_modified = true;
@@ -1705,8 +1680,6 @@ KeepTower::VaultResult<> VaultManager::enroll_yubikey_for_user(
         m_current_session->requires_yubikey_enrollment = false;
         Log::info("VaultManager: Updated session - YubiKey enrollment complete");
     }
-
-    Log::info("VaultManager: YubiKey enrolled successfully for user");
     return {};
 #else
     Log::error("VaultManager: YubiKey support not compiled in");
@@ -1766,24 +1739,6 @@ KeepTower::VaultResult<> VaultManager::unenroll_yubikey_for_user(
     }
 
 #ifdef HAVE_YUBIKEY_SUPPORT
-    // Initialize YubiKey subsystem
-    YubiKeyManager yk_manager;
-    if (!yk_manager.initialize(is_fips_enabled())) {
-        Log::error("VaultManager: Failed to initialize YubiKey subsystem");
-        return std::unexpected(VaultError::YubiKeyError);
-    }
-
-    // Verify YubiKey present
-    if (!yk_manager.is_yubikey_present()) {
-        Log::error("VaultManager: YubiKey required but not detected");
-        return std::unexpected(VaultError::YubiKeyNotPresent);
-    }
-
-    // Report progress before YubiKey verification touch
-    if (progress_callback) {
-        progress_callback("Verifying current password with YubiKey (touch required)...");
-    }
-
     // Verify password+YubiKey by unwrapping DEK (use user's algorithm)
     auto user_algorithm = static_cast<KekDerivationService::Algorithm>(user_slot->kek_derivation_algorithm);
 
@@ -1813,20 +1768,39 @@ KeepTower::VaultResult<> VaultManager::unenroll_yubikey_for_user(
     }
     std::string decrypted_pin = std::move(pin_result.value());
 
-    // Use user's enrolled challenge (full 32 bytes — matches enroll_yubikey_for_user)
-    auto response_result = V2AuthService::run_yubikey_challenge_for_policy(
-        std::span<const uint8_t>(user_slot->yubikey_challenge.data(), user_slot->yubikey_challenge.size()),
-        policy,
-        std::string_view(decrypted_pin),
-        yk_manager);
-    if (!response_result) {
-        return std::unexpected(response_result.error());
+    if (!m_yubikey_service) {
+        m_yubikey_service = std::make_shared<KeepTower::VaultYubiKeyService>();
+        Log::debug("VaultManager: Initialized VaultYubiKeyService for unenrollment");
+    }
+
+    const YubiKeyAlgorithm yk_algorithm = static_cast<YubiKeyAlgorithm>(policy.yubikey_algorithm);
+    std::vector<uint8_t> challenge_vec(
+        user_slot->yubikey_challenge.begin(),
+        user_slot->yubikey_challenge.end());
+
+    // Report progress before YubiKey verification touch
+    if (progress_callback) {
+        progress_callback("Verifying current password with YubiKey (touch required)...");
+    }
+
+    auto challenge_result = m_yubikey_service->perform_authenticated_challenge(
+        challenge_vec,
+        user_slot->yubikey_credential_id,
+        decrypted_pin,
+        user_slot->yubikey_serial,
+        yk_algorithm,
+        true,  // require_touch
+        15000,
+        is_fips_enabled(),
+        KeepTower::IVaultYubiKeyService::SerialMismatchPolicy::WarnOnly);
+    if (!challenge_result) {
+        return std::unexpected(challenge_result.error());
     }
 
     // Combine KEK with YubiKey response (v2 — matches enroll_yubikey_for_user combine path)
     auto current_kek = V2AuthService::combine_kek_with_yubikey_response_for_open(
         kek_array,
-        std::span<const uint8_t>(response_result.value()));
+        std::span<const uint8_t>(challenge_result->response));
 
     auto verify_unwrap = KeyWrapping::unwrap_key(current_kek, user_slot->wrapped_dek);
     if (!verify_unwrap) {

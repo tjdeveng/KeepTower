@@ -59,12 +59,7 @@ public:
     /**
      * @brief Result of two-step enrollment
      */
-    struct EnrollmentResult {
-        std::vector<uint8_t> policy_response;  ///< Policy challenge response (32 bytes for FIDO2 hmac-secret)
-        std::vector<uint8_t> user_response;    ///< User challenge response (32 bytes for FIDO2 hmac-secret)
-        std::vector<uint8_t> credential_id;    ///< FIDO2 credential ID
-        DeviceInfo device_info;                ///< Device used for enrollment
-    };
+    using EnrollmentResult = IVaultYubiKeyService::EnrollmentResult;
 
     /**
      * @brief Result of challenge-response operation
@@ -136,7 +131,7 @@ public:
         const std::string& pin,
         uint8_t slot = 1,
         bool enforce_fips = false,
-        std::function<void(const std::string&)> progress_callback = nullptr);
+        std::function<void(const std::string&)> progress_callback = nullptr) override;
 
     /**
      * @brief Perform single challenge-response operation

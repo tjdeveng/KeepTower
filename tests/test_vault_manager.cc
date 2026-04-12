@@ -44,6 +44,32 @@ public:
         return std::unexpected(next_authenticated_error);
     }
 
+    KeepTower::VaultResult<EnrollmentResult> enroll_yubikey(
+        const std::string& user_id,
+        const std::array<uint8_t, 32>& policy_challenge,
+        const std::array<uint8_t, 32>& user_challenge,
+        const std::string& pin,
+        uint8_t slot = 1,
+        bool enforce_fips = false,
+        std::function<void(const std::string&)> progress_callback = nullptr) override {
+        (void)slot;
+        (void)enforce_fips;
+
+        enrolled_called = true;
+        last_enroll_user_id = user_id;
+        last_enroll_policy_challenge = policy_challenge;
+        last_enroll_user_challenge = user_challenge;
+        last_enroll_pin = pin;
+        if (progress_callback) {
+            progress_callback("fake enroll callback");
+        }
+
+        if (next_enrollment_result.has_value()) {
+            return next_enrollment_result.value();
+        }
+        return std::unexpected(next_enrollment_error);
+    }
+
     bool authenticated_called = false;
     std::vector<uint8_t> last_challenge;
     std::vector<uint8_t> last_credential_id;
@@ -57,6 +83,14 @@ public:
         KeepTower::IVaultYubiKeyService::SerialMismatchPolicy::StrictError;
     std::optional<ChallengeResult> next_authenticated_result;
     KeepTower::VaultError next_authenticated_error = KeepTower::VaultError::YubiKeyError;
+
+    bool enrolled_called = false;
+    std::string last_enroll_user_id;
+    std::array<uint8_t, 32> last_enroll_policy_challenge{};
+    std::array<uint8_t, 32> last_enroll_user_challenge{};
+    std::string last_enroll_pin;
+    std::optional<EnrollmentResult> next_enrollment_result;
+    KeepTower::VaultError next_enrollment_error = KeepTower::VaultError::YubiKeyError;
 };
 
 void disable_backups_for_test(VaultManager& manager) {
