@@ -52,6 +52,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enforced strict zero-warning Doxygen coverage for the checked-in public API surface
 - Aligned release documentation with the current build output and wiki publication flow
 
+### Known Limitations
+- **In-Memory Data Loss When Backup Path Is Unavailable**: If an explicit save (`Ctrl+S`) is attempted while the configured backup destination is unavailable (unmounted network share, removed USB drive, revoked permissions), the save is aborted to preserve the on-disk vault state. Any unsaved in-memory changes will be lost if the application crashes before the backup path is restored and a successful save completes. The on-disk vault is never corrupted. Mitigation: the unsaved-changes indicator remains visible for the session. Tracked for resolution as an encrypted recovery snapshot feature in a future release (see ROADMAP.md).
+
 ## [0.3.4] - 2026-04-02
 
 ### Fixed

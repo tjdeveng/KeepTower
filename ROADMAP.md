@@ -197,6 +197,7 @@ This document outlines the planned features and improvements for KeepTower, orga
   - `#28` Resolve or formalize the FIPS sanitizer leak policy
   - `#29` Raise coverage on remaining low-coverage core paths to A+ threshold
   - `#30` Reduce hotspot size and responsibility in VaultManager and MainWindow
+  - `#32` *(planned)* Encrypted recovery snapshot to prevent in-memory data loss when backup path is unavailable during explicit save; see `SECURITY.md` Known Operational Limitations for the full description of the failure mode
 - Local documentation should stay focused on durable reference material: architecture, user docs, API docs, and design notes that cannot be expressed cleanly in an issue or PR.
 
 ### Current Quality Scorecard

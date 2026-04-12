@@ -116,6 +116,16 @@ This beta release has the following acknowledged limitations:
 4. **No Key Files**: Password-only authentication
 5. **Beta Software**: This is a beta release; use with appropriate caution
 
+## Known Operational Limitations (v0.3.5+)
+
+The following limitations are acknowledged in the current release. Each has a tracked follow-up item in the project roadmap.
+
+1. **In-Memory Data Loss When Backup Path Is Unavailable (v0.3.5)**:
+   - As of v0.3.5, an explicit save (`Ctrl+S`) will abort without writing the vault if the backup destination is unavailable (e.g. network share unmounted, backup directory permissions revoked, removable drive absent). This is the correct behaviour to preserve the pre-save on-disk vault state (see issue #31).
+   - However, unsaved in-memory changes (accounts or groups added/modified since the last successful save) are **not durably persisted** while the backup path remains unavailable. If the application crashes or is force-closed before the backup path is restored, those in-memory changes will be lost. The on-disk vault remains intact.
+   - **Mitigation**: The application will retain the unsaved-changes state (`m_modified`) and continue to show the unsaved-changes indicator, reducing the risk of accidental session exit without saving. The on-disk vault is never corrupted.
+   - **Planned resolution**: An encrypted recovery snapshot will be written alongside the abort path in a future release, allowing unsaved state to survive application crashes. Tracked as a future roadmap item.
+
 ## Cryptographic Dependencies
 
 KeepTower relies on these cryptographic libraries:
