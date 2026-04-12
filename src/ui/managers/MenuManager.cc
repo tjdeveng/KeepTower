@@ -217,7 +217,7 @@ void MenuManager::update_menu_for_role(
     bool vault_open)
 {
     if (!is_v2_vault) {
-        // V1 vaults or no vault - disable V2-specific actions
+        // No vault open - disable user actions
         if (m_change_password_action) m_change_password_action->set_enabled(false);
         if (m_logout_action) m_logout_action->set_enabled(false);
         if (m_manage_users_action) m_manage_users_action->set_enabled(false);

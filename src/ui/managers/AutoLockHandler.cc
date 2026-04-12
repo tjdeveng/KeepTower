@@ -151,9 +151,6 @@ bool AutoLockHandler::handle_auto_lock_timeout() {
                 m_handle_v2_vault_open_callback(vault_path);
             });
         }
-    } else {
-        // For V1 vaults, use traditional lock/unlock mechanism
-        lock_vault();
     }
     return false;  // Don't repeat
 }

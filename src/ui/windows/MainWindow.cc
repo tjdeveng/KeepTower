@@ -123,7 +123,7 @@ MainWindow::MainWindow()
     m_header_bar.pack_start(m_save_button);
 
     // Center - Session info label (for V2 multi-user vaults)
-    m_session_label.set_visible(false);  // Hidden by default (V1 vaults)
+    m_session_label.set_visible(false);  // Hidden by default until authenticated
     m_session_label.add_css_class("caption");
     m_header_bar.set_title_widget(m_session_label);
 

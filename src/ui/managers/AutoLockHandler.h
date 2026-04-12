@@ -115,7 +115,7 @@ public:
     bool handle_auto_lock_timeout();
 
     /**
-     * @brief Lock the vault (V1 vaults only)
+     * @brief Lock the vault (forces logout and schedules reopen)
      */
     void lock_vault();
 

@@ -984,7 +984,6 @@ public:
      * @endcode
      *
      * @note Only relevant for V2 vaults with multi-user support
-     * @note V1 vaults always return true (no access control)
      */
     [[nodiscard]] bool can_view_account(size_t account_index) const noexcept;
 
@@ -1005,7 +1004,6 @@ public:
      * @endcode
      *
      * @note Only relevant for V2 vaults with multi-user support
-     * @note V1 vaults always return true (no access control)
      */
     [[nodiscard]] bool can_delete_account(size_t account_index) const noexcept;
 

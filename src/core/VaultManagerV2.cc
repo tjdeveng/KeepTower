@@ -2077,11 +2077,6 @@ bool VaultManager::can_view_account(size_t account_index) const noexcept {
         return false;
     }
 
-    // V1 vaults have no access control beyond bounds checking
-    if (!m_is_v2_vault) {
-        return true;
-    }
-
     // Administrators can view all accounts
     if (m_current_session && m_current_session->role == UserRole::ADMINISTRATOR) {
         return true;
@@ -2093,9 +2088,8 @@ bool VaultManager::can_view_account(size_t account_index) const noexcept {
 }
 
 bool VaultManager::can_delete_account(size_t account_index) const noexcept {
-    // V1 vaults have no access control
-    if (!m_is_v2_vault || !m_vault_open) {
-        return true;
+    if (!m_vault_open) {
+        return false;
     }
 
     // Invalid index

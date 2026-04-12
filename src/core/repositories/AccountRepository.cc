@@ -113,22 +113,17 @@ AccountRepository::get_all() const {
 
     auto all_accounts = account_manager->get_all_accounts();
 
-    // For V2 vaults, filter by permissions
-    if (m_vault_manager->is_v2_vault()) {
-        std::vector<keeptower::AccountRecord> viewable;
-        viewable.reserve(all_accounts.size());
+    // Filter accounts by view permissions
+    std::vector<keeptower::AccountRecord> viewable;
+    viewable.reserve(all_accounts.size());
 
-        for (size_t i = 0; i < all_accounts.size(); ++i) {
-            if (can_view(i)) {
-                viewable.push_back(all_accounts[i]);
-            }
+    for (size_t i = 0; i < all_accounts.size(); ++i) {
+        if (can_view(i)) {
+            viewable.push_back(all_accounts[i]);
         }
-
-        return viewable;
     }
 
-    // V1 vaults: all accounts are viewable
-    return all_accounts;
+    return viewable;
 }
 
 std::expected<void, RepositoryError>
@@ -205,8 +200,6 @@ bool AccountRepository::can_modify(size_t index) const noexcept {
         return false;
     }
 
-    // For V2 vaults, check modify permission (future enhancement: separate can_edit)
-    // For V1 vaults, same as can_view (all visible accounts are modifiable)
     // Currently using can_view_account as proxy for both read and write permissions
     return m_vault_manager->can_view_account(index);
 }
