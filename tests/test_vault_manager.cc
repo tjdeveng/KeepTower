@@ -471,6 +471,60 @@ TEST_F(VaultManagerTest, GlobalOrderingHelpersResetAndPersistOrderingState) {
     EXPECT_FALSE(vault_manager->has_custom_global_ordering());
 }
 
+TEST_F(VaultManagerTest, ReorderAccountFailsWhenVaultClosed) {
+    EXPECT_FALSE(vault_manager->reorder_account(0, 1));
+}
+
+TEST_F(VaultManagerTest, ReorderGroup_SuccessAndSaveFailureRollback) {
+    const auto policy = make_test_policy();
+    ASSERT_TRUE(vault_manager->create_vault_v2(test_vault_path, test_username, test_password, policy));
+
+    const std::string first_group_id = vault_manager->create_group("First");
+    const std::string second_group_id = vault_manager->create_group("Second");
+    ASSERT_FALSE(first_group_id.empty());
+    ASSERT_FALSE(second_group_id.empty());
+
+    ASSERT_TRUE(vault_manager->reorder_group(second_group_id, 0));
+
+    auto groups = vault_manager->get_all_groups_view();
+    auto second_it = std::find_if(groups.begin(), groups.end(),
+        [&](const KeepTower::GroupView& group) { return group.group_id == second_group_id; });
+    ASSERT_NE(second_it, groups.end());
+    EXPECT_EQ(second_it->display_order, 0);
+
+    const fs::path blocking_tmp = fs::path(test_vault_path).concat(".tmp");
+    ASSERT_TRUE(fs::create_directory(blocking_tmp));
+    EXPECT_FALSE(vault_manager->reorder_group(first_group_id, 0));
+}
+
+TEST_F(VaultManagerTest, SetRsRedundancyPercentRejectsOutOfRangeAndAcceptsValid) {
+    EXPECT_FALSE(vault_manager->set_rs_redundancy_percent(4));
+    EXPECT_FALSE(vault_manager->set_rs_redundancy_percent(51));
+
+    EXPECT_TRUE(vault_manager->set_rs_redundancy_percent(25));
+    EXPECT_EQ(vault_manager->get_rs_redundancy_percent(), 25);
+}
+
+TEST_F(VaultManagerTest, ApplyBackupSettingsPersistsAcrossReopenWhenVaultOpen) {
+    const auto policy = make_test_policy();
+    ASSERT_TRUE(vault_manager->create_vault_v2(test_vault_path, test_username, test_password, policy));
+
+    VaultManager::BackupSettings settings;
+    settings.enabled = true;
+    settings.count = 9;
+    settings.path = (test_dir / "persisted_backups").string();
+
+    ASSERT_TRUE(vault_manager->apply_backup_settings(settings));
+    ASSERT_TRUE(vault_manager->save_vault());
+    ASSERT_TRUE(vault_manager->close_vault());
+
+    ASSERT_TRUE(vault_manager->open_vault_v2(test_vault_path, test_username, test_password));
+    const auto loaded = vault_manager->get_backup_settings();
+    EXPECT_TRUE(loaded.enabled);
+    EXPECT_EQ(loaded.count, 9);
+    EXPECT_EQ(loaded.path, settings.path);
+}
+
 TEST_F(VaultManagerTest, RenameGroup_Success) {
     const auto policy = make_test_policy();
     ASSERT_TRUE(vault_manager->create_vault_v2(test_vault_path, test_username, test_password, policy));
@@ -648,3 +702,32 @@ TEST_F(VaultManagerTest, RuntimePreferencesPersistToVaultMetadataWhenOpen) {
     // Confirm m_modified was set — the vault data was mutated.
     EXPECT_TRUE(vault_manager->save_vault());
 }
+
+TEST_F(VaultManagerTest, CurrentUsernameReflectsOpenAndClosedState) {
+    EXPECT_TRUE(vault_manager->get_current_username().empty());
+
+    const auto policy = make_test_policy();
+    ASSERT_TRUE(vault_manager->create_vault_v2(test_vault_path, test_username, test_password, policy));
+    EXPECT_EQ(vault_manager->get_current_username(), "admin");
+
+    ASSERT_TRUE(vault_manager->close_vault());
+    EXPECT_TRUE(vault_manager->get_current_username().empty());
+}
+
+TEST_F(VaultManagerTest, YubiKeyAccessorsReturnSafeDefaultsWithoutEnrollment) {
+    EXPECT_FALSE(vault_manager->current_user_requires_yubikey());
+    EXPECT_TRUE(vault_manager->get_yubikey_list_view().empty());
+
+    const auto policy = make_test_policy();
+    ASSERT_TRUE(vault_manager->create_vault_v2(test_vault_path, test_username, test_password, policy));
+
+    EXPECT_FALSE(vault_manager->current_user_requires_yubikey());
+    EXPECT_TRUE(vault_manager->get_yubikey_list_view().empty());
+}
+
+TEST_F(VaultManagerTest, CheckVaultRequiresYubiKeyReturnsFalseForMissingFile) {
+    std::string serial;
+    EXPECT_FALSE(vault_manager->check_vault_requires_yubikey(
+        (test_dir / "missing.vault").string(), serial));
+}
+

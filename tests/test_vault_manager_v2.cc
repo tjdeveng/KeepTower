@@ -812,6 +812,13 @@ TEST_F(VaultManagerV2Test, ChangePasswordEnforcesMinLength) {
     EXPECT_EQ(result.error(), VaultError::WeakPassword);
 }
 
+TEST_F(VaultManagerV2Test, ChangePasswordRequiresOpenVault) {
+    auto result = vault_manager.change_user_password(
+        "admin", "oldpassword123", "newpassword12345");
+    EXPECT_FALSE(result);
+    EXPECT_EQ(result.error(), VaultError::VaultNotOpen);
+}
+
 TEST_F(VaultManagerV2Test, MustChangePasswordWorkflow) {
     // Create vault
     VaultSecurityPolicy policy;
@@ -1135,6 +1142,32 @@ TEST_F(VaultManagerV2Test, ValidateNewPasswordRejectsUnknownUser) {
     auto result = vault_manager.validate_new_password("missing-user", "long-enough-password");
     EXPECT_FALSE(result);
     EXPECT_EQ(result.error(), VaultError::UserNotFound);
+}
+
+TEST_F(VaultManagerV2Test, ValidateNewPasswordAcceptsStrongUnusedPassword) {
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 12;
+    policy.password_history_depth = 2;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpass123", policy));
+
+    auto result = vault_manager.validate_new_password("admin", "unused-password-987");
+    EXPECT_TRUE(result);
+}
+
+TEST_F(VaultManagerV2Test, ChangePasswordRejectsReusedPasswordWhenHistoryEnabled) {
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 12;
+    policy.password_history_depth = 3;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "password0001", policy));
+
+    ASSERT_TRUE(vault_manager.change_user_password("admin", "password0001", "password0002"));
+    ASSERT_TRUE(vault_manager.change_user_password("admin", "password0002", "password0003"));
+
+    auto reused = vault_manager.change_user_password("admin", "password0003", "password0001");
+    EXPECT_FALSE(reused);
+    EXPECT_EQ(reused.error(), VaultError::PasswordReused);
 }
 
 // Note: VaultSecurityPolicy doesn't have max_password_length - testing min length is sufficient

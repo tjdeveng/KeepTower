@@ -5,6 +5,7 @@
 
 #include "utils/ImportExport.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -163,4 +164,207 @@ TEST_F(ImportExport1PifTest, ImportFrom1Password_FileOver100MB_IsRejected) {
     auto imp = ImportExport::import_from_1password(big_path);
     ASSERT_FALSE(imp.has_value());
     EXPECT_EQ(imp.error(), ImportExport::ImportError::INVALID_FORMAT);
+}
+
+TEST_F(ImportExport1PifTest, ImportFrom1Password_FileNotFound_ReturnsNotFound) {
+    auto imp = ImportExport::import_from_1password((test_dir / "missing.1pif").string());
+    ASSERT_FALSE(imp.has_value());
+    EXPECT_EQ(imp.error(), ImportExport::ImportError::FILE_NOT_FOUND);
+}
+
+TEST_F(ImportExport1PifTest, ExportTo1Password1pif_DirectoryPathReturnsWriteError) {
+    std::vector<keeptower::AccountRecord> accounts;
+    keeptower::AccountRecord record;
+    record.set_account_name("Any");
+    accounts.push_back(record);
+
+    auto exp = ImportExport::export_to_1password_1pif(test_dir.string(), accounts);
+    ASSERT_FALSE(exp.has_value());
+    EXPECT_EQ(exp.error(), ImportExport::ExportError::FILE_WRITE_ERROR);
+}
+
+TEST_F(ImportExport1PifTest, ImportFrom1Password_ParsesUnicodeAndEscapedSequences) {
+    write_file(pif_path,
+               "{\"uuid\":\"u1\",\"title\":\"A \\u00DF \\u4F60\\u597D \\uD83D\\uDE00\","
+               "\"secureContents\":{\"fields\":["
+               "{\"value\":\"user\\tname\",\"designation\":\"username\"},"
+               "{\"value\":\"p\\\\\\/word\",\"designation\":\"password\"}]}}\n"
+               "***5642bee8-a5ff-11dc-8314-0800200c9a66***\n");
+
+    auto imp = ImportExport::import_from_1password(pif_path);
+    ASSERT_TRUE(imp.has_value());
+    ASSERT_EQ(imp->size(), 1u);
+
+    const std::string expected_title = std::string("A ") + "\xC3\x9F" + " " +
+                                       "\xE4\xBD\xA0\xE5\xA5\xBD" + " " + "\xF0\x9F\x98\x80";
+    EXPECT_EQ((*imp)[0].account_name(), expected_title);
+    EXPECT_EQ((*imp)[0].user_name(), "user\tname");
+    EXPECT_EQ((*imp)[0].password(), "p\\/word");
+}
+
+TEST_F(ImportExport1PifTest, ImportFrom1Password_ReplacesInvalidHighSurrogate) {
+    write_file(pif_path,
+               "{\"uuid\":\"u1\",\"title\":\"bad-\\uD83DX\","
+               "\"secureContents\":{\"fields\":[]}}\n"
+               "***5642bee8-a5ff-11dc-8314-0800200c9a66***\n");
+
+    auto imp = ImportExport::import_from_1password(pif_path);
+    ASSERT_TRUE(imp.has_value());
+    ASSERT_EQ(imp->size(), 1u);
+
+    const std::string expected = std::string("bad-") + "\xEF\xBF\xBD" + "X";
+    EXPECT_EQ((*imp)[0].account_name(), expected);
+}
+
+TEST_F(ImportExport1PifTest, ImportFrom1Password_InvalidUnicodeEscapeYieldsEmptyFile) {
+    write_file(pif_path,
+               "{\"uuid\":\"u1\",\"title\":\"bad-\\u12G4\","
+               "\"secureContents\":{\"fields\":[]}}\n"
+               "***5642bee8-a5ff-11dc-8314-0800200c9a66***\n");
+
+    auto imp = ImportExport::import_from_1password(pif_path);
+    ASSERT_FALSE(imp.has_value());
+    EXPECT_EQ(imp.error(), ImportExport::ImportError::EMPTY_FILE);
+}
+
+TEST_F(ImportExport1PifTest, ImportFrom1Password_UnknownEscapeIsKeptAsLiteralCharacter) {
+    write_file(pif_path,
+               "{\"uuid\":\"u1\",\"title\":\"name\\qvalue\","
+               "\"secureContents\":{\"fields\":[]}}\n"
+               "***5642bee8-a5ff-11dc-8314-0800200c9a66***\n");
+
+    auto imp = ImportExport::import_from_1password(pif_path);
+    ASSERT_TRUE(imp.has_value());
+    ASSERT_EQ(imp->size(), 1u);
+    EXPECT_EQ((*imp)[0].account_name(), "nameqvalue");
+}
+
+TEST_F(ImportExport1PifTest, ImportFrom1Password_HandlesSeparatorsWhitespaceAndMultipleRecords) {
+    write_file(pif_path,
+               "***5642bee8-a5ff-11dc-8314-0800200c9a66***\n"
+               "   \n"
+               "{\"uuid\":\"u1\",\"title\":\"One\",\"secureContents\":{\"fields\":[]}}\n"
+               "***5642bee8-a5ff-11dc-8314-0800200c9a66***\n"
+               "\n"
+               "{\"uuid\":\"u2\",\"title\":\"Two\",\"secureContents\":{\"fields\":[]}}\n"
+               "***5642bee8-a5ff-11dc-8314-0800200c9a66***\n");
+
+    auto imp = ImportExport::import_from_1password(pif_path);
+    ASSERT_TRUE(imp.has_value());
+    ASSERT_EQ(imp->size(), 2u);
+    EXPECT_EQ((*imp)[0].account_name(), "One");
+    EXPECT_EQ((*imp)[1].account_name(), "Two");
+}
+
+TEST_F(ImportExport1PifTest, ImportFrom1Password_NotesEmailOnlyAndPlainNotesBranches) {
+    write_file(pif_path,
+               "{\"uuid\":\"u1\",\"title\":\"EmailOnly\","
+               "\"secureContents\":{\"fields\":[],\"notesPlain\":\"Email: one@example.com\"}}\n"
+               "***5642bee8-a5ff-11dc-8314-0800200c9a66***\n"
+               "{\"uuid\":\"u2\",\"title\":\"PlainNotes\","
+               "\"secureContents\":{\"fields\":[],\"notesPlain\":\"just-notes\"}}\n"
+               "***5642bee8-a5ff-11dc-8314-0800200c9a66***\n");
+
+    auto imp = ImportExport::import_from_1password(pif_path);
+    ASSERT_TRUE(imp.has_value());
+    ASSERT_EQ(imp->size(), 2u);
+    EXPECT_EQ((*imp)[0].email(), "one@example.com");
+    EXPECT_TRUE((*imp)[0].notes().empty());
+    EXPECT_EQ((*imp)[1].notes(), "just-notes");
+}
+
+TEST_F(ImportExport1PifTest, ImportFrom1Password_NonLegacyUuidDoesNotUnescapeXmlEntities) {
+    write_file(pif_path,
+               "{\"uuid\":\"external-u1\",\"title\":\"A &amp; B\","
+               "\"secureContents\":{\"fields\":["
+               "{\"value\":\"u&amp;ser\",\"designation\":\"username\"}]}}\n"
+               "***5642bee8-a5ff-11dc-8314-0800200c9a66***\n");
+
+    auto imp = ImportExport::import_from_1password(pif_path);
+    ASSERT_TRUE(imp.has_value());
+    ASSERT_EQ(imp->size(), 1u);
+    EXPECT_EQ((*imp)[0].account_name(), "A &amp; B");
+    EXPECT_EQ((*imp)[0].user_name(), "u&amp;ser");
+}
+
+TEST_F(ImportExport1PifTest, ExportTo1Password1pif_EscapesControlCharactersAndOptionalFields) {
+    keeptower::AccountRecord r;
+    r.set_account_name("Ctrl");
+    r.set_user_name(std::string("u") + '\b' + '\f' + '\n' + '\r' + '\t' + static_cast<char>(0x01));
+    r.set_password("p");
+    r.set_notes("n");
+
+    std::vector<keeptower::AccountRecord> accounts;
+    accounts.push_back(r);
+
+    auto exp = ImportExport::export_to_1password_1pif(out_path, accounts);
+    ASSERT_TRUE(exp.has_value());
+
+    std::ifstream f(out_path, std::ios::binary);
+    ASSERT_TRUE(f.is_open());
+    std::string content((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+
+    EXPECT_NE(content.find("\\b"), std::string::npos);
+    EXPECT_NE(content.find("\\f"), std::string::npos);
+    EXPECT_NE(content.find("\\n"), std::string::npos);
+    EXPECT_NE(content.find("\\r"), std::string::npos);
+    EXPECT_NE(content.find("\\t"), std::string::npos);
+    EXPECT_NE(content.find("\\u0001"), std::string::npos);
+    EXPECT_EQ(content.find("\"URLs\""), std::string::npos);
+}
+
+TEST_F(ImportExport1PifTest, ExportTo1Password1pif_EscapesBackslashAndQuote) {
+    keeptower::AccountRecord r;
+    r.set_account_name("Q\\\"Name");
+    r.set_user_name("u");
+    r.set_password("p");
+
+    std::vector<keeptower::AccountRecord> accounts{r};
+    auto exp = ImportExport::export_to_1password_1pif(out_path, accounts);
+    ASSERT_TRUE(exp.has_value());
+
+    std::ifstream f(out_path, std::ios::binary);
+    ASSERT_TRUE(f.is_open());
+    std::string content((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+
+    EXPECT_NE(content.find("Q\\\\\\\"Name"), std::string::npos);
+}
+
+TEST_F(ImportExport1PifTest, ImportFrom1Password_DecodesQuoteBackspaceFormfeedAndCarriageReturnEscapes) {
+    write_file(pif_path,
+               "{\"uuid\":\"u1\",\"title\":\"a\\\"b\\b\\f\\r\","
+               "\"secureContents\":{\"fields\":[]}}\n"
+               "***5642bee8-a5ff-11dc-8314-0800200c9a66***\n");
+
+    auto imp = ImportExport::import_from_1password(pif_path);
+    ASSERT_TRUE(imp.has_value());
+    ASSERT_EQ(imp->size(), 1u);
+
+    const std::string expected = std::string("a\"b") + '\b' + '\f' + '\r';
+    EXPECT_EQ((*imp)[0].account_name(), expected);
+}
+
+TEST_F(ImportExport1PifTest, ImportFrom1Password_LastRecordWithoutSeparatorIsAccepted) {
+    write_file(pif_path,
+               "{\"uuid\":\"u1\",\"title\":\"NoFinalSeparator\","
+               "\"secureContents\":{\"fields\":[]}}\n");
+
+    auto imp = ImportExport::import_from_1password(pif_path);
+    ASSERT_TRUE(imp.has_value());
+    ASSERT_EQ(imp->size(), 1u);
+    EXPECT_EQ((*imp)[0].account_name(), "NoFinalSeparator");
+}
+
+TEST_F(ImportExport1PifTest, ImportFrom1Password_MalformedJsonStringValuesAreSkipped) {
+    write_file(pif_path,
+               "{\"uuid\":\"u1\",\"title\":\"bad\\\",\"secureContents\":{\"fields\":[]}}\n"
+               "***5642bee8-a5ff-11dc-8314-0800200c9a66***\n"
+               "{\"uuid\":\"u2\",\"title\":\"good\",\"secureContents\":{\"fields\":[]}}\n"
+               "***5642bee8-a5ff-11dc-8314-0800200c9a66***\n");
+
+    auto imp = ImportExport::import_from_1password(pif_path);
+    ASSERT_TRUE(imp.has_value());
+    EXPECT_TRUE(std::any_of(imp->begin(), imp->end(), [](const keeptower::AccountRecord& record) {
+        return record.account_name() == "good";
+    }));
 }
