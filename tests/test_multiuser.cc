@@ -655,6 +655,168 @@ bool test_key_slot_username_hashing_serialization() {
     return true;
 }
 
+bool test_vault_security_policy_migration_fields_round_trip() {
+    VaultSecurityPolicy policy;
+    policy.require_yubikey = false;
+    policy.min_password_length = 12;
+    policy.pbkdf2_iterations = 200000;
+    policy.password_history_depth = 4;
+    policy.username_hash_algorithm = 2;
+    policy.argon2_memory_kb = 65536;
+    policy.argon2_iterations = 3;
+    policy.argon2_parallelism = 4;
+    policy.username_hash_algorithm_previous = 1;
+    policy.migration_started_at = 1234567890123ULL;
+    policy.migration_flags = 0x01;
+
+    auto serialized = policy.serialize();
+    TEST_ASSERT(serialized.size() == VaultSecurityPolicy::SERIALIZED_SIZE,
+                "Migration policy serialized size mismatch");
+
+    auto deserialized_opt = VaultSecurityPolicy::deserialize(serialized);
+    TEST_ASSERT(deserialized_opt.has_value(), "Migration policy deserialization failed");
+
+    const auto& deserialized = deserialized_opt.value();
+    TEST_ASSERT(deserialized.username_hash_algorithm_previous == policy.username_hash_algorithm_previous,
+                "username_hash_algorithm_previous mismatch");
+    TEST_ASSERT(deserialized.migration_started_at == policy.migration_started_at,
+                "migration_started_at mismatch");
+    TEST_ASSERT(deserialized.migration_flags == policy.migration_flags,
+                "migration_flags mismatch");
+    return true;
+}
+
+bool test_vault_security_policy_rejects_invalid_argon2_parameters() {
+    VaultSecurityPolicy policy;
+    policy.require_yubikey = false;
+    policy.min_password_length = 12;
+    policy.pbkdf2_iterations = 100000;
+    policy.password_history_depth = 5;
+    policy.username_hash_algorithm = 1;
+
+    auto serialized = policy.serialize();
+    TEST_ASSERT(serialized.size() == VaultSecurityPolicy::SERIALIZED_SIZE,
+                "Serialized size mismatch");
+
+    // argon2_memory_kb at bytes 15-18
+    serialized[15] = 0x00;
+    serialized[16] = 0x00;
+    serialized[17] = 0x00;
+    serialized[18] = 0x01;
+    TEST_ASSERT(!VaultSecurityPolicy::deserialize(serialized).has_value(),
+                "Deserialization should reject invalid argon2_memory_kb");
+
+    return true;
+}
+
+bool test_vault_security_policy_clears_reserved_migration_bits() {
+    VaultSecurityPolicy policy;
+    policy.require_yubikey = false;
+    policy.min_password_length = 12;
+    policy.pbkdf2_iterations = 100000;
+    policy.password_history_depth = 5;
+    policy.username_hash_algorithm = 1;
+    policy.username_hash_algorithm_previous = 1;
+    policy.migration_started_at = 1111;
+    policy.migration_flags = 0xFF;
+
+    auto serialized = policy.serialize();
+    auto deserialized_opt = VaultSecurityPolicy::deserialize(serialized);
+    TEST_ASSERT(deserialized_opt.has_value(), "Deserialization failed");
+    TEST_ASSERT((deserialized_opt->migration_flags & 0xFC) == 0,
+                "Reserved migration bits should be cleared");
+
+    return true;
+}
+
+bool test_key_slot_serialize_rejects_oversized_variable_fields() {
+    KeySlot slot;
+    slot.active = true;
+    slot.username_hash_size = 0;
+    slot.role = UserRole::ADMINISTRATOR;
+
+    slot.yubikey_serial = std::string(256, 'S');
+    auto oversized_serial = slot.serialize();
+    TEST_ASSERT(oversized_serial.empty(), "Serialization should fail for oversized yubikey_serial");
+
+    slot.yubikey_serial = "ok";
+    slot.password_history.clear();
+    slot.password_history.resize(256);
+    auto oversized_history = slot.serialize();
+    TEST_ASSERT(oversized_history.empty(), "Serialization should fail for oversized password history");
+
+    return true;
+}
+
+bool test_vault_header_rejects_too_many_key_slots() {
+    VaultHeaderV2 header;
+    header.security_policy.min_password_length = 12;
+    header.security_policy.pbkdf2_iterations = 100000;
+    header.security_policy.username_hash_algorithm = 1;
+
+    KeySlot slot;
+    slot.active = true;
+    slot.username_hash_size = 0;
+    slot.role = UserRole::STANDARD_USER;
+
+    for (size_t i = 0; i < VaultHeaderV2::MAX_KEY_SLOTS + 1; ++i) {
+        header.key_slots.push_back(slot);
+    }
+
+    auto serialized = header.serialize();
+    TEST_ASSERT(serialized.empty(), "Header serialization should fail when key slot count exceeds MAX_KEY_SLOTS");
+    return true;
+}
+
+bool test_key_slot_deserialize_rejects_invalid_role_and_hash_size() {
+    KeySlot slot;
+    slot.active = true;
+    slot.username_hash_size = 0;
+    slot.role = UserRole::ADMINISTRATOR;
+
+    auto serialized = slot.serialize();
+    TEST_ASSERT(!serialized.empty(), "Serialization failed");
+
+    // Current format includes kek_derivation_algorithm at byte 1
+    // role byte is after: 1(active)+1(kek_algo)+64(hash)+1(hash_size)+16(hash_salt)+32(salt)+40(wrapped)=155
+    const size_t role_offset = 155;
+    TEST_ASSERT(serialized.size() > role_offset, "Serialized buffer too small");
+
+    auto invalid_role = serialized;
+    invalid_role[role_offset] = 0xFE;
+    TEST_ASSERT(!KeySlot::deserialize(invalid_role, 0).has_value(),
+                "Deserialization should reject invalid role");
+
+    auto invalid_hash_size = serialized;
+    invalid_hash_size[66] = 65; // username_hash_size byte
+    TEST_ASSERT(!KeySlot::deserialize(invalid_hash_size, 0).has_value(),
+                "Deserialization should reject username_hash_size > 64");
+
+    return true;
+}
+
+bool test_key_slot_deserialize_rejects_truncated_password_history_payload() {
+    KeySlot slot;
+    slot.active = true;
+    slot.username_hash_size = 0;
+    slot.role = UserRole::ADMINISTRATOR;
+    slot.password_history.resize(1);
+
+    auto serialized = slot.serialize();
+    TEST_ASSERT(!serialized.empty(), "Serialization failed");
+    TEST_ASSERT(serialized.size() > PasswordHistoryEntry::SERIALIZED_SIZE,
+                "Serialized size unexpectedly small");
+
+    std::vector<uint8_t> truncated(
+        serialized.begin(),
+        serialized.end() - static_cast<std::ptrdiff_t>(PasswordHistoryEntry::SERIALIZED_SIZE / 2));
+
+    TEST_ASSERT(!KeySlot::deserialize(truncated, 0).has_value(),
+                "Deserialization should fail with truncated password history payload");
+
+    return true;
+}
+
 // Legacy format test removed - backward compatibility with pre-Phase 2 vaults
 // no longer supported. All vaults now use username hashing for security.
 
@@ -683,6 +845,13 @@ int main() {
     RUN_TEST(test_vault_security_policy_username_hash_algorithm_serialization);
     RUN_TEST(test_vault_security_policy_backward_compatibility);
     RUN_TEST(test_key_slot_username_hashing_serialization);
+    RUN_TEST(test_vault_security_policy_migration_fields_round_trip);
+    RUN_TEST(test_vault_security_policy_rejects_invalid_argon2_parameters);
+    RUN_TEST(test_vault_security_policy_clears_reserved_migration_bits);
+    RUN_TEST(test_key_slot_serialize_rejects_oversized_variable_fields);
+    RUN_TEST(test_vault_header_rejects_too_many_key_slots);
+    RUN_TEST(test_key_slot_deserialize_rejects_invalid_role_and_hash_size);
+    RUN_TEST(test_key_slot_deserialize_rejects_truncated_password_history_payload);
 
     std::cout << "========================================" << std::endl;
     std::cout << "Results: " << tests_passed << " passed, " << tests_failed << " failed" << std::endl;

@@ -162,6 +162,34 @@ TEST_F(VaultCreationOrchestratorIntegrationTest, CreateVault_EmptyUsername) {
     EXPECT_FALSE(result.has_value());
 }
 
+TEST_F(VaultCreationOrchestratorIntegrationTest, CreateVault_UsernameTooLong) {
+    params.admin_username = std::string(65, 'u');
+
+    auto result = orchestrator->create_vault_v2_sync(params);
+
+    EXPECT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), VaultError::InvalidUsername);
+}
+
+TEST_F(VaultCreationOrchestratorIntegrationTest, CreateVault_Pbkdf2TooLowRejected) {
+    params.policy.pbkdf2_iterations = 99999;
+
+    auto result = orchestrator->create_vault_v2_sync(params);
+
+    EXPECT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), VaultError::InvalidData);
+}
+
+TEST_F(VaultCreationOrchestratorIntegrationTest, CreateVault_YubiKeyInvalidPinFormatRejectedBeforeHardware) {
+    params.policy.require_yubikey = true;
+    params.yubikey_pin = "12";
+
+    auto result = orchestrator->create_vault_v2_sync(params);
+
+    EXPECT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), VaultError::YubiKeyError);
+}
+
 TEST_F(VaultCreationOrchestratorIntegrationTest, CreateVault_WeakPassword) {
     params.admin_password = "weak";
 

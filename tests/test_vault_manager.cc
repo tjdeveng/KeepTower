@@ -731,3 +731,15 @@ TEST_F(VaultManagerTest, CheckVaultRequiresYubiKeyReturnsFalseForMissingFile) {
         (test_dir / "missing.vault").string(), serial));
 }
 
+TEST_F(VaultManagerTest, VerifyCredentialsFailsWhenVaultClosed) {
+    EXPECT_FALSE(vault_manager->verify_credentials(test_password));
+}
+
+TEST_F(VaultManagerTest, VerifyCredentialsV2PasswordPathAcceptsCorrectAndRejectsWrongPassword) {
+    const auto policy = make_test_policy();
+    ASSERT_TRUE(vault_manager->create_vault_v2(test_vault_path, test_username, test_password, policy));
+
+    EXPECT_TRUE(vault_manager->verify_credentials(test_password));
+    EXPECT_FALSE(vault_manager->verify_credentials("WrongPassword123!"));
+}
+
