@@ -56,7 +56,8 @@ VaultYubiKeyService::perform_authenticated_challenge(
     YubiKeyAlgorithm algorithm,
     bool require_touch,
     int timeout_ms,
-    bool enforce_fips) {
+    bool enforce_fips,
+    SerialMismatchPolicy serial_mismatch_policy) {
 
     if (challenge.empty() || challenge.size() > 64) {
         Log::error("VaultYubiKeyService: Invalid challenge size (must be 1-64 bytes)");
@@ -86,84 +87,15 @@ VaultYubiKeyService::perform_authenticated_challenge(
     }
 
     if (!expected_serial.empty() && device_info_opt->serial_number != expected_serial) {
-        Log::error("VaultYubiKeyService: Connected YubiKey serial '{}' does not match expected '{}'",
-                   device_info_opt->serial_number, expected_serial);
-        return std::unexpected(VaultError::YubiKeyError);
-    }
-
-    if (!yk_manager.set_credential(credential_id)) {
-        Log::error("VaultYubiKeyService: Failed to load FIDO2 credential ID");
-        return std::unexpected(VaultError::YubiKeyError);
-    }
-
-    auto result = yk_manager.challenge_response(
-        std::span<const uint8_t>(challenge.data(), challenge.size()),
-        algorithm,
-        require_touch,
-        timeout_ms,
-        pin);
-
-    if (!result.success) {
-        Log::error("VaultYubiKeyService: Challenge-response failed: {}", result.error_message);
-        return std::unexpected(VaultError::YubiKeyError);
-    }
-
-    ChallengeResult challenge_result;
-    challenge_result.response.assign(
-        result.response.begin(),
-        result.response.begin() + result.response_size);
-    challenge_result.device_info.serial = device_info_opt->serial_number;
-    challenge_result.device_info.manufacturer = "Yubico";
-    challenge_result.device_info.product = "YubiKey";
-    challenge_result.device_info.slot = 1;
-    challenge_result.device_info.is_fips = device_info_opt->is_fips_capable;
-    return challenge_result;
-}
-
-VaultResult<VaultYubiKeyService::ChallengeResult>
-VaultYubiKeyService::perform_v2_authenticated_challenge(
-    const std::vector<uint8_t>& challenge,
-    const std::vector<uint8_t>& credential_id,
-    const std::string& pin,
-    const std::string& expected_serial,
-    YubiKeyAlgorithm algorithm,
-    bool require_touch,
-    int timeout_ms,
-    bool enforce_fips) {
-
-    if (challenge.empty() || challenge.size() > 64) {
-        Log::error("VaultYubiKeyService: Invalid challenge size (must be 1-64 bytes)");
-        return std::unexpected(VaultError::YubiKeyError);
-    }
-
-    if (credential_id.empty()) {
-        Log::error("VaultYubiKeyService: Missing FIDO2 credential ID");
-        return std::unexpected(VaultError::YubiKeyError);
-    }
-
-    if (!pin.empty() && !validate_pin_format(pin)) {
-        Log::error("VaultYubiKeyService: Invalid PIN format");
-        return std::unexpected(VaultError::YubiKeyError);
-    }
-
-    YubiKeyManager yk_manager;
-    if (!yk_manager.initialize(enforce_fips) || !yk_manager.is_yubikey_present()) {
-        Log::error("VaultYubiKeyService: YubiKey not present or failed to initialize");
-        return std::unexpected(VaultError::YubiKeyError);
-    }
-
-    auto device_info_opt = yk_manager.get_device_info();
-    if (!device_info_opt) {
-        Log::error("VaultYubiKeyService: Failed to get device info");
-        return std::unexpected(VaultError::YubiKeyError);
-    }
-
-    // V2 vaults: Serial mismatch is a warning, not an error
-    // This allows using a different YubiKey if the original one is lost/replaced
-    if (!expected_serial.empty() && device_info_opt->serial_number != expected_serial) {
-        Log::warning("VaultYubiKeyService: YubiKey serial mismatch - expected: '{}', got: '{}'",
-                     expected_serial, device_info_opt->serial_number);
-        Log::info("VaultYubiKeyService: Proceeding with challenge (serial verification is informational only)");
+        if (serial_mismatch_policy == SerialMismatchPolicy::WarnOnly) {
+            Log::warning("VaultYubiKeyService: YubiKey serial mismatch - expected: '{}', got: '{}'",
+                         expected_serial, device_info_opt->serial_number);
+            Log::info("VaultYubiKeyService: Proceeding with challenge (serial verification is informational only)");
+        } else {
+            Log::error("VaultYubiKeyService: Connected YubiKey serial '{}' does not match expected '{}'",
+                       device_info_opt->serial_number, expected_serial);
+            return std::unexpected(VaultError::YubiKeyError);
+        }
     }
 
     if (!yk_manager.set_credential(credential_id)) {

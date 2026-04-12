@@ -340,7 +340,7 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
             user_slot->yubikey_challenge.begin(),
             user_slot->yubikey_challenge.end());
 
-        auto challenge_result = m_yubikey_service->perform_v2_authenticated_challenge(
+        auto challenge_result = m_yubikey_service->perform_authenticated_challenge(
             challenge_vec,
             user_slot->yubikey_credential_id,
             decrypted_pin,
@@ -348,7 +348,8 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
             yk_algorithm,
             true,  // require_touch
             15000, // 15 second timeout
-            is_fips_enabled());
+            is_fips_enabled(),
+            KeepTower::IVaultYubiKeyService::SerialMismatchPolicy::WarnOnly);
 
         if (!challenge_result) {
             return std::unexpected(challenge_result.error());
