@@ -24,6 +24,7 @@
 
 #pragma once
 
+#include "IVaultYubiKeyService.h"
 #include "../VaultError.h"
 #include <array>
 #include <vector>
@@ -47,22 +48,13 @@ namespace KeepTower {
  *                Caller must serialize access to YubiKey hardware.
  * FIPS-compliance: Uses FIPS-approved HMAC-SHA256 via FIDO2 hmac-secret
  */
-class VaultYubiKeyService {
+class VaultYubiKeyService : public IVaultYubiKeyService {
 public:
     // ========================================================================
     // Result Types
     // ========================================================================
 
-    /**
-     * @brief YubiKey device information
-     */
-    struct DeviceInfo {
-        std::string serial;           ///< Device serial number
-        std::string manufacturer;     ///< Manufacturer name
-        std::string product;          ///< Product name
-        uint8_t slot = 0;             ///< HMAC slot (1 or 2)
-        bool is_fips = false;         ///< True if FIPS-capable device
-    };
+    using DeviceInfo = IVaultYubiKeyService::DeviceInfo;
 
     /**
      * @brief Result of two-step enrollment
@@ -77,10 +69,7 @@ public:
     /**
      * @brief Result of challenge-response operation
      */
-    struct ChallengeResult {
-        std::vector<uint8_t> response;  ///< HMAC-SHA256 response (32 bytes for FIDO2 hmac-secret)
-        DeviceInfo device_info;         ///< Device used
-    };
+    using ChallengeResult = IVaultYubiKeyService::ChallengeResult;
 
     // ========================================================================
     // Public Interface
@@ -90,6 +79,17 @@ public:
      * @brief Constructor (default)
      */
     VaultYubiKeyService() = default;
+    ~VaultYubiKeyService() override = default;
+
+    [[nodiscard]] VaultResult<ChallengeResult> perform_authenticated_challenge(
+        const std::vector<uint8_t>& challenge,
+        const std::vector<uint8_t>& credential_id,
+        const std::string& pin,
+        const std::string& expected_serial,
+        YubiKeyAlgorithm algorithm,
+        bool require_touch,
+        int timeout_ms,
+        bool enforce_fips = false) override;
 
     /**
      * @brief Detect available YubiKey devices

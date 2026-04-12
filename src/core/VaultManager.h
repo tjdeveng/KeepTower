@@ -54,6 +54,7 @@ class VaultData;
 namespace KeepTower {
 class AccountManager;
 class GroupManager;
+class IVaultYubiKeyService;
 class VaultBackupPolicy;
 class VaultCryptoService;
 class VaultYubiKeyService;
@@ -222,6 +223,7 @@ public:
     /** @} */ // end of Vault File Format Constants
 
     VaultManager();
+    explicit VaultManager(std::shared_ptr<KeepTower::IVaultYubiKeyService> yubikey_service);
     ~VaultManager() noexcept;
 
     // Vault operations
@@ -1810,6 +1812,8 @@ public:
     }
 
 private:
+    friend class VaultManagerTest_VerifyCredentialsV2YubiKeyPathUsesInjectedService_Test;
+
     [[nodiscard]] KeepTower::VaultResult<KeepTower::VaultHeaderV2*> require_open_v2_header(
         const char* operation);
     [[nodiscard]] KeepTower::VaultResult<const KeepTower::VaultHeaderV2*> require_open_v2_header(
@@ -1870,7 +1874,7 @@ private:
 
     // Phase 2 Day 5: Service instances for orchestrator (lazy initialization)
     std::shared_ptr<KeepTower::VaultCryptoService> m_crypto_service;
-    std::shared_ptr<KeepTower::VaultYubiKeyService> m_yubikey_service;
+    std::shared_ptr<KeepTower::IVaultYubiKeyService> m_yubikey_service;
     std::shared_ptr<KeepTower::VaultFileService> m_file_service;
 
     /**

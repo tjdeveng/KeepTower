@@ -8,11 +8,52 @@
 #include <filesystem>
 #include <fstream>
 
+#include "lib/crypto/KeyWrapping.h"
 #include "lib/storage/VaultIO.h"
+#include "../src/core/services/IVaultYubiKeyService.h"
 
 namespace fs = std::filesystem;
 
 namespace {
+class FakeVaultYubiKeyService final : public KeepTower::IVaultYubiKeyService {
+public:
+    KeepTower::VaultResult<ChallengeResult> perform_authenticated_challenge(
+        const std::vector<uint8_t>& challenge,
+        const std::vector<uint8_t>& credential_id,
+        const std::string& pin,
+        const std::string& expected_serial,
+        ::YubiKeyAlgorithm algorithm,
+        bool require_touch,
+        int timeout_ms,
+        bool enforce_fips = false) override {
+        authenticated_called = true;
+        last_challenge = challenge;
+        last_credential_id = credential_id;
+        last_pin = pin;
+        last_expected_serial = expected_serial;
+        last_algorithm = algorithm;
+        last_require_touch = require_touch;
+        last_timeout_ms = timeout_ms;
+        last_enforce_fips = enforce_fips;
+        if (next_authenticated_result.has_value()) {
+            return next_authenticated_result.value();
+        }
+        return std::unexpected(next_authenticated_error);
+    }
+
+    bool authenticated_called = false;
+    std::vector<uint8_t> last_challenge;
+    std::vector<uint8_t> last_credential_id;
+    std::string last_pin;
+    std::string last_expected_serial;
+    ::YubiKeyAlgorithm last_algorithm = ::YubiKeyAlgorithm::HMAC_SHA256;
+    bool last_require_touch = false;
+    int last_timeout_ms = 0;
+    bool last_enforce_fips = false;
+    std::optional<ChallengeResult> next_authenticated_result;
+    KeepTower::VaultError next_authenticated_error = KeepTower::VaultError::YubiKeyError;
+};
+
 void disable_backups_for_test(VaultManager& manager) {
     VaultManager::BackupSettings settings = manager.get_backup_settings();
     settings.enabled = false;
@@ -741,5 +782,54 @@ TEST_F(VaultManagerTest, VerifyCredentialsV2PasswordPathAcceptsCorrectAndRejects
 
     EXPECT_TRUE(vault_manager->verify_credentials(test_password));
     EXPECT_FALSE(vault_manager->verify_credentials("WrongPassword123!"));
+}
+
+TEST_F(VaultManagerTest, VerifyCredentialsV2YubiKeyPathUsesInjectedService) {
+    auto fake_service = std::make_shared<FakeVaultYubiKeyService>();
+    VaultManager injected_manager(fake_service);
+
+    KeepTower::VaultHeaderV2 header;
+    header.security_policy.pbkdf2_iterations = 100000;
+
+    KeepTower::KeySlot slot;
+    slot.active = true;
+    slot.username = test_username;
+    slot.yubikey_serial = "YK-123456";
+    slot.yubikey_credential_id = {0x10, 0x20, 0x30, 0x40};
+    slot.yubikey_challenge.fill(0x5A);
+    slot.salt.fill(0x11);
+
+    const auto password_kek = KeepTower::KeyWrapping::derive_kek_from_password(
+        test_password,
+        slot.salt,
+        header.security_policy.pbkdf2_iterations);
+    ASSERT_TRUE(password_kek.has_value());
+
+    KeepTower::IVaultYubiKeyService::ChallengeResult fake_result;
+    fake_result.response.assign(32, 0x22);
+    fake_result.device_info.serial = slot.yubikey_serial;
+    fake_service->next_authenticated_result = fake_result;
+
+    const auto final_kek = KeepTower::KeyWrapping::combine_with_yubikey_v2(password_kek.value(), fake_result.response);
+
+    std::array<uint8_t, 32> dek{};
+    dek.fill(0x33);
+    const auto wrapped_dek = KeepTower::KeyWrapping::wrap_key(final_kek, dek);
+    ASSERT_TRUE(wrapped_dek.has_value());
+    slot.wrapped_dek = wrapped_dek->wrapped_key;
+
+    header.key_slots.push_back(slot);
+
+    injected_manager.m_vault_open = true;
+    injected_manager.m_is_v2_vault = true;
+    injected_manager.m_v2_header = header;
+    injected_manager.m_current_session = KeepTower::UserSession{std::string(test_username), KeepTower::UserRole::ADMINISTRATOR, false, false, 0};
+
+    EXPECT_TRUE(injected_manager.verify_credentials(test_password, slot.yubikey_serial));
+    EXPECT_TRUE(fake_service->authenticated_called);
+    EXPECT_EQ(fake_service->last_expected_serial, slot.yubikey_serial);
+    EXPECT_EQ(fake_service->last_credential_id, slot.yubikey_credential_id);
+    EXPECT_EQ(fake_service->last_challenge.size(), slot.yubikey_challenge.size());
+    EXPECT_EQ(fake_service->last_timeout_ms, VaultManager::YUBIKEY_TIMEOUT_MS);
 }
 

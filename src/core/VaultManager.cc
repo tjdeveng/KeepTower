@@ -79,6 +79,9 @@ EVPCipherContext::~EVPCipherContext() {
 
 // VaultManager implementation
 VaultManager::VaultManager()
+    : VaultManager(std::make_shared<KeepTower::VaultYubiKeyService>()) {}
+
+VaultManager::VaultManager(std::shared_ptr<KeepTower::IVaultYubiKeyService> yubikey_service)
     : m_vault_open(false),
       m_modified(false),
       m_is_v2_vault(false),
@@ -88,6 +91,7 @@ VaultManager::VaultManager()
       m_fec_loaded_from_file(false),
       m_memory_locked(false),
       m_yubikey_required(false),
+          m_yubikey_service(std::move(yubikey_service)),
       m_pbkdf2_iterations(DEFAULT_PBKDF2_ITERATIONS) {
                 m_vault_data = std::make_unique<keeptower::VaultData>();
         m_backup_policy = std::make_unique<KeepTower::VaultBackupPolicy>(
@@ -1109,50 +1113,13 @@ bool VaultManager::verify_credentials(const Glib::ustring& password, const std::
             }
 
 #ifdef HAVE_YUBIKEY_SUPPORT
-            // Perform YubiKey challenge-response
-            YubiKeyManager yk_manager;
-            if (!yk_manager.initialize() || !yk_manager.is_yubikey_present()) {
-                KeepTower::Log::error("VaultManager: YubiKey not present");
-                return false;
-            }
-
-            // Get device info to verify serial matches
-            auto device_info = yk_manager.get_device_info();
-            if (!device_info) {
-                KeepTower::Log::error("VaultManager: Failed to get YubiKey device info");
-                return false;
-            }
-
-            KeepTower::Log::debug("VaultManager: verify_credentials - YubiKey serial from device: '{}', expected from slot: '{}'",
-                                 device_info->serial_number, user_slot->yubikey_serial);
-
-            if (device_info->serial_number != serial) {
-                KeepTower::Log::error("VaultManager: Serial mismatch - provided '{}' != device '{}'",
-                                     serial, device_info->serial_number);
-                return false;  // Provided serial doesn't match connected device
-            }
-
-            if (device_info->serial_number != user_slot->yubikey_serial) {
-                KeepTower::Log::error("VaultManager: Wrong YubiKey - device '{}' != enrolled '{}'",
-                                     device_info->serial_number, user_slot->yubikey_serial);
-                return false;  // Wrong YubiKey connected (not the one enrolled)
-            }
-
             // Validate challenge is not empty (size check removed - YubiKey library handles various sizes)
             if (user_slot->yubikey_challenge.empty()) {
                 KeepTower::Log::error("VaultManager: YubiKey challenge is empty");
                 return false;
             }
 
-            // Load FIDO2 credential ID (required for challenge-response)
-            if (!user_slot->yubikey_credential_id.empty()) {
-                if (!yk_manager.set_credential(user_slot->yubikey_credential_id)) {
-                    KeepTower::Log::error("VaultManager: verify_credentials - Failed to set FIDO2 credential ID");
-                    return false;
-                }
-                KeepTower::Log::debug("VaultManager: verify_credentials - Loaded FIDO2 credential ID ({} bytes)",
-                                     user_slot->yubikey_credential_id.size());
-            } else {
+            if (user_slot->yubikey_credential_id.empty()) {
                 KeepTower::Log::error("VaultManager: verify_credentials - No FIDO2 credential ID stored for user");
                 return false;
             }
@@ -1197,18 +1164,27 @@ bool VaultManager::verify_credentials(const Glib::ustring& password, const std::
                 KeepTower::Log::debug("VaultManager: verify_credentials - Successfully decrypted YubiKey PIN");
             }
 
-            // Perform challenge-response
-            KeepTower::Log::debug("VaultManager: Starting YubiKey challenge-response (timeout: {}ms)", YUBIKEY_TIMEOUT_MS);
-            auto cr_result = yk_manager.challenge_response(
-                user_slot->yubikey_challenge,
-                YubiKeyAlgorithm::HMAC_SHA256,  // FIPS-140-3: SHA-256 minimum
-                true,  // require touch for re-authentication
-                YUBIKEY_TIMEOUT_MS,
-                decrypted_pin  // Use decrypted PIN for FIDO2 authentication
-            );
-            if (!cr_result.success) {
-                KeepTower::Log::error("YubiKey challenge-response failed in verify_credentials: {}",
-                                     cr_result.error_message);
+            if (!m_yubikey_service) {
+                KeepTower::Log::error("VaultManager: YubiKey service not initialized");
+                return false;
+            }
+
+            const std::vector<uint8_t> challenge_bytes(
+                user_slot->yubikey_challenge.begin(),
+                user_slot->yubikey_challenge.end());
+
+            KeepTower::Log::debug("VaultManager: Starting YubiKey challenge-response through service (timeout: {}ms)",
+                                 YUBIKEY_TIMEOUT_MS);
+            auto challenge_result = m_yubikey_service->perform_authenticated_challenge(
+                challenge_bytes,
+                user_slot->yubikey_credential_id,
+                decrypted_pin,
+                user_slot->yubikey_serial,
+                YubiKeyAlgorithm::HMAC_SHA256,
+                true,
+                YUBIKEY_TIMEOUT_MS);
+            if (!challenge_result) {
+                KeepTower::Log::error("VaultManager: YubiKey challenge-response failed in verify_credentials");
                 return false;
             }
 
@@ -1225,8 +1201,8 @@ bool VaultManager::verify_credentials(const Glib::ustring& password, const std::
 
             // XOR KEK with YubiKey response to get final KEK
             std::array<uint8_t, 32> final_kek = kek_result.value();
-            for (size_t i = 0; i < final_kek.size() && i < cr_result.response.size(); i++) {
-                final_kek[i] ^= cr_result.response[i];
+            for (size_t i = 0; i < final_kek.size() && i < challenge_result->response.size(); i++) {
+                final_kek[i] ^= challenge_result->response[i];
             }
 
             // Try to unwrap DEK - if successful, credentials are correct
@@ -1259,112 +1235,10 @@ bool VaultManager::verify_credentials(const Glib::ustring& password, const std::
         }
     }
 
-    // V1 vault authentication below
-    // If vault requires YubiKey, verify both password and YubiKey
-    if (m_yubikey_required) {
-        if (serial.empty()) {
-            return false;  // YubiKey serial required
-        }
-
-        // Check if the YubiKey serial is authorized
-        if (!is_yubikey_authorized(serial)) {
-            return false;
-        }
-
-        // Derive the key using password + YubiKey response
-        YubiKeyManager yk_manager;
-        if (!yk_manager.initialize() || !yk_manager.is_yubikey_present()) {
-            return false;
-        }
-
-        // Get device info to verify serial matches
-        auto device_info = yk_manager.get_device_info();
-        if (!device_info || device_info->serial_number != serial) {
-            return false;  // Wrong YubiKey connected or failed to get info
-        }
-
-        // Ensure challenge is correct size (64 bytes required by YubiKey)
-        if (m_yubikey_challenge.size() != YUBIKEY_CHALLENGE_SIZE) {
-            KeepTower::Log::error("Invalid YubiKey challenge size: {} (expected {})",
-                                 m_yubikey_challenge.size(), YUBIKEY_CHALLENGE_SIZE);
-            return false;
-        }
-
-        // Perform challenge-response
-        auto cr_result = yk_manager.challenge_response(
-            m_yubikey_challenge,
-            YubiKeyAlgorithm::HMAC_SHA256,  // FIPS-140-3: SHA-256 minimum (V1 SHA-1 vaults not supported)
-            true,
-            YUBIKEY_TIMEOUT_MS
-        );
-        if (!cr_result.success) {
-            KeepTower::Log::error("YubiKey challenge-response failed in verify_credentials: {}",
-                                 cr_result.error_message);
-            return false;
-        }
-
-        // Derive password-based key first
-        std::vector<uint8_t> password_key(KEY_LENGTH);
-        if (!KeepTower::VaultCrypto::derive_key(password, m_salt, password_key, m_pbkdf2_iterations)) {
-            return false;
-        }
-
-        // XOR with YubiKey response to get final key
-        std::vector<uint8_t> test_key = password_key;
-        for (size_t i = 0; i < test_key.size() && i < cr_result.response.size(); i++) {
-            test_key[i] ^= cr_result.response[i];
-        }
-
-        // Constant-time comparison to prevent timing attacks
-        bool match = (test_key.size() == m_encryption_key.size());
-        if (match) {
-            // Manual constant-time compare
-            volatile uint8_t diff = 0;
-            for (size_t i = 0; i < test_key.size(); i++) {
-                diff |= test_key[i] ^ m_encryption_key[i];
-            }
-            match = (diff == 0);
-        }
-
-        // Securely clear sensitive data
-        // Note: These were never locked, so just clear without unlock
-        if (!test_key.empty()) {
-            OPENSSL_cleanse(test_key.data(), test_key.size());
-            test_key.clear();
-            test_key.shrink_to_fit();
-        }
-        if (!password_key.empty()) {
-            OPENSSL_cleanse(password_key.data(), password_key.size());
-            password_key.clear();
-            password_key.shrink_to_fit();
-        }
-        return match;
-    }
-
-    // No YubiKey required - just verify password
-    std::vector<uint8_t> test_key(KEY_LENGTH);
-    if (!KeepTower::VaultCrypto::derive_key(password, m_salt, test_key, m_pbkdf2_iterations)) {
-        return false;
-    }
-
-    // Constant-time comparison to prevent timing attacks
-    bool match = (test_key.size() == m_encryption_key.size());
-    if (match) {
-        // Manual constant-time compare
-        volatile uint8_t diff = 0;
-        for (size_t i = 0; i < test_key.size(); i++) {
-            diff |= test_key[i] ^ m_encryption_key[i];
-        }
-        match = (diff == 0);
-    }
-
-    // Securely clear test key (not locked, so don't call unlock)
-    if (!test_key.empty()) {
-        OPENSSL_cleanse(test_key.data(), test_key.size());
-        test_key.clear();
-        test_key.shrink_to_fit();
-    }
-    return match;
+    KeepTower::Log::warning("VaultManager: verify_credentials called for non-V2 vault state; unsupported path");
+    (void)password;
+    (void)serial;
+    return false;
 }
 
 // ============================================================================

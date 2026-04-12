@@ -69,10 +69,17 @@ std::unique_ptr<KeepTower::VaultCreationOrchestrator> VaultManager::create_orche
         Log::debug("VaultManager: Initialized VaultFileService");
     }
 
+    auto concrete_yubikey_service = std::dynamic_pointer_cast<KeepTower::VaultYubiKeyService>(m_yubikey_service);
+    if (!concrete_yubikey_service) {
+        concrete_yubikey_service = std::make_shared<KeepTower::VaultYubiKeyService>();
+        m_yubikey_service = concrete_yubikey_service;
+        Log::debug("VaultManager: Replaced injected YubiKey service with concrete VaultYubiKeyService for orchestrator");
+    }
+
     // Create orchestrator with injected services
     return std::make_unique<KeepTower::VaultCreationOrchestrator>(
         m_crypto_service,
-        m_yubikey_service,
+        concrete_yubikey_service,
         m_file_service
     );
 }

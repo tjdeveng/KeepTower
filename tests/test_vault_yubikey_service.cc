@@ -267,6 +267,48 @@ TEST_F(VaultYubiKeyServiceTest, ChallengeResult_StructureIntegrity) {
     EXPECT_EQ(result.device_info.serial, "55555555");
 }
 
+TEST_F(VaultYubiKeyServiceTest, PerformAuthenticatedChallengeRejectsEmptyChallenge) {
+    auto result = service.perform_authenticated_challenge(
+        {},
+        {0x01, 0x02},
+        "1234",
+        "12345678",
+        YubiKeyAlgorithm::HMAC_SHA256,
+        true,
+        15000);
+
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), VaultError::YubiKeyError);
+}
+
+TEST_F(VaultYubiKeyServiceTest, PerformAuthenticatedChallengeRejectsMissingCredentialId) {
+    auto result = service.perform_authenticated_challenge(
+        {0x10, 0x20, 0x30, 0x40},
+        {},
+        "1234",
+        "12345678",
+        YubiKeyAlgorithm::HMAC_SHA256,
+        true,
+        15000);
+
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), VaultError::YubiKeyError);
+}
+
+TEST_F(VaultYubiKeyServiceTest, PerformAuthenticatedChallengeRejectsInvalidNonEmptyPin) {
+    auto result = service.perform_authenticated_challenge(
+        {0x10, 0x20, 0x30, 0x40},
+        {0xAA, 0xBB, 0xCC},
+        "123",
+        "12345678",
+        YubiKeyAlgorithm::HMAC_SHA256,
+        true,
+        15000);
+
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), VaultError::YubiKeyError);
+}
+
 // ============================================================================
 // Input Validation Tests (Edge Cases)
 // ============================================================================
