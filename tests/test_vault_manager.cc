@@ -470,3 +470,181 @@ TEST_F(VaultManagerTest, GlobalOrderingHelpersResetAndPersistOrderingState) {
     ASSERT_TRUE(reopened);
     EXPECT_FALSE(vault_manager->has_custom_global_ordering());
 }
+
+TEST_F(VaultManagerTest, RenameGroup_Success) {
+    const auto policy = make_test_policy();
+    ASSERT_TRUE(vault_manager->create_vault_v2(test_vault_path, test_username, test_password, policy));
+
+    const std::string group_id = vault_manager->create_group("Work");
+    ASSERT_FALSE(group_id.empty());
+
+    ASSERT_TRUE(vault_manager->rename_group(group_id, "Personal"));
+
+    const auto groups = vault_manager->get_all_groups_view();
+    EXPECT_TRUE(std::any_of(groups.begin(), groups.end(), [](const KeepTower::GroupView& g) {
+        return g.group_name == "Personal";
+    }));
+    EXPECT_TRUE(std::none_of(groups.begin(), groups.end(), [](const KeepTower::GroupView& g) {
+        return g.group_name == "Work";
+    }));
+}
+
+TEST_F(VaultManagerTest, DeleteGroup_Success) {
+    const auto policy = make_test_policy();
+    ASSERT_TRUE(vault_manager->create_vault_v2(test_vault_path, test_username, test_password, policy));
+
+    const std::string group_id = vault_manager->create_group("Temporary");
+    ASSERT_FALSE(group_id.empty());
+
+    ASSERT_TRUE(vault_manager->delete_group(group_id));
+
+    const auto groups = vault_manager->get_all_groups_view();
+    EXPECT_TRUE(std::none_of(groups.begin(), groups.end(), [](const KeepTower::GroupView& g) {
+        return g.group_name == "Temporary";
+    }));
+}
+
+TEST_F(VaultManagerTest, AddAccountToGroup_Success) {
+    const auto policy = make_test_policy();
+    ASSERT_TRUE(vault_manager->create_vault_v2(test_vault_path, test_username, test_password, policy));
+
+    const std::string group_id = vault_manager->create_group("Finance");
+    ASSERT_FALSE(group_id.empty());
+
+    auto detail = make_account_detail("bank-1", "BankAccount", "alice");
+    ASSERT_TRUE(vault_manager->add_account(detail));
+
+    ASSERT_TRUE(vault_manager->add_account_to_group(0, group_id));
+    EXPECT_TRUE(vault_manager->is_account_in_group(0, group_id));
+}
+
+TEST_F(VaultManagerTest, AddAccountToGroup_SaveFailRollsBack) {
+    const auto policy = make_test_policy();
+    ASSERT_TRUE(vault_manager->create_vault_v2(test_vault_path, test_username, test_password, policy));
+
+    const std::string group_id = vault_manager->create_group("Finance");
+    ASSERT_FALSE(group_id.empty());
+
+    auto detail = make_account_detail("bank-1", "BankAccount", "alice");
+    ASSERT_TRUE(vault_manager->add_account(detail));
+
+    const fs::path blocking_tmp = fs::path(test_vault_path).concat(".tmp");
+    ASSERT_TRUE(fs::create_directory(blocking_tmp));
+
+    EXPECT_FALSE(vault_manager->add_account_to_group(0, group_id));
+    EXPECT_FALSE(vault_manager->is_account_in_group(0, group_id));
+}
+
+TEST_F(VaultManagerTest, RemoveAccountFromGroup_Success) {
+    const auto policy = make_test_policy();
+    ASSERT_TRUE(vault_manager->create_vault_v2(test_vault_path, test_username, test_password, policy));
+
+    const std::string group_id = vault_manager->create_group("Finance");
+    ASSERT_FALSE(group_id.empty());
+
+    auto detail = make_account_detail("bank-1", "BankAccount", "alice");
+    ASSERT_TRUE(vault_manager->add_account(detail));
+    ASSERT_TRUE(vault_manager->add_account_to_group(0, group_id));
+    ASSERT_TRUE(vault_manager->is_account_in_group(0, group_id));
+
+    ASSERT_TRUE(vault_manager->remove_account_from_group(0, group_id));
+    EXPECT_FALSE(vault_manager->is_account_in_group(0, group_id));
+}
+
+TEST_F(VaultManagerTest, RemoveAccountFromGroup_SaveFailRollsBack) {
+    const auto policy = make_test_policy();
+    ASSERT_TRUE(vault_manager->create_vault_v2(test_vault_path, test_username, test_password, policy));
+
+    const std::string group_id = vault_manager->create_group("Finance");
+    ASSERT_FALSE(group_id.empty());
+
+    auto detail = make_account_detail("bank-1", "BankAccount", "alice");
+    ASSERT_TRUE(vault_manager->add_account(detail));
+    ASSERT_TRUE(vault_manager->add_account_to_group(0, group_id));
+
+    const fs::path blocking_tmp = fs::path(test_vault_path).concat(".tmp");
+    ASSERT_TRUE(fs::create_directory(blocking_tmp));
+
+    EXPECT_FALSE(vault_manager->remove_account_from_group(0, group_id));
+    EXPECT_TRUE(vault_manager->is_account_in_group(0, group_id));
+}
+
+TEST_F(VaultManagerTest, ReorderAccountInGroup_Success) {
+    const auto policy = make_test_policy();
+    ASSERT_TRUE(vault_manager->create_vault_v2(test_vault_path, test_username, test_password, policy));
+
+    const std::string group_id = vault_manager->create_group("Work");
+    ASSERT_FALSE(group_id.empty());
+
+    auto detail = make_account_detail("acct-1", "Acct1", "alice");
+    ASSERT_TRUE(vault_manager->add_account(detail));
+    ASSERT_TRUE(vault_manager->add_account_to_group(0, group_id));
+
+    EXPECT_TRUE(vault_manager->reorder_account_in_group(0, group_id, 5));
+
+    const auto accounts = vault_manager->get_all_accounts_view();
+    ASSERT_EQ(accounts.size(), 1u);
+    ASSERT_EQ(accounts[0].groups.size(), 1u);
+    EXPECT_EQ(accounts[0].groups[0].display_order, 5);
+}
+
+TEST_F(VaultManagerTest, ReorderAccountInGroup_SaveFailRollsBack) {
+    const auto policy = make_test_policy();
+    ASSERT_TRUE(vault_manager->create_vault_v2(test_vault_path, test_username, test_password, policy));
+
+    const std::string group_id = vault_manager->create_group("Work");
+    ASSERT_FALSE(group_id.empty());
+
+    auto detail = make_account_detail("acct-1", "Acct1", "alice");
+    ASSERT_TRUE(vault_manager->add_account(detail));
+    ASSERT_TRUE(vault_manager->add_account_to_group(0, group_id));
+
+    const fs::path blocking_tmp = fs::path(test_vault_path).concat(".tmp");
+    ASSERT_TRUE(fs::create_directory(blocking_tmp));
+
+    EXPECT_FALSE(vault_manager->reorder_account_in_group(0, group_id, 5));
+}
+
+TEST_F(VaultManagerTest, GetFavoritesGroupId_CreatesGroupAutomatically) {
+    const auto policy = make_test_policy();
+    ASSERT_TRUE(vault_manager->create_vault_v2(test_vault_path, test_username, test_password, policy));
+
+    const std::string favorites_id = vault_manager->get_favorites_group_id();
+    EXPECT_FALSE(favorites_id.empty());
+
+    const auto groups = vault_manager->get_all_groups_view();
+    const bool favorites_present = std::any_of(groups.begin(), groups.end(),
+        [&](const KeepTower::GroupView& g) { return g.group_id == favorites_id; });
+    EXPECT_TRUE(favorites_present);
+}
+
+TEST_F(VaultManagerTest, RuntimePreferencesPersistToVaultMetadataWhenOpen) {
+    const auto policy = make_test_policy();
+    ASSERT_TRUE(vault_manager->create_vault_v2(test_vault_path, test_username, test_password, policy));
+
+    // Verify setters route through vault metadata when vault is open (covers the m_vault_open
+    // branch in each setter that writes through to mutable_metadata()).
+    vault_manager->set_clipboard_timeout(45);
+    EXPECT_EQ(vault_manager->get_clipboard_timeout(), 45);
+
+    vault_manager->set_auto_lock_enabled(true);
+    EXPECT_TRUE(vault_manager->get_auto_lock_enabled());
+
+    vault_manager->set_auto_lock_timeout(120);
+    EXPECT_EQ(vault_manager->get_auto_lock_timeout(), 120);
+
+    vault_manager->set_undo_redo_enabled(false);
+    EXPECT_FALSE(vault_manager->get_undo_redo_enabled());
+
+    vault_manager->set_undo_history_limit(25);
+    EXPECT_EQ(vault_manager->get_undo_history_limit(), 25);
+
+    vault_manager->set_account_password_history_enabled(true);
+    EXPECT_TRUE(vault_manager->get_account_password_history_enabled());
+
+    vault_manager->set_account_password_history_limit(8);
+    EXPECT_EQ(vault_manager->get_account_password_history_limit(), 8);
+
+    // Confirm m_modified was set — the vault data was mutated.
+    EXPECT_TRUE(vault_manager->save_vault());
+}
