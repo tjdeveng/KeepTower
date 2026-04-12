@@ -4,6 +4,7 @@
 #include "V2AuthenticationHandler.h"
 #include "DialogManager.h"
 #include "../../core/VaultManager.h"
+#include "../../core/services/IVaultYubiKeyService.h"
 #include "../../utils/Log.h"
 #include "../windows/MainWindow.h"
 #include "../dialogs/V2UserLoginDialog.h"
@@ -12,7 +13,6 @@
 
 #ifdef HAVE_YUBIKEY_SUPPORT
 #include "../dialogs/YubiKeyPromptDialog.h"
-#include "../../lib/yubikey/YubiKeyManager.h"
 #endif
 
 // Forward declare OPENSSL_cleanse to avoid including openssl headers that conflict with UI namespace
@@ -44,26 +44,27 @@ void V2AuthenticationHandler::handle_vault_open(const std::string& vault_path,
 #ifdef HAVE_YUBIKEY_SUPPORT
     if (yubikey_required) {
         // Check if YubiKey is present
-        YubiKeyManager yk_manager;
-        [[maybe_unused]] bool yk_init = yk_manager.initialize();
+        auto yk_service = m_vault_manager->get_yubikey_service();
+        if (yk_service) {
+            auto devices = yk_service->detect_devices();
+            if (!devices || devices->empty()) {
+                // Show "Insert YubiKey" dialog
+                auto yk_dialog = Gtk::make_managed<YubiKeyPromptDialog>(m_window,
+                    YubiKeyPromptDialog::PromptType::INSERT, yubikey_serial);
 
-        if (!yk_manager.is_yubikey_present()) {
-            // Show "Insert YubiKey" dialog
-            auto yk_dialog = Gtk::make_managed<YubiKeyPromptDialog>(m_window,
-                YubiKeyPromptDialog::PromptType::INSERT, yubikey_serial);
-
-            yk_dialog->signal_response().connect([this, yk_dialog](int yk_response) {
-                if (yk_response == Gtk::ResponseType::OK) {
-                    // User clicked Retry
+                yk_dialog->signal_response().connect([this, yk_dialog](int yk_response) {
+                    if (yk_response == Gtk::ResponseType::OK) {
+                        // User clicked Retry
+                        yk_dialog->hide();
+                        handle_vault_open(m_current_vault_path, m_success_callback);  // Retry
+                        return;
+                    }
                     yk_dialog->hide();
-                    handle_vault_open(m_current_vault_path, m_success_callback);  // Retry
-                    return;
-                }
-                yk_dialog->hide();
-            });
+                });
 
-            yk_dialog->show();
-            return;
+                yk_dialog->show();
+                return;
+            }
         }
     }
 #endif

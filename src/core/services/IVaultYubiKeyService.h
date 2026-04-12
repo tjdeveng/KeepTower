@@ -11,6 +11,7 @@
 #include <vector>
 #include <array>
 #include <functional>
+#include <format>
 
 namespace KeepTower {
 
@@ -27,6 +28,19 @@ public:
         std::string product;
         uint8_t slot = 0;
         bool is_fips = false;
+
+        // Extended device info for UI display
+        int version_major = 0;
+        int version_minor = 0;
+        int version_build = 0;
+        bool slot2_configured = false;
+        bool is_fips_capable = false;
+        bool is_fips_mode = false;
+
+        // For compatibility with old YubiKeyManager API
+        [[nodiscard]] std::string version_string() const noexcept {
+            return std::format("{}.{}.{}", version_major, version_minor, version_build);
+        }
     };
 
     struct ChallengeResult {

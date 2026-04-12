@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: 2025 tjdeveng
 
 #include "../../core/VaultManager.h"
+#include "../../core/services/IVaultYubiKeyService.h"
 #include "../../core/managers/AccountManager.h"
 #include "VaultIOHandler.h"
 #include "DialogManager.h"
@@ -18,7 +19,6 @@ extern "C" {
 
 #ifdef HAVE_YUBIKEY_SUPPORT
 #include "../dialogs/YubiKeyPromptDialog.h"
-#include "../../lib/yubikey/YubiKeyManager.h"
 #endif
 
 #include <algorithm>
@@ -275,8 +275,10 @@ VaultIOHandler::VaultIOHandler(MainWindow& window,
                   bool yubikey_required = m_vault_manager->current_user_requires_yubikey();
 
                   if (yubikey_required) {
-                      YubiKeyManager yk_manager;
-                      if (!yk_manager.initialize() || !yk_manager.is_yubikey_present()) {
+                      auto yk_service = m_vault_manager->get_yubikey_service();
+                      auto devices = yk_service ? yk_service->detect_devices() : std::unexpected(KeepTower::VaultError::YubiKeyError);
+
+                      if (!devices || devices->empty()) {
                           if (!password.empty()) {
                               OPENSSL_cleanse(const_cast<char*>(password.data()), password.bytes());
                               password.clear();
@@ -284,16 +286,7 @@ VaultIOHandler::VaultIOHandler(MainWindow& window,
                           return std::unexpected("YubiKey not detected.");
                       }
 
-                      auto device_info = yk_manager.get_device_info();
-                      if (!device_info) {
-                          if (!password.empty()) {
-                              OPENSSL_cleanse(const_cast<char*>(password.data()), password.bytes());
-                              password.clear();
-                          }
-                          return std::unexpected("Failed to get YubiKey information.");
-                      }
-
-                      std::string serial_number = device_info->serial_number;
+                      std::string serial_number = devices->front().serial;
 
                       auto* touch_dialog = Gtk::make_managed<YubiKeyPromptDialog>(
                           m_window,

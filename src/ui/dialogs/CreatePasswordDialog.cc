@@ -4,7 +4,7 @@
 #include "config.h"
 #include "CreatePasswordDialog.h"
 #include "../../core/CommonPasswords.h"
-#include "../../lib/yubikey/YubiKeyManager.h"
+#include "../../core/services/VaultYubiKeyService.h"
 #include "../../utils/StringHelpers.h"
 #include <algorithm>
 #include <cctype>
@@ -209,10 +209,10 @@ CreatePasswordDialog::CreatePasswordDialog(Gtk::Window& parent)
 
 
     // Check if YubiKey is available
-    YubiKeyManager yk_manager;
-    bool yk_init_success = yk_manager.initialize();
+    auto yk_service = std::make_shared<KeepTower::VaultYubiKeyService>();
+    auto devices = yk_service->detect_devices();
 
-    if (!yk_init_success || !yk_manager.is_yubikey_present()) {
+    if (!devices || devices->empty()) {
         m_yubikey_check.set_sensitive(false);
         m_yubikey_check.set_tooltip_text("No YubiKey detected. Please connect your YubiKey.");
     }

@@ -39,6 +39,15 @@ VaultYubiKeyService::detect_devices() {
         info.product = "YubiKey";      // Generic, could parse from version
         info.slot = 1;  // Default to slot 1 (user configurable later)
         info.is_fips = dev.is_fips_capable;
+
+        // Extended fields for UI display
+        info.version_major = dev.version_major;
+        info.version_minor = dev.version_minor;
+        info.version_build = dev.version_build;
+        info.slot2_configured = dev.slot2_configured;
+        info.is_fips_capable = dev.is_fips_capable;
+        info.is_fips_mode = dev.is_fips_mode;
+
         device_list.push_back(std::move(info));
     }
 

@@ -5,10 +5,10 @@
 
 #include "YubiKeyHandler.h"
 #include "../../core/VaultManager.h"
+#include "../../core/services/IVaultYubiKeyService.h"
 #include "../../utils/Log.h"
 
 #ifdef HAVE_YUBIKEY_SUPPORT
-#include "../../lib/yubikey/YubiKeyManager.h"
 #include "../dialogs/YubiKeyManagerDialog.h"
 #endif
 
@@ -30,49 +30,21 @@ void YubiKeyHandler::handle_test() {
 
     info("Testing YubiKey detection...");
 
-    YubiKeyManager yk_manager{};
-
-    // Initialize YubiKey subsystem in FIPS mode (same as vault operations)
-    if (!yk_manager.initialize(true)) {
-        auto dialog = Gtk::AlertDialog::create("YubiKey Initialization Failed");
+    auto yk_service = m_vault_manager->get_yubikey_service();
+    if (!yk_service) {
+        auto dialog = Gtk::AlertDialog::create("YubiKey Service Unavailable");
         dialog->set_detail("Could not initialize YubiKey subsystem. Make sure the required libraries are installed.");
         dialog->set_buttons({"OK"});
         dialog->choose(m_window, {});
-        error("YubiKey initialization failed");
+        error("YubiKey service unavailable");
         return;
     }
 
-    // Get device info to test detection and capabilities
-    // Note: FIDO2 challenge-response requires enrolled credentials, so we only test detection
-    auto device_info = yk_manager.get_device_info();
+    // Detect connected YubiKey devices (initialize in FIPS mode like vault operations)
+    auto devices_result = yk_service->detect_devices();
 
-    if (device_info) {
-        const std::string message = std::format(
-            "YubiKey Detected Successfully\n\n"
-            "Serial Number: {}\n"
-            "Firmware Version: {}\n"
-            "FIDO2 Support: Yes\n"
-            "HMAC-Secret Extension: {}\n"
-            "FIPS Capable: {}\n"
-            "FIPS Mode: {}\n\n"
-            "Device is ready for vault operations.\n\n"
-            "Note: Challenge-response requires an enrolled\n"
-            "credential (created when you set up a vault).",
-            device_info->serial_number,
-            device_info->version_string(),
-            device_info->slot2_configured ? "Yes" : "No",
-            device_info->is_fips_capable ? "Yes" : "No",
-            device_info->is_fips_mode ? "Yes" : "No"
-        );
-
-        auto dialog = Gtk::AlertDialog::create("YubiKey Test Passed");
-        dialog->set_detail(message);
-        dialog->set_buttons({"OK"});
-        dialog->choose(m_window, {});
-        info("YubiKey test passed: {}, firmware {}",
-             device_info->serial_number, device_info->version_string());
-    } else {
-        auto dialog = Gtk::AlertDialog::create("YubiKey Test Failed");
+    if (!devices_result) {
+        auto dialog = Gtk::AlertDialog::create("YubiKey Detection Failed");
         dialog->set_detail("Could not detect YubiKey device.\n\n"
                           "Please ensure:\n"
                           "• YubiKey is inserted\n"
@@ -81,7 +53,49 @@ void YubiKeyHandler::handle_test() {
         dialog->set_buttons({"OK"});
         dialog->choose(m_window, {});
         warning("YubiKey detection failed");
+        return;
     }
+
+    auto& devices = devices_result.value();
+    if (devices.empty()) {
+        auto dialog = Gtk::AlertDialog::create("YubiKey Test Failed");
+        dialog->set_detail("Could not detect YubiKey device.\n\n"
+                          "Please ensure:\n"
+                          "• YubiKey is inserted\n"
+                          "• You have permission to access /dev/hidraw*\n"
+                          "• libfido2 is properly installed");
+        dialog->set_buttons({"OK"});
+        dialog->choose(m_window, {});
+        warning("YubiKey not detected");
+        return;
+    }
+
+    // Display info from first detected device
+    const auto& device = devices[0];
+    const std::string message = std::format(
+        "YubiKey Detected Successfully\n\n"
+        "Serial Number: {}\n"
+        "Firmware Version: {}\n"
+        "FIDO2 Support: Yes\n"
+        "HMAC-Secret Extension: {}\n"
+        "FIPS Capable: {}\n"
+        "FIPS Mode: {}\n\n"
+        "Device is ready for vault operations.\n\n"
+        "Note: Challenge-response requires an enrolled\n"
+        "credential (created when you set up a vault).",
+        device.serial,
+        device.version_string(),
+        device.slot2_configured ? "Yes" : "No",
+        device.is_fips_capable ? "Yes" : "No",
+        device.is_fips_mode ? "Yes" : "No"
+    );
+
+    auto dialog = Gtk::AlertDialog::create("YubiKey Test Passed");
+    dialog->set_detail(message);
+    dialog->set_buttons({"OK"});
+    dialog->choose(m_window, {});
+    info("YubiKey test passed: {}, firmware {}",
+         device.serial, device.version_string());
 }
 
 void YubiKeyHandler::handle_manage() {

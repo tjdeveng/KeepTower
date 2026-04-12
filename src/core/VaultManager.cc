@@ -1578,6 +1578,10 @@ std::vector<KeepTower::YubiKeyView> VaultManager::get_yubikey_list_view() const 
 #endif
 }
 
+std::shared_ptr<KeepTower::IVaultYubiKeyService> VaultManager::get_yubikey_service() const {
+    return m_yubikey_service;
+}
+
 // Restore from most recent backup
 KeepTower::VaultResult<> VaultManager::restore_from_most_recent_backup(const std::string& vault_path) {
     if (m_vault_open) {

@@ -1755,6 +1755,16 @@ public:
     [[nodiscard]] std::vector<KeepTower::YubiKeyView> get_yubikey_list_view() const;
 
     /**
+     * @brief Get the YubiKey service interface for UI layer operations
+     * @return Shared pointer to IVaultYubiKeyService
+     *
+     * Allows UI handlers to perform YubiKey operations through the seam interface
+     * without direct dependencies on YubiKeyManager.
+     * @note Service is always initialized; check detect_devices() for hardware presence
+     */
+    [[nodiscard]] std::shared_ptr<KeepTower::IVaultYubiKeyService> get_yubikey_service() const;
+
+    /**
      * @brief Verify credentials against the current vault
      * @param password Password to verify
      * @param serial YubiKey serial number (if vault uses YubiKey)
