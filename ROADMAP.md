@@ -197,6 +197,8 @@ This document outlines the planned features and improvements for KeepTower, orga
   - `#28` Resolve or formalize the FIPS sanitizer leak policy
   - `#29` Raise coverage on remaining low-coverage core paths to A+ threshold
   - `#30` Reduce hotspot size and responsibility in VaultManager and MainWindow
+    - Track YubiKey hardware-boundary seam refactor here first (dependency injection/interface extraction for testability and hotspot reduction in VaultManager/MainWindow).
+    - If this work grows beyond hotspot-boundary scope, split into a dedicated follow-up issue and cross-link from `#30`.
   - `#32` *(planned)* Encrypted recovery snapshot to prevent in-memory data loss when backup path is unavailable during explicit save; see `SECURITY.md` Known Operational Limitations for the full description of the failure mode
 - Local documentation should stay focused on durable reference material: architecture, user docs, API docs, and design notes that cannot be expressed cleanly in an issue or PR.
 
@@ -226,7 +228,7 @@ This document outlines the planned features and improvements for KeepTower, orga
 - Non-blocking supporting goals:
   - Continuous fuzzing, benchmarking, accessibility, i18n, and broader packaging work remain important project goals, but they are not required to declare the current A+ repository-quality bar closed.
 - Current known misses against the A+ definition:
-  - Coverage is still below the proposed canonical threshold (`70.9%` lines, `78.8%` functions in the latest recorded snapshot).
+  - Coverage is still below the proposed canonical threshold (`72.0%` lines in the latest clean baseline snapshot).
   - Current hotspot files remain above the proposed `2000`-line ceiling without the closure rationale yet completed in `#30`.
 - Verified current signals:
   - Full local Meson suite passes: `65/65` tests green.
@@ -235,10 +237,10 @@ This document outlines the planned features and improvements for KeepTower, orga
   - Public API documentation is enforced under a strict zero-warning Doxygen policy.
   - Architecture-audit closeout phases I, K, and L are complete.
 - Latest recorded coverage snapshot:
-  - Line coverage: `70.9%`
-  - Function coverage: `78.8%`
-  - Source: `docs/testing/COVERAGE_IMPROVEMENT_SUMMARY.md`
-  - Status: useful baseline, but not the canonical live execution tracker for A+ closure.
+  - Line coverage: `72.0%`
+  - Function coverage: `80.9%`
+  - Source: clean local rerun via `scripts/generate-coverage.sh build-coverage` (`build-coverage/coverage/coverage-filtered.info`), `2026-04-12`
+  - Status: refreshed baseline for next `#29` coverage iteration; rerun before final closeout decisions.
 - `#29` handoff checkpoint (`2026-04-07`):
   - The latest full-repository snapshot above is stale relative to the most recent focused `#29` slices; do not treat it as the live post-session total without rerunning the canonical coverage workflow.
   - Coverage infrastructure hardening and focused slices landed in:
