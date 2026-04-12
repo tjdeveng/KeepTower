@@ -946,123 +946,9 @@ bool VaultManager::migrate_vault_schema() {
 }
 
 #ifdef HAVE_YUBIKEY_SUPPORT
-bool VaultManager::add_backup_yubikey(const std::string& name) {
-    if (!m_vault_open || !m_yubikey_required) {
-        std::cerr << "Vault must be open and YubiKey-protected to add backup keys" << '\n';
-        return false;
-    }
-
-    // Initialize YubiKey and get device info
-    YubiKeyManager yk_manager;
-    if (!yk_manager.initialize()) {
-        std::cerr << "Failed to initialize YubiKey" << '\n';
-        return false;
-    }
-
-    if (!yk_manager.is_yubikey_present()) {
-        std::cerr << "No YubiKey connected" << '\n';
-        return false;
-    }
-
-    auto device_info = yk_manager.get_device_info();
-    if (!device_info) {
-        std::cerr << "Failed to get YubiKey device information" << '\n';
-        return false;
-    }
-
-    // Check if already registered
-    if (is_yubikey_authorized(device_info->serial_number)) {
-        std::cerr << "YubiKey with serial " << device_info->serial_number << " is already registered" << '\n';
-        return false;
-    }
-
-    // Verify the key works with the current challenge
-    auto response = yk_manager.challenge_response(
-        std::span<const unsigned char>(m_yubikey_challenge.data(), m_yubikey_challenge.size()),
-        YubiKeyAlgorithm::HMAC_SHA256,  // FIPS-140-3: SHA-256 minimum (V1 SHA-1 vaults not supported)
-        false,
-        YUBIKEY_TIMEOUT_MS
-    );
-
-    if (!response.success) {
-        std::cerr << "YubiKey challenge-response failed. Key may not be programmed with same HMAC secret.\n";
-        return false;
-    }
-
-    // Add to protobuf
-    auto* yk_config = m_vault_data->mutable_yubikey_config();
-    auto* entry = yk_config->add_yubikey_entries();
-    entry->set_serial(device_info->serial_number);
-    entry->set_name(name.empty() ? "Backup" : name);
-    entry->set_added_at(std::time(nullptr));
-
-    m_modified = true;
-    KeepTower::Log::info("Added backup YubiKey with serial: {}", device_info->serial_number);
-    return true;
-}
-
-bool VaultManager::remove_yubikey(const std::string& serial) {
-    if (!m_vault_open || !m_yubikey_required) {
-        std::cerr << "Vault must be open and YubiKey-protected" << '\n';
-        return false;
-    }
-
-    if (!m_vault_data->has_yubikey_config()) {
-        return false;
-    }
-
-    auto* yk_config = m_vault_data->mutable_yubikey_config();
-
-    // Cannot remove last key
-    if (yk_config->yubikey_entries_size() <= 1) {
-        std::cerr << "Cannot remove the last YubiKey" << '\n';
-        return false;
-    }
-
-    // Find and remove
-    for (int i = 0; i < yk_config->yubikey_entries_size(); ++i) {
-        if (yk_config->yubikey_entries(i).serial() == serial) {
-            // Remove by swapping with last and deleting
-            if (i < yk_config->yubikey_entries_size() - 1) {
-                yk_config->mutable_yubikey_entries()->SwapElements(i, yk_config->yubikey_entries_size() - 1);
-            }
-            yk_config->mutable_yubikey_entries()->RemoveLast();
-
-            m_modified = true;
-            KeepTower::Log::info("Removed YubiKey with serial: {}", serial);
-            return true;
-        }
-    }
-
-    std::cerr << "YubiKey with serial " << serial << " not found\n";
-    return false;
-}
-
-bool VaultManager::is_yubikey_authorized(const std::string& serial) const {
-    if (!m_vault_open || !m_yubikey_required) {
-        return false;
-    }
-
-    if (!m_vault_data->has_yubikey_config()) {
-        // Backward compatibility: check against file header serial
-        return serial == m_yubikey_serial;
-    }
-
-    const auto& yk_config = m_vault_data->yubikey_config();
-    for (const auto& entry : yk_config.yubikey_entries()) {
-        if (entry.serial() == serial) {
-            return true;
-        }
-    }
-
-    // Backward compatibility: check legacy single-key serial without calling deprecated accessor.
-    const std::string legacy_serial = read_legacy_yubikey_serial(yk_config);
-    if (!legacy_serial.empty() && legacy_serial == serial) {
-        return true;
-    }
-
-    return false;
-}
+// V1 YubiKey backup key operations removed (Slice 4: #30 issue)
+// V2 vaults manage YubiKeys per-user during enrollment; backup key concept doesn't apply
+#endif
 
 bool VaultManager::verify_credentials(const Glib::ustring& password, const std::string& serial) {
     // Thread safety - lock vault data
@@ -1529,7 +1415,6 @@ bool VaultManager::is_fips_enabled() {
 bool VaultManager::set_fips_mode(bool enable) {
     return KeepTower::FipsProviderManager::set_fips_mode(enable);
 }
-#endif
 
 std::vector<KeepTower::YubiKeyView> VaultManager::get_yubikey_list_view() const {
 #ifdef HAVE_YUBIKEY_SUPPORT

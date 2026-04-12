@@ -34,14 +34,26 @@ YubiKeyManagerDialog::YubiKeyManagerDialog(Gtk::Window& parent, VaultManager* va
 }
 
 void YubiKeyManagerDialog::setup_ui() {
+    // Determine vault type for UI adaptation
+    bool is_v2_vault = m_vault_manager && m_vault_manager->is_v2_vault();
+
     // Info label
-    m_info_label.set_markup(
-        "<b>Manage Authorized YubiKeys</b>\n\n"
-        "Add backup YubiKeys to access this vault. All keys must be configured\n"
-        "with FIPS-compliant HMAC-SHA256 challenge-response.\n\n"
-        "<i>For complete setup instructions, see Help → Security or search for\n"
-        "\"YubiKey FIPS Configuration\" in the help documentation.</i>"
-    );
+    if (is_v2_vault) {
+        m_info_label.set_markup(
+            "<b>YubiKey User Enrollment</b>\n\n"
+            "YubiKeys are managed per-user during account setup and first login.\n"
+            "Users can verify their YubiKeys during vault access steps.\n\n"
+            "<i>To manage YubiKeys for specific users, use the Account Management UI.</i>"
+        );
+    } else {
+        m_info_label.set_markup(
+            "<b>Manage Authorized YubiKeys</b>\n\n"
+            "Add backup YubiKeys to access this vault. All keys must be configured\n"
+            "with FIPS-compliant HMAC-SHA256 challenge-response.\n\n"
+            "<i>For complete setup instructions, see Help → Security or search for\n"
+            "\"YubiKey FIPS Configuration\" in the help documentation.</i>"
+        );
+    }
     m_info_label.set_wrap(true);
     m_info_label.set_margin(12);
     m_content_box.append(m_info_label);
@@ -73,6 +85,14 @@ void YubiKeyManagerDialog::setup_ui() {
     m_close_button.signal_clicked().connect([this]() { hide(); });
 
     m_remove_button.set_sensitive(false);
+
+    // Disable add/remove buttons for V2 vaults (not supported for backup keys)
+    if (is_v2_vault) {
+        m_add_button.set_sensitive(false);
+        m_remove_button.set_sensitive(false);
+        m_add_button.set_tooltip_text("YubiKey management for V2 vaults is done per-user");
+        m_remove_button.set_tooltip_text("YubiKey management for V2 vaults is done per-user");
+    }
 
     // Add content to dialog
     get_content_area()->append(m_content_box);
@@ -160,95 +180,37 @@ void YubiKeyManagerDialog::refresh_key_list() {
 }
 
 void YubiKeyManagerDialog::on_add_key() {
-    // Prompt for name
-    auto* entry_dialog = Gtk::make_managed<Gtk::Dialog>("Add YubiKey", *this, true);
-    entry_dialog->add_button("_Cancel", Gtk::ResponseType::CANCEL);
-    entry_dialog->add_button("_Add", Gtk::ResponseType::OK);
-
-    auto* box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 12);
-    box->set_margin(24);
-
-    auto* label = Gtk::make_managed<Gtk::Label>("Enter a name for this YubiKey:");
-    label->set_xalign(0.0);
-    box->append(*label);
-
-    auto* entry = Gtk::make_managed<Gtk::Entry>();
-    entry->set_placeholder_text("e.g., Backup, Office Key");
-    entry->set_activates_default(true);
-    box->append(*entry);
-
-    entry_dialog->get_content_area()->append(*box);
-    entry_dialog->set_default_response(Gtk::ResponseType::OK);
-
-    entry_dialog->signal_response().connect([this, entry_dialog, entry](int response) {
-        if (response == Gtk::ResponseType::OK) {
-            std::string name = entry->get_text();
-            if (name.empty()) {
-                name = "Backup";
-            }
-
-            if (m_vault_manager->add_backup_yubikey(name)) {
-                refresh_key_list();
-
-                // Show success message
-                auto* success_dialog = Gtk::make_managed<Gtk::MessageDialog>(*this,
-                    "YubiKey added successfully!",
-                    false, Gtk::MessageType::INFO, Gtk::ButtonsType::OK, true);
-                success_dialog->signal_response().connect([success_dialog](int) {
-                    success_dialog->hide();
-                });
-                success_dialog->show();
-            } else {
-                // Show error message
-                auto* error_dialog = Gtk::make_managed<Gtk::MessageDialog>(*this,
-                    "Failed to add YubiKey. Make sure the key is connected and programmed with the same secret.",
-                    false, Gtk::MessageType::ERROR, Gtk::ButtonsType::OK, true);
-                error_dialog->signal_response().connect([error_dialog](int) {
-                    error_dialog->hide();
-                });
-                error_dialog->show();
-            }
-        }
-        entry_dialog->hide();
-    });
-
-    entry_dialog->show();
+    // V1 YubiKey backup key operations removed (Slice 4: #30)
+    // V2 vaults manage YubiKeys per-user during enrollment
+    if (m_vault_manager && m_vault_manager->is_v2_vault()) {
+        auto* dialog = Gtk::make_managed<Gtk::MessageDialog>(*this,
+            "YubiKey Management Not Available",
+            false, Gtk::MessageType::INFO, Gtk::ButtonsType::OK, true);
+        dialog->set_secondary_text(
+            "YubiKeys for V2 vaults are managed per-user during account setup and first login.\n"
+            "There is no vault-level backup key management for V2 vaults."
+        );
+        dialog->signal_response().connect([dialog](int) { dialog->hide(); });
+        dialog->show();
+        return;
+    }
 }
 
 void YubiKeyManagerDialog::on_remove_key() {
-    auto* row = m_key_list.get_selected_row();
-    if (!row) {
+    // V1 YubiKey backup key operations removed (Slice 4: #30)
+    // V2 vaults manage YubiKeys per-user; removal is not applicable at vault level
+    if (m_vault_manager && m_vault_manager->is_v2_vault()) {
+        auto* dialog = Gtk::make_managed<Gtk::MessageDialog>(*this,
+            "YubiKey Removal Not Available",
+            false, Gtk::MessageType::INFO, Gtk::ButtonsType::OK, true);
+        dialog->set_secondary_text(
+            "YubiKey removal for V2 vaults must be done through the Account Management UI,\n"
+            "as each user's YubiKey enrollment is managed independently."
+        );
+        dialog->signal_response().connect([dialog](int) { dialog->hide(); });
+        dialog->show();
         return;
     }
-
-    const char* serial = static_cast<const char*>(row->get_data("serial"));
-    if (!serial) {
-        return;
-    }
-
-    // Confirm removal
-    auto* confirm_dialog = Gtk::make_managed<Gtk::MessageDialog>(*this,
-        std::format("Remove YubiKey with serial {}?", serial),
-        false, Gtk::MessageType::QUESTION, Gtk::ButtonsType::YES_NO, true);
-
-    confirm_dialog->signal_response().connect([this, confirm_dialog, serial](int response) {
-        if (response == Gtk::ResponseType::YES) {
-            if (m_vault_manager->remove_yubikey(serial)) {
-                refresh_key_list();
-            } else {
-                auto* error_dialog = Gtk::make_managed<Gtk::MessageDialog>(*this,
-                    "Failed to remove YubiKey. Cannot remove the last key.",
-                    false, Gtk::MessageType::ERROR, Gtk::ButtonsType::OK, true);
-                error_dialog->signal_response().connect([error_dialog](int) {
-                    error_dialog->hide();
-                });
-                error_dialog->show();
-            }
-        }
-        confirm_dialog->hide();
-    });
-
-    confirm_dialog->show();
 }
 
 #endif // HAVE_YUBIKEY_SUPPORT
