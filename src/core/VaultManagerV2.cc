@@ -19,7 +19,6 @@
 #include "PasswordHistory.h"
 #include "managers/AccountManager.h"
 #include "managers/GroupManager.h"
-#include "lib/yubikey/YubiKeyManager.h"
 #include "lib/crypto/VaultCryptoService.h"
 #include "services/VaultFileService.h"
 #include "services/VaultDataService.h"
@@ -664,48 +663,33 @@ KeepTower::VaultResult<> VaultManager::add_user(
         }
         std::copy_n(challenge_salt.value().begin(), 32, yubikey_challenge.begin());  // Use all 32 bytes
 
-        // Initialize YubiKey manager
-        YubiKeyManager yk_manager;
-        const bool enforce_fips = (policy.yubikey_algorithm != 0x01);
-        if (!yk_manager.initialize(enforce_fips)) {
-            Log::error("VaultManager: Failed to initialize YubiKey");
-            return std::unexpected(VaultError::YubiKeyError);
+        if (!m_yubikey_service) {
+            m_yubikey_service = std::make_shared<KeepTower::VaultYubiKeyService>();
+            Log::debug("VaultManager: Initialized VaultYubiKeyService for user enrollment");
         }
 
-        if (!yk_manager.is_yubikey_present()) {
-            Log::error("VaultManager: YubiKey not present");
-            return std::unexpected(VaultError::YubiKeyNotPresent);
+        const std::array<uint8_t, 32> policy_challenge{};  // unused by service implementation
+        auto enroll_result = m_yubikey_service->enroll_yubikey(
+            username.raw(),
+            policy_challenge,
+            yubikey_challenge,
+            yubikey_pin.value(),
+            1,                 // slot
+            (policy.yubikey_algorithm != 0x01),  // enforce_fips
+            nullptr);          // no progress callback for sync add_user
+        if (!enroll_result) {
+            return std::unexpected(enroll_result.error());
         }
 
-        // Create credential for this user (use username as identifier)
-        const std::string& pin_str = yubikey_pin.value();
-        auto cred_result = yk_manager.create_credential(username.raw(), pin_str);
-        if (!cred_result) {
-            Log::error("VaultManager: Failed to create FIDO2 credential: {}",
-                      yk_manager.get_last_error());
-            return std::unexpected(VaultError::YubiKeyError);
-        }
-        credential_id = std::move(cred_result.value());
-
-        auto response_result = V2AuthService::run_yubikey_challenge_for_policy(
-            std::span<const uint8_t>(yubikey_challenge.data(), yubikey_challenge.size()),
-            policy,
-            std::nullopt,
-            yk_manager);
-        if (!response_result) {
-            return std::unexpected(response_result.error());
-        }
-
-        // Get device serial
-        auto device_info = yk_manager.get_device_info();
-        if (device_info) {
-            yubikey_serial = device_info->serial_number;
-        }
+        credential_id = std::move(enroll_result->credential_id);
+        yubikey_serial = enroll_result->device_info.serial;
+        Log::info("VaultManager: YubiKey enrolled for user {} (FIPS: {})",
+                 username.raw(), enroll_result->device_info.is_fips ? "YES" : "NO");
 
         // Encrypt PIN with user's KEK
         std::vector<uint8_t> pin_iv = KeepTower::VaultCrypto::generate_random_bytes(
             KeepTower::VaultCrypto::IV_LENGTH);
-        std::vector<uint8_t> pin_bytes(pin_str.begin(), pin_str.end());
+        std::vector<uint8_t> pin_bytes(yubikey_pin->begin(), yubikey_pin->end());
         std::vector<uint8_t> pin_ciphertext;
 
         if (!KeepTower::VaultCrypto::encrypt_data(pin_bytes, kek_array,
@@ -722,7 +706,7 @@ KeepTower::VaultResult<> VaultManager::add_user(
         // Re-wrap DEK with YubiKey-enhanced KEK
         auto final_kek = V2AuthService::combine_kek_with_yubikey_response_for_open(
             kek_array,
-            std::span<const uint8_t>(response_result.value()));
+            std::span<const uint8_t>(enroll_result->user_response));
 
         auto wrapped_result_yk = KeyWrapping::wrap_key(final_kek, m_v2_dek);
         if (!wrapped_result_yk) {
@@ -732,8 +716,6 @@ KeepTower::VaultResult<> VaultManager::add_user(
         wrapped_result = wrapped_result_yk;
 
         yubikey_enrolled = true;
-        Log::info("VaultManager: YubiKey enrolled for user {} (FIPS: {})",
-                 username.raw(), device_info && device_info->is_fips_mode ? "YES" : "NO");
     }
 #endif
 
