@@ -44,29 +44,6 @@
 
 using namespace KeepTower;
 
-namespace {
-
-std::string read_legacy_yubikey_serial(const keeptower::YubiKeyConfig& yk_config) {
-    const google::protobuf::Descriptor* descriptor = yk_config.GetDescriptor();
-    const google::protobuf::Reflection* reflection = yk_config.GetReflection();
-    if (!descriptor || !reflection) {
-        return {};
-    }
-
-    const google::protobuf::FieldDescriptor* serial_field = descriptor->FindFieldByName("serial");
-    if (!serial_field || serial_field->cpp_type() != google::protobuf::FieldDescriptor::CPPTYPE_STRING) {
-        return {};
-    }
-
-    if (!reflection->HasField(yk_config, serial_field)) {
-        return {};
-    }
-
-    return reflection->GetString(yk_config, serial_field);
-}
-
-}  // namespace
-
 // EVPCipherContext implementation
 EVPCipherContext::EVPCipherContext() : ctx_(EVP_CIPHER_CTX_new()) {}
 
