@@ -188,6 +188,33 @@ TEST_F(VaultManagerV2Test, CreateV2VaultAsyncInitializesStateAndInvokesCompletio
     EXPECT_EQ(loaded_policy->min_password_length, 10);
 }
 
+TEST_F(VaultManagerV2Test, CreateV2VaultAsyncPropagatesValidationFailure) {
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 12;
+
+    std::atomic<bool> completion_called{false};
+    KeepTower::VaultResult<> completion_result = {};
+
+    vault_manager.create_vault_v2_async(
+        test_vault_path.string(),
+        "admin",
+        "short",
+        policy,
+        nullptr,
+        [&](KeepTower::VaultResult<> result) {
+            completion_result = result;
+            completion_called.store(true);
+        });
+
+    ASSERT_TRUE(pump_main_context_until([&completion_called]() {
+        return completion_called.load();
+    }));
+
+    ASSERT_FALSE(completion_result);
+    EXPECT_EQ(completion_result.error(), VaultError::WeakPassword);
+    EXPECT_FALSE(vault_manager.get_current_user_session().has_value());
+}
+
 TEST_F(VaultManagerV2Test, CreateV2VaultReplacesExistingOpenVault) {
     const auto second_vault_path = std::filesystem::temp_directory_path() / "test_v2_vault_second.vault";
     if (std::filesystem::exists(second_vault_path)) {
@@ -599,6 +626,17 @@ TEST_F(VaultManagerV2Test, AddUserRejectsDuplicateUsername) {
     auto result = vault_manager.add_user("bob", "anotherpass", UserRole::STANDARD_USER);
     EXPECT_FALSE(result);
     EXPECT_EQ(result.error(), VaultError::UserAlreadyExists);
+}
+
+TEST_F(VaultManagerV2Test, AddUserRejectsPasswordBelowPolicy) {
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 14;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpassword123", policy));
+
+    auto result = vault_manager.add_user("bob", "short-pass-1", UserRole::STANDARD_USER);
+    EXPECT_FALSE(result);
+    EXPECT_EQ(result.error(), VaultError::WeakPassword);
 }
 
 TEST_F(VaultManagerV2Test, RemoveUserSuccessful) {
@@ -1710,6 +1748,19 @@ TEST_F(VaultManagerV2Test, AdministratorCanViewOrDeleteAdminOnlyAccounts) {
         make_v2_account_detail("restricted", "Restricted Account", true, true)));
 
     EXPECT_TRUE(vault_manager.can_view_account(0));
+    EXPECT_TRUE(vault_manager.can_delete_account(0));
+}
+
+TEST_F(VaultManagerV2Test, ClosedV2VaultAccessChecksUseSafeDefaults) {
+    VaultSecurityPolicy policy;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpassword123", policy));
+
+    ASSERT_TRUE(vault_manager.add_account(
+        make_v2_account_detail("restricted", "Restricted Account", true, true)));
+    ASSERT_TRUE(vault_manager.close_vault());
+
+    EXPECT_FALSE(vault_manager.can_view_account(0));
     EXPECT_TRUE(vault_manager.can_delete_account(0));
 }
 

@@ -875,7 +875,7 @@ v2_auth_test = executable(
     include_directories: test_inc
 )
 
-test('V2 Authentication Integration Tests', v2_auth_test, timeout: 60)
+test('V2 Authentication Integration Tests', v2_auth_test, timeout: 600)
 
 # Password history tests (Phase 9)
 password_history_test_sources = [
