@@ -92,6 +92,36 @@ public:
         bool enforce_fips = false) override;
 
     /**
+     * @brief Perform authenticated challenge (V2 vault specific, warning-only serial check)
+     *
+     * Executes YubiKey challenge with lenient serial verification.
+     * Unlike perform_authenticated_challenge(), serial mismatch results in a warning
+     * rather than an error, allowing vault recovery if the original YubiKey is lost.
+     *
+     * This method is designed for V2 multi-user vaults where changing YubiKeys
+     * may be desirable without re-enrollment.
+     *
+     * @param challenge Challenge bytes (1-64 bytes)
+     * @param credential_id FIDO2 credential ID from user key slot
+     * @param pin User's decrypted YubiKey PIN
+     * @param expected_serial Expected device serial (warning if mismatch)
+     * @param algorithm YubiKey algorithm from vault security policy
+     * @param require_touch Whether to require user touch confirmation
+     * @param timeout_ms Timeout in milliseconds
+     * @param enforce_fips Whether to enforce FIPS mode
+     * @return ChallengeResult with response and device info, or error
+     */
+    [[nodiscard]] VaultResult<ChallengeResult> perform_v2_authenticated_challenge(
+        const std::vector<uint8_t>& challenge,
+        const std::vector<uint8_t>& credential_id,
+        const std::string& pin,
+        const std::string& expected_serial,
+        YubiKeyAlgorithm algorithm,
+        bool require_touch,
+        int timeout_ms,
+        bool enforce_fips = false) override;
+
+    /**
      * @brief Detect available YubiKey devices
      *
      * Enumerates all connected FIDO2/WebAuthn devices and filters for

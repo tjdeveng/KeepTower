@@ -41,7 +41,32 @@ public:
         return std::unexpected(next_authenticated_error);
     }
 
+    KeepTower::VaultResult<ChallengeResult> perform_v2_authenticated_challenge(
+        const std::vector<uint8_t>& challenge,
+        const std::vector<uint8_t>& credential_id,
+        const std::string& pin,
+        const std::string& expected_serial,
+        ::YubiKeyAlgorithm algorithm,
+        bool require_touch,
+        int timeout_ms,
+        bool enforce_fips = false) override {
+        v2_authenticated_called = true;
+        last_challenge = challenge;
+        last_credential_id = credential_id;
+        last_pin = pin;
+        last_expected_serial = expected_serial;
+        last_algorithm = algorithm;
+        last_require_touch = require_touch;
+        last_timeout_ms = timeout_ms;
+        last_enforce_fips = enforce_fips;
+        if (next_authenticated_result.has_value()) {
+            return next_authenticated_result.value();
+        }
+        return std::unexpected(next_authenticated_error);
+    }
+
     bool authenticated_called = false;
+    bool v2_authenticated_called = false;
     std::vector<uint8_t> last_challenge;
     std::vector<uint8_t> last_credential_id;
     std::string last_pin;

@@ -315,30 +315,6 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
     if (user_slot->yubikey_enrolled) {
         Log::info("VaultManager: User has YubiKey enrolled, requiring device");
 
-        YubiKeyManager yk_manager;
-        if (!yk_manager.initialize(is_fips_enabled())) {
-            Log::error("VaultManager: Failed to initialize YubiKey");
-            return std::unexpected(VaultError::YubiKeyError);
-        }
-
-        if (!yk_manager.is_yubikey_present()) {
-            Log::error("VaultManager: YubiKey not present but required");
-            return std::unexpected(VaultError::YubiKeyNotPresent);
-        }
-
-        // Optional: Verify YubiKey serial matches enrolled device (warning only)
-        if (!user_slot->yubikey_serial.empty()) {
-            auto device_info = yk_manager.get_device_info();
-            if (device_info) {
-                const std::string& current_serial = device_info->serial_number;
-                if (current_serial != user_slot->yubikey_serial) {
-                    Log::warning("VaultManager: YubiKey serial mismatch - expected: {}, got: {}",
-                               user_slot->yubikey_serial, current_serial);
-                    // Don't fail - serial is informational, challenge-response is the auth
-                }
-            }
-        }
-
         // Decrypt stored PIN first (encrypted with password-derived KEK only)
         // This must happen BEFORE getting YubiKey response to avoid circular dependency
         auto pin_result = V2AuthService::decrypt_yubikey_pin_for_open(*user_slot, final_kek);
@@ -347,26 +323,44 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
         }
         std::string decrypted_pin = std::move(pin_result.value());
 
-        auto credential_result = V2AuthService::load_fido2_credential_for_open(*user_slot, yk_manager);
-        if (!credential_result) {
-            return std::unexpected(credential_result.error());
+        // Initialize seam service if needed
+        if (!m_yubikey_service) {
+            m_yubikey_service = std::make_shared<KeepTower::VaultYubiKeyService>();
+            Log::debug("VaultManager: Initialized VaultYubiKeyService for vault open");
         }
 
-        auto response_result = V2AuthService::run_yubikey_challenge_for_open(
-            *user_slot,
-            metadata.vault_header.security_policy,
+        // Use injected service for YubiKey challenge-response
+        // The seam handles device initialization, presence checking, serial verification (warning-only),
+        // credential loading, and challenge execution
+        const YubiKeyAlgorithm yk_algorithm = static_cast<YubiKeyAlgorithm>(
+            metadata.vault_header.security_policy.yubikey_algorithm);
+
+        // Convert challenge array to vector for seam interface
+        std::vector<uint8_t> challenge_vec(
+            user_slot->yubikey_challenge.begin(),
+            user_slot->yubikey_challenge.end());
+
+        auto challenge_result = m_yubikey_service->perform_v2_authenticated_challenge(
+            challenge_vec,
+            user_slot->yubikey_credential_id,
             decrypted_pin,
-            yk_manager);
-        if (!response_result) {
-            return std::unexpected(response_result.error());
+            user_slot->yubikey_serial,
+            yk_algorithm,
+            true,  // require_touch
+            15000, // 15 second timeout
+            is_fips_enabled());
+
+        if (!challenge_result) {
+            return std::unexpected(challenge_result.error());
         }
 
         // Combine KEK with YubiKey response (use v2 for variable-length responses)
         final_kek = V2AuthService::combine_kek_with_yubikey_response_for_open(
             final_kek,
-            std::span<const uint8_t>(response_result.value()));
+            std::span<const uint8_t>(challenge_result.value().response));
 
-        Log::info("VaultManager: YubiKey authentication successful");
+        Log::info("VaultManager: YubiKey authentication successful (serial: {})",
+                 challenge_result.value().device_info.serial);
     }
 #endif
 
