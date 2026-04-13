@@ -255,9 +255,18 @@ This document outlines the planned features and improvements for KeepTower, orga
     - `8144542` `test(coverage): add YubiKey open_vault_v2 failure-path micro-slice`
   - `src/core/VaultManagerV2.cc` focused result: `76.1%` lines, `92.3%` functions
   - `src/core/services/V2AuthService.cc`: `94.8%` lines, `100.0%` functions
-  - `#29` may be closed; only remaining A+ gap is `#30` hotspot reduction.
+  - Thresholds met; one final margin session planned before moving to `#30` — see next item.
+- `#29` final margin session (planned `2026-04-14`):
+  - Goal: add ~1–2pp additional line coverage headroom (target ≥77%) by focusing on critical security/crypto paths still under 75%.
+  - Priority order (by criticality × effort ROI, based on `2026-04-13` snapshot):
+    1. `src/lib/crypto/VaultCryptoService.cc` — `70.9%` lines, 44 missed — core encrypt/decrypt paths
+    2. `src/lib/fips/FipsProviderManager.cc` — `67.9%` lines, 34 missed — FIPS provider init and error handling
+    3. `src/lib/crypto/KeyWrapping.cc` — `61.7%` lines, 44 missed — DEK wrap/unwrap error branches
+    4. `src/ui/controllers/flows/ExportFlowController.cc` — `70.6%` lines, 20 missed — quick UI-flow win
+  - Covering ~60–80 additional lines across 1–3 of these files should reach ≥77% overall.
+  - First action of session: rerun canonical coverage workflow to confirm baseline, then start slice 1.
 - A+ is considered closed only when the remaining milestone gaps are resolved:
-  - `#29` coverage raised to the agreed A+ threshold
+  - `#29` coverage at comfortable margin above the agreed A+ threshold
   - `#30` hotspot reduction in the largest responsibility-dense files
 
 ### Throughout All Versions
