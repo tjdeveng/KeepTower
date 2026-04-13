@@ -228,35 +228,34 @@ This document outlines the planned features and improvements for KeepTower, orga
 - Non-blocking supporting goals:
   - Continuous fuzzing, benchmarking, accessibility, i18n, and broader packaging work remain important project goals, but they are not required to declare the current A+ repository-quality bar closed.
 - Current known misses against the A+ definition:
-  - Coverage is still below the proposed canonical threshold (`72.0%` lines in the latest clean baseline snapshot).
+  - Coverage now meets the canonical threshold (see latest snapshot below); `#29` line/function targets cleared.
   - Current hotspot files remain above the proposed `2000`-line ceiling without the closure rationale yet completed in `#30`.
 - Verified current signals:
-  - Full local Meson suite passes: `65/65` tests green.
+  - Full local Meson suite passes: `68/68` tests green.
   - High-signal static analysis is enforced in CI for the tracked audited subset.
   - The FIPS mode test suite passes in `build-asan` with leak detection enabled; the old Meson leak-detection override was removed after explicit provider cleanup landed.
   - Public API documentation is enforced under a strict zero-warning Doxygen policy.
   - Architecture-audit closeout phases I, K, and L are complete.
 - Latest recorded coverage snapshot:
-  - Line coverage: `72.0%`
-  - Function coverage: `80.9%`
-  - Source: clean local rerun via `scripts/generate-coverage.sh build-coverage` (`build-coverage/coverage/coverage-filtered.info`), `2026-04-12`
-  - Status: refreshed baseline for next `#29` coverage iteration; rerun before final closeout decisions.
-- `#29` handoff checkpoint (`2026-04-07`):
-  - The latest full-repository snapshot above is stale relative to the most recent focused `#29` slices; do not treat it as the live post-session total without rerunning the canonical coverage workflow.
-  - Coverage infrastructure hardening and focused slices landed in:
+  - Line coverage: `75.6%` (6678 of 8833 lines) ✅ threshold met
+  - Function coverage: `82.4%` (792 of 961 functions) ✅ threshold met
+  - Branch coverage: `49.0%` (informational)
+  - Source: clean full-suite rerun via `scripts/generate-coverage.sh build-coverage` (`build-coverage/coverage/coverage-filtered.info`), `2026-04-13`
+  - Status: both A+ canonical thresholds cleared (≥75% lines, ≥80% functions); `#29` coverage target met.
+- `#29` closeout summary (`2026-04-13`):
+  - Both canonical A+ thresholds reached in full-suite rerun: `75.6%` lines, `82.4%` functions.
+  - Coverage slices landed across multiple sessions:
     - `55b81c8` `test(coverage): harden reports and cover key slots`
     - `707ae79` `test(yubikey): cover service validation paths`
     - `708ad72` `test(import-export): cover common error helpers`
     - `b3d3aa9` `test(auth): cover v2 auth service helpers`
     - `6a4706c` `test(theme): cover system theme follow mode`
-  - Focused file results validated during this session:
-    - `src/core/services/V2AuthService.cc`: `94.8%` lines, `100.0%` functions
-    - `src/ui/controllers/ThemeController.cc`: `56.9%` lines, `71.4%` functions
-  - Recommended next `#29` slice order at the next session start:
-    - `src/core/managers/AccountManager.cc` for another bounded core-logic win
-    - `src/core/VaultManager.cc` for the largest likely raw line-coverage gain
-    - `src/lib/yubikey/YubiKeyManager.cc` only after the lower-friction core paths, because it remains hardware-adjacent and more complex to test deterministically
-  - First action for the next session: rerun the canonical coverage workflow to refresh the aggregate repository totals, then reprioritize the remaining low-coverage files from that new report.
+    - `200f95e` `test(coverage): add async YubiKey callback micro-slice for VaultManagerV2`
+    - `ffa3ad8` `test(coverage): add open_vault_v2 early-error micro-slice for VaultManagerV2`
+    - `8144542` `test(coverage): add YubiKey open_vault_v2 failure-path micro-slice`
+  - `src/core/VaultManagerV2.cc` focused result: `76.1%` lines, `92.3%` functions
+  - `src/core/services/V2AuthService.cc`: `94.8%` lines, `100.0%` functions
+  - `#29` may be closed; only remaining A+ gap is `#30` hotspot reduction.
 - A+ is considered closed only when the remaining milestone gaps are resolved:
   - `#29` coverage raised to the agreed A+ threshold
   - `#30` hotspot reduction in the largest responsibility-dense files
