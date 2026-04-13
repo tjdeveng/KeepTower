@@ -262,6 +262,29 @@ TEST_F(VaultManagerV2Test, CreateV2VaultWithInjectedNonConcreteYubiKeyServiceRep
     EXPECT_TRUE(manager_with_injected_service.close_vault());
 }
 
+TEST_F(VaultManagerV2Test, CreateV2VaultWithNullInjectedYubiKeyServiceInitializesConcreteService) {
+    VaultManager manager_with_null_service(std::shared_ptr<KeepTower::IVaultYubiKeyService>{});
+
+    VaultSecurityPolicy policy;
+    policy.require_yubikey = false;
+    policy.min_password_length = 12;
+    policy.pbkdf2_iterations = 100000;
+
+    auto result = manager_with_null_service.create_vault_v2(
+        test_vault_path.string(),
+        "admin",
+        "adminpass123",
+        policy);
+
+    ASSERT_TRUE(result);
+
+    auto active_service = manager_with_null_service.get_yubikey_service();
+    ASSERT_NE(active_service, nullptr);
+    EXPECT_NE(std::dynamic_pointer_cast<KeepTower::VaultYubiKeyService>(active_service), nullptr);
+
+    EXPECT_TRUE(manager_with_null_service.close_vault());
+}
+
 TEST_F(VaultManagerV2Test, CreateV2VaultAsyncInitializesStateAndInvokesCompletion) {
     VaultSecurityPolicy policy;
     policy.min_password_length = 10;
@@ -396,6 +419,37 @@ TEST_F(VaultManagerV2Test, OpenV2VaultWrongPassword) {
 
     EXPECT_FALSE(session);
     EXPECT_EQ(session.error(), VaultError::AuthenticationFailed);
+}
+
+TEST_F(VaultManagerV2Test, OpenV2VaultRejectsMissingFile) {
+    auto session = vault_manager.open_vault_v2(
+        "/tmp/keeptower_missing_v2_vault_file.vault",
+        "admin",
+        "adminpass123");
+
+    EXPECT_FALSE(session);
+}
+
+TEST_F(VaultManagerV2Test, OpenV2VaultRejectsMalformedHeaderData) {
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 8;
+    ASSERT_TRUE(vault_manager.create_vault_v2(
+        test_vault_path.string(), "alice", "validpass123", policy));
+    ASSERT_TRUE(vault_manager.close_vault());
+
+    // Keep magic/version bytes valid but truncate the header payload so
+    // read_vault_file succeeds and read_v2_metadata fails.
+    auto file_data = read_file_bytes(test_vault_path);
+    ASSERT_GE(file_data.size(), 16u);
+    file_data.resize(16);
+    write_file_bytes(test_vault_path, file_data);
+
+    auto session = vault_manager.open_vault_v2(
+        test_vault_path.string(),
+        "admin",
+        "adminpass123");
+
+    EXPECT_FALSE(session);
 }
 
 TEST_F(VaultManagerV2Test, OpenV2VaultFlagsEnrollmentWhenPolicyRequiresYubiKey) {
