@@ -133,6 +133,91 @@ public:
     }
 };
 
+class FakeChallengeFailureYubiKeyService final : public KeepTower::VaultYubiKeyService {
+public:
+    [[nodiscard]] VaultResult<ChallengeResult> perform_authenticated_challenge(
+        const std::vector<uint8_t>&,
+        const std::vector<uint8_t>&,
+        const std::string&,
+        const std::string&,
+        YubiKeyAlgorithm,
+        bool,
+        int,
+        bool,
+        SerialMismatchPolicy) override {
+        return std::unexpected(VaultError::YubiKeyChallengeResponseFailed);
+    }
+
+    [[nodiscard]] VaultResult<std::vector<DeviceInfo>> detect_devices() override {
+        DeviceInfo info;
+        info.serial = "FAKE-YK-FAIL";
+        return std::vector<DeviceInfo>{info};
+    }
+
+    [[nodiscard]] VaultResult<EnrollmentResult> enroll_yubikey(
+        const std::string&,
+        const std::array<uint8_t, 32>& policy_challenge,
+        const std::array<uint8_t, 32>& user_challenge,
+        const std::string&,
+        uint8_t,
+        bool,
+        std::function<void(const std::string&)>) override {
+        EnrollmentResult result;
+        result.policy_response.assign(policy_challenge.begin(), policy_challenge.end());
+        result.user_response.assign(user_challenge.begin(), user_challenge.end());
+        result.credential_id = {0xAA, 0xBB, 0xCC};
+        result.device_info.serial = "FAKE-YK-FAIL";
+        result.device_info.is_fips = true;
+        return result;
+    }
+};
+
+class FakeMismatchedResponseYubiKeyService final : public KeepTower::VaultYubiKeyService {
+public:
+    [[nodiscard]] VaultResult<ChallengeResult> perform_authenticated_challenge(
+        const std::vector<uint8_t>& challenge,
+        const std::vector<uint8_t>&,
+        const std::string&,
+        const std::string&,
+        YubiKeyAlgorithm,
+        bool,
+        int,
+        bool,
+        SerialMismatchPolicy) override {
+        ChallengeResult result;
+        result.response = challenge;
+        if (!result.response.empty()) {
+            result.response[0] ^= 0xFF;
+        }
+        result.device_info.serial = "FAKE-YK-MISMATCH";
+        result.device_info.is_fips = true;
+        return result;
+    }
+
+    [[nodiscard]] VaultResult<std::vector<DeviceInfo>> detect_devices() override {
+        DeviceInfo info;
+        info.serial = "FAKE-YK-MISMATCH";
+        return std::vector<DeviceInfo>{info};
+    }
+
+    [[nodiscard]] VaultResult<EnrollmentResult> enroll_yubikey(
+        const std::string&,
+        const std::array<uint8_t, 32>& policy_challenge,
+        const std::array<uint8_t, 32>& user_challenge,
+        const std::string&,
+        uint8_t,
+        bool,
+        std::function<void(const std::string&)>) override {
+        EnrollmentResult result;
+        result.policy_response.assign(policy_challenge.begin(), policy_challenge.end());
+        result.user_response.assign(user_challenge.begin(), user_challenge.end());
+        result.credential_id = {0x10, 0x20, 0x30};
+        result.device_info.serial = "FAKE-YK-MISMATCH";
+        result.device_info.is_fips = true;
+        return result;
+    }
+};
+
 bool pump_main_context_until(
     const std::function<bool()>& predicate,
     std::chrono::milliseconds timeout = std::chrono::seconds(5)) {
@@ -514,6 +599,50 @@ TEST_F(VaultManagerV2Test, OpenV2VaultRejectsTamperedCiphertext) {
 
     EXPECT_FALSE(session);
     EXPECT_EQ(session.error(), VaultError::DecryptionFailed);
+}
+
+TEST_F(VaultManagerV2Test, OpenV2VaultWithEnrolledYubiKeyPropagatesChallengeFailure) {
+    auto fake_service = std::make_shared<FakeChallengeFailureYubiKeyService>();
+    VaultManager manager_with_fake_service(fake_service);
+
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 8;
+    policy.require_yubikey = true;
+    ASSERT_TRUE(manager_with_fake_service.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpass123", policy));
+
+    ASSERT_TRUE(manager_with_fake_service.add_user(
+        "bob", "temppass1234", UserRole::STANDARD_USER, false, "1234"));
+    ASSERT_TRUE(manager_with_fake_service.save_vault());
+    ASSERT_TRUE(manager_with_fake_service.close_vault());
+
+    auto session = manager_with_fake_service.open_vault_v2(
+        test_vault_path.string(), "bob", "temppass1234");
+
+    EXPECT_FALSE(session);
+    EXPECT_EQ(session.error(), VaultError::YubiKeyChallengeResponseFailed);
+}
+
+TEST_F(VaultManagerV2Test, OpenV2VaultWithEnrolledYubiKeyRejectsMismatchedResponse) {
+    auto fake_service = std::make_shared<FakeMismatchedResponseYubiKeyService>();
+    VaultManager manager_with_fake_service(fake_service);
+
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 8;
+    policy.require_yubikey = true;
+    ASSERT_TRUE(manager_with_fake_service.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpass123", policy));
+
+    ASSERT_TRUE(manager_with_fake_service.add_user(
+        "bob", "temppass1234", UserRole::STANDARD_USER, false, "1234"));
+    ASSERT_TRUE(manager_with_fake_service.save_vault());
+    ASSERT_TRUE(manager_with_fake_service.close_vault());
+
+    auto session = manager_with_fake_service.open_vault_v2(
+        test_vault_path.string(), "bob", "temppass1234");
+
+    EXPECT_FALSE(session);
+    EXPECT_EQ(session.error(), VaultError::AuthenticationFailed);
 }
 
 TEST_F(VaultManagerV2Test, BackupEnabledPersistsAcrossReopen) {
