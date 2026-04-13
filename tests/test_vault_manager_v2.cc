@@ -81,6 +81,58 @@ public:
     }
 };
 
+class FakeConcreteYubiKeyService final : public KeepTower::VaultYubiKeyService {
+public:
+    [[nodiscard]] VaultResult<ChallengeResult> perform_authenticated_challenge(
+        const std::vector<uint8_t>& challenge,
+        const std::vector<uint8_t>&,
+        const std::string&,
+        const std::string&,
+        YubiKeyAlgorithm,
+        bool,
+        int,
+        bool,
+        SerialMismatchPolicy) override {
+        ChallengeResult result;
+        result.response = challenge; // deterministic: same challenge -> same response
+        result.device_info.serial = "FAKE-YK-0001";
+        result.device_info.is_fips = true;
+        return result;
+    }
+
+    [[nodiscard]] VaultResult<std::vector<DeviceInfo>> detect_devices() override {
+        DeviceInfo info;
+        info.serial = "FAKE-YK-0001";
+        info.manufacturer = "KeepTower";
+        info.product = "Fake YubiKey";
+        info.slot = 1;
+        info.is_fips = true;
+        return std::vector<DeviceInfo>{info};
+    }
+
+    [[nodiscard]] VaultResult<EnrollmentResult> enroll_yubikey(
+        const std::string&,
+        const std::array<uint8_t, 32>& policy_challenge,
+        const std::array<uint8_t, 32>& user_challenge,
+        const std::string&,
+        uint8_t,
+        bool,
+        std::function<void(const std::string&)> progress_callback) override {
+        if (progress_callback) {
+            progress_callback("Touch 1 of 2: Simulated credential creation");
+            progress_callback("Touch 2 of 2: Simulated challenge-response");
+        }
+
+        EnrollmentResult result;
+        result.policy_response.assign(policy_challenge.begin(), policy_challenge.end());
+        result.user_response.assign(user_challenge.begin(), user_challenge.end());
+        result.credential_id = {0x01, 0x02, 0x03, 0x04};
+        result.device_info.serial = "FAKE-YK-0001";
+        result.device_info.is_fips = true;
+        return result;
+    }
+};
+
 bool pump_main_context_until(
     const std::function<bool()>& predicate,
     std::chrono::milliseconds timeout = std::chrono::seconds(5)) {
@@ -1079,6 +1131,77 @@ TEST_F(VaultManagerV2Test, EnrollYubiKeyAsyncRequiresOpenVault) {
     EXPECT_FALSE(completion_result);
     EXPECT_EQ(completion_result.error(), VaultError::VaultNotOpen);
     EXPECT_FALSE(progress_called.load());
+}
+
+TEST_F(VaultManagerV2Test, EnrollYubiKeyAsyncForOpenVaultInvokesProgressAndSucceedsWithFakeService) {
+    auto fake_service = std::make_shared<FakeConcreteYubiKeyService>();
+    VaultManager manager_with_fake_service(fake_service);
+
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 8;
+    ASSERT_TRUE(manager_with_fake_service.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpass123", policy));
+
+    std::atomic<bool> completion_called{false};
+    std::atomic<bool> progress_called{false};
+    KeepTower::VaultResult<> completion_result = {};
+
+    manager_with_fake_service.enroll_yubikey_for_user_async(
+        "admin",
+        "adminpass123",
+        "1234",
+        [&](const std::string&) {
+            progress_called.store(true);
+        },
+        [&](const KeepTower::VaultResult<>& result) {
+            completion_result = result;
+            completion_called.store(true);
+        });
+
+    ASSERT_TRUE(pump_main_context_until([&completion_called]() {
+        return completion_called.load();
+    }));
+
+    EXPECT_TRUE(completion_result);
+    EXPECT_TRUE(progress_called.load());
+}
+
+TEST_F(VaultManagerV2Test, ChangePasswordAsyncWithYubiKeyInvokesProgressWithFakeService) {
+    auto fake_service = std::make_shared<FakeConcreteYubiKeyService>();
+    VaultManager manager_with_fake_service(fake_service);
+
+    VaultSecurityPolicy policy;
+    policy.min_password_length = 8;
+    policy.require_yubikey = true;
+    ASSERT_TRUE(manager_with_fake_service.create_vault_v2(
+        test_vault_path.string(), "admin", "adminpass123", policy));
+
+    ASSERT_TRUE(manager_with_fake_service.add_user(
+        "bob", "temppass1234", UserRole::STANDARD_USER, true, "1234"));
+
+    std::atomic<bool> completion_called{false};
+    std::atomic<bool> progress_called{false};
+    KeepTower::VaultResult<> completion_result = {};
+
+    manager_with_fake_service.change_user_password_async(
+        "bob",
+        "temppass1234",
+        "newpass45678",
+        [&](int, int, const std::string&) {
+            progress_called.store(true);
+        },
+        [&](KeepTower::VaultResult<> result) {
+            completion_result = result;
+            completion_called.store(true);
+        },
+        "1234");
+
+    ASSERT_TRUE(pump_main_context_until([&completion_called]() {
+        return completion_called.load();
+    }));
+
+    EXPECT_TRUE(completion_called.load());
+    EXPECT_TRUE(progress_called.load());
 }
 
 TEST_F(VaultManagerV2Test, UnenrollYubiKeyRequiresPermissionForOtherUsers) {
