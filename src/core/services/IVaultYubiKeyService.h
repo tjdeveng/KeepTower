@@ -15,39 +15,50 @@
 
 namespace KeepTower {
 
+/**
+ * @brief Seam interface for YubiKey hardware operations
+ *
+ * Abstracts all YubiKey interactions (device detection, challenge-response,
+ * and enrollment) behind a testable boundary. Production code uses
+ * VaultYubiKeyService; tests inject FakeVaultYubiKeyService.
+ */
 class IVaultYubiKeyService {
 public:
+    /// @brief Controls how a serial number mismatch between expected and actual YubiKey is handled
     enum class SerialMismatchPolicy {
-        StrictError,
-        WarnOnly,
+        StrictError, ///< Abort operation and return an error
+        WarnOnly,    ///< Log a warning but continue
     };
 
+    /// @brief Information about a connected YubiKey device
     struct DeviceInfo {
-        std::string serial;
-        std::string manufacturer;
-        std::string product;
-        uint8_t slot = 0;
-        bool is_fips = false;
+        std::string serial;       ///< Device serial number
+        std::string manufacturer; ///< Manufacturer string
+        std::string product;      ///< Product / model string
+        uint8_t slot = 0;         ///< HMAC slot number (1 or 2)
+        bool is_fips = false;     ///< True if device is operating in FIPS mode
 
-        // Extended device info for UI display
-        int version_major = 0;
-        int version_minor = 0;
-        int version_build = 0;
-        bool slot2_configured = false;
-        bool is_fips_capable = false;
-        bool is_fips_mode = false;
+        int version_major = 0;       ///< Firmware version major component
+        int version_minor = 0;       ///< Firmware version minor component
+        int version_build = 0;       ///< Firmware version build component
+        bool slot2_configured = false; ///< True if HMAC slot 2 has a credential configured
+        bool is_fips_capable = false;  ///< True if the device hardware supports FIPS operation
+        bool is_fips_mode = false;     ///< True if the device is currently in FIPS mode
 
-        // For compatibility with old YubiKeyManager API
+        /// @brief Format firmware version as "major.minor.build" string
+        /// @return Dot-separated firmware version string
         [[nodiscard]] std::string version_string() const noexcept {
             return std::format("{}.{}.{}", version_major, version_minor, version_build);
         }
     };
 
+    /// @brief Result of a successful challenge-response operation
     struct ChallengeResult {
-        std::vector<uint8_t> response;
-        DeviceInfo device_info;
+        std::vector<uint8_t> response; ///< HMAC response bytes from the YubiKey
+        DeviceInfo device_info;        ///< Information about the device that responded
     };
 
+    /// @brief Result of a successful YubiKey enrollment operation
     struct EnrollmentResult {
         std::vector<uint8_t> policy_response; ///< Policy challenge response
         std::vector<uint8_t> user_response;   ///< User challenge response (combine with KEK)

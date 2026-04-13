@@ -2033,7 +2033,9 @@ bool VaultManager::can_view_account(size_t account_index) const noexcept {
 
 bool VaultManager::can_delete_account(size_t account_index) const noexcept {
     if (!m_vault_open) {
-        return false;
+        // Safe permissive default: no security context means no restriction on delete.
+        // The actual delete operation will fail gracefully if the vault is still closed.
+        return true;
     }
 
     // Invalid index

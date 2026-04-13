@@ -54,7 +54,7 @@ public:
     // Result Types
     // ========================================================================
 
-    using DeviceInfo = IVaultYubiKeyService::DeviceInfo;
+    using DeviceInfo = IVaultYubiKeyService::DeviceInfo; ///< @copydoc IVaultYubiKeyService::DeviceInfo
 
     /**
      * @brief Result of two-step enrollment

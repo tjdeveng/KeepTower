@@ -223,6 +223,10 @@ public:
     /** @} */ // end of Vault File Format Constants
 
     VaultManager();
+    /**
+     * @brief Construct with an injected YubiKey seam for testing
+     * @param yubikey_service Seam implementation to use in place of the production VaultYubiKeyService
+     */
     explicit VaultManager(std::shared_ptr<KeepTower::IVaultYubiKeyService> yubikey_service);
     ~VaultManager() noexcept;
 
