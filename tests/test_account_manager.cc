@@ -65,6 +65,13 @@ TEST_F(AccountManagerUnitTests, GetAllAccountsReturnsCopiesInStoredOrder) {
     EXPECT_FALSE(modified);
 }
 
+TEST_F(AccountManagerUnitTests, GetAllAccountsReturnsEmptyWhenVaultHasNoAccounts) {
+    auto accounts = manager.get_all_accounts();
+
+    EXPECT_TRUE(accounts.empty());
+    EXPECT_FALSE(modified);
+}
+
 TEST_F(AccountManagerUnitTests, UpdateAccountRejectsInvalidIndex) {
     ASSERT_TRUE(manager.add_account(make_account("Original")));
     modified = false;

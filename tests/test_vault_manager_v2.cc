@@ -17,7 +17,9 @@
 #include <glibmm/main.h>
 #include "../src/core/VaultManager.h"
 #include "../src/core/MultiUserTypes.h"
+#include "../src/core/services/IVaultYubiKeyService.h"
 #include "../src/core/services/VaultFileService.h"
+#include "../src/core/services/VaultYubiKeyService.h"
 #include <chrono>
 #include <atomic>
 #include <filesystem>
@@ -48,6 +50,37 @@ protected:
 };
 
 namespace {
+class FakeInjectedYubiKeyService final : public IVaultYubiKeyService {
+public:
+    [[nodiscard]] VaultResult<std::vector<DeviceInfo>> detect_devices() override {
+        return std::vector<DeviceInfo>{};
+    }
+
+    [[nodiscard]] VaultResult<ChallengeResult> perform_authenticated_challenge(
+        const std::vector<uint8_t>&,
+        const std::vector<uint8_t>&,
+        const std::string&,
+        const std::string&,
+        YubiKeyAlgorithm,
+        bool,
+        int,
+        bool,
+        SerialMismatchPolicy) override {
+        return std::unexpected(VaultError::YubiKeyError);
+    }
+
+    [[nodiscard]] VaultResult<EnrollmentResult> enroll_yubikey(
+        const std::string&,
+        const std::array<uint8_t, 32>&,
+        const std::array<uint8_t, 32>&,
+        const std::string&,
+        uint8_t,
+        bool,
+        std::function<void(const std::string&)>) override {
+        return std::unexpected(VaultError::YubiKeyError);
+    }
+};
+
 bool pump_main_context_until(
     const std::function<bool()>& predicate,
     std::chrono::milliseconds timeout = std::chrono::seconds(5)) {
@@ -149,6 +182,32 @@ TEST_F(VaultManagerV2Test, CreateV2VaultRejectsEmptyUsername) {
 
     EXPECT_FALSE(result);
     EXPECT_EQ(result.error(), VaultError::InvalidUsername);
+}
+
+TEST_F(VaultManagerV2Test, CreateV2VaultWithInjectedNonConcreteYubiKeyServiceReplacesSeamForOrchestrator) {
+    auto injected_service = std::make_shared<FakeInjectedYubiKeyService>();
+    VaultManager manager_with_injected_service(injected_service);
+
+    VaultSecurityPolicy policy;
+    policy.require_yubikey = false;
+    policy.min_password_length = 12;
+    policy.pbkdf2_iterations = 100000;
+
+    auto result = manager_with_injected_service.create_vault_v2(
+        test_vault_path.string(),
+        "admin",
+        "adminpass123",
+        policy);
+
+    ASSERT_TRUE(result);
+
+    auto active_service = manager_with_injected_service.get_yubikey_service();
+    ASSERT_NE(active_service, nullptr);
+    EXPECT_NE(active_service.get(), injected_service.get());
+    EXPECT_EQ(std::dynamic_pointer_cast<FakeInjectedYubiKeyService>(active_service), nullptr);
+    EXPECT_NE(std::dynamic_pointer_cast<KeepTower::VaultYubiKeyService>(active_service), nullptr);
+
+    EXPECT_TRUE(manager_with_injected_service.close_vault());
 }
 
 TEST_F(VaultManagerV2Test, CreateV2VaultAsyncInitializesStateAndInvokesCompletion) {
