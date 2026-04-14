@@ -273,6 +273,7 @@ sources = files(
   'core/services/YubiKeyEnrollmentService.cc',
   'core/services/PasswordManagementService.cc',
   'core/services/UserProvisioningService.cc',
+  'core/services/SecurityPolicyService.cc',
   'core/services/VaultFileService.cc',
   'core/services/VaultDataService.cc',
   'core/services/V2AuthService.cc',

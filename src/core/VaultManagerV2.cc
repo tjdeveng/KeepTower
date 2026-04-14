@@ -28,6 +28,7 @@
 #include "services/YubiKeyEnrollmentService.h"
 #include "services/PasswordManagementService.h"
 #include "services/UserProvisioningService.h"
+#include "services/SecurityPolicyService.h"
 #include "lib/crypto/UsernameHashService.h"
 #include "lib/crypto/KekDerivationService.h"
 #include "services/V2AuthService.h"
@@ -985,18 +986,16 @@ KeepTower::VaultResult<> VaultManager::update_security_policy(
 
     Log::info("VaultManager: Updating security policy");
 
-    // Validate vault state
     if (!m_vault_open || !m_is_v2_vault) {
         Log::error("VaultManager: No V2 vault open");
         return std::unexpected(VaultError::VaultNotOpen);
     }
 
-    if (!m_v2_header) {
-        Log::error("VaultManager: V2 header not initialized");
-        return std::unexpected(VaultError::VaultNotOpen);
+    auto header_result = require_open_v2_header("update_security_policy");
+    if (!header_result) {
+        return std::unexpected(header_result.error());
     }
 
-    // Verify administrator permissions
     if (!m_current_session.has_value()) {
         Log::error("VaultManager: No active session");
         return std::unexpected(VaultError::PermissionDenied);
@@ -1009,72 +1008,8 @@ KeepTower::VaultResult<> VaultManager::update_security_policy(
         return std::unexpected(VaultError::PermissionDenied);
     }
 
-    // Validate the new policy
-    // Minimum password length should be reasonable (at least 8)
-    if (new_policy.min_password_length < 8) {
-        Log::warning("VaultManager: min_password_length too low ({}), using 8",
-                    new_policy.min_password_length);
-    }
-
-    // PBKDF2 iterations should be at least 100,000 (NIST recommendation)
-    if (new_policy.pbkdf2_iterations < 100000) {
-        Log::warning("VaultManager: pbkdf2_iterations too low ({}), recommend >= 100000",
-                    new_policy.pbkdf2_iterations);
-    }
-
-    // Validate username hash algorithm
-    if (new_policy.username_hash_algorithm > 0x05) {
-        Log::error("VaultManager: Invalid username_hash_algorithm: 0x{:02x}",
-                  new_policy.username_hash_algorithm);
-        return std::unexpected(VaultError::InvalidData);
-    }
-
-    // Warn about migration risks
-    bool migration_enabled = (new_policy.migration_flags & 0x01) != 0;
-    bool algorithm_changed = (new_policy.username_hash_algorithm !=
-                             m_v2_header->security_policy.username_hash_algorithm);
-
-    if (algorithm_changed && !migration_enabled) {
-        Log::warning("VaultManager: username_hash_algorithm changed without migration enabled!");
-        Log::warning("VaultManager:   Old: 0x{:02x}, New: 0x{:02x}",
-                    m_v2_header->security_policy.username_hash_algorithm,
-                    new_policy.username_hash_algorithm);
-        Log::warning("VaultManager:   This will lock out ALL users! Enable migration_flags to avoid this.");
-    }
-
-    if (migration_enabled) {
-        Log::info("VaultManager: Migration enabled - two-phase authentication will be used");
-        Log::info("VaultManager:   Old algorithm: 0x{:02x}", new_policy.username_hash_algorithm_previous);
-        Log::info("VaultManager:   New algorithm: 0x{:02x}", new_policy.username_hash_algorithm);
-    }
-
-    // Reset migration status if targeting a new algorithm
-    if (algorithm_changed) {
-        Log::info("VaultManager: Algorithm changed (0x{:02x} -> 0x{:02x}) - resetting migration status for all users",
-                 m_v2_header->security_policy.username_hash_algorithm,
-                 new_policy.username_hash_algorithm);
-
-        for (auto& slot : m_v2_header->key_slots) {
-            if (slot.active && slot.migration_status != 0x00) {
-                slot.migration_status = 0x00; // Reset to not-yet-migrated relative to NEW target
-            }
-        }
-    }
-
-    // Update the policy
-    m_v2_header->security_policy = new_policy;
-
-    // Mark vault as modified
-    m_modified = true;
-
-    Log::info("VaultManager: Security policy updated successfully");
-    Log::info("VaultManager:   min_password_length: {}", new_policy.min_password_length);
-    Log::info("VaultManager:   pbkdf2_iterations: {}", new_policy.pbkdf2_iterations);
-    Log::info("VaultManager:   username_hash_algorithm: 0x{:02x}", new_policy.username_hash_algorithm);
-    Log::info("VaultManager:   migration_flags: 0x{:02x}", new_policy.migration_flags);
-    Log::info("VaultManager:   require_yubikey: {}", new_policy.require_yubikey);
-
-    return {};
+    KeepTower::SecurityPolicyContext ctx{ *header_result.value(), m_modified };
+    return KeepTower::SecurityPolicyService::update_security_policy(ctx, new_policy);
 }
 
 bool VaultManager::can_view_account(size_t account_index) const noexcept {

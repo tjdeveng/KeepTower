@@ -229,7 +229,7 @@ This document outlines the planned features and improvements for KeepTower, orga
   - Continuous fuzzing, benchmarking, accessibility, i18n, and broader packaging work remain important project goals, but they are not required to declare the current A+ repository-quality bar closed.
 - Current known misses against the A+ definition:
   - Coverage now meets the canonical threshold (see latest snapshot below); `#29` line/function targets cleared.
-  - `#30` hotspot boundary work in progress: `VaultManagerV2.cc` is now **1130 lines** (slice 3 complete); slices 1–3 extracted `YubiKeyEnrollmentService`, `PasswordManagementService`, and `UserProvisioningService`.
+  - `#30` hotspot boundary work complete: `VaultManagerV2.cc` is now **1065 lines** (slices 1–4 done); extracted `YubiKeyEnrollmentService`, `PasswordManagementService`, `UserProvisioningService`, and `SecurityPolicyService`.
 - Verified current signals:
   - Full local Meson suite passes: `68/68` tests green.
   - High-signal static analysis is enforced in CI for the tracked audited subset.
