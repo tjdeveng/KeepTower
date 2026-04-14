@@ -505,6 +505,94 @@ TEST_F(VaultCryptoServiceTest, SecureClear_Vector) {
 }
 
 // ============================================================================
+// encrypt_yubikey_pin Tests
+// ============================================================================
+
+TEST_F(VaultCryptoServiceTest, EncryptYubiKeyPIN_RejectsEmptyPin) {
+    auto kek_result = service.derive_kek_from_password("TestPassword", DEFAULT_PBKDF2_ITERATIONS);
+    ASSERT_TRUE(kek_result.has_value());
+
+    auto result = service.encrypt_yubikey_pin("", kek_result->kek);
+
+    EXPECT_FALSE(result.has_value()) << "Empty PIN should be rejected";
+    EXPECT_EQ(result.error(), VaultError::CryptoError);
+}
+
+TEST_F(VaultCryptoServiceTest, EncryptYubiKeyPIN_RejectsOverlongPin) {
+    auto kek_result = service.derive_kek_from_password("TestPassword", DEFAULT_PBKDF2_ITERATIONS);
+    ASSERT_TRUE(kek_result.has_value());
+
+    std::string overlong_pin(64, '1');  // 64 chars > max 63
+    auto result = service.encrypt_yubikey_pin(overlong_pin, kek_result->kek);
+
+    EXPECT_FALSE(result.has_value()) << "PIN longer than 63 chars should be rejected";
+    EXPECT_EQ(result.error(), VaultError::CryptoError);
+}
+
+TEST_F(VaultCryptoServiceTest, EncryptYubiKeyPIN_SucceedsWithValidPin) {
+    auto kek_result = service.derive_kek_from_password("TestPassword", DEFAULT_PBKDF2_ITERATIONS);
+    ASSERT_TRUE(kek_result.has_value());
+
+    auto result = service.encrypt_yubikey_pin("123456", kek_result->kek);
+
+    ASSERT_TRUE(result.has_value()) << "Valid PIN should encrypt successfully";
+    EXPECT_GT(result->size(), 12u) << "Encrypted PIN must include IV (12 bytes) plus ciphertext";
+}
+
+TEST_F(VaultCryptoServiceTest, EncryptYubiKeyPIN_ProducesUniqueOutputEachCall) {
+    auto kek_result = service.derive_kek_from_password("TestPassword", DEFAULT_PBKDF2_ITERATIONS);
+    ASSERT_TRUE(kek_result.has_value());
+
+    auto result1 = service.encrypt_yubikey_pin("654321", kek_result->kek);
+    auto result2 = service.encrypt_yubikey_pin("654321", kek_result->kek);
+
+    ASSERT_TRUE(result1.has_value());
+    ASSERT_TRUE(result2.has_value());
+    EXPECT_NE(*result1, *result2) << "Each call should produce unique ciphertext (random IV)";
+}
+
+// ============================================================================
+// CombineKEKWithYubiKey Edge Cases
+// ============================================================================
+
+TEST_F(VaultCryptoServiceTest, CombineKEKWithYubiKey_EmptyResponseReturnsError) {
+    auto kek_result = service.derive_kek_from_password("TestPassword", DEFAULT_PBKDF2_ITERATIONS);
+    ASSERT_TRUE(kek_result.has_value());
+
+    std::vector<uint8_t> empty_response;
+    auto result = service.combine_kek_with_yubikey(kek_result->kek, empty_response);
+
+    EXPECT_FALSE(result.has_value()) << "Empty YubiKey response should return error";
+    EXPECT_EQ(result.error(), VaultError::CryptoError);
+}
+
+TEST_F(VaultCryptoServiceTest, CombineKEKWithYubiKey_LargeResponseUsesHashPath) {
+    auto kek_result = service.derive_kek_from_password("TestPassword", DEFAULT_PBKDF2_ITERATIONS);
+    ASSERT_TRUE(kek_result.has_value());
+    const auto& kek = kek_result->kek;
+
+    // 64-byte response (> KEK_SIZE=32) triggers SHA-256 hashing inside combine_with_yubikey_v2
+    std::vector<uint8_t> large_response(64, 0xAB);
+    auto result = service.combine_kek_with_yubikey(kek, large_response);
+
+    ASSERT_TRUE(result.has_value()) << "Large YubiKey response should succeed via hash path";
+    EXPECT_NE(*result, kek) << "Combined KEK should differ from original";
+}
+
+TEST_F(VaultCryptoServiceTest, CombineKEKWithYubiKey_ExactKEKSizeResponse) {
+    auto kek_result = service.derive_kek_from_password("TestPassword", DEFAULT_PBKDF2_ITERATIONS);
+    ASSERT_TRUE(kek_result.has_value());
+    const auto& kek = kek_result->kek;
+
+    // Exactly 32 bytes (= KEK_SIZE) uses the zero-pad path (no actual padding needed)
+    std::vector<uint8_t> response32(32, 0x42);
+    auto result = service.combine_kek_with_yubikey(kek, response32);
+
+    ASSERT_TRUE(result.has_value()) << "32-byte YubiKey response should succeed";
+    EXPECT_NE(*result, kek) << "Combined KEK should differ from original";
+}
+
+// ============================================================================
 // Main
 // ============================================================================
 

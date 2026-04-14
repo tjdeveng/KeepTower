@@ -889,3 +889,81 @@ TEST_F(KeyWrappingTest, CompleteWorkflowPasswordPlusYubiKey) {
     // 10. Verify recovered DEK matches original
     EXPECT_EQ(unwrap_result.value().dek, dek);
 }
+
+// ============================================================================
+// combine_with_yubikey_v2 Tests
+// ============================================================================
+
+TEST_F(KeyWrappingTest, CombineWithYubiKeyV2_EmptyResponseReturnsUnchangedKEK) {
+    std::vector<uint8_t> empty_response;
+
+    auto result = KeyWrapping::combine_with_yubikey_v2(test_kek, empty_response);
+
+    // Empty response logs error and returns unchanged KEK
+    EXPECT_EQ(result, test_kek) << "Empty response should return unchanged KEK";
+}
+
+TEST_F(KeyWrappingTest, CombineWithYubiKeyV2_SmallResponseZeroPadsAndXORs) {
+    // 20-byte SHA-1-sized response (< 32 bytes) should be zero-padded then XOR'd
+    std::vector<uint8_t> small_response(20, 0x77);
+
+    auto result = KeyWrapping::combine_with_yubikey_v2(test_kek, small_response);
+
+    // First 20 bytes should be XOR'd with 0x77
+    for (size_t i = 0; i < 20; ++i) {
+        EXPECT_EQ(result[i], test_kek[i] ^ 0x77)
+            << "Byte " << i << " should be XOR'd with response byte";
+    }
+    // Remaining 12 bytes: padded zeros XOR'd => unchanged
+    for (size_t i = 20; i < KeyWrapping::KEK_SIZE; ++i) {
+        EXPECT_EQ(result[i], test_kek[i]) << "Padded zero bytes should leave KEK unchanged";
+    }
+}
+
+TEST_F(KeyWrappingTest, CombineWithYubiKeyV2_ExactKEKSizeResponse) {
+    // 32-byte response = exactly KEK_SIZE, uses the zero-pad path (no actual padding)
+    std::vector<uint8_t> exact_response(KeyWrapping::KEK_SIZE, 0x55);
+
+    auto result = KeyWrapping::combine_with_yubikey_v2(test_kek, exact_response);
+
+    for (size_t i = 0; i < KeyWrapping::KEK_SIZE; ++i) {
+        EXPECT_EQ(result[i], test_kek[i] ^ 0x55)
+            << "All bytes should be XOR'd with 0x55";
+    }
+}
+
+TEST_F(KeyWrappingTest, CombineWithYubiKeyV2_LargeResponseHashesToKEKSize) {
+    // 64-byte response (> KEK_SIZE) should be SHA-256 hashed to 32 bytes before XOR
+    std::vector<uint8_t> large_response(64, 0xCC);
+
+    auto result = KeyWrapping::combine_with_yubikey_v2(test_kek, large_response);
+
+    EXPECT_NE(result, test_kek) << "Large response should XOR and produce a different KEK";
+    EXPECT_EQ(result.size(), KeyWrapping::KEK_SIZE);
+}
+
+TEST_F(KeyWrappingTest, CombineWithYubiKeyV2_DifferentLargeResponsesProduceDifferentKEKs) {
+    std::vector<uint8_t> response_a(64, 0xAA);
+    std::vector<uint8_t> response_b(64, 0xBB);
+
+    auto result_a = KeyWrapping::combine_with_yubikey_v2(test_kek, response_a);
+    auto result_b = KeyWrapping::combine_with_yubikey_v2(test_kek, response_b);
+
+    EXPECT_NE(result_a, result_b) << "Different large responses should produce different KEKs";
+}
+
+// ============================================================================
+// Error String Tests
+// ============================================================================
+
+TEST_F(KeyWrappingTest, ErrorToStringCoversAllEnumCases) {
+    EXPECT_FALSE(KeyWrapping::error_to_string(KeyWrapping::Error::INVALID_KEK_SIZE).empty());
+    EXPECT_FALSE(KeyWrapping::error_to_string(KeyWrapping::Error::INVALID_DEK_SIZE).empty());
+    EXPECT_FALSE(KeyWrapping::error_to_string(KeyWrapping::Error::INVALID_WRAPPED_SIZE).empty());
+    EXPECT_FALSE(KeyWrapping::error_to_string(KeyWrapping::Error::WRAP_FAILED).empty());
+    EXPECT_FALSE(KeyWrapping::error_to_string(KeyWrapping::Error::UNWRAP_FAILED).empty());
+    EXPECT_FALSE(KeyWrapping::error_to_string(KeyWrapping::Error::PBKDF2_FAILED).empty());
+    EXPECT_FALSE(KeyWrapping::error_to_string(KeyWrapping::Error::OPENSSL_ERROR).empty());
+    // Default/unknown case handled by switch default branch
+    EXPECT_FALSE(KeyWrapping::error_to_string(static_cast<KeyWrapping::Error>(999)).empty());
+}

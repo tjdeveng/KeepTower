@@ -620,3 +620,32 @@ TEST_F(FIPSModeTest, ErrorHandling_CorruptedVault_FailsGracefully) {
     EXPECT_FALSE(vault2.open_vault_v2(test_vault_path, test_username, test_password));
     EXPECT_FALSE(vault2.is_vault_open());
 }
+
+// ============================================================================
+// set_fips_mode Branch Coverage
+// ============================================================================
+
+TEST_F(FIPSModeTest, SetFipsMode_IdempotentReturnsTrueForCurrentState) {
+    [[maybe_unused]] bool _r = VaultManager::init_fips_mode(false);
+
+    // After init with enable=false, current state is "disabled".
+    // Calling set_fips_mode(false) should hit the idempotent early-return branch.
+    bool result = VaultManager::set_fips_mode(false);
+    EXPECT_TRUE(result) << "set_fips_mode with the current state should return true (idempotent)";
+    EXPECT_FALSE(VaultManager::is_fips_enabled()) << "Mode should remain disabled";
+}
+
+TEST_F(FIPSModeTest, SetFipsMode_EnableFailsWhenFipsNotAvailable) {
+    [[maybe_unused]] bool _r = VaultManager::init_fips_mode(false);
+
+    if (VaultManager::is_fips_available()) {
+        // Skip: FIPS is available so enable would succeed. Runtime-toggle already tested.
+        SUCCEED();
+        return;
+    }
+
+    // FIPS not available: attempting to enable should fail clearly.
+    bool result = VaultManager::set_fips_mode(true);
+    EXPECT_FALSE(result) << "set_fips_mode(true) should fail when FIPS provider is unavailable";
+    EXPECT_FALSE(VaultManager::is_fips_enabled()) << "Mode must stay disabled";
+}

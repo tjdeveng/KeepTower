@@ -236,3 +236,281 @@ TEST(ImportFlowController, SuccessShowsInfoAndCallsUpdate) {
     EXPECT_TRUE(updated);
     EXPECT_EQ(log.calls, (std::vector<std::string>{"open_file", "import", "update", "info"}));
 }
+
+// ============================================================================
+// ExportFlowController — null-port and cancel branch coverage
+// ============================================================================
+
+TEST(ExportFlowController, NullWarningPortShowsInternalError) {
+    CallLog log;
+
+    UI::Flows::ExportFlowController controller(UI::Flows::ExportFlowController::Ports{
+        UI::Flows::MessagePort{
+            [&](const std::string&, const std::string&) { log.push("info"); },
+            [&](const std::string&, const std::string&) { log.push("warning_msg"); },
+            [&](const std::string& msg, const std::string&) {
+                log.push(std::string("error:") + msg);
+            },
+        },
+        UI::Flows::SchedulerPort{},
+        UI::Flows::ExportWarningPort{nullptr},  // null warning port
+        UI::Flows::PasswordPromptPort{},
+        UI::Flows::SecretCleanerPort{},
+        UI::Flows::ExportAuthPort{},
+        UI::Flows::FileDialogPort{},
+        UI::Flows::ExportOperationPort{},
+    });
+
+    controller.start_export("/vault.vault", true);
+
+    ASSERT_EQ(log.calls.size(), 1u);
+    EXPECT_TRUE(log.calls[0].starts_with("error:")) << "Null warning port should show internal error";
+}
+
+TEST(ExportFlowController, UserCancelsAtWarningDialogDoesNothing) {
+    CallLog log;
+
+    UI::Flows::ExportFlowController controller(UI::Flows::ExportFlowController::Ports{
+        UI::Flows::MessagePort{
+            [&](const std::string&, const std::string&) { log.push("info"); },
+            [&](const std::string&, const std::string&) { log.push("warning_msg"); },
+            [&](const std::string&, const std::string&) { log.push("error"); },
+        },
+        UI::Flows::SchedulerPort{},
+        UI::Flows::ExportWarningPort{[&](std::function<void(bool)> cb) {
+            log.push("warning");
+            cb(false);  // User cancels
+        }},
+        UI::Flows::PasswordPromptPort{
+            []() -> std::optional<std::string> { return std::nullopt; },
+            [&](std::function<void(std::string)>) { log.push("password_prompt"); },
+        },
+        UI::Flows::SecretCleanerPort{},
+        UI::Flows::ExportAuthPort{},
+        UI::Flows::FileDialogPort{},
+        UI::Flows::ExportOperationPort{},
+    });
+
+    controller.start_export("/vault.vault", true);
+
+    EXPECT_EQ(log.calls, (std::vector<std::string>{"warning"}))
+        << "Cancelling at warning dialog should stop the flow immediately";
+}
+
+TEST(ExportFlowController, NullPasswordPromptPortShowsInternalError) {
+    CallLog log;
+
+    UI::Flows::ExportFlowController controller(UI::Flows::ExportFlowController::Ports{
+        UI::Flows::MessagePort{
+            [&](const std::string&, const std::string&) { log.push("info"); },
+            [&](const std::string&, const std::string&) { log.push("warning_msg"); },
+            [&](const std::string& msg, const std::string&) {
+                log.push(std::string("error:") + msg);
+            },
+        },
+        UI::Flows::SchedulerPort{[&](std::function<void()> fn) { fn(); }},
+        UI::Flows::ExportWarningPort{[&](std::function<void(bool)> cb) {
+            log.push("warning");
+            cb(true);
+        }},
+        UI::Flows::PasswordPromptPort{
+            []() -> std::optional<std::string> { return std::nullopt; },
+            nullptr,  // null password prompt port
+        },
+        UI::Flows::SecretCleanerPort{},
+        UI::Flows::ExportAuthPort{},
+        UI::Flows::FileDialogPort{},
+        UI::Flows::ExportOperationPort{},
+    });
+
+    controller.start_export("/vault.vault", true);
+
+    bool saw_error = false;
+    for (const auto& c : log.calls) {
+        if (c.starts_with("error:")) saw_error = true;
+        EXPECT_NE(c, "password_prompt");
+        EXPECT_NE(c, "auth");
+    }
+    EXPECT_TRUE(saw_error) << "Null password prompt should result in internal error";
+}
+
+TEST(ExportFlowController, NullAuthPortUsesErrorFallback) {
+    CallLog log;
+
+    UI::Flows::ExportFlowController controller(UI::Flows::ExportFlowController::Ports{
+        UI::Flows::MessagePort{
+            [&](const std::string&, const std::string&) { log.push("info"); },
+            [&](const std::string&, const std::string&) { log.push("warning_msg"); },
+            [&](const std::string& msg, const std::string&) {
+                log.push(std::string("error:") + msg);
+            },
+        },
+        UI::Flows::SchedulerPort{[&](std::function<void()> fn) { fn(); }},
+        UI::Flows::ExportWarningPort{[&](std::function<void(bool)> cb) { cb(true); }},
+        UI::Flows::PasswordPromptPort{
+            []() -> std::optional<std::string> { return std::nullopt; },
+            [&](std::function<void(std::string)> cb) { cb("pw"); },
+        },
+        UI::Flows::SecretCleanerPort{[&](std::string&) { log.push("cleanse"); }},
+        UI::Flows::ExportAuthPort{nullptr},  // null auth port — ternary fallback fires
+        UI::Flows::FileDialogPort{},
+        UI::Flows::ExportOperationPort{},
+    });
+
+    controller.start_export("/vault.vault", true);
+
+    bool saw_error = false;
+    for (const auto& c : log.calls) {
+        if (c.starts_with("error:")) saw_error = true;
+        EXPECT_NE(c, "save_file");
+        EXPECT_NE(c, "export");
+    }
+    EXPECT_TRUE(saw_error) << "Null auth port should trigger error and stop before save";
+}
+
+TEST(ExportFlowController, NullSaveFilePortShowsInternalError) {
+    CallLog log;
+
+    UI::Flows::ExportFlowController controller(UI::Flows::ExportFlowController::Ports{
+        UI::Flows::MessagePort{
+            [&](const std::string&, const std::string&) { log.push("info"); },
+            [&](const std::string&, const std::string&) { log.push("warning_msg"); },
+            [&](const std::string& msg, const std::string&) {
+                log.push(std::string("error:") + msg);
+            },
+        },
+        UI::Flows::SchedulerPort{[&](std::function<void()> fn) { fn(); }},
+        UI::Flows::ExportWarningPort{[&](std::function<void(bool)> cb) { cb(true); }},
+        UI::Flows::PasswordPromptPort{
+            []() -> std::optional<std::string> { return std::nullopt; },
+            [&](std::function<void(std::string)> cb) { cb("pw"); },
+        },
+        UI::Flows::SecretCleanerPort{[&](std::string&) { log.push("cleanse"); }},
+        UI::Flows::ExportAuthPort{[&](const std::string&) {
+            return std::expected<void, std::string>{};
+        }},
+        UI::Flows::FileDialogPort{{}, nullptr},  // null save_file port
+        UI::Flows::ExportOperationPort{},
+    });
+
+    controller.start_export("/vault.vault", true);
+
+    bool saw_error = false;
+    for (const auto& c : log.calls) {
+        if (c.starts_with("error:")) saw_error = true;
+        EXPECT_NE(c, "export");
+    }
+    EXPECT_TRUE(saw_error) << "Null save-file port should result in internal error";
+}
+
+TEST(ExportFlowController, ExportOperationFailureShowsError) {
+    CallLog log;
+
+    UI::Flows::ExportFlowController controller(UI::Flows::ExportFlowController::Ports{
+        UI::Flows::MessagePort{
+            [&](const std::string&, const std::string&) { log.push("info"); },
+            [&](const std::string&, const std::string&) { log.push("warning_msg"); },
+            [&](const std::string& msg, const std::string&) {
+                log.push(std::string("error:") + msg);
+            },
+        },
+        UI::Flows::SchedulerPort{[&](std::function<void()> fn) { fn(); }},
+        UI::Flows::ExportWarningPort{[&](std::function<void(bool)> cb) { cb(true); }},
+        UI::Flows::PasswordPromptPort{
+            []() -> std::optional<std::string> { return std::nullopt; },
+            [&](std::function<void(std::string)> cb) { cb("pw"); },
+        },
+        UI::Flows::SecretCleanerPort{[&](std::string&) {}},
+        UI::Flows::ExportAuthPort{[&](const std::string&) {
+            return std::expected<void, std::string>{};
+        }},
+        UI::Flows::FileDialogPort{
+            {},
+            [&](const std::string&, const std::string&,
+                const UI::Flows::FileDialogPort::Filters&,
+                std::function<void(const std::string&)> cb) {
+                cb("/tmp/out.csv");
+            },
+        },
+        UI::Flows::ExportOperationPort{
+            [&](const std::string&) -> std::expected<UI::Flows::ExportOperationPort::Success, std::string> {
+                log.push("export");
+                return std::unexpected("disk full");
+            }},
+    });
+
+    controller.start_export("/vault.vault", true);
+
+    bool saw_export = false;
+    bool saw_error  = false;
+    bool saw_info   = false;
+    for (const auto& c : log.calls) {
+        if (c == "export")        saw_export = true;
+        if (c.starts_with("error:")) saw_error  = true;
+        if (c == "info")          saw_info   = true;
+    }
+    EXPECT_TRUE(saw_export) << "Export operation should be invoked";
+    EXPECT_TRUE(saw_error)  << "Export failure should show error";
+    EXPECT_FALSE(saw_info)  << "Info message must not appear on failure";
+}
+
+TEST(ExportFlowController, NullSchedulerRunsFlowDirectlyWithoutIdleStep) {
+    CallLog log;
+
+    UI::Flows::ExportFlowController controller(UI::Flows::ExportFlowController::Ports{
+        UI::Flows::MessagePort{
+            [&](const std::string&, const std::string&) { log.push("info"); },
+            [&](const std::string&, const std::string&) { log.push("warning_msg"); },
+            [&](const std::string&, const std::string&) { log.push("error"); },
+        },
+        UI::Flows::SchedulerPort{nullptr},  // no scheduler — flow runs directly
+        UI::Flows::ExportWarningPort{[&](std::function<void(bool)> cb) {
+            log.push("warning");
+            cb(true);
+        }},
+        UI::Flows::PasswordPromptPort{
+            []() -> std::optional<std::string> { return std::nullopt; },
+            [&](std::function<void(std::string)> cb) {
+                log.push("password_prompt");
+                cb("pw");
+            },
+        },
+        UI::Flows::SecretCleanerPort{[&](std::string&) { log.push("cleanse"); }},
+        UI::Flows::ExportAuthPort{[&](const std::string&) {
+            log.push("auth");
+            return std::expected<void, std::string>{};
+        }},
+        UI::Flows::FileDialogPort{
+            {},
+            [&](const std::string&, const std::string&,
+                const UI::Flows::FileDialogPort::Filters&,
+                std::function<void(const std::string&)> cb) {
+                log.push("save_file");
+                cb("/tmp/out.csv");
+            },
+        },
+        UI::Flows::ExportOperationPort{
+            [&](const std::string&) {
+                log.push("export");
+                return std::expected<UI::Flows::ExportOperationPort::Success, std::string>{
+                    UI::Flows::ExportOperationPort::Success{
+                        .path = "/tmp/out.csv",
+                        .format_name = "CSV",
+                        .warning_text = "",
+                        .account_count = 1,
+                    }};
+            }},
+    });
+
+    controller.start_export("/vault.vault", true);
+
+    // "idle" must NOT appear (no scheduler)
+    for (const auto& c : log.calls) {
+        EXPECT_NE(c, "idle") << "No idle step when scheduler.on_idle is null";
+    }
+    // Full flow should still complete successfully
+    std::vector<std::string> expected = {
+        "warning", "password_prompt", "auth", "cleanse", "save_file", "export", "info",
+    };
+    EXPECT_EQ(log.calls, expected);
+}
