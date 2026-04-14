@@ -229,7 +229,7 @@ This document outlines the planned features and improvements for KeepTower, orga
   - Continuous fuzzing, benchmarking, accessibility, i18n, and broader packaging work remain important project goals, but they are not required to declare the current A+ repository-quality bar closed.
 - Current known misses against the A+ definition:
   - Coverage now meets the canonical threshold (see latest snapshot below); `#29` line/function targets cleared.
-  - Current hotspot files remain above the proposed `2000`-line ceiling without the closure rationale yet completed in `#30`.
+  - `#30` hotspot boundary work in progress: `VaultManagerV2.cc` is now **1766 lines** (below 2000-line ceiling, slice 1 complete); remaining slices are non-blocking improvement work.
 - Verified current signals:
   - Full local Meson suite passes: `68/68` tests green.
   - High-signal static analysis is enforced in CI for the tracked audited subset.
@@ -266,7 +266,7 @@ This document outlines the planned features and improvements for KeepTower, orga
   - Commit: `cc49fe0` `test(coverage): #29 margin — crypto/FIPS/flow null-port branch slices`
 - A+ is considered closed only when the remaining milestone gaps are resolved:
   - `#29` ✅ coverage at comfortable margin above the agreed A+ threshold (76.2% lines, 82.5% functions)
-  - `#30` hotspot reduction in the largest responsibility-dense files
+  - `#30` slice 1 ✅ `YubiKeyEnrollmentService` extracted; `VaultManagerV2.cc` reduced from 2059 → 1766 lines (A+ ceiling met); slices 2-4 are improvement-only
 
 ### Throughout All Versions
 - [ ] Maintain >80% test coverage for all new features

@@ -57,6 +57,7 @@ vault_manager_common_app_sources = [
     '../src/core/controllers/VaultCreationOrchestrator.cc',
     '../src/core/services/KeySlotManager.cc',
     '../src/core/services/VaultYubiKeyService.cc',
+    '../src/core/services/YubiKeyEnrollmentService.cc',
     '../src/core/services/VaultFileService.cc',
     '../src/core/services/VaultDataService.cc',
     '../src/core/services/V2AuthService.cc',
