@@ -7,6 +7,7 @@
 #include "../ui/dialogs/PasswordDialog.h"
 #include "../ui/dialogs/PreferencesDialog.h"
 #include "../core/VaultManager.h"
+#include "../lib/fips/FipsProviderManager.h"
 #include "../utils/Log.h"
 #include "../config.h"
 #include <giomm/settings.h>
@@ -55,13 +56,13 @@ void Application::on_startup() {
     }
 
     // Initialize FIPS mode
-    if (!VaultManager::init_fips_mode(enable_fips)) {
+    if (!KeepTower::FipsProviderManager::init_fips_mode(enable_fips)) {
         KeepTower::Log::error("Failed to initialize FIPS mode");
         // Continue anyway - VaultManager will use default provider
     }
 
-    if (VaultManager::is_fips_available()) {
-        KeepTower::Log::info("FIPS-140-3 provider available (enabled={})", VaultManager::is_fips_enabled());
+    if (KeepTower::FipsProviderManager::is_fips_available()) {
+        KeepTower::Log::info("FIPS-140-3 provider available (enabled={})", KeepTower::FipsProviderManager::is_fips_enabled());
     } else {
         KeepTower::Log::info("FIPS-140-3 provider not available - using default provider");
     }
@@ -131,8 +132,8 @@ void Application::on_action_about() {
 
     // Build comments with FIPS status
     std::string comments = "Secure password manager with AES-256-GCM encryption and Reed-Solomon error correction";
-    if (VaultManager::is_fips_available()) {
-        if (VaultManager::is_fips_enabled()) {
+    if (KeepTower::FipsProviderManager::is_fips_available()) {
+        if (KeepTower::FipsProviderManager::is_fips_enabled()) {
             comments += "\n\nFIPS-140-3: Enabled ✓";
         } else {
             comments += "\n\nFIPS-140-3: Available (not enabled)";

@@ -4,6 +4,7 @@
 #include "VaultSecurityPreferencesPage.h"
 
 #include "../../../core/VaultManager.h"
+#include "../../../lib/fips/FipsProviderManager.h"
 #include "../../../utils/Log.h"
 #include "../../../utils/StringHelpers.h"
 
@@ -142,7 +143,7 @@ VaultSecurityPreferencesPage::VaultSecurityPreferencesPage(VaultManager* vault_m
     m_fips_restart_warning.set_margin_start(24);
     m_fips_restart_warning.set_margin_top(6);
 
-    if (VaultManager::is_fips_available()) {
+    if (KeepTower::FipsProviderManager::is_fips_available()) {
         m_fips_restart_warning.set_markup("<span size='small'>⚠️  Changes require application restart to take effect</span>");
         m_fips_restart_warning.add_css_class("warning");
         fips_section->append(m_fips_restart_warning);

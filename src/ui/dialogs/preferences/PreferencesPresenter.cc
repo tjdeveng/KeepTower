@@ -4,6 +4,7 @@
 #include "PreferencesPresenter.h"
 
 #include "../../../core/VaultManager.h"
+#include "../../../lib/fips/FipsProviderManager.h"
 #include "../../../utils/SettingsValidator.h"
 #include "../../../utils/Log.h"
 
@@ -61,7 +62,7 @@ PreferencesModel PreferencesPresenter::load() const {
     }
 
     model.vault_open = m_vault_manager && m_vault_manager->is_vault_open();
-    model.fips_available = VaultManager::is_fips_available();
+    model.fips_available = KeepTower::FipsProviderManager::is_fips_available();
 
     if (model.vault_open) {
         const auto session = m_vault_manager->get_current_user_session();
