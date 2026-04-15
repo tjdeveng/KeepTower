@@ -1018,9 +1018,19 @@ public:
 
     /** @name FIPS-140-3 Cryptographic Mode Management */
     /** @{ */
+    /** @brief Initialize FIPS-140-3 mode. Delegates to FipsProviderManager.
+     *  @param enable True to enable FIPS mode, false to disable.
+     *  @return True if the requested mode was applied successfully. */
     [[nodiscard]] static bool init_fips_mode(bool enable = false);
+    /** @brief Return true if a FIPS-140-3 provider is available on this system.
+     *  @return True when a FIPS provider is present and usable. */
     [[nodiscard]] static bool is_fips_available();
+    /** @brief Return true if FIPS-140-3 mode is currently active.
+     *  @return True when FIPS mode is enabled. */
     [[nodiscard]] static bool is_fips_enabled();
+    /** @brief Enable or disable FIPS-140-3 mode at runtime. Delegates to FipsProviderManager.
+     *  @param enable True to enable, false to disable.
+     *  @return True if the mode change succeeded. */
     [[nodiscard]] static bool set_fips_mode(bool enable);
     /** @} */
 
