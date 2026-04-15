@@ -191,14 +191,12 @@ This document outlines the planned features and improvements for KeepTower, orga
 ### A+ Gap Closure Tracking
 - Primary tracking now lives in the GitHub milestone `A+ Gap Closure` rather than new standalone status markdown files.
 - Use milestone issues plus PRs/commits as the audit trail for quality work:
-  - `#25` A+ scorecard: align quality claims, roadmap, and measurable thresholds
-  - `#26` Close VaultManager/VaultManagerV2 static-analysis backlog with explicit invariants
-  - `#27` Make high-signal static analysis enforceable in CI
-  - `#28` Resolve or formalize the FIPS sanitizer leak policy
-  - `#29` Raise coverage on remaining low-coverage core paths to A+ threshold
-  - `#30` Reduce hotspot size and responsibility in VaultManager and MainWindow
-    - Track YubiKey hardware-boundary seam refactor here first (dependency injection/interface extraction for testability and hotspot reduction in VaultManager/MainWindow).
-    - If this work grows beyond hotspot-boundary scope, split into a dedicated follow-up issue and cross-link from `#30`.
+  - `#25` *(open)* A+ scorecard: align quality claims, roadmap, and measurable thresholds
+  - `#26` *(open)* Close VaultManager/VaultManagerV2 static-analysis backlog with explicit invariants
+  - `#27` ✅ *(closed)* Make high-signal static analysis enforceable in CI
+  - `#28` ✅ *(closed)* Resolve or formalize the FIPS sanitizer leak policy
+  - `#29` ✅ *(closed)* Raise coverage on remaining low-coverage core paths to A+ threshold
+  - `#30` ✅ *(closed)* Reduce hotspot size and responsibility in VaultManager and MainWindow
   - `#32` *(planned)* Encrypted recovery snapshot to prevent in-memory data loss when backup path is unavailable during explicit save; see `SECURITY.md` Known Operational Limitations for the full description of the failure mode
 - Local documentation should stay focused on durable reference material: architecture, user docs, API docs, and design notes that cannot be expressed cleanly in an issue or PR.
 
@@ -231,7 +229,7 @@ This document outlines the planned features and improvements for KeepTower, orga
   - Coverage now meets the canonical threshold (see latest snapshot below); `#29` line/function targets cleared.
   - `#30` hotspot boundary work complete: `VaultManagerV2.cc` is now **1065 lines** (slices 1–4 done); extracted `YubiKeyEnrollmentService`, `PasswordManagementService`, `UserProvisioningService`, and `SecurityPolicyService`. `VaultManager.h` reduced 1880 → **1624 lines** and `VaultManager.cc` reduced 1490 → **1207 lines** by stripping FIPS-wrapper Doxygen bloat (real documentation lives in `FipsProviderManager`). `MainWindow.cc` reduced 1826 → **1660 lines** by removing 10 dead stubs/helpers and extracting `AccountSaveService` (permission check, password-history policy, metadata stamps).
 - Verified current signals:
-  - Full local Meson suite passes: `68/68` tests green.
+  - Full local Meson suite passes: `69/69` tests green.
   - High-signal static analysis is enforced in CI for the tracked audited subset.
   - The FIPS mode test suite passes in `build-asan` with leak detection enabled; the old Meson leak-detection override was removed after explicit provider cleanup landed.
   - Public API documentation is enforced under a strict zero-warning Doxygen policy.
@@ -264,9 +262,19 @@ This document outlines the planned features and improvements for KeepTower, orga
     - `src/lib/fips/FipsProviderManager.cc`: `set_fips_mode` idempotent branch and unavailable-enable branch.
     - `src/ui/controllers/flows/ExportFlowController.cc`: null warning/password/auth/save/export ports, user cancel, export failure, null scheduler direct-flow.
   - Commit: `cc49fe0` `test(coverage): #29 margin — crypto/FIPS/flow null-port branch slices`
+- `#30` closeout summary (`2026-04-15`):
+  - All four hotspot files reduced below the 2000-line A+ ceiling.
+  - `VaultManagerV2.cc`: 2059 → **1065 lines** (−994). Extracted `YubiKeyEnrollmentService`, `PasswordManagementService`, `UserProvisioningService`, `SecurityPolicyService`.
+  - `VaultManager.h`: 1880 → **1634 lines** (−246). Stripped FIPS-wrapper Doxygen bloat; added proper `@brief`/`@param`/`@return` to the four delegation declarations; real docs live in `FipsProviderManager`.
+  - `VaultManager.cc`: 1490 → **1207 lines** (−283). Same FIPS bloat removal.
+  - `MainWindow.cc`: 1826 → **1660 lines** (−166). Removed 10 dead stubs/helpers and extracted `AccountSaveService` (permission check, password-history policy, metadata stamps). 19 new unit tests.
+  - Doxygen: exit 0, zero warnings. Suite: `69/69` tests green.
+  - Commits: `8a30d74`, `a46e9e2`, `7ce6a01`, `e0e0e68`, `c355789`, `1cbcbd3`, `dc2c0d2`, `b574c0d`.
 - A+ is considered closed only when the remaining milestone gaps are resolved:
   - `#29` ✅ coverage at comfortable margin above the agreed A+ threshold (76.2% lines, 82.5% functions)
-  - `#30` slice 1 ✅ `YubiKeyEnrollmentService` extracted; `VaultManagerV2.cc` reduced from 2059 → 1766 lines (A+ ceiling met); slices 2-4 are improvement-only
+  - `#30` ✅ all four hotspots below 2000-line ceiling; five services extracted; Doxygen zero warnings; 69/69 tests green
+  - `#25` *(open)* scorecard alignment and stale-claim cleanup
+  - `#26` *(open)* static-analysis invariant hardening in VaultManager/VaultManagerV2
 
 ### Throughout All Versions
 - [ ] Maintain >80% test coverage for all new features
