@@ -158,12 +158,8 @@ protected:
     void on_manage_yubikeys();  ///< Manage YubiKey backup keys
     void on_copy_password();  ///< Copy password to clipboard
     void on_generate_password();  ///< Generate random password
-    void on_toggle_password_visibility();  ///< Show/hide password
     void on_undo();  ///< Undo last operation
     void on_redo();  ///< Redo last undone operation
-    /** @brief Toggle favorite state from the legacy star-column path.
-     *  @param path Tree path corresponding to the clicked account row. */
-    void on_star_column_clicked(const Gtk::TreeModel::Path& path);
 
     /** @brief Handle favorite toggle requests from AccountRowWidget.
      *  @param account_index Vault index of the toggled account. */
@@ -172,18 +168,6 @@ protected:
     /** @brief Check whether undo/redo commands are enabled in preferences.
      *  @return True when undo/redo UI should be enabled. */
     [[nodiscard]] bool is_undo_redo_enabled() const;
-    void on_tags_entry_activate();  ///< Add tag when Enter is pressed
-    /** @brief Add a visual tag chip to the flowbox.
-     *  @param tag Tag text to display. */
-    void add_tag_chip(const std::string& tag);
-
-    /** @brief Remove a visual tag chip.
-     *  @param tag Tag text to remove. */
-    void remove_tag_chip(const std::string& tag);
-    void update_tags_display();  ///< Refresh tags display from current account
-    /** @brief Get the currently edited tag values.
-     *  @return Current tag list from the detail widget state. */
-    std::vector<std::string> get_current_tags();
     void update_tag_filter_dropdown();  ///< Update tag filter dropdown with all unique tags
     void on_tag_filter_changed();  ///< Handle tag filter selection change
     void on_field_filter_changed();  ///< Handle search field filter selection change
@@ -191,7 +175,6 @@ protected:
 
     // Account list handlers
     void on_search_changed(); ///< Filter accounts by search
-    void on_selection_changed();  ///< Handle account selection
     // [REMOVED] Legacy TreeView/TreeStore handlers (migrated to AccountTreeWidget)
 
     // Group management handlers
@@ -290,17 +273,6 @@ protected:
         const Glib::ustring& title,
         const Glib::ustring& detail);
 
-    /** @brief Validate field length against maximum
-     *  @param field_name Name of field for error message
-     *  @param value Field value to validate
-     *  @param max_length Maximum allowed length
-     *  @return true if valid, false if too long */
-    bool validate_field_length(const Glib::ustring& field_name, const Glib::ustring& value, int max_length);
-
-    /** @brief Validate email address format
-     *  @param email Email address to validate
-     *  @return true if format is valid */
-    bool validate_email_format(const Glib::ustring& email);
     /** @brief Prompt to save when the vault has unsaved changes.
      *  @return False when the user cancels the pending action. */
     bool prompt_save_if_modified();
@@ -427,7 +399,6 @@ protected:
     // [REMOVED] Legacy TreeModel columns (migrated to AccountTreeWidget)
 
     // State
-    bool m_updating_selection;                ///< Prevent recursive selection change handling
     int m_selected_account_index;             ///< Currently selected account index (-1 if none)
     std::vector<int> m_filtered_indices;      ///< Indices matching current search filter
     sigc::connection m_row_inserted_conn;     ///< Connection for detecting drag-and-drop reordering

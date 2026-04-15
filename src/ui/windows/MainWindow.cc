@@ -20,6 +20,7 @@
 #include "../../core/repositories/AccountRepository.h"
 #include "../../core/repositories/GroupRepository.h"
 #include "../../core/services/AccountService.h"
+#include "../../core/services/AccountSaveService.h"
 #include "../../core/services/GroupService.h"
 #include "../../utils/SettingsValidator.h"
 #include "../../utils/ImportExport.h"
@@ -34,7 +35,7 @@ using KeepTower::safe_ustring_to_string;
 #include "../dialogs/YubiKeyManagerDialog.h"
 #endif
 #include "record.pb.h"
-#include <regex>
+
 #include <set>
 #include <algorithm>
 #include <ctime>
@@ -46,7 +47,6 @@ MainWindow::MainWindow()
       m_search_box(Gtk::Orientation::HORIZONTAL, 12),
       m_paned(Gtk::Orientation::HORIZONTAL),
       m_status_label("No vault open"),
-      m_updating_selection(false),
       m_selected_account_index(-1),
       m_vault_manager(std::make_unique<VaultManager>()),
       m_account_controller(nullptr),  // Initialized after vault_manager
@@ -838,17 +838,6 @@ void MainWindow::on_copy_password() {
     }
 }
 
-void MainWindow::on_toggle_password_visibility() {
-    // This functionality is now handled by AccountDetailWidget internally
-}
-
-void MainWindow::on_star_column_clicked(const Gtk::TreeModel::Path& /*path*/) {
-    // [LEGACY METHOD - REPLACED BY AccountTreeWidget signal handlers]
-    // This method handled TreeView star column clicks
-    // Now handled by AccountRowWidget's favorite_toggled signal via on_favorite_toggled()
-    return;
-}
-
 void MainWindow::on_favorite_toggled(int account_index) {
     if (!has_open_vault()) {
         return;
@@ -878,18 +867,6 @@ void MainWindow::on_favorite_toggled(int account_index) {
 void MainWindow::on_search_changed() {
     Glib::ustring search_text = m_search_entry.get_text();
     filter_accounts(search_text);
-}
-
-void MainWindow::on_selection_changed() {
-    // Prevent recursive calls when we're programmatically updating selection
-    if (m_updating_selection) {
-        return;
-    }
-
-    // [LEGACY METHOD - REPLACED BY AccountTreeWidget signal handlers]
-    // This method handled TreeView selection changes
-    // Now handled by m_account_tree_widget->signal_account_selected()
-    return;
 }
 
 // [REMOVED] Legacy on_account_selected (migrated to AccountTreeWidget)
@@ -977,13 +954,8 @@ void MainWindow::display_account_details(int index) {
  * @brief Save changes to the currently selected account
  * @return true if save succeeded or nothing to save, false if validation failed
  *
- * Phase 3: Uses AccountService for comprehensive validation including:
- * - Empty account name check
- * - Field length limits (name, username, password, email, website, notes)
- * - Email format validation (if email provided)
- *
- * Updates account fields and maintains password history if configured.
- * Displays user-friendly error dialogs for validation failures.
+ * Delegates validation error messages to AccountSaveService::validation_error_message()
+ * and permission/history/metadata logic to AccountSaveService::prepare_save().
  *
  * @note Does nothing if no account selected or vault closed
  */
@@ -1021,7 +993,7 @@ bool MainWindow::save_current_account() {
     }
     KeepTower::AccountDetail detail = std::move(*detail_opt);
 
-    // Save old values before overwrite (needed for history and change detection)
+    // Save old name for list-refresh detection; old password for history
     const std::string old_name = detail.account_name;
     const std::string old_password = detail.password;
 
@@ -1033,102 +1005,37 @@ bool MainWindow::save_current_account() {
     detail.website = website;
     detail.notes = notes;
 
-    // Phase 3: Use AccountService for validation
+    // Phase 3: Use AccountService for field validation
     if (m_account_service) {
         auto validation_result = m_account_service->validate_account(detail);
         if (!validation_result) {
-            // Convert service error to user-friendly message
-            std::string error_msg;
-            switch (validation_result.error()) {
-                case KeepTower::ServiceError::VALIDATION_FAILED:
-                    error_msg = "Account name cannot be empty.";
-                    break;
-                case KeepTower::ServiceError::FIELD_TOO_LONG:
-                    error_msg = "One or more fields exceed maximum length.\n\n"
-                               "Maximum lengths:\n"
-                               "• Account Name: " + std::to_string(UI::MAX_ACCOUNT_NAME_LENGTH) + "\n"
-                               "• Username: " + std::to_string(UI::MAX_USERNAME_LENGTH) + "\n"
-                               "• Password: " + std::to_string(UI::MAX_PASSWORD_LENGTH) + "\n"
-                               "• Email: " + std::to_string(UI::MAX_EMAIL_LENGTH) + "\n"
-                               "• Website: " + std::to_string(UI::MAX_WEBSITE_LENGTH) + "\n"
-                               "• Notes: " + std::to_string(UI::MAX_NOTES_LENGTH);
-                    break;
-                case KeepTower::ServiceError::INVALID_EMAIL:
-                    error_msg = "Invalid email format.\n\n"
-                               "Email must be in the format: user@domain.ext\n\n"
-                               "Examples:\n"
-                               "  • john@example.com\n"
-                               "  • jane.doe@company.co.uk\n"
-                               "  • user+tag@mail.example.org";
-                    break;
-                default:
-                    error_msg = "Validation error: " + std::string(KeepTower::to_string(validation_result.error()));
-                    break;
-            }
-            show_error_dialog(error_msg);
+            show_error_dialog(KeepTower::AccountSaveService::validation_error_message(
+                validation_result.error()));
             return false;
         }
     }
 
-    // Check if user has permission to edit this account (V2 multi-user vaults)
-    // Standard users cannot edit admin-only-deletable accounts
-    bool is_admin = is_current_user_admin();
-    if (!is_admin && detail.is_admin_only_deletable) {
-        // Only block save if account was actually modified
-        if (m_account_detail_widget->is_modified()) {
-            show_error_dialog(
-                "You do not have permission to edit this account.\n\n"
-                "This account is marked as admin-only-deletable.\n"
-                "Only administrators can modify protected accounts."
-            );
-            // Reload the original account data to discard any changes
-            m_account_detail_widget->display_account(detail);
-            return false;  // Prevent save and navigation
-        }
-        // Not modified, allow navigation without error
-        return true;
-    }
-
-    // Check password history settings
+    // Permission check, password-history policy, and metadata stamps
     auto settings = Gio::Settings::create("com.tjdeveng.keeptower");
-    const bool history_enabled = SettingsValidator::is_password_history_enabled(settings);
-    const int history_limit = SettingsValidator::get_password_history_limit(settings);
-
-    // Check if password changed and prevent reuse
-    if (password != old_password && history_enabled) {
-        // Check against previous passwords to prevent reuse
-        for (const auto& hist_entry : detail.password_history) {
-            if (hist_entry == password) {
-                show_error_dialog("Password reuse detected!\n\n"
-                    "This password was used previously. Please choose a different password.\n\n"
-                    "Using unique passwords for each change improves security.");
-                return false;
-            }
+    KeepTower::AccountSaveContext ctx {
+        detail,
+        old_password,
+        is_current_user_admin(),
+        SettingsValidator::is_password_history_enabled(settings),
+        SettingsValidator::get_password_history_limit(settings),
+    };
+    if (auto result = KeepTower::AccountSaveService::prepare_save(ctx); !result) {
+        show_error_dialog(result.error().message);
+        if (result.error().reload_account) {
+            m_account_detail_widget->display_account(detail);
         }
-
-        // Add old password to history if it's not empty
-        if (!old_password.empty()) {
-            detail.password_history.push_back(old_password);
-
-            // Enforce history limit - remove oldest entries if exceeded
-            while (static_cast<int>(detail.password_history.size()) > history_limit) {
-                detail.password_history.erase(detail.password_history.begin());
-            }
-        }
-
-        // Update password_changed_at timestamp when password changes
-        detail.password_changed_at = std::time(nullptr);
+        return false;
     }
 
-    // Update tags
+    // Update tags and privacy controls (widget access — stays in MainWindow)
     detail.tags = m_account_detail_widget->get_all_tags();
-
-    // Update privacy controls (V2 multi-user vaults)
     detail.is_admin_only_viewable = m_account_detail_widget->get_admin_only_viewable();
     detail.is_admin_only_deletable = m_account_detail_widget->get_admin_only_deletable();
-
-    // Update modification timestamp
-    detail.modified_at = std::time(nullptr);
 
     // Persist the updated account back to the vault atomically
     if (!m_vault_manager->update_account(m_selected_account_index, detail)) {
@@ -1144,57 +1051,6 @@ bool MainWindow::save_current_account() {
     m_account_detail_widget->reset_modified_flag();
 
     return true;  // Save successful
-}
-
-bool MainWindow::validate_field_length(const Glib::ustring& field_name, const Glib::ustring& value, int max_length) {
-    auto current_length = static_cast<int>(value.length());
-
-    if (current_length > max_length) {
-        Glib::ustring message = Glib::ustring::sprintf(
-            "%s exceeds maximum length.\n\nCurrent: %d characters\nMaximum: %d characters\n\nPlease shorten the field before saving.",
-            field_name,
-            current_length,
-            max_length
-        );
-        show_error_dialog(message);
-        return false;
-    }
-
-    return true;
-}
-
-bool MainWindow::validate_email_format(const Glib::ustring& email) {
-    // Strict email validation pattern
-    // Requires: localpart@domain.tld
-    // - Local part: alphanumeric, dots, hyphens, underscores, plus signs
-    // - Domain: must have at least one dot
-    // - TLD: at least 2 characters
-    constexpr std::string_view email_pattern_str{
-        R"(^[a-zA-Z0-9._+-]+@[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})*$)"
-    };
-    static const std::regex email_pattern(
-        email_pattern_str.data(),
-        std::regex::optimize
-    );
-
-    try {
-        if (!std::regex_match(safe_ustring_to_string(email, "email"), email_pattern)) {
-            show_error_dialog(
-                "Invalid email format.\n\n"
-                "Email must be in the format: user@domain.ext\n\n"
-                "Examples:\n"
-                "  • john@example.com\n"
-                "  • jane.doe@company.co.uk\n"
-                "  • user+tag@mail.example.org"
-            );
-            return false;
-        }
-    } catch (const std::regex_error& e) {
-        KeepTower::Log::warning("Email validation regex error: {}", e.what());
-        return false;
-    }
-
-    return true;
 }
 
 void MainWindow::update_tag_filter_dropdown() {
@@ -1273,28 +1129,6 @@ void MainWindow::show_error_dialog(const Glib::ustring& message) {
     if (m_dialog_manager) {
         m_dialog_manager->show_error_dialog(message.raw());
     }
-}
-
-void MainWindow::on_tags_entry_activate() {
-    // This functionality is now handled by AccountDetailWidget internally
-}
-
-void MainWindow::add_tag_chip(const std::string& /*tag*/) {
-    // This functionality is now handled by AccountDetailWidget internally
-}
-
-void MainWindow::remove_tag_chip(const std::string& /*tag*/) {
-    // This functionality is now handled by AccountDetailWidget internally
-}
-
-void MainWindow::update_tags_display() {
-    // This functionality is now handled by AccountDetailWidget internally
-}
-
-std::vector<std::string> MainWindow::get_current_tags() {
-    // Tags are now managed by AccountDetailWidget
-    // This is a compatibility stub - consider refactoring callers
-    return {};
 }
 
 bool MainWindow::prompt_save_if_modified() {
