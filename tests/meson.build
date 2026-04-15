@@ -1201,6 +1201,21 @@ account_service_test = executable(
 
 test('account_service', account_service_test)
 
+# AccountSaveService tests — stateless unit tests (no VaultManager/proto/GTK)
+account_save_service_test = executable(
+    'account_save_service_test',
+    [
+        'test_account_save_service.cc',
+        '../src/core/services/AccountSaveService.cc',
+        '../src/core/services/AccountService.cc',
+        '../src/core/repositories/AccountRepository.cc',
+    ] + vault_manager_common_app_sources,
+    dependencies: vault_manager_common_test_deps,
+    include_directories: test_inc
+)
+
+test('account_save_service', account_save_service_test)
+
 # GroupService tests (Phase 3 refactoring - Service Layer)
 group_service_test_sources = [
     'test_group_service.cc',
