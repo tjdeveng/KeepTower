@@ -2,7 +2,7 @@
 
 This document outlines the planned features and improvements for KeepTower, organized by release milestones.
 
-## Current Version: v0.3.5
+## Current Version: v0.4.0
 
 ✅ Core vault management with AES-256-GCM encryption
 ✅ Reed-Solomon forward error correction (5-50% redundancy)
@@ -143,9 +143,20 @@ This document outlines the planned features and improvements for KeepTower, orga
 - [ ] Debian/Ubuntu PPA
 
 ### Cross-platform Considerations
-- [ ] Evaluate Windows port feasibility
+- [x] Evaluate Windows port feasibility — **MSYS2/MinGW64 approach selected; milestone #2 open** *(2026-04-16)*
 - [ ] Evaluate macOS port feasibility
 - [ ] Abstract platform-specific code
+
+#### Windows Support milestone (GitHub milestone #2, branch `feature/windows-support`)
+
+| # | Slice | Status |
+|---|---|---|
+| [#33](https://github.com/tjdeveng/KeepTower/issues/33) | Tracking issue and approach | open |
+| [#34](https://github.com/tjdeveng/KeepTower/issues/34) | CI: MSYS2 build job in `ci.yml` | open |
+| [#35](https://github.com/tjdeveng/KeepTower/issues/35) | Platform stubs: `mlock`/`fsync`/`chmod` equivalents | open |
+| [#36](https://github.com/tjdeveng/KeepTower/issues/36) | Fix bare `chmod()` in `VaultManagerV2.cc` | open |
+| [#37](https://github.com/tjdeveng/KeepTower/issues/37) | FIPS mode policy and graceful degradation | open |
+| [#38](https://github.com/tjdeveng/KeepTower/issues/38) | Packaging (MSIX or NSIS installer) | open |
 
 ---
 
