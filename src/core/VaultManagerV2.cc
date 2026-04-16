@@ -35,6 +35,7 @@
 #include "../utils/Log.h"
 #include "../utils/SecureMemory.h"
 #include <glibmm/main.h>
+#include <algorithm>
 #include <thread>
 #include <chrono>
 #include <filesystem>
@@ -447,19 +448,14 @@ KeepTower::VaultResult<KeepTower::UserSession> VaultManager::open_vault_v2(
         return std::unexpected(VaultError::InvalidData);
     }
 
-    // CRITICAL BUG FIX: user_slot still points to metadata.vault_header.key_slots,
-    // but we just copied that header into m_v2_header. We need to find the
-    // corresponding slot in
-    // m_v2_header so that modifications persist when we save.
-    KeySlot* user_slot_in_header = nullptr;
-    for (auto& slot : v2_header->key_slots) {
-        if (slot.active &&
-            slot.username_hash == user_slot->username_hash &&
-            slot.username_hash_size == user_slot->username_hash_size) {
-            user_slot_in_header = &slot;
-            break;
-        }
-    }
+    // Re-bind user_slot to the slot inside m_v2_header so modifications persist.
+    auto slot_in_header_it = std::find_if(v2_header->key_slots.begin(), v2_header->key_slots.end(),
+        [&](const KeySlot& s) {
+            return s.active &&
+                   s.username_hash == user_slot->username_hash &&
+                   s.username_hash_size == user_slot->username_hash_size;
+        });
+    KeySlot* user_slot_in_header = (slot_in_header_it != v2_header->key_slots.end()) ? &*slot_in_header_it : nullptr;
 
     if (!user_slot_in_header) {
         Log::error("VaultManager: Failed to find user slot in m_v2_header after copy");

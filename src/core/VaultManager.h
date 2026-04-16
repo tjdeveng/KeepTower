@@ -1556,9 +1556,9 @@ private:
     // Secure memory clearing and locking
     void secure_clear(std::vector<uint8_t>& data);
     void secure_clear(std::string& data);
-    bool lock_memory(std::vector<uint8_t>& data);
+    bool lock_memory(const std::vector<uint8_t>& data);
     bool lock_memory(void* data, size_t size);  // Overload for std::array and raw pointers
-    void unlock_memory(std::vector<uint8_t>& data);
+    void unlock_memory(const std::vector<uint8_t>& data);
     void unlock_memory(void* data, size_t size);  // Overload for std::array and raw pointers
 
     // Schema migration

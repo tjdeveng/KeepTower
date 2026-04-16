@@ -26,6 +26,7 @@
 #include <filesystem>
 #include <google/protobuf/descriptor.h>
 #include <google/protobuf/message.h>
+#include <algorithm>
 #include <chrono>
 #include <iomanip>
 #include <random>
@@ -68,9 +69,9 @@ VaultManager::VaultManager(std::shared_ptr<KeepTower::IVaultYubiKeyService> yubi
       m_fec_loaded_from_file(false),
       m_memory_locked(false),
       m_yubikey_required(false),
+      m_vault_data(std::make_unique<keeptower::VaultData>()),
           m_yubikey_service(std::move(yubikey_service)),
       m_pbkdf2_iterations(DEFAULT_PBKDF2_ITERATIONS) {
-                m_vault_data = std::make_unique<keeptower::VaultData>();
         m_backup_policy = std::make_unique<KeepTower::VaultBackupPolicy>(
                 true, DEFAULT_BACKUP_COUNT, "");
 
@@ -678,7 +679,7 @@ void VaultManager::secure_clear(std::string& data) {
     }
 }
 
-bool VaultManager::lock_memory(std::vector<uint8_t>& data) {
+bool VaultManager::lock_memory(const std::vector<uint8_t>& data) {
     if (data.empty()) {
         return true;
     }
@@ -694,7 +695,7 @@ bool VaultManager::lock_memory(std::vector<uint8_t>& data) {
         return false;
     }
 #elif _WIN32
-    if (VirtualLock(data.data(), data.size())) {
+    if (VirtualLock(const_cast<uint8_t*>(data.data()), data.size())) {
         KeepTower::Log::debug("Locked {} bytes of sensitive memory", data.size());
         return true;
     } else {
@@ -707,6 +708,7 @@ bool VaultManager::lock_memory(std::vector<uint8_t>& data) {
 #endif
 }
 
+// cppcheck-suppress constParameterPointer -- VirtualLock(LPVOID) requires non-const on Windows
 bool VaultManager::lock_memory(void* data, size_t size) {
     if (!data || size == 0) {
         return true;
@@ -734,7 +736,7 @@ bool VaultManager::lock_memory(void* data, size_t size) {
 #endif
 }
 
-void VaultManager::unlock_memory(std::vector<uint8_t>& data) {
+void VaultManager::unlock_memory(const std::vector<uint8_t>& data) {
     if (data.empty()) {
         return;
     }
@@ -744,11 +746,12 @@ void VaultManager::unlock_memory(std::vector<uint8_t>& data) {
         KeepTower::Log::debug("Unlocked {} bytes of memory", data.size());
     }
 #elif _WIN32
-    VirtualUnlock(data.data(), data.size());
+    VirtualUnlock(const_cast<uint8_t*>(data.data()), data.size());
     KeepTower::Log::debug("Unlocked {} bytes of memory", data.size());
 #endif
 }
 
+// cppcheck-suppress constParameterPointer -- VirtualUnlock(LPVOID) requires non-const on Windows
 void VaultManager::unlock_memory(void* data, size_t size) {
     if (!data || size == 0) {
         return;
@@ -947,13 +950,9 @@ bool VaultManager::verify_credentials(const Glib::ustring& password, const std::
         }
 
         // Find current user's key slot
-        KeySlot* user_slot = nullptr;
-        for (auto& slot : m_v2_header->key_slots) {
-            if (slot.active && slot.username == m_current_session->username) {
-                user_slot = &slot;
-                break;
-            }
-        }
+        auto slot_it = std::find_if(m_v2_header->key_slots.begin(), m_v2_header->key_slots.end(),
+            [&](const KeySlot& s) { return s.active && s.username == m_current_session->username; });
+        KeySlot* user_slot = (slot_it != m_v2_header->key_slots.end()) ? &*slot_it : nullptr;
 
         if (!user_slot) {
             return false;  // User not found
@@ -1196,12 +1195,8 @@ bool VaultManager::current_user_requires_yubikey() const {
     }
 
     // Find current user's key slot
-    for (const auto& slot : m_v2_header->key_slots) {
-        if (slot.active && slot.username == m_current_session->username) {
-            return slot.yubikey_enrolled;
-        }
-    }
-
-    return false;
+    auto slot_it = std::find_if(m_v2_header->key_slots.cbegin(), m_v2_header->key_slots.cend(),
+        [&](const KeySlot& s) { return s.active && s.username == m_current_session->username; });
+    return slot_it != m_v2_header->key_slots.cend() && slot_it->yubikey_enrolled;
 }
 #endif
