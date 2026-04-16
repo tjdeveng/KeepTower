@@ -33,6 +33,18 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="0.4.0" date="2026-04-16">
+      <description>
+        <p>A+ quality milestone: static-analysis hardening, hotspot reduction, and coverage threshold met.</p>
+        <ul>
+          <li>Enforce high-signal static analysis in CI; harden V2 vault management paths against unchecked optional access</li>
+          <li>Resolve all cppcheck style/performance findings in core VaultManager paths</li>
+          <li>Reduce all four hotspot files below 2000-line ceiling by extracting five focused services</li>
+          <li>Line coverage 76.2% and function coverage 82.5% — both A+ canonical thresholds met</li>
+          <li>Housekeeping: relocate manual tests, remove stale artifacts, extend .gitignore</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.3.5" date="2026-04-05">
       <description>
         <p>Milestone release for UI regression hardening, release documentation alignment, and CI documentation reliability.</p>

@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-04-16
+
+### Changed
+- **A+ Quality Milestone complete:** static-analysis hardening, hotspot reduction, and coverage threshold met
+  - Closed all six A+ Gap Closure milestone issues (#25–#30)
+  - Enforced high-signal static analysis in CI (`clang-analyzer-*`, `bugprone-exception-escape`, `bugprone-unchecked-optional-access`)
+  - Added `require_open_v2_header()` helper; hardened all V2 management paths against unchecked optional access
+  - Resolved all cppcheck style/performance findings in `VaultManager.cc`/`VaultManagerV2.cc`
+  - Reduced all four hotspot files below 2000-line ceiling by extracting five focused services
+  - Line coverage: 76.2% / function coverage: 82.5% — both A+ canonical thresholds met
+  - Public API documentation at zero-warning Doxygen policy
+  - FIPS sanitizer leak policy formalised; ASan evidence runnable for supported test surface
+
+### Housekeeping
+  - Relocated manual/developer test files to `tests/manual/`; added `tests/manual/README.md` index
+  - Removed stale tracked artifacts (`PHASE_4_IMPLEMENTATION_COMPLETE.md`, `keeptower.tar.xz`)
+  - Removed obsolete empty scaffolding directories from earlier architecture phases
+  - Extended `.gitignore` to cover Doxygen placeholder dir and release archives
+
 ## [0.3.5] - 2026-04-05
 
 ### Fixed
