@@ -191,8 +191,8 @@ This document outlines the planned features and improvements for KeepTower, orga
 ### A+ Gap Closure Tracking
 - Primary tracking now lives in the GitHub milestone `A+ Gap Closure` rather than new standalone status markdown files.
 - Use milestone issues plus PRs/commits as the audit trail for quality work:
-  - `#25` *(open)* A+ scorecard: align quality claims, roadmap, and measurable thresholds
-  - `#26` *(open)* Close VaultManager/VaultManagerV2 static-analysis backlog with explicit invariants
+  - `#25` ✅ *(closed)* A+ scorecard: align quality claims, roadmap, and measurable thresholds
+  - `#26` ✅ *(closed)* Close VaultManager/VaultManagerV2 static-analysis backlog with explicit invariants
   - `#27` ✅ *(closed)* Make high-signal static analysis enforceable in CI
   - `#28` ✅ *(closed)* Resolve or formalize the FIPS sanitizer leak policy
   - `#29` ✅ *(closed)* Raise coverage on remaining low-coverage core paths to A+ threshold
@@ -270,11 +270,19 @@ This document outlines the planned features and improvements for KeepTower, orga
   - `MainWindow.cc`: 1826 → **1660 lines** (−166). Removed 10 dead stubs/helpers and extracted `AccountSaveService` (permission check, password-history policy, metadata stamps). 19 new unit tests.
   - Doxygen: exit 0, zero warnings. Suite: `69/69` tests green.
   - Commits: `8a30d74`, `a46e9e2`, `7ce6a01`, `e0e0e68`, `c355789`, `1cbcbd3`, `dc2c0d2`, `b574c0d`.
+- `#26` closeout summary (`2026-04-15`):
+  - Second cleanup slice after `fbcdd19` (`require_open_v2_header` helper, V2 invariant hardening).
+  - `VaultManager.cc`: added `<algorithm>`, moved `m_vault_data` to member initializer list (`useInitializationList`), made vector `lock_memory`/`unlock_memory` overloads take `const` ref (`constParameterReference`), added `cppcheck-suppress` annotations for `void*` overloads (Windows `VirtualLock`/`VirtualUnlock` require non-const `LPVOID`), replaced two raw key-slot search loops with `std::find_if` (`useStlAlgorithm`).
+  - `VaultManager.h`: updated vector overload declarations to `const` ref.
+  - `VaultManagerV2.cc`: added `<algorithm>`, replaced raw post-header-copy slot-rebind loop with `std::find_if`; clarified comment.
+  - cppcheck `--enable=performance,style` re-run: zero findings in `VaultManager.cc`/`V2` (only out-of-scope `SecureMemory.h` `noExplicitConstructor` noise remains). clang-tidy gated checks: zero findings. All 69 tests green.
+  - Local clang-tidy 20.1.8 SIGBUS crash on `VaultManagerV2.cc` is a pre-existing machine-level issue (stack overflow in `SkipUntil` recursion on complex template headers); confirmed identical crash on unmodified pre-edit file; CI Ubuntu runners are unaffected.
+  - Commits: `fbcdd19`, `da4f26a`.
 - A+ is considered closed only when the remaining milestone gaps are resolved:
   - `#29` ✅ coverage at comfortable margin above the agreed A+ threshold (76.2% lines, 82.5% functions)
   - `#30` ✅ all four hotspots below 2000-line ceiling; five services extracted; Doxygen zero warnings; 69/69 tests green
-  - `#25` *(open)* scorecard alignment and stale-claim cleanup
-  - `#26` *(open)* static-analysis invariant hardening in VaultManager/VaultManagerV2
+  - `#26` ✅ static-analysis invariant hardening in VaultManager/VaultManagerV2 — all cppcheck style/performance findings resolved; `require_open_v2_header` helper hardens V2 optional-access paths
+  - `#25` ✅ scorecard alignment and stale-claim cleanup — **A+ Gap Closure milestone complete**
 
 ### Throughout All Versions
 - [ ] Maintain >80% test coverage for all new features
