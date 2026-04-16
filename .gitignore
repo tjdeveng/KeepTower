@@ -74,6 +74,13 @@ htmlcov/
 core.*
 vgcore.*
 
+# Doxygen output placeholder (literal dir created when Doxyfile is run outside Meson)
+@DOXYGEN_OUTPUT_DIRECTORY@/
+
+# Release archives
+*.tar.xz
+*.tar.gz
+
 # Temporary files
 *.tmp
 .*.tmp
