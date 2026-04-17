@@ -6,7 +6,7 @@ concurrency:
 
 on:
   push:
-    branches: [ master, main, develop ]
+    branches: [ master, main, develop, feature/windows-support ]
   pull_request:
     branches: [ master, main, develop ]
   workflow_dispatch:
@@ -242,6 +242,82 @@ jobs:
       uses: actions/upload-artifact@v7
       with:
         name: test-logs-${{ matrix.os }}
+        path: build/meson-logs/
+        retention-days: 7
+
+  windows:
+    name: Build on Windows (MSYS2/MinGW64)
+    runs-on: windows-latest
+    # continue-on-error: expected failures until platform stubs are complete
+    # (#35 mlock/fsync/chmod equivalents, #36 bare chmod in VaultManagerV2.cc)
+    # Remove this once those issues are resolved.
+    continue-on-error: true
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+
+    - name: Setup MSYS2 / MinGW64
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: MINGW64
+        update: true
+        install: >-
+          mingw-w64-x86_64-gcc
+          mingw-w64-x86_64-cmake
+          mingw-w64-x86_64-ninja
+          mingw-w64-x86_64-pkgconf
+          mingw-w64-x86_64-meson
+          mingw-w64-x86_64-gtkmm-4.0
+          mingw-w64-x86_64-protobuf
+          mingw-w64-x86_64-openssl
+          mingw-w64-x86_64-libfido2
+          mingw-w64-x86_64-argon2
+          mingw-w64-x86_64-gtest
+          mingw-w64-x86_64-gettext
+          git
+
+    - name: Build libcorrect from source
+      run: |
+        git clone --depth 1 https://github.com/quiet/libcorrect.git /tmp/libcorrect
+        cd /tmp/libcorrect
+        mkdir build && cd build
+        cmake -G Ninja \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_INSTALL_PREFIX=/mingw64 \
+              ..
+        ninja
+        ninja install
+
+    - name: Configure build
+      run: meson setup build --buildtype=release
+
+    - name: Build
+      run: meson compile -C build
+
+    - name: Run tests
+      run: |
+        export DISABLE_YUBIKEY_DETECT=1
+        meson test -C build --no-rebuild --verbose --print-errorlogs --timeout-multiplier 2
+
+    - name: Display test summary
+      if: always()
+      run: |
+        if [ -f build/meson-logs/testlog.txt ]; then
+          tail -50 build/meson-logs/testlog.txt
+        else
+          echo "No test log found"
+        fi
+
+    - name: Upload test logs on failure
+      if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: test-logs-windows
         path: build/meson-logs/
         retention-days: 7
 
