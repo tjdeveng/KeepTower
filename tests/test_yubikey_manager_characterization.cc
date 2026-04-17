@@ -17,6 +17,21 @@
 #include <cstdlib>
 #include <string>
 
+#ifdef _WIN32
+#include <cstring>
+// Windows helpers: _putenv_s sets, _putenv("NAME=") unsets
+namespace {
+inline int w32_setenv(const char* name, const char* value, int /*overwrite*/) {
+    return _putenv_s(name, value);
+}
+inline int w32_unsetenv(const char* name) {
+    return _putenv_s(name, "");
+}
+} // namespace
+#define setenv(name, value, overwrite) w32_setenv(name, value, overwrite)
+#define unsetenv(name) w32_unsetenv(name)
+#endif
+
 #include "lib/yubikey/YubiKeyManager.h"
 
 namespace {
