@@ -6,7 +6,9 @@ The following versions of KeepTower are currently supported with security update
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.1.x   | :white_check_mark: |
+| 0.4.x   | :white_check_mark: |
+| 0.3.x   | :white_check_mark: |
+| < 0.3   | :x:                |
 
 ## Security Features
 
@@ -115,6 +117,36 @@ This beta release has the following acknowledged limitations:
 3. **No 2FA**: Vault access protected by password only
 4. **No Key Files**: Password-only authentication
 5. **Beta Software**: This is a beta release; use with appropriate caution
+
+## Platform Security Limitations
+
+### Windows (v0.4.x — in progress)
+
+#### FIPS-140-3 Mode Not Available on Windows
+
+**Decision (2026-04-17, issue #37): Graceful degradation — Option A.**
+
+FIPS-140-3 mode is not available on the Windows build of KeepTower. MSYS2/MinGW64
+OpenSSL does not ship a CMVP-validated FIPS provider. Distributing an unvalidated
+provider binary is not permitted under the FIPS 140-3 programme.
+
+**Behaviour:** `FipsProviderManager::is_fips_available()` returns `false` on Windows
+because `OSSL_PROVIDER_try_load("fips")` finds no validated module. The Preferences UI
+disables the FIPS toggle and shows a clear explanatory message. No crash, no silent
+failure, no data-loss risk.
+
+**Cryptographic strength is unaffected:** All vault data is encrypted with AES-256-GCM
+regardless of FIPS mode. FIPS mode only constrains the set of permitted algorithms to
+the CMVP-approved subset — it does not change the default encryption algorithm.
+
+**Users requiring FIPS compliance** must use a Linux build with a system-provided
+OpenSSL 3.x FIPS provider (e.g. RHEL 9 / Ubuntu 22.04+).
+
+Future option: if a CMVP-validated Windows OpenSSL FIPS provider becomes freely
+available, it can be bundled and this limitation removed. Tracked in the Windows
+Support milestone.
+
+---
 
 ## Known Operational Limitations (v0.3.5+)
 

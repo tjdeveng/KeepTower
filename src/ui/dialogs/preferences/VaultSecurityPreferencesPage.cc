@@ -144,11 +144,23 @@ VaultSecurityPreferencesPage::VaultSecurityPreferencesPage(VaultManager* vault_m
     m_fips_restart_warning.set_margin_top(6);
 
     if (KeepTower::FipsProviderManager::is_fips_available()) {
-        m_fips_restart_warning.set_markup("<span size='small'>⚠️  Changes require application restart to take effect</span>");
+        m_fips_restart_warning.set_markup("<span size='small'>\u26a0\ufe0f  Changes require application restart to take effect</span>");
         m_fips_restart_warning.add_css_class("warning");
         fips_section->append(m_fips_restart_warning);
     } else {
-        m_fips_status_label.set_markup("<span size='small' foreground='#e01b24'>⚠️  FIPS module not available (requires OpenSSL FIPS configuration)</span>");
+#ifdef _WIN32
+        m_fips_status_label.set_markup(
+            "<span size='small' foreground='#e01b24'>"
+            "\u26a0\ufe0f  FIPS-140-3 mode is not available on Windows. "
+            "A CMVP-validated OpenSSL FIPS provider for Windows is not included "
+            "in this build. See SECURITY.md for details."
+            "</span>");
+#else
+        m_fips_status_label.set_markup(
+            "<span size='small' foreground='#e01b24'>"
+            "\u26a0\ufe0f  FIPS module not available (requires OpenSSL FIPS configuration)"
+            "</span>");
+#endif
         fips_section->append(m_fips_status_label);
         m_fips_mode_check.set_sensitive(false);
     }
