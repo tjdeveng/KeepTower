@@ -99,7 +99,11 @@ namespace detail {
             now.time_since_epoch()) % 1000;
 
         std::tm tm{};
+#ifdef _WIN32
+        localtime_s(&tm, &time_t);
+#else
         localtime_r(&time_t, &tm);
+#endif
 
         return std::format("{:04d}-{:02d}-{:02d} {:02d}:{:02d}:{:02d}.{:03d}",
             tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
