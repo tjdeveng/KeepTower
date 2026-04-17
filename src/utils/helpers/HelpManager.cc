@@ -92,7 +92,7 @@ std::string HelpManager::get_help_uri(HelpTopic topic) const {
 }
 
 std::string HelpManager::get_help_install_dir() {
-    return std::string(DATADIR) + "/keeptower/help";
+    return std::string(KEEPTOWER_DATADIR) + "/keeptower/help";
 }
 
 std::string HelpManager::find_help_file(const std::string& filename) const {
