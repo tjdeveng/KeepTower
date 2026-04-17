@@ -234,6 +234,125 @@ jobs:
           "checksums-${{ matrix.artifact }}.txt" \
           --clobber
 
+  build-windows:
+    name: Build Windows (MSYS2/MinGW64)
+    needs: create-release
+    runs-on: windows-latest
+    # Windows build may fail until the full platform port is complete.
+    # Remove continue-on-error once the build is consistently green.
+    continue-on-error: true
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+
+    - name: Setup MSYS2 / MinGW64
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: MINGW64
+        update: true
+        install: >-
+          mingw-w64-x86_64-gcc
+          mingw-w64-x86_64-cmake
+          mingw-w64-x86_64-ninja
+          mingw-w64-x86_64-pkgconf
+          mingw-w64-x86_64-meson
+          mingw-w64-x86_64-gtkmm-4.0
+          mingw-w64-x86_64-protobuf
+          mingw-w64-x86_64-openssl
+          mingw-w64-x86_64-libfido2
+          mingw-w64-x86_64-argon2
+          mingw-w64-x86_64-gtest
+          mingw-w64-x86_64-gettext
+          zip
+          git
+
+    - name: Build libcorrect from source
+      run: |
+        git clone --depth 1 https://github.com/quiet/libcorrect.git /tmp/libcorrect
+        cd /tmp/libcorrect
+        mkdir build && cd build
+        cmake -G Ninja \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_INSTALL_PREFIX=/mingw64 \
+              ..
+        ninja
+        ninja install
+
+    - name: Configure build
+      run: meson setup build --buildtype=release --prefix=/mingw64
+
+    - name: Build
+      run: meson compile -C build
+
+    - name: Run tests
+      run: |
+        export DISABLE_YUBIKEY_DETECT=1
+        meson test -C build --no-rebuild --print-errorlogs --timeout-multiplier 2 || \
+          echo "Some tests failed — see log above (non-blocking for packaging)"
+
+    - name: Collect runtime DLLs
+      run: |
+        VERSION="${{ needs.create-release.outputs.version }}"
+        DIST="keeptower-${VERSION}-windows-x86_64"
+        mkdir -p "${DIST}"
+
+        # Copy the built executable
+        cp build/src/keeptower.exe "${DIST}/" 2>/dev/null || \
+          cp build/src/keeptower   "${DIST}/" 2>/dev/null || \
+          { echo "ERROR: keeptower executable not found"; exit 1; }
+
+        # Bundle required MinGW64 DLLs so the package is self-contained
+        MINGW_BIN=/mingw64/bin
+        for dll in \
+          libgcc_s_seh-1.dll \
+          libstdc++-6.dll \
+          libwinpthread-1.dll \
+          libcrypto-3-x64.dll \
+          libssl-3-x64.dll \
+          libprotobuf-32.dll \
+          libfido2-1.dll \
+          libargon2.dll \
+          libgtkmm-4.0-0.dll \
+          libglib-2.0-0.dll \
+          libgobject-2.0-0.dll \
+          libgio-2.0-0.dll \
+          libgdk_pixbuf-2.0-0.dll \
+          libpango-1.0-0.dll \
+          libpangocairo-1.0-0.dll \
+          libcairo-2.dll \
+          libgtk-4-1.dll \
+          libadwaita-1-0.dll \
+          libcorrect.dll; do
+          [ -f "${MINGW_BIN}/${dll}" ] && cp "${MINGW_BIN}/${dll}" "${DIST}/" || \
+            echo "Note: ${dll} not found (may be statically linked or named differently)"
+        done
+
+        # Copy docs
+        cp README.md LICENSE CHANGELOG.md "${DIST}/"
+
+        # Create ZIP archive
+        zip -r "keeptower-${VERSION}-windows-x86_64.zip" "${DIST}/"
+        sha256sum "keeptower-${VERSION}-windows-x86_64.zip" > "checksums-windows.txt"
+        echo "=== Package contents ==="
+        ls -lh "${DIST}/"
+        echo "=== Archive ==="
+        ls -lh "keeptower-${VERSION}-windows-x86_64.zip"
+
+    - name: Upload Windows release assets
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        VERSION="${{ needs.create-release.outputs.version }}"
+        gh release upload "${VERSION}" \
+          "keeptower-${VERSION}-windows-x86_64.zip" \
+          "checksums-windows.txt" \
+          --clobber
+
   build-documentation:
     name: Build and Deploy Documentation
     needs: create-release
