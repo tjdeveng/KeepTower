@@ -9,7 +9,11 @@
 
 #include <fcntl.h>
 #include <sys/stat.h>
+#ifdef _WIN32
+#include <io.h>
+#else
 #include <unistd.h>
+#endif
 
 // Feature detection for std::format (C++20)
 #if __has_include(<format>)
@@ -47,7 +51,11 @@ void set_restrictive_permissions_0600(const std::string& filepath) {
 void sync_file_to_disk(const std::string& filepath) {
     int fd = open(filepath.c_str(), O_RDONLY);
     if (fd >= 0) {
+#ifdef _WIN32
+        _commit(fd);
+#else
         fsync(fd);
+#endif
         close(fd);
     }
 }

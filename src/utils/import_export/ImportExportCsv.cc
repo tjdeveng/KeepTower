@@ -11,8 +11,12 @@
 #include <vector>
 
 #include <sys/stat.h>  // For chmod
-#include <unistd.h>    // For fsync
 #include <fcntl.h>     // For open
+#ifdef _WIN32
+#include <io.h>        // For _commit
+#else
+#include <unistd.h>    // For fsync
+#endif
 
 namespace ImportExport {
 
@@ -226,7 +230,11 @@ std::expected<void, ExportError> export_to_csv(
         // Sync to disk for critical data
         int fd = open(filepath.c_str(), O_RDONLY);
         if (fd >= 0) {
+#ifdef _WIN32
+            _commit(fd);
+#else
             fsync(fd);
+#endif
             close(fd);
         }
 
