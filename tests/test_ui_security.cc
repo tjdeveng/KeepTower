@@ -31,7 +31,7 @@ protected:
             schema_dir = env_schema_dir;
         } else {
             schema_dir = fs::current_path() / ".." / "data";
-            g_setenv("GSETTINGS_SCHEMA_DIR", schema_dir.c_str(), TRUE);
+            g_setenv("GSETTINGS_SCHEMA_DIR", schema_dir.string().c_str(), TRUE);
         }
 
         // Ensure compiled schema is up-to-date.
