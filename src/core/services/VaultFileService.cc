@@ -155,11 +155,12 @@ VaultResult<> VaultFileService::write_vault_file(
         }
 
         // Set secure permissions (owner read/write only)
-#ifndef _WIN32
+        // std::filesystem::permissions is cross-platform; on Windows it maps
+        // owner_read|owner_write to the file's read-only attribute (clears it),
+        // which is the closest portable equivalent.
         fs::permissions(temp_path,
                        fs::perms::owner_read | fs::perms::owner_write,
                        fs::perm_options::replace);
-#endif
 
         // Atomic rename (overwrites target if exists)
         fs::rename(temp_path, path);

@@ -228,15 +228,6 @@ bool VaultIO::write_file(
         // Atomic rename (POSIX guarantees atomicity)
         fs::rename(temp_path, path);
 
-        // Set secure file permissions (owner read/write only)
-        #ifdef __linux__
-        chmod(path.c_str(), S_IRUSR | S_IWUSR);  // 0600
-        #elif defined(_WIN32)
-        // Windows permissions: Requires SetNamedSecurityInfo() with ACLs
-        // Note: Current Windows implementation relies on NTFS default permissions
-        // Future: Add explicit ACL setting for owner-only access
-        #endif
-
         // Sync directory to ensure rename is durable
         #ifdef __linux__
         std::string dir_path = fs::path(path).parent_path().string();
