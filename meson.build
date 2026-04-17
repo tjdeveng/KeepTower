@@ -302,11 +302,19 @@ endif
 # Post-install scripts for desktop integration
 gnome = import('gnome')
 
-gnome.post_install(
-  glib_compile_schemas: true,
-  gtk_update_icon_cache: true,
-  update_desktop_database: true,
-)
+# update-desktop-database is Linux-specific; skip on Windows.
+if host_machine.system() != 'windows'
+  gnome.post_install(
+    glib_compile_schemas: true,
+    gtk_update_icon_cache: true,
+    update_desktop_database: true,
+  )
+else
+  gnome.post_install(
+    glib_compile_schemas: true,
+    gtk_update_icon_cache: true,
+  )
+endif
 
 # Summary
 summary({
