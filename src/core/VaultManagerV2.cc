@@ -39,7 +39,6 @@
 #include <thread>
 #include <chrono>
 #include <filesystem>
-#include <sys/stat.h>  // for chmod
 
 // Using declarations for KeepTower types (VaultManager is global scope)
 using KeepTower::VaultError;
