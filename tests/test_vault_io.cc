@@ -74,7 +74,7 @@ TEST_F(VaultIOTest, ReadFileV1WithHeader) {
     file.write(reinterpret_cast<const char*>(file_content.data()), file_content.size());
     file.close();
     // Set secure permissions (owner read/write only)
-    chmod(test_file.c_str(), S_IRUSR | S_IWUSR);
+    chmod(test_file.string().c_str(), S_IRUSR | S_IWUSR);
     std::vector<uint8_t> read_data;
     int iterations = 0;
 
@@ -96,7 +96,7 @@ TEST_F(VaultIOTest, ReadFileV2IncludesHeader) {
     file.close();
 
     // Set secure permissions (owner read/write only)
-    chmod(test_file.c_str(), S_IRUSR | S_IWUSR);
+    chmod(test_file.string().c_str(), S_IRUSR | S_IWUSR);
 
     std::vector<uint8_t> read_data;
     int iterations = 0;
@@ -116,7 +116,7 @@ TEST_F(VaultIOTest, ReadFileLegacyFormat) {
     file.close();
 
     // Set secure permissions (owner read/write only)
-    chmod(test_file.c_str(), S_IRUSR | S_IWUSR);
+    chmod(test_file.string().c_str(), S_IRUSR | S_IWUSR);
 
     std::vector<uint8_t> read_data;
     int iterations = 0;
@@ -143,7 +143,7 @@ TEST_F(VaultIOTest, ReadFileEmpty) {
     file.close();
 
     // Set secure permissions (owner read/write only)
-    chmod(test_file.c_str(), S_IRUSR | S_IWUSR);
+    chmod(test_file.string().c_str(), S_IRUSR | S_IWUSR);
 
     std::vector<uint8_t> read_data;
     int iterations = 0;
@@ -163,7 +163,7 @@ TEST_F(VaultIOTest, ReadFileTooShortForHeader) {
     file.close();
 
     // Set secure permissions (owner read/write only)
-    chmod(test_file.c_str(), S_IRUSR | S_IWUSR);
+    chmod(test_file.string().c_str(), S_IRUSR | S_IWUSR);
 
     std::vector<uint8_t> read_data;
     int iterations = 0;
@@ -189,7 +189,7 @@ TEST_F(VaultIOTest, ReadFileInvalidMagic) {
     file.close();
 
     // Set secure permissions (owner read/write only)
-    chmod(test_file.c_str(), S_IRUSR | S_IWUSR);
+    chmod(test_file.string().c_str(), S_IRUSR | S_IWUSR);
 
     std::vector<uint8_t> read_data;
     int iterations = 0;
@@ -209,7 +209,7 @@ TEST_F(VaultIOTest, ReadFileRejectsInsecurePermissions) {
     file.close();
 
     // Set insecure permissions: 0644 (readable by all)
-    chmod(test_file.c_str(), S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+    chmod(test_file.string().c_str(), S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
     std::vector<uint8_t> read_data;
     int iterations = 0;
@@ -229,7 +229,7 @@ TEST_F(VaultIOTest, ReadFileRejectsExcessiveSize) {
     std::filesystem::resize_file(test_file, too_large_size);
 
     // Set secure permissions (owner read/write only)
-    chmod(test_file.c_str(), S_IRUSR | S_IWUSR);
+    chmod(test_file.string().c_str(), S_IRUSR | S_IWUSR);
 
     std::vector<uint8_t> read_data;
     int iterations = 0;
