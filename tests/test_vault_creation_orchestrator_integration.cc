@@ -151,6 +151,10 @@ TEST_F(VaultCreationOrchestratorIntegrationTest, CreateVault_HighIterations) {
 // ============================================================================
 
 TEST_F(VaultCreationOrchestratorIntegrationTest, CreateVault_InvalidPath) {
+#ifdef _WIN32
+    GTEST_SKIP() << "Skipped on Windows: MSYS2 maps /nonexistent/ to a writable location "
+                    "(e.g. D:\\msys64\\nonexistent\\), so the path is not actually invalid";
+#endif
     params.path = "/nonexistent/dir/vault.vault";
 
     auto result = orchestrator->create_vault_v2_sync(params);
@@ -761,6 +765,10 @@ TEST_F(VaultCreationOrchestratorIntegrationTest, EdgeCase_ReadOnlyDirectory) {
 }
 
 TEST_F(VaultCreationOrchestratorIntegrationTest, EdgeCase_InvalidPathCharacters) {
+#ifdef _WIN32
+    GTEST_SKIP() << "Skipped on Windows: MSYS2 maps /nonexistent/ to a writable location, "
+                    "so the deeply-nested path is not actually invalid";
+#endif
     // Test with truly invalid path (null bytes not possible in strings, but try other invalid chars)
     // On Linux, only '/' and null are forbidden in filename, but parent dir might not exist
     params.path = "/nonexistent/deeply/nested/path/that/does/not/exist/vault.vault";
