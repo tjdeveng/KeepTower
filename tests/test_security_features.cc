@@ -11,14 +11,20 @@
 #include <vector>
 #include <filesystem>
 #include <fstream>
-#ifdef _WIN32
-#include <windows.h>
-#endif
 #include "../src/core/VaultManager.h"
 #include "../src/core/managers/AccountManager.h"
 #include "../src/lib/vaultformat/VaultFormatV2.h"
 #include "../src/core/MultiUserTypes.h"
 #include "record.pb.h"  // Include protobuf definitions
+// windows.h must come AFTER GLib/glibmm headers: it defines ERROR=0 as a macro
+// which clobbers glibmm's IOChannel::ERROR enum member.
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#undef ERROR  // windows.h defines ERROR=0; undefine to avoid GLib enum conflicts
+#endif
 
 namespace fs = std::filesystem;
 
