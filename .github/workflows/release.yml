@@ -302,6 +302,7 @@ jobs:
           echo "Some tests failed — see log above (non-blocking for packaging)"
 
     - name: Package Windows build
+      shell: msys2 {0}
       run: |
         mkdir -p dist
         bash scripts/package-windows.sh \
@@ -310,14 +311,14 @@ jobs:
           dist
 
     - name: Upload Windows release assets
+      shell: pwsh
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        VERSION="${{ needs.create-release.outputs.version }}"
-        gh release upload "${VERSION}" \
-          "dist/keeptower-${VERSION}-windows-x86_64.zip" \
-          "dist/checksums-windows.txt" \
-          --clobber
+        $VERSION = "${{ needs.create-release.outputs.version }}"
+        $ZIP = "dist/keeptower-${VERSION}-windows-x86_64.zip"
+        $CHECKSUMS = "dist/checksums-windows.txt"
+        gh release upload $VERSION $ZIP $CHECKSUMS --clobber
 
   build-documentation:
     name: Build and Deploy Documentation
