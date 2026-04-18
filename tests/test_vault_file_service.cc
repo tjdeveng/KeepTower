@@ -658,6 +658,9 @@ TEST_F(VaultFileServiceTest, WriteVaultFile_LargeData) {
 }
 
 TEST_F(VaultFileServiceTest, BackupOperations_LongFilenames) {
+#ifdef _WIN32
+    GTEST_SKIP() << "Long filename test skipped on Windows: MAX_PATH=260 chars exceeded by 200-char filename + backup suffix";
+#endif
     // Test with long filename (but within filesystem limits)
     std::string long_name(200, 'a');
     long_name += ".vault";

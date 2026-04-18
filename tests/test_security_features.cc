@@ -40,7 +40,7 @@ bool test_magic_header() {
     std::cout << "\n=== Test 1: Magic Header and Version ===\n";
 
     const std::string vault_path = "/tmp/test_magic.v2";
-    fs::remove(vault_path);
+    { std::error_code _ec; fs::remove(vault_path, _ec); }
 
     // Create vault
     VaultManager vm;
@@ -83,7 +83,7 @@ bool test_magic_header() {
                     header_size > 0);
     std::cout << "Result: " << (success ? "✓ PASS" : "✗ FAIL") << "\n";
 
-    fs::remove(vault_path);
+    { std::error_code _ec; fs::remove(vault_path, _ec); }
     return success;
 }
 
@@ -110,9 +110,9 @@ bool test_backup_mechanism() {
         return backups;
     };
 
-    fs::remove(vault_path);
+    { std::error_code _ec; fs::remove(vault_path, _ec); }
     for (const auto& p : list_backups()) {
-        fs::remove(p);
+        std::error_code _ec; fs::remove(p, _ec);
     }
 
     // Create vault and add data
@@ -175,9 +175,9 @@ bool test_backup_mechanism() {
 
     (void)vm.close_vault();
 
-    fs::remove(vault_path);
+    { std::error_code _ec; fs::remove(vault_path, _ec); }
     for (const auto& p : list_backups()) {
-        fs::remove(p);
+        std::error_code _ec; fs::remove(p, _ec);
     }
 
     return backup_exists;
@@ -187,7 +187,7 @@ bool test_memory_locking() {
     std::cout << "\n=== Test 3: Memory Locking ===\n";
 
     const std::string vault_path = "/tmp/test_mlock.v2";
-    fs::remove(vault_path);
+    { std::error_code _ec; fs::remove(vault_path, _ec); }
 
     VaultManager vm;
     KeepTower::VaultSecurityPolicy policy;
@@ -216,7 +216,7 @@ bool test_memory_locking() {
     std::cout << "Result: ✓ PASS (implementation present)\n";
 
     (void)vm.close_vault();
-    fs::remove(vault_path);
+    { std::error_code _ec; fs::remove(vault_path, _ec); }
     return true;
 }
 

@@ -124,12 +124,19 @@ TEST_F(ImportExportCsvTest, ExportToCsv_EscapesCommaAndQuotes) {
     std::ifstream f(out_path, std::ios::binary);
     ASSERT_TRUE(f.is_open());
 
+    // Strip trailing \r to handle Windows CRLF line endings when reading in binary mode
+    auto strip_cr = [](std::string& s) {
+        if (!s.empty() && s.back() == '\r') s.pop_back();
+    };
+
     std::string header;
     std::getline(f, header);
+    strip_cr(header);
     EXPECT_EQ(header, "Account Name,Username,Password,Email,Website,Notes");
 
     std::string line;
     std::getline(f, line);
+    strip_cr(line);
     EXPECT_EQ(line, "\"My,Account\",\"user\"\"name\",p@ss,,,");
 }
 

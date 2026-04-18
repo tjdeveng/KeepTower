@@ -18,7 +18,12 @@
 #include <cstdlib>
 #include <filesystem>
 #include <memory>
+#ifndef _WIN32
 #include <unistd.h>
+#else
+#include <process.h>  // for _getpid()
+#define getpid _getpid
+#endif
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -592,6 +597,9 @@ TEST_F(VaultCreationOrchestratorIntegrationTest, EdgeCase_VariousPasswordLengthR
 // ----------------------------------------------------------------------------
 
 TEST_F(VaultCreationOrchestratorIntegrationTest, EdgeCase_LongFilePath) {
+#ifdef _WIN32
+    GTEST_SKIP() << "Long file path test skipped on Windows: deeply nested paths exceed MAX_PATH=260";
+#endif
     // Create a deeply nested directory structure
     fs::path deep_path = test_dir;
     for (int i = 0; i < 20; i++) {
@@ -627,6 +635,9 @@ TEST_F(VaultCreationOrchestratorIntegrationTest, EdgeCase_PathWithSpecialChars) 
 }
 
 TEST_F(VaultCreationOrchestratorIntegrationTest, EdgeCase_PathWithUnicode) {
+#ifdef _WIN32
+    GTEST_SKIP() << "Unicode path test skipped on Windows: fs::path::string() uses ACP which may not encode non-ASCII chars";
+#endif
     params.path = (test_dir / "сейф_保险库.vault").string();  // Russian + Chinese
 
     auto result = orchestrator->create_vault_v2_sync(params);
@@ -726,6 +737,9 @@ TEST_F(VaultCreationOrchestratorIntegrationTest, EdgeCase_NullProgressCallback) 
 // ----------------------------------------------------------------------------
 
 TEST_F(VaultCreationOrchestratorIntegrationTest, EdgeCase_ReadOnlyDirectory) {
+#ifdef _WIN32
+    GTEST_SKIP() << "Read-only directory test skipped on Windows: fs::permissions does not enforce POSIX read-only semantics";
+#endif
     // Create a read-only directory
     fs::path readonly_dir = test_dir / "readonly";
     fs::create_directories(readonly_dir);

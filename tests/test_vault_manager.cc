@@ -192,8 +192,11 @@ TEST_F(VaultManagerTest, CreateVaultV2_FileHasRestrictivePermissions) {
     auto perms = fs::status(test_vault_path).permissions();
     EXPECT_TRUE((perms & fs::perms::owner_read) != fs::perms::none);
     EXPECT_TRUE((perms & fs::perms::owner_write) != fs::perms::none);
+#ifndef _WIN32
+    // Windows uses ACLs, not POSIX mode bits; group/other read bits are always reported as set
     EXPECT_TRUE((perms & fs::perms::group_read) == fs::perms::none);
     EXPECT_TRUE((perms & fs::perms::others_read) == fs::perms::none);
+#endif
 }
 
 TEST_F(VaultManagerTest, OpenVaultV2_WithCorrectPassword_Success) {
