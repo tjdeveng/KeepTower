@@ -20,11 +20,23 @@
 #include <mutex>
 #include <vector>
 
+// Platform-portable env helpers (avoid macros — GLib has setenv/unsetenv as method names)
+namespace {
+inline void kt_setenv(const char* name, const char* value) {
 #ifdef _WIN32
-namespace { inline int w32_setenv(const char* n, const char* v, int) { return _putenv_s(n, v); } }
-#define setenv(n, v, o) w32_setenv(n, v, o)
-#define unsetenv(n) _putenv_s(n, "")
+    _putenv_s(name, value);
+#else
+    setenv(name, value, 1);
 #endif
+}
+inline void kt_unsetenv(const char* name) {
+#ifdef _WIN32
+    _putenv_s(name, "");
+#else
+    unsetenv(name);
+#endif
+}
+} // namespace
 
 #include <optional>
 
@@ -106,8 +118,8 @@ void ensure_theme_test_environment() {
             << "</schemalist>\n";
         mock_schema_file.close();
 
-        setenv("GSETTINGS_BACKEND", "memory", 1);
-        setenv("GSETTINGS_SCHEMA_DIR", g_theme_test_schema_dir.c_str(), 1);
+        kt_setenv("GSETTINGS_BACKEND", "memory");
+        kt_setenv("GSETTINGS_SCHEMA_DIR", g_theme_test_schema_dir.string().c_str());
 
         const std::string cmd = "glib-compile-schemas " + g_theme_test_schema_dir.string();
         const int rc = std::system(cmd.c_str());
@@ -295,7 +307,7 @@ TEST_F(ThemeControllerTest, Start_ReactsToDesktopThemeChangesWhenFollowingDefaul
 }
 
 TEST_F(ThemeControllerTest, ApplyNow_DefaultFallsBackToLightWhenGtkThemeMissing) {
-    unsetenv("GTK_THEME");
+    kt_unsetenv("GTK_THEME");
     m_settings->set_string("color-scheme", "default");
 
     bool applied_value = true;

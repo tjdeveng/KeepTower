@@ -29,9 +29,9 @@
 #include <cstdlib>  // For std::setenv, std::getenv
 
 #ifdef _WIN32
-namespace { inline int w32_setenv(const char* n, const char* v, int) { return _putenv_s(n, v); } }
-#define setenv(n, v, o) w32_setenv(n, v, o)
-#define unsetenv(n) _putenv_s(n, "")
+namespace { inline void kt_setenv(const char* n, const char* v) { _putenv_s(n, v); } }
+#else
+namespace { inline void kt_setenv(const char* n, const char* v) { setenv(n, v, 1); } }
 #endif
 
 using namespace KeepTower;
@@ -384,7 +384,7 @@ protected:
         if (!schema_dir || schema_dir[0] == '\0') {
             // Try to use compiled schema from build directory
             const char* build_dir = "../data";
-            setenv("GSETTINGS_SCHEMA_DIR", build_dir, 1);
+            kt_setenv("GSETTINGS_SCHEMA_DIR", build_dir);
         }
 
         try {
