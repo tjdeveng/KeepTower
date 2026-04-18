@@ -115,6 +115,10 @@ protected:
 // Test: Multiple Processes (Simulated by Threads) Attempting Migration
 // ----------------------------------------------------------------------------
 TEST_F(UsernameHashMigrationConcurrencyTest, IndependentThreads_MigrationContention) {
+#ifdef _WIN32
+    GTEST_SKIP() << "Skipped on Windows: concurrent rename-over-open-file requires FILE_SHARE_DELETE "
+                    "semantics not provided by std::ifstream; POSIX rename-atomicity test not applicable";
+#endif
     const int NUM_USERS = 30;
     setup_users(NUM_USERS);
     if (HasFatalFailure()) return;
