@@ -66,10 +66,16 @@ jobs:
           PRERELEASE="--prerelease"
         fi
 
-        gh release create "${{ steps.get_version.outputs.version }}" \
-          --title "KeepTower ${{ steps.get_version.outputs.version }}" \
-          --notes-file release-notes.md \
-          $PRERELEASE
+        # Create the release only if it doesn't already exist (e.g. when
+        # workflow_dispatch is used to add assets to an existing release).
+        if ! gh release view "${{ steps.get_version.outputs.version }}" &>/dev/null; then
+          gh release create "${{ steps.get_version.outputs.version }}" \
+            --title "KeepTower ${{ steps.get_version.outputs.version }}" \
+            --notes-file release-notes.md \
+            $PRERELEASE
+        else
+          echo "Release ${{ steps.get_version.outputs.version }} already exists — skipping creation."
+        fi
 
         # Get upload URL for artifacts
         UPLOAD_URL=$(gh api repos/${{ github.repository }}/releases/tags/${{ steps.get_version.outputs.version }} --jq .upload_url)
