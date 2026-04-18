@@ -295,53 +295,13 @@ jobs:
         meson test -C build --no-rebuild --print-errorlogs --timeout-multiplier 2 || \
           echo "Some tests failed — see log above (non-blocking for packaging)"
 
-    - name: Collect runtime DLLs
+    - name: Package Windows build
       run: |
-        VERSION="${{ needs.create-release.outputs.version }}"
-        DIST="keeptower-${VERSION}-windows-x86_64"
-        mkdir -p "${DIST}"
-
-        # Copy the built executable
-        cp build/src/keeptower.exe "${DIST}/" 2>/dev/null || \
-          cp build/src/keeptower   "${DIST}/" 2>/dev/null || \
-          { echo "ERROR: keeptower executable not found"; exit 1; }
-
-        # Bundle required MinGW64 DLLs so the package is self-contained
-        MINGW_BIN=/mingw64/bin
-        for dll in \
-          libgcc_s_seh-1.dll \
-          libstdc++-6.dll \
-          libwinpthread-1.dll \
-          libcrypto-3-x64.dll \
-          libssl-3-x64.dll \
-          libprotobuf-32.dll \
-          libfido2-1.dll \
-          libargon2.dll \
-          libgtkmm-4.0-0.dll \
-          libglib-2.0-0.dll \
-          libgobject-2.0-0.dll \
-          libgio-2.0-0.dll \
-          libgdk_pixbuf-2.0-0.dll \
-          libpango-1.0-0.dll \
-          libpangocairo-1.0-0.dll \
-          libcairo-2.dll \
-          libgtk-4-1.dll \
-          libadwaita-1-0.dll \
-          libcorrect.dll; do
-          [ -f "${MINGW_BIN}/${dll}" ] && cp "${MINGW_BIN}/${dll}" "${DIST}/" || \
-            echo "Note: ${dll} not found (may be statically linked or named differently)"
-        done
-
-        # Copy docs
-        cp README.md LICENSE CHANGELOG.md "${DIST}/"
-
-        # Create ZIP archive
-        zip -r "keeptower-${VERSION}-windows-x86_64.zip" "${DIST}/"
-        sha256sum "keeptower-${VERSION}-windows-x86_64.zip" > "checksums-windows.txt"
-        echo "=== Package contents ==="
-        ls -lh "${DIST}/"
-        echo "=== Archive ==="
-        ls -lh "keeptower-${VERSION}-windows-x86_64.zip"
+        mkdir -p dist
+        bash scripts/package-windows.sh \
+          "${{ needs.create-release.outputs.version }}" \
+          build \
+          dist
 
     - name: Upload Windows release assets
       env:
@@ -349,8 +309,8 @@ jobs:
       run: |
         VERSION="${{ needs.create-release.outputs.version }}"
         gh release upload "${VERSION}" \
-          "keeptower-${VERSION}-windows-x86_64.zip" \
-          "checksums-windows.txt" \
+          "dist/keeptower-${VERSION}-windows-x86_64.zip" \
+          "dist/checksums-windows.txt" \
           --clobber
 
   build-documentation:

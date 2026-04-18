@@ -322,6 +322,23 @@ jobs:
         path: build/meson-logs/
         retention-days: 7
 
+    - name: Package Windows build
+      if: success() || failure()
+      run: |
+        mkdir -p dist
+        bash scripts/package-windows.sh \
+          "ci-$(git rev-parse --short HEAD)" \
+          build \
+          dist
+
+    - name: Upload Windows artifact
+      if: success() || failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: keeptower-windows-x86_64
+        path: dist/keeptower-*-windows-x86_64.zip
+        retention-days: 14
+
   lint:
     name: Code Quality Checks
     runs-on: ubuntu-latest
