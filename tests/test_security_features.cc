@@ -11,6 +11,9 @@
 #include <vector>
 #include <filesystem>
 #include <fstream>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 #include "../src/core/VaultManager.h"
 #include "../src/core/managers/AccountManager.h"
 #include "../src/lib/vaultformat/VaultFormatV2.h"
@@ -212,6 +215,10 @@ bool test_memory_locking() {
 }
 
 int main() {
+#ifdef _WIN32
+    // Enable UTF-8 console output so box-drawing chars and symbols render correctly
+    SetConsoleOutputCP(CP_UTF8);
+#endif
     std::cout << "╔════════════════════════════════════════════════════╗\n";
     std::cout << "║  KeepTower Advanced Security Features Test Suite  ║\n";
     std::cout << "╚════════════════════════════════════════════════════╝\n";

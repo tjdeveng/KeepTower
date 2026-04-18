@@ -357,8 +357,20 @@ TEST_F(UsernameHashMigrationPriority3Test, Security_ConstantTimeComparison) {
     auto ratio = static_cast<double>(std::max(correct_duration.count(), incorrect_duration.count())) /
                  static_cast<double>(std::min(correct_duration.count(), incorrect_duration.count()));
 
-    std::cout << "Correct password: " << correct_duration.count() << "μs" << std::endl;
-    std::cout << "Wrong password:   " << incorrect_duration.count() << "μs" << std::endl;
+    std::cout << "Correct password: " << correct_duration.count()
+#ifdef _WIN32
+              << "us"
+#else
+              << "\u03bcs"
+#endif
+              << std::endl;
+    std::cout << "Wrong password:   " << incorrect_duration.count()
+#ifdef _WIN32
+              << "us"
+#else
+              << "\u03bcs"
+#endif
+              << std::endl;
     std::cout << "Ratio: " << ratio << std::endl;
 
     EXPECT_LT(ratio, 2.0) << "Timing variance too high - possible side-channel leak";

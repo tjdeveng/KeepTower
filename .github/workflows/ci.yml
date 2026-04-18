@@ -302,6 +302,7 @@ jobs:
     - name: Run tests
       run: |
         export DISABLE_YUBIKEY_DETECT=1
+        export PYTHONIOENCODING=utf-8
         meson test -C build --no-rebuild --verbose --print-errorlogs --timeout-multiplier 2
 
     - name: Display test summary
