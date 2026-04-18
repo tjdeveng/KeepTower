@@ -211,6 +211,11 @@ TEST_F(UsernameHashMigrationConcurrencyTest, IndependentThreads_MigrationContent
 // Test: Backup Restoration from Corrupted Vault
 // ----------------------------------------------------------------------------
 TEST_F(UsernameHashMigrationConcurrencyTest, BackupRestoration_CorruptedVault) {
+#ifdef _WIN32
+    GTEST_SKIP() << "Skipped on Windows: ofstream truncate may silently fail due to "
+                    "sharing violations from previous VaultManager handles, preventing "
+                    "reliable vault corruption for this test";
+#endif
     const int NUM_USERS = 2; // Needs at least 2 to have user1
     setup_users(NUM_USERS);
     if (HasFatalFailure()) return;

@@ -162,7 +162,14 @@ VaultResult<> VaultFileService::write_vault_file(
                        fs::perms::owner_read | fs::perms::owner_write,
                        fs::perm_options::replace);
 
-        // Atomic rename (overwrites target if exists)
+        // Atomic rename (overwrites target if exists).
+        // On Windows, std::filesystem::rename (via MinGW) maps to C rename() which
+        // cannot replace an existing target file. Delete the target first as a
+        // best-effort workaround; this is not atomic but is the best we can do
+        // without calling MoveFileExW directly.
+#ifdef _WIN32
+        { std::error_code ec; fs::remove(path, ec); }
+#endif
         fs::rename(temp_path, path);
 
         // Sync parent directory for durability
