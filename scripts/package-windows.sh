@@ -148,10 +148,14 @@ RUNTIME_DLLS=(
     libpango-1.0-0.dll
     libpangocairo-1.0-0.dll
     libpangowin32-1.0-0.dll
+    libpangoft2-1.0-0.dll
     libfribidi-0.dll
     libharfbuzz-0.dll
     libharfbuzz-gobject-0.dll
+    libharfbuzz-subset-0.dll
     libgraphite2.dll
+    libthai-0.dll
+    libdatrie-1.dll
     # Cairo
     libcairo-2.dll
     libcairo-gobject-2.dll
