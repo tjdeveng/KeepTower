@@ -40,8 +40,10 @@ BrandingText        "KeepTower ${VERSION} — Password Vault"
 ; MUI2 settings
 ; ---------------------------------------------------------------------------
 !define MUI_ABORTWARNING
-!define MUI_ICON          "..\data\icons\hicolor\scalable\apps\com.tjdeveng.keeptower.png"
-!define MUI_UNICON        "..\data\icons\hicolor\scalable\apps\com.tjdeveng.keeptower.png"
+!ifdef ICO_FILE
+  !define MUI_ICON   "${ICO_FILE}"
+  !define MUI_UNICON "${ICO_FILE}"
+!endif
 
 !define MUI_WELCOMEFINISHPAGE_BITMAP_NOSTRETCH
 !define MUI_HEADERIMAGE

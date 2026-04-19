@@ -370,13 +370,32 @@ done
 INSTALLER_FILE="${OUTPUT_DIR}/keeptower-${VERSION}-setup.exe"
 if command -v makensis &>/dev/null; then
     echo "Building NSIS installer..."
+
+    # NSIS requires a .ico file; convert the app PNG using ImageMagick if available
+    ICO_FILE="${DIST_DIR}/keeptower.ico"
+    PNG_SRC="data/icons/hicolor/scalable/apps/com.tjdeveng.keeptower.png"
+    if [ -f "${PNG_SRC}" ] && command -v convert &>/dev/null; then
+        convert "${PNG_SRC}" -resize 256x256 "${ICO_FILE}"
+        echo "  + keeptower.ico (from PNG)"
+    elif [ -f "${PNG_SRC}" ] && command -v magick &>/dev/null; then
+        magick "${PNG_SRC}" -resize 256x256 "${ICO_FILE}"
+        echo "  + keeptower.ico (from PNG via magick)"
+    else
+        ICO_FILE=""
+        echo "  (ImageMagick not found — installer will use default NSIS icon)"
+    fi
+
     # Convert MSYS2 paths to Windows paths for makensis
     WIN_DIST_DIR=$(cygpath -w "${DIST_DIR}")
     WIN_OUTFILE=$(cygpath -w "${INSTALLER_FILE}")
+    WIN_ICO=""
+    [ -n "${ICO_FILE}" ] && WIN_ICO="-DICO_FILE=$(cygpath -w ${ICO_FILE})"
+
     makensis \
         -DVERSION="${VERSION}" \
         -DDIST_DIR="${WIN_DIST_DIR}" \
         -DOUTFILE="${WIN_OUTFILE}" \
+        ${WIN_ICO} \
         "scripts/keeptower.nsi"
     if [ -f "${INSTALLER_FILE}" ]; then
         SHA_INST=$(sha256sum "${INSTALLER_FILE}" | awk '{print $1}')
