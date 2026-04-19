@@ -90,6 +90,35 @@ for dll in "${MINGW_BIN}"/libabsl_*.dll; do
     fi
 done
 
+# All GStreamer DLLs (GTK4 on MSYS2 is built with GStreamer media backend;
+# there are many libgst* DLLs loaded at runtime by the media subsystem)
+echo "Collecting GStreamer DLLs..."
+for dll in "${MINGW_BIN}"/libgst*.dll; do
+    [ -f "${dll}" ] || continue
+    if [ ! -f "${DIST_DIR}/$(basename ${dll})" ]; then
+        cp "${dll}" "${DIST_DIR}/"
+        echo "  + $(basename ${dll}) (gstreamer)"
+    fi
+done
+
+# utf8_validity / utf8_range — split out from abseil in newer protobuf builds
+for dll in \
+    libutf8_validity.dll \
+    libutf8_range.dll; do
+    if [ -f "${MINGW_BIN}/${dll}" ] && [ ! -f "${DIST_DIR}/${dll}" ]; then
+        cp "${MINGW_BIN}/${dll}" "${DIST_DIR}/"
+        echo "  + ${dll} (utf8/protobuf)"
+    fi
+done
+
+# cairo-script-interpreter (shipped with the cairo package on MSYS2)
+for dll in libcairo-script-interpreter-2.dll; do
+    if [ -f "${MINGW_BIN}/${dll}" ] && [ ! -f "${DIST_DIR}/${dll}" ]; then
+        cp "${MINGW_BIN}/${dll}" "${DIST_DIR}/"
+        echo "  + ${dll} (cairo)"
+    fi
+done
+
 # libcorrect — built from source and installed to /mingw64; ldd may miss it
 # if the build system linked it statically or it lives in a non-standard path.
 for search_path in \
