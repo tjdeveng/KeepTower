@@ -200,6 +200,7 @@ RUNTIME_DLLS=(
     libbrotlidec.dll
     libbrotlicommon.dll
     libzstd.dll
+    liblzo2-2.dll
     # GLib / GIO / GObject
     libglib-2.0-0.dll
     libgobject-2.0-0.dll
