@@ -279,8 +279,8 @@ jobs:
           mingw-w64-x86_64-argon2
           mingw-w64-x86_64-gtest
           mingw-w64-x86_64-gettext
+          mingw-w64-x86_64-nsis
           zip
-          nsis
           git
 
     - name: Build libcorrect from source
@@ -325,7 +325,7 @@ jobs:
         retention-days: 7
 
     - name: Package Windows build
-      if: success() || failure()
+      if: success()
       run: |
         mkdir -p dist
         bash scripts/package-windows.sh \
@@ -334,7 +334,7 @@ jobs:
           dist
 
     - name: Upload Windows artifact
-      if: success() || failure()
+      if: success()
       uses: actions/upload-artifact@v7
       with:
         name: keeptower-windows-x86_64
