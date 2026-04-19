@@ -117,7 +117,18 @@ for dll in \
     libjpeg-8.dll \
     libgraphene-1.0-0.dll \
     libepoxy-0.dll \
-    libadwaita-1-0.dll; do
+    libadwaita-1-0.dll \
+    libcbor-0.11.dll \
+    libcbor.dll \
+    zlib1.dll \
+    libintl-8.dll \
+    libiconv-2.dll \
+    libbrotlidec.dll \
+    libbrotlicommon.dll \
+    libbz2-1.dll \
+    libpcre2-8-0.dll \
+    libffi-8.dll \
+    libexpat-1.dll; do
     if [ -f "${MINGW_BIN}/${dll}" ] && [ ! -f "${DIST_DIR}/${dll}" ]; then
         cp "${MINGW_BIN}/${dll}" "${DIST_DIR}/"
         echo "  + ${dll} (runtime)"
