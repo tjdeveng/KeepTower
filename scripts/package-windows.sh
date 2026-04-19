@@ -77,7 +77,35 @@ ldd "${DIST_DIR}/keeptower.exe" \
         fi
     done
 
-# ldd only reports direct dependencies; some GTK4 plugins load DLLs at runtime.
+# ldd only reports direct dependencies; some GTK4 plugins and protobuf's abseil
+# dependency load DLLs at runtime. Copy them explicitly.
+
+# All abseil DLLs (protobuf links against many at runtime)
+echo "Collecting abseil DLLs..."
+for dll in "${MINGW_BIN}"/libabsl_*.dll; do
+    [ -f "${dll}" ] || continue
+    if [ ! -f "${DIST_DIR}/$(basename ${dll})" ]; then
+        cp "${dll}" "${DIST_DIR}/"
+        echo "  + $(basename ${dll}) (abseil)"
+    fi
+done
+
+# libcorrect — built from source and installed to /mingw64; ldd may miss it
+# if the build system linked it statically or it lives in a non-standard path.
+for search_path in \
+    "${MINGW_BIN}/libcorrect.dll" \
+    "${BUILD_DIR}/libcorrect.dll" \
+    "${BUILD_DIR}/src/libcorrect.dll" \
+    "/mingw64/bin/libcorrect.dll" \
+    "/mingw64/lib/libcorrect.dll"; do
+    if [ -f "${search_path}" ] && [ ! -f "${DIST_DIR}/libcorrect.dll" ]; then
+        cp "${search_path}" "${DIST_DIR}/libcorrect.dll"
+        echo "  + libcorrect.dll (from ${search_path})"
+        break
+    fi
+done
+[ -f "${DIST_DIR}/libcorrect.dll" ] || echo "  (libcorrect.dll not found — may be statically linked)"
+
 # Explicitly add common GTK4 runtime DLLs that may be dlopen'd:
 for dll in \
     libgdk_pixbuf-2.0-0.dll \
