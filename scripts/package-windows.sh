@@ -101,6 +101,23 @@ for dll in "${MINGW_BIN}"/libgst*.dll; do
     fi
 done
 
+# GStreamer codec plugins (loaded at runtime from lib/gstreamer-1.0/)
+GST_PLUGINS_SRC="${MINGW_PREFIX}/lib/gstreamer-1.0"
+if [ -d "${GST_PLUGINS_SRC}" ]; then
+    mkdir -p "${DIST_DIR}/lib/gstreamer-1.0"
+    cp "${GST_PLUGINS_SRC}/"*.dll "${DIST_DIR}/lib/gstreamer-1.0/" 2>/dev/null || true
+    echo "  + gstreamer-1.0 plugins"
+fi
+
+# liborc — GStreamer SIMD optimisation library (NOT prefixed libgst*, missed by glob)
+for dll in "${MINGW_BIN}"/liborc*.dll; do
+    [ -f "${dll}" ] || continue
+    if [ ! -f "${DIST_DIR}/$(basename ${dll})" ]; then
+        cp "${dll}" "${DIST_DIR}/"
+        echo "  + $(basename ${dll}) (orc/gstreamer)"
+    fi
+done
+
 # utf8_validity / utf8_range — split out from abseil in newer protobuf builds
 for dll in \
     libutf8_validity.dll \
@@ -170,15 +187,19 @@ RUNTIME_DLLS=(
     libtiff-6.dll
     libwebp-7.dll
     libwebpdecoder-3.dll
+    libwebpdemux-2.dll
+    libsharpyuv-0.dll
     libjbig-0.dll
     libdeflate.dll
     liblerc.dll
+    libopenjp2-7.dll
     # Compression / encoding
     zlib1.dll
     libbz2-1.dll
     liblzma-5.dll
     libbrotlidec.dll
     libbrotlicommon.dll
+    libzstd.dll
     # GLib / GIO / GObject
     libglib-2.0-0.dll
     libgobject-2.0-0.dll
@@ -295,6 +316,18 @@ for dir in resources/help resources/ui; do
 done
 
 # ----------------------------------------------------------------------------
+# 7a. Fontconfig runtime config
+# Needed so fontconfig can locate fonts on the target Windows machine.
+# Without this, text rendering silently fails or falls back to no-font.
+# ----------------------------------------------------------------------------
+FONTCONFIG_SRC="${MINGW_PREFIX}/etc/fonts"
+if [ -d "${FONTCONFIG_SRC}" ]; then
+    mkdir -p "${DIST_DIR}/etc/fonts"
+    cp -r "${FONTCONFIG_SRC}/"* "${DIST_DIR}/etc/fonts/"
+    echo "  + fontconfig config"
+fi
+
+# ----------------------------------------------------------------------------
 # 8. GLib type modules / gio modules
 # ----------------------------------------------------------------------------
 GIO_MODULES="${MINGW_PREFIX}/lib/gio/modules"
@@ -317,6 +350,8 @@ set "GSETTINGS_SCHEMA_DIR=%BUNDLE%share\glib-2.0\schemas"
 set "GDK_PIXBUF_MODULE_FILE=%BUNDLE%lib\gdk-pixbuf-2.0\2.10.0\loaders.cache"
 set "XDG_DATA_DIRS=%BUNDLE%share"
 set "GIO_MODULE_DIR=%BUNDLE%lib\gio\modules"
+set "FONTCONFIG_PATH=%BUNDLE%etc\fonts"
+set "GST_PLUGIN_PATH=%BUNDLE%lib\gstreamer-1.0"
 start "" "%BUNDLE%keeptower.exe"
 BATCH
 echo "  + keeptower-launch.bat"
