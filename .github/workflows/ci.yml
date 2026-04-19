@@ -329,7 +329,7 @@ jobs:
       run: |
         mkdir -p dist
         bash scripts/package-windows.sh \
-          "ci-$(git rev-parse --short HEAD)" \
+          "ci-${GITHUB_SHA::8}" \
           build \
           dist
 
