@@ -106,29 +106,68 @@ for search_path in \
 done
 [ -f "${DIST_DIR}/libcorrect.dll" ] || echo "  (libcorrect.dll not found — may be statically linked)"
 
-# Explicitly add common GTK4 runtime DLLs that may be dlopen'd:
-for dll in \
-    libgdk_pixbuf-2.0-0.dll \
-    libpixman-1-0.dll \
-    libfontconfig-1.dll \
-    libfreetype-6.dll \
-    libharfbuzz-0.dll \
-    libpng16-16.dll \
-    libjpeg-8.dll \
-    libgraphene-1.0-0.dll \
-    libepoxy-0.dll \
-    libadwaita-1-0.dll \
-    libcbor-0.11.dll \
-    libcbor.dll \
-    zlib1.dll \
-    libintl-8.dll \
-    libiconv-2.dll \
-    libbrotlidec.dll \
-    libbrotlicommon.dll \
-    libbz2-1.dll \
-    libpcre2-8-0.dll \
-    libffi-8.dll \
-    libexpat-1.dll; do
+# Explicitly add runtime DLLs that ldd misses (dlopen'd, indirect deps, etc.)
+# Grouped by dependency chain for maintainability.
+RUNTIME_DLLS=(
+    # GTK4 / GDK core
+    libgtk-4-1.dll
+    libgdk_pixbuf-2.0-0.dll
+    libgraphene-1.0-0.dll
+    libepoxy-0.dll
+    libadwaita-1-0.dll
+    # Pango + text rendering
+    libpango-1.0-0.dll
+    libpangocairo-1.0-0.dll
+    libpangowin32-1.0-0.dll
+    libfribidi-0.dll
+    libharfbuzz-0.dll
+    libharfbuzz-gobject-0.dll
+    libgraphite2.dll
+    # Cairo
+    libcairo-2.dll
+    libcairo-gobject-2.dll
+    libcairomm-1.16-1.dll
+    libpixman-1-0.dll
+    # Font rendering
+    libfontconfig-1.dll
+    libfreetype-6.dll
+    # Image codecs (pixbuf loaders)
+    libpng16-16.dll
+    libjpeg-8.dll
+    libtiff-6.dll
+    libwebp-7.dll
+    libwebpdecoder-3.dll
+    libjbig-0.dll
+    libdeflate.dll
+    liblerc.dll
+    # Compression / encoding
+    zlib1.dll
+    libbz2-1.dll
+    liblzma-5.dll
+    libbrotlidec.dll
+    libbrotlicommon.dll
+    # GLib / GIO / GObject
+    libglib-2.0-0.dll
+    libgobject-2.0-0.dll
+    libgio-2.0-0.dll
+    libgmodule-2.0-0.dll
+    libgthread-2.0-0.dll
+    libpcre2-8-0.dll
+    libffi-8.dll
+    libintl-8.dll
+    libiconv-2.dll
+    libexpat-1.dll
+    # libfido2 deps
+    libcbor-0.11.dll
+    libcbor.dll
+    libcrypto-3-x64.dll
+    libssl-3-x64.dll
+    # C++ / runtime
+    libstdc++-6.dll
+    libgcc_s_seh-1.dll
+    libwinpthread-1.dll
+)
+for dll in "${RUNTIME_DLLS[@]}"; do
     if [ -f "${MINGW_BIN}/${dll}" ] && [ ! -f "${DIST_DIR}/${dll}" ]; then
         cp "${MINGW_BIN}/${dll}" "${DIST_DIR}/"
         echo "  + ${dll} (runtime)"
