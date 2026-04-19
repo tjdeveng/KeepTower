@@ -344,7 +344,9 @@ fi
 # ----------------------------------------------------------------------------
 cat > "${DIST_DIR}/keeptower-launch.bat" << 'BATCH'
 @echo off
-:: KeepTower launcher — sets GTK environment for portable bundle
+:: KeepTower launcher — sets GTK environment then runs the exe.
+:: Use this when launching from a Command Prompt or PowerShell so that
+:: console output remains in the calling window.
 setlocal
 set "BUNDLE=%~dp0"
 set "GSETTINGS_SCHEMA_DIR=%BUNDLE%share\glib-2.0\schemas"
@@ -353,9 +355,28 @@ set "XDG_DATA_DIRS=%BUNDLE%share"
 set "GIO_MODULE_DIR=%BUNDLE%lib\gio\modules"
 set "FONTCONFIG_PATH=%BUNDLE%etc\fonts"
 set "GST_PLUGIN_PATH=%BUNDLE%lib\gstreamer-1.0"
-start "" "%BUNDLE%keeptower.exe"
+"%BUNDLE%keeptower.exe" %*
 BATCH
 echo "  + keeptower-launch.bat"
+
+# VBScript launcher — used by Start Menu / Desktop shortcuts so that no
+# console window appears when KeepTower is opened normally.
+cat > "${DIST_DIR}/keeptower-launch.vbs" << 'VBS'
+' KeepTower launcher: sets GTK environment and starts the exe without a
+' console window.  Double-click this, or point shortcuts here via wscript.
+Dim sh, bundle
+bundle = Left(WScript.ScriptFullName, InStrRev(WScript.ScriptFullName, "\"))
+Set sh = CreateObject("WScript.Shell")
+sh.Environment("Process")("GSETTINGS_SCHEMA_DIR")       = bundle & "share\glib-2.0\schemas"
+sh.Environment("Process")("GDK_PIXBUF_MODULE_FILE")     = bundle & "lib\gdk-pixbuf-2.0\2.10.0\loaders.cache"
+sh.Environment("Process")("XDG_DATA_DIRS")              = bundle & "share"
+sh.Environment("Process")("GIO_MODULE_DIR")             = bundle & "lib\gio\modules"
+sh.Environment("Process")("FONTCONFIG_PATH")            = bundle & "etc\fonts"
+sh.Environment("Process")("GST_PLUGIN_PATH")            = bundle & "lib\gstreamer-1.0"
+' Window style 0 = hidden (no console); False = don't wait for the process
+sh.Run """" & bundle & "keeptower.exe""", 0, False
+VBS
+echo "  + keeptower-launch.vbs"
 
 # ----------------------------------------------------------------------------
 # 10. Docs

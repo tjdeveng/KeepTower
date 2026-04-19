@@ -122,14 +122,16 @@ Section "KeepTower" SecMain
   WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\KeepTower" \
     "EstimatedSize" "$0"
 
-  ; Start Menu shortcut
+  ; Start Menu shortcut — launches via wscript so no console window appears
   CreateDirectory "$SMPROGRAMS\KeepTower"
   CreateShortcut  "$SMPROGRAMS\KeepTower\KeepTower.lnk" \
-    "$INSTDIR\keeptower-launch.bat" "" "$INSTDIR\keeptower.exe" 0
+    "$WINDIR\system32\wscript.exe" '"$INSTDIR\keeptower-launch.vbs"' \
+    "$INSTDIR\keeptower.exe" 0
 
   ; Desktop shortcut (optional — user can delete)
   CreateShortcut  "$DESKTOP\KeepTower.lnk" \
-    "$INSTDIR\keeptower-launch.bat" "" "$INSTDIR\keeptower.exe" 0
+    "$WINDIR\system32\wscript.exe" '"$INSTDIR\keeptower-launch.vbs"' \
+    "$INSTDIR\keeptower.exe" 0
 
   ; Write uninstaller
   WriteUninstaller "$INSTDIR\uninstall.exe"
