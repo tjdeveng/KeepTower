@@ -280,6 +280,7 @@ jobs:
           mingw-w64-x86_64-gtest
           mingw-w64-x86_64-gettext
           zip
+          nsis
           git
 
     - name: Build libcorrect from source
@@ -337,7 +338,10 @@ jobs:
       uses: actions/upload-artifact@v7
       with:
         name: keeptower-windows-x86_64
-        path: dist/keeptower-*-windows-x86_64.zip
+        path: |
+          dist/keeptower-*-windows-x86_64.zip
+          dist/keeptower-*-setup.exe
+          dist/checksums-windows.txt
         retention-days: 14
 
   lint:

@@ -365,7 +365,31 @@ for f in README.md LICENSE CHANGELOG.md; do
 done
 
 # ----------------------------------------------------------------------------
-# 11. Create ZIP
+# 11. NSIS installer (if makensis is available)
+# ----------------------------------------------------------------------------
+INSTALLER_FILE="${OUTPUT_DIR}/keeptower-${VERSION}-setup.exe"
+if command -v makensis &>/dev/null; then
+    echo "Building NSIS installer..."
+    # Convert MSYS2 paths to Windows paths for makensis
+    WIN_DIST_DIR=$(cygpath -w "${DIST_DIR}")
+    WIN_OUTFILE=$(cygpath -w "${INSTALLER_FILE}")
+    makensis \
+        -DVERSION="${VERSION}" \
+        -DDIST_DIR="${WIN_DIST_DIR}" \
+        -DOUTFILE="${WIN_OUTFILE}" \
+        "scripts/keeptower.nsi"
+    if [ -f "${INSTALLER_FILE}" ]; then
+        SHA_INST=$(sha256sum "${INSTALLER_FILE}" | awk '{print $1}')
+        echo "${SHA_INST}  keeptower-${VERSION}-setup.exe" \
+            >> "${OUTPUT_DIR}/checksums-windows.txt"
+        echo "  + installer: ${INSTALLER_FILE}"
+    fi
+else
+    echo "  (makensis not found — skipping installer, ZIP only)"
+fi
+
+# ----------------------------------------------------------------------------
+# 12. Create ZIP
 # ----------------------------------------------------------------------------
 ZIP_FILE="${OUTPUT_DIR}/keeptower-${VERSION}-windows-x86_64.zip"
 echo "Creating ZIP archive: ${ZIP_FILE}"
@@ -375,11 +399,11 @@ cd - > /dev/null
 
 SHA=$(sha256sum "${ZIP_FILE}" | awk '{print $1}')
 echo "${SHA}  keeptower-${VERSION}-windows-x86_64.zip" \
-    > "${OUTPUT_DIR}/checksums-windows.txt"
+    >> "${OUTPUT_DIR}/checksums-windows.txt"
 
 echo ""
 echo "=== Package complete ==="
 echo "Archive : ${ZIP_FILE}"
-echo "SHA-256 : ${SHA}"
+[ -f "${INSTALLER_FILE}" ] && echo "Installer: ${INSTALLER_FILE}"
 echo "Contents:"
 ls -lh "${DIST_DIR}/"

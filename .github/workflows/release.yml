@@ -275,6 +275,7 @@ jobs:
           mingw-w64-x86_64-gtest
           mingw-w64-x86_64-gettext
           zip
+          nsis
           git
 
     - name: Build libcorrect from source
@@ -317,8 +318,11 @@ jobs:
       run: |
         $VERSION = "${{ needs.create-release.outputs.version }}"
         $ZIP = "dist/keeptower-${VERSION}-windows-x86_64.zip"
+        $INSTALLER = "dist/keeptower-${VERSION}-setup.exe"
         $CHECKSUMS = "dist/checksums-windows.txt"
-        gh release upload $VERSION $ZIP $CHECKSUMS --clobber
+        $assets = @($ZIP, $CHECKSUMS)
+        if (Test-Path $INSTALLER) { $assets += $INSTALLER }
+        gh release upload $VERSION @assets --clobber
 
   build-documentation:
     name: Build and Deploy Documentation
