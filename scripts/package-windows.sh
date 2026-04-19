@@ -374,22 +374,28 @@ if command -v makensis &>/dev/null; then
     # NSIS requires a .ico file; convert the app PNG using ImageMagick if available
     ICO_FILE="${DIST_DIR}/keeptower.ico"
     PNG_SRC="data/icons/hicolor/scalable/apps/com.tjdeveng.keeptower.png"
-    if [ -f "${PNG_SRC}" ] && command -v convert &>/dev/null; then
-        convert "${PNG_SRC}" -resize 256x256 "${ICO_FILE}"
-        echo "  + keeptower.ico (from PNG)"
-    elif [ -f "${PNG_SRC}" ] && command -v magick &>/dev/null; then
-        magick "${PNG_SRC}" -resize 256x256 "${ICO_FILE}"
+    if [ -f "${PNG_SRC}" ] && command -v magick &>/dev/null; then
+        magick "${PNG_SRC}" -resize 256x256 -define icon:auto-resize=256,128,64,48,32,16 "${ICO_FILE}"
         echo "  + keeptower.ico (from PNG via magick)"
+    elif [ -f "${PNG_SRC}" ] && command -v convert &>/dev/null; then
+        convert "${PNG_SRC}" -resize 256x256 -define icon:auto-resize=256,128,64,48,32,16 "${ICO_FILE}"
+        echo "  + keeptower.ico (from PNG)"
     else
         ICO_FILE=""
         echo "  (ImageMagick not found — installer will use default NSIS icon)"
     fi
+    # Validate the ICO was actually created and is non-empty
+    if [ -n "${ICO_FILE}" ] && [ ! -s "${ICO_FILE}" ]; then
+        echo "  WARNING: ICO conversion produced empty file — skipping installer icon"
+        ICO_FILE=""
+    fi
 
-    # Convert MSYS2 paths to Windows paths for makensis
-    WIN_DIST_DIR=$(cygpath -w "${DIST_DIR}")
-    WIN_OUTFILE=$(cygpath -w "${INSTALLER_FILE}")
+    # Convert MSYS2 paths to Windows paths for makensis (must be absolute so
+    # makensis resolves them correctly regardless of the NSI script location)
+    WIN_DIST_DIR=$(cygpath -wa "${DIST_DIR}")
+    WIN_OUTFILE=$(cygpath -wa "${INSTALLER_FILE}")
     WIN_ICO=""
-    [ -n "${ICO_FILE}" ] && WIN_ICO="-DICO_FILE=$(cygpath -w ${ICO_FILE})"
+    [ -n "${ICO_FILE}" ] && WIN_ICO="-DICO_FILE=$(cygpath -wa "${ICO_FILE}")"
 
     makensis \
         -DVERSION="${VERSION}" \
