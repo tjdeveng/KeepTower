@@ -45,9 +45,18 @@ void PreferencesDialog::setup_ui() {
     m_stack.set_hexpand(true);
     m_stack.set_vexpand(true);
 
+    // Wrap the stack in a ScrolledWindow so the dialog height is bounded and
+    // Apply/Cancel are always reachable, even when Argon2 params are expanded.
+    m_stack_scroll.set_child(m_stack);
+    m_stack_scroll.set_policy(Gtk::PolicyType::NEVER, Gtk::PolicyType::AUTOMATIC);
+    m_stack_scroll.set_propagate_natural_height(true);
+    m_stack_scroll.set_max_content_height(600);
+    m_stack_scroll.set_hexpand(true);
+    m_stack_scroll.set_vexpand(true);
+
     m_main_box.set_spacing(12);
     m_main_box.append(m_stack_sidebar);
-    m_main_box.append(m_stack);
+    m_main_box.append(m_stack_scroll);
 
     content_area->append(m_main_box);
 

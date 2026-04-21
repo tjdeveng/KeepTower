@@ -707,12 +707,9 @@ void VaultSecurityPreferencesPage::resize_to_content() noexcept {
         return;
     }
 
-    dialog->set_default_size(-1, -1);
+    // The dialog uses a ScrolledWindow with max_content_height to cap its size,
+    // so we only need to trigger a resize — not override default sizes.
     dialog->queue_resize();
-
-    Glib::signal_idle().connect_once([dialog]() {
-        dialog->set_default_size(650, -1);
-    });
 }
 
 void VaultSecurityPreferencesPage::update_vault_password_history_ui() noexcept {

@@ -98,6 +98,7 @@ private:
     Gtk::Box m_main_box;  ///< Horizontal container for sidebar + stack
     Gtk::StackSidebar m_stack_sidebar;  ///< Navigation sidebar
     Gtk::Stack m_stack;  ///< Page stack
+    Gtk::ScrolledWindow m_stack_scroll;  ///< Caps dialog height; stack scrolls when content overflows
 
     KeepTower::Ui::AppearancePreferencesPage* m_appearance_page_widget = nullptr;  ///< Managed by GTK
     KeepTower::Ui::AccountSecurityPreferencesPage* m_account_security_page_widget = nullptr;  ///< Managed by GTK
