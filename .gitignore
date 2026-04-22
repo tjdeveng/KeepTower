@@ -7,6 +7,7 @@ build-*/
 build*/
 builddir/
 _build/
+dist/
 
 # Meson generated files
 compile_commands.json

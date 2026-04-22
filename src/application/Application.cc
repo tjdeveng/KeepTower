@@ -11,6 +11,7 @@
 #include "../utils/Log.h"
 #include "../config.h"
 #include <giomm/settings.h>
+#include <array>
 #include <memory>
 
 Application::Application()
@@ -148,15 +149,26 @@ void Application::on_action_about() {
     dialog->set_website("https://github.com/tjdeveng/KeepTower");
     dialog->set_website_label("GitHub Repository");
 
-    // Set application icon - load from embedded resources
-    try {
-        // Path includes the exact file path as specified in gresource.xml
-        auto resource_path = "/com/tjdeveng/keeptower/../data/icons/hicolor/scalable/apps/com.tjdeveng.keeptower.svg";
-        auto pixbuf = Gdk::Pixbuf::create_from_resource(resource_path);
-        auto texture = Gdk::Texture::create_for_pixbuf(pixbuf);
-        dialog->set_logo(texture);
-    } catch (const Glib::Error& ex) {
-        g_warning("Failed to load application icon from resources: %s", ex.what());
+    // Set application icon - use canonical GResource paths.
+    // Prefer PNG first on Windows because SVG loading depends on librsvg runtime pieces.
+    const std::array<const char*, 2> icon_resource_candidates = {
+        "/com/tjdeveng/keeptower/com.tjdeveng.keeptower.png",
+        "/com/tjdeveng/keeptower/com.tjdeveng.keeptower.svg",
+    };
+    std::string icon_load_error;
+    for (const auto* resource_path : icon_resource_candidates) {
+        try {
+            auto pixbuf = Gdk::Pixbuf::create_from_resource(resource_path);
+            auto texture = Gdk::Texture::create_for_pixbuf(pixbuf);
+            dialog->set_logo(texture);
+            icon_load_error.clear();
+            break;
+        } catch (const Glib::Error& ex) {
+            icon_load_error = ex.what();
+        }
+    }
+    if (!icon_load_error.empty()) {
+        g_warning("Failed to load application icon from resources: %s", icon_load_error.c_str());
     }
 
     std::vector<Glib::ustring> authors = {"TJDev"};

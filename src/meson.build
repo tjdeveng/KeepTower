@@ -7,6 +7,54 @@ fs = import('fs')
 # Import gnome module for resources
 gnome = import('gnome')
 
+# Windows executable resources (icon embedding)
+windows_resources = []
+if host_machine.system() == 'windows'
+  windows_mod = import('windows')
+
+  # Generate an .ico in the build dir from the canonical app PNG so windres
+  # can embed it into the executable.
+  icon_png = meson.project_source_root() / 'data' / 'icons' / 'hicolor' / 'scalable' / 'apps' / 'com.tjdeveng.keeptower.png'
+  icon_ico = meson.current_build_dir() / 'keeptower.ico'
+
+  magick = find_program('magick', required: false)
+  convert = find_program('convert', required: false)
+
+  icon_generated = false
+  if magick.found()
+    magick_result = run_command(
+      magick,
+      icon_png,
+      '-resize', '256x256',
+      '-define', 'icon:auto-resize=256,128,64,48,32,16',
+      icon_ico,
+      check: false,
+    )
+    icon_generated = magick_result.returncode() == 0
+  elif convert.found()
+    convert_result = run_command(
+      convert,
+      icon_png,
+      '-resize', '256x256',
+      '-define', 'icon:auto-resize=256,128,64,48,32,16',
+      icon_ico,
+      check: false,
+    )
+    icon_generated = convert_result.returncode() == 0
+  endif
+
+  if icon_generated
+    win_rc = configure_file(
+      input: 'keeptower.rc.in',
+      output: 'keeptower.rc',
+      copy: true,
+    )
+    windows_resources += windows_mod.compile_resources('keeptower-winres', win_rc)
+  else
+    warning('Windows icon embedding disabled: could not generate keeptower.ico (ImageMagick missing or conversion failed)')
+  endif
+endif
+
 # Compile GResources
 gresources = gnome.compile_resources(
   'keeptower-resources',
@@ -300,7 +348,7 @@ if yubikey_available
 endif
 
 # Combine regular sources with generated proto sources and resources
-all_sources = sources + proto_sources + gresources + help_gresources
+all_sources = sources + proto_sources + gresources + help_gresources + windows_resources
 
 # Include directories
 src_inc = include_directories(

@@ -2,6 +2,7 @@
 <gresources>
   <gresource prefix="/com/tjdeveng/keeptower">
     <!-- Application icon -->
+    <file>../data/icons/hicolor/scalable/apps/com.tjdeveng.keeptower.png</file>
     <file preprocess="xml-stripblanks">../data/icons/hicolor/scalable/apps/com.tjdeveng.keeptower.svg</file>
 
     <!-- UI files will go here -->

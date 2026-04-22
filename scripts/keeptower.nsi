@@ -109,8 +109,13 @@ Section "KeepTower" SecMain
     "UninstallString"      "$INSTDIR\uninstall.exe"
   WriteRegStr   HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\KeepTower" \
     "InstallLocation"      "$INSTDIR"
-  WriteRegStr   HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\KeepTower" \
-    "DisplayIcon"          "$INSTDIR\keeptower.exe"
+  ${If} ${FileExists} "$INSTDIR\keeptower.ico"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\KeepTower" \
+      "DisplayIcon" "$INSTDIR\keeptower.ico"
+  ${Else}
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\KeepTower" \
+      "DisplayIcon" "$INSTDIR\keeptower.exe"
+  ${EndIf}
   WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\KeepTower" \
     "NoModify"             1
   WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\KeepTower" \
@@ -124,14 +129,26 @@ Section "KeepTower" SecMain
 
   ; Start Menu shortcut — launches via wscript so no console window appears
   CreateDirectory "$SMPROGRAMS\KeepTower"
-  CreateShortcut  "$SMPROGRAMS\KeepTower\KeepTower.lnk" \
-    "$WINDIR\system32\wscript.exe" '"$INSTDIR\keeptower-launch.vbs"' \
-    "$INSTDIR\keeptower.exe" 0
+  ${If} ${FileExists} "$INSTDIR\keeptower.ico"
+    CreateShortcut "$SMPROGRAMS\KeepTower\KeepTower.lnk" \
+      "$WINDIR\system32\wscript.exe" '"$INSTDIR\keeptower-launch.vbs"' \
+      "$INSTDIR\keeptower.ico" 0
+  ${Else}
+    CreateShortcut "$SMPROGRAMS\KeepTower\KeepTower.lnk" \
+      "$WINDIR\system32\wscript.exe" '"$INSTDIR\keeptower-launch.vbs"' \
+      "$INSTDIR\keeptower.exe" 0
+  ${EndIf}
 
   ; Desktop shortcut (optional — user can delete)
-  CreateShortcut  "$DESKTOP\KeepTower.lnk" \
-    "$WINDIR\system32\wscript.exe" '"$INSTDIR\keeptower-launch.vbs"' \
-    "$INSTDIR\keeptower.exe" 0
+  ${If} ${FileExists} "$INSTDIR\keeptower.ico"
+    CreateShortcut "$DESKTOP\KeepTower.lnk" \
+      "$WINDIR\system32\wscript.exe" '"$INSTDIR\keeptower-launch.vbs"' \
+      "$INSTDIR\keeptower.ico" 0
+  ${Else}
+    CreateShortcut "$DESKTOP\KeepTower.lnk" \
+      "$WINDIR\system32\wscript.exe" '"$INSTDIR\keeptower-launch.vbs"' \
+      "$INSTDIR\keeptower.exe" 0
+  ${EndIf}
 
   ; Write uninstaller
   WriteUninstaller "$INSTDIR\uninstall.exe"
