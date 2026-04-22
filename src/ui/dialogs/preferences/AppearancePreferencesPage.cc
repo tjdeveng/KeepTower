@@ -8,16 +8,16 @@ namespace KeepTower::Ui {
 AppearancePreferencesPage::AppearancePreferencesPage()
     : Gtk::Box(Gtk::Orientation::VERTICAL, 18),
       m_color_scheme_box(Gtk::Orientation::HORIZONTAL, 12),
-      m_color_scheme_label("Color scheme:") {
+      m_color_scheme_label("Colour scheme:") {
     set_margin_start(18);
     set_margin_end(18);
     set_margin_top(18);
     set_margin_bottom(18);
 
-    // Color scheme controls
+    // Colour scheme controls
     auto* scheme_row = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 6);
 
-    auto* scheme_label = Gtk::make_managed<Gtk::Label>("Color Scheme");
+    auto* scheme_label = Gtk::make_managed<Gtk::Label>("Colour Scheme");
     scheme_label->set_halign(Gtk::Align::START);
     scheme_label->add_css_class("heading");
     scheme_row->append(*scheme_label);
