@@ -21,22 +21,46 @@ if host_machine.system() == 'windows'
   magick = find_program('magick', required: false)
   convert_prog = find_program('convert', required: false)
 
-  # Determine which ImageMagick tool to use
-  magick_tool = null
+  # Create a build-time custom_target to generate the .ico file
   if magick.found()
-    magick_tool = magick
-  elif convert_prog.found()
-    magick_tool = convert_prog
-  endif
-
-  if magick_tool != null
-    # Create a build-time custom_target to generate the .ico file
     icon_target = custom_target(
       'keeptower-icon',
       input: icon_png,
       output: icon_ico_name,
       command: [
-        magick_tool,
+        magick,
+        '@INPUT@',
+        '-resize', '256x256',
+        '-define', 'icon:auto-resize=256,128,64,48,32,16',
+        '@OUTPUT@'
+      ],
+      build_by_default: true,
+    )
+
+    # Use template substitution to inject the full path to the generated icon
+    icon_path = meson.current_build_dir() / icon_ico_name
+    win_rc_conf = configuration_data()
+    win_rc_conf.set('ICON_PATH', icon_path)
+
+    win_rc = configure_file(
+      input: 'keeptower.rc.in',
+      output: 'keeptower.rc',
+      configuration: win_rc_conf,
+    )
+
+    # Compile resources with explicit dependency on the icon target
+    windows_resources += windows_mod.compile_resources(
+      'keeptower-winres',
+      win_rc,
+      depend_files: icon_target,
+    )
+  elif convert_prog.found()
+    icon_target = custom_target(
+      'keeptower-icon',
+      input: icon_png,
+      output: icon_ico_name,
+      command: [
+        convert_prog,
         '@INPUT@',
         '-resize', '256x256',
         '-define', 'icon:auto-resize=256,128,64,48,32,16',
