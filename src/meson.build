@@ -15,43 +15,62 @@ if host_machine.system() == 'windows'
   # Generate an .ico in the build dir from the canonical app PNG so windres
   # can embed it into the executable.
   icon_png = meson.project_source_root() / 'data' / 'icons' / 'hicolor' / 'scalable' / 'apps' / 'com.tjdeveng.keeptower.png'
-  icon_ico = meson.current_build_dir() / 'keeptower.ico'
+  icon_ico_path = meson.current_build_dir() / 'keeptower.ico'
 
+  # Try to generate the .ico using ImageMagick (installed in MSYS2 CI environment)
   magick = find_program('magick', required: false)
   convert = find_program('convert', required: false)
 
   icon_generated = false
-  if magick.found()
+  if magick.found() and fs.exists(icon_png)
     magick_result = run_command(
       magick,
       icon_png,
       '-resize', '256x256',
       '-define', 'icon:auto-resize=256,128,64,48,32,16',
-      icon_ico,
+      icon_ico_path,
       check: false,
+      capture: true,
     )
-    icon_generated = magick_result.returncode() == 0
-  elif convert.found()
+    icon_generated = magick_result.returncode() == 0 and fs.exists(icon_ico_path)
+    if not icon_generated and magick_result.stdout().length() > 0
+      message('ImageMagick stdout: ' + magick_result.stdout())
+    endif
+    if not icon_generated and magick_result.stderr().length() > 0
+      message('ImageMagick stderr: ' + magick_result.stderr())
+    endif
+  elif convert.found() and fs.exists(icon_png)
     convert_result = run_command(
       convert,
       icon_png,
       '-resize', '256x256',
       '-define', 'icon:auto-resize=256,128,64,48,32,16',
-      icon_ico,
+      icon_ico_path,
       check: false,
+      capture: true,
     )
-    icon_generated = convert_result.returncode() == 0
+    icon_generated = convert_result.returncode() == 0 and fs.exists(icon_ico_path)
+    if not icon_generated and convert_result.stdout().length() > 0
+      message('ImageMagick convert stdout: ' + convert_result.stdout())
+    endif
+    if not icon_generated and convert_result.stderr().length() > 0
+      message('ImageMagick convert stderr: ' + convert_result.stderr())
+    endif
   endif
 
   if icon_generated
+    # Use template substitution to inject the full path to the .ico file
+    win_rc_conf = configuration_data()
+    win_rc_conf.set('ICON_PATH', icon_ico_path)
     win_rc = configure_file(
       input: 'keeptower.rc.in',
       output: 'keeptower.rc',
-      copy: true,
+      configuration: win_rc_conf,
     )
-    windows_resources += windows_mod.compile_resources('keeptower-winres', win_rc)
+    # Declare explicit dependency on the generated .ico file
+    windows_resources += windows_mod.compile_resources('keeptower-winres', win_rc, depend_files: icon_ico_path)
   else
-    warning('Windows icon embedding disabled: could not generate keeptower.ico (ImageMagick missing or conversion failed)')
+    warning('Windows icon embedding disabled: ImageMagick not found or icon generation failed. Shortcuts will use exe icon.')
   endif
 endif
 

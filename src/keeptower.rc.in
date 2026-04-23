@@ -2,4 +2,4 @@
 // SPDX-FileCopyrightText: 2026 tjdeveng
 
 // Embed the application icon in the Windows executable.
-IDI_ICON1 ICON "keeptower.ico"
+IDI_ICON1 ICON "@ICON_PATH@"
