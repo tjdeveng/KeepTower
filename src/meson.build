@@ -48,11 +48,10 @@ if host_machine.system() == 'windows'
       configuration: win_rc_conf,
     )
 
-    # Compile resources with explicit dependency on the icon target
+    # Compile resources (icon dependency handled by custom_target build_by_default)
     windows_resources += windows_mod.compile_resources(
       'keeptower-winres',
       win_rc,
-      depend_files: icon_target,
     )
   elif convert_prog.found()
     icon_target = custom_target(
@@ -80,11 +79,10 @@ if host_machine.system() == 'windows'
       configuration: win_rc_conf,
     )
 
-    # Compile resources with explicit dependency on the icon target
+    # Compile resources (icon dependency handled by custom_target build_by_default)
     windows_resources += windows_mod.compile_resources(
       'keeptower-winres',
       win_rc,
-      depend_files: icon_target,
     )
   else
     warning('Windows icon embedding disabled: ImageMagick not found. App icon will be loaded from resources only.')
