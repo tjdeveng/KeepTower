@@ -149,25 +149,32 @@ void Application::on_action_about() {
     dialog->set_website("https://github.com/tjdeveng/KeepTower");
     dialog->set_website_label("GitHub Repository");
 
-    // Set application icon - use canonical GResource paths.
-    // Prefer PNG first on Windows because SVG loading depends on librsvg runtime pieces.
-    const std::array<const char*, 2> icon_resource_candidates = {
+    // Set application icon. Try multiple resource paths first, then fall back
+    // to themed icon lookup (works with bundled share/icons on Windows).
+    const std::array<const char*, 4> icon_resource_candidates = {
         "/com/tjdeveng/keeptower/com.tjdeveng.keeptower.png",
         "/com/tjdeveng/keeptower/com.tjdeveng.keeptower.svg",
+        "/com/tjdeveng/keeptower/../data/icons/hicolor/scalable/apps/com.tjdeveng.keeptower.png",
+        "/com/tjdeveng/keeptower/../data/icons/hicolor/scalable/apps/com.tjdeveng.keeptower.svg",
     };
     std::string icon_load_error;
+    bool icon_set = false;
     for (const auto* resource_path : icon_resource_candidates) {
         try {
             auto pixbuf = Gdk::Pixbuf::create_from_resource(resource_path);
             auto texture = Gdk::Texture::create_for_pixbuf(pixbuf);
             dialog->set_logo(texture);
             icon_load_error.clear();
+            icon_set = true;
             break;
         } catch (const Glib::Error& ex) {
             icon_load_error = ex.what();
         }
     }
-    if (!icon_load_error.empty()) {
+    if (!icon_set) {
+        dialog->set_logo_icon_name("com.tjdeveng.keeptower");
+    }
+    if (!icon_set && !icon_load_error.empty()) {
         g_warning("Failed to load application icon from resources: %s", icon_load_error.c_str());
     }
 
