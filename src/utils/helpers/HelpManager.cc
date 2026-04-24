@@ -6,11 +6,17 @@
 #include <gtkmm.h>
 #include <gtk/gtk.h>
 #include <giomm/resource.h>
+#include <gio/gio.h>
 #include <glibmm/fileutils.h>
 #include <glibmm/miscutils.h>
 #include <filesystem>
 #include <string_view>
 #include <array>
+
+#ifdef _WIN32
+#include <windows.h>
+#include <shellapi.h>
+#endif
 
 namespace Utils {
 
@@ -22,6 +28,77 @@ namespace {
 
     // C++23: Use std::filesystem for safer path operations
     namespace fs = std::filesystem;
+
+    [[nodiscard]] std::string path_to_file_uri(const fs::path& path) {
+        try {
+            return Glib::filename_to_uri(fs::absolute(path).string());
+        } catch (const Glib::Error&) {
+            return "";
+        } catch (const fs::filesystem_error&) {
+            return "";
+        }
+    }
+
+    [[nodiscard]] fs::path get_executable_dir() {
+#ifdef _WIN32
+        std::array<wchar_t, 32768> exe_path{};
+        const DWORD length = GetModuleFileNameW(nullptr, exe_path.data(), static_cast<DWORD>(exe_path.size()));
+        if (length == 0 || length >= exe_path.size()) {
+            return fs::current_path();
+        }
+        return fs::path(exe_path.data()).parent_path();
+#else
+        return fs::current_path();
+#endif
+    }
+
+#ifdef _WIN32
+    [[nodiscard]] std::wstring utf8_to_wstring(const std::string& utf8) {
+        if (utf8.empty()) {
+            return L"";
+        }
+
+        const int wide_len = MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, nullptr, 0);
+        if (wide_len <= 0) {
+            return L"";
+        }
+
+        std::wstring wide(static_cast<size_t>(wide_len), L'\0');
+        const int result = MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, wide.data(), wide_len);
+        if (result <= 0) {
+            return L"";
+        }
+
+        if (!wide.empty() && wide.back() == L'\0') {
+            wide.pop_back();
+        }
+        return wide;
+    }
+
+    [[nodiscard]] bool launch_uri_with_shell_execute(const std::string& uri) {
+        std::string target = uri;
+
+        if (uri.rfind("file://", 0) == 0) {
+            GError* file_error = nullptr;
+            char* filename = g_filename_from_uri(uri.c_str(), nullptr, &file_error);
+            if (filename != nullptr) {
+                target.assign(filename);
+                g_free(filename);
+            }
+            if (file_error != nullptr) {
+                g_error_free(file_error);
+            }
+        }
+
+        const std::wstring target_w = utf8_to_wstring(target);
+        if (target_w.empty()) {
+            return false;
+        }
+
+        const HINSTANCE result = ShellExecuteW(nullptr, L"open", target_w.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+        return reinterpret_cast<INT_PTR>(result) > 32;
+    }
+#endif
 } // anonymous namespace
 
 // Topic to filename mapping
@@ -63,6 +140,21 @@ bool HelpManager::open_help(HelpTopic topic, Gtk::Window& parent) {
     }
 
     try {
+#ifdef _WIN32
+        GError* launch_error = nullptr;
+        const gboolean launched = g_app_info_launch_default_for_uri(uri.c_str(), nullptr, &launch_error);
+        if (launch_error != nullptr) {
+            g_error_free(launch_error);
+        }
+        if (launched) {
+            return true;
+        }
+
+        // Fallback for Windows environments where GLib launcher is unreliable.
+        if (launch_uri_with_shell_execute(uri)) {
+            return true;
+        }
+#else
         // Use GTK4 C API for URI launching
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic push
@@ -73,6 +165,13 @@ bool HelpManager::open_help(HelpTopic topic, Gtk::Window& parent) {
 #pragma GCC diagnostic pop
 #endif
         return true;
+#endif
+
+        const std::string message = "Could not open help in browser using system URI launcher.\n\n"
+                                   "Help file location: " + uri +
+                                   "\n\nPlease open this file manually in your web browser.";
+        show_error_dialog(parent, "Failed to open help documentation", message);
+        return false;
     } catch (const Glib::Error& ex) {
         const std::string message = std::string("Could not open help in browser: ") + ex.what() +
                                    "\n\nHelp file location: " + uri +
@@ -92,7 +191,12 @@ std::string HelpManager::get_help_uri(HelpTopic topic) const {
 }
 
 std::string HelpManager::get_help_install_dir() {
+#ifdef _WIN32
+    const fs::path exe_dir = get_executable_dir();
+    return (exe_dir / "share" / "keeptower" / "help").string();
+#else
     return std::string(KEEPTOWER_DATADIR) + "/keeptower/help";
+#endif
 }
 
 std::string HelpManager::find_help_file(const std::string& filename) const {
@@ -106,12 +210,13 @@ std::string HelpManager::find_help_file(const std::string& filename) const {
     // Strategy 1: Check installed location (production)
     const fs::path installed_path = fs::path(get_help_install_dir()) / filename;
     if (file_exists(installed_path.string())) {
-        return "file://" + installed_path.string();
+        return path_to_file_uri(installed_path);
     }
 
     // Strategy 2: Check development paths (relative to executable)
-    const fs::path exe_dir = fs::current_path();
+    const fs::path exe_dir = get_executable_dir();
     const std::array dev_paths = {
+        exe_dir / "share" / "keeptower" / "help" / filename,
         exe_dir / "resources" / "help" / filename,
         exe_dir / ".." / "resources" / "help" / filename,
         exe_dir / ".." / ".." / "resources" / "help" / filename,
@@ -120,7 +225,7 @@ std::string HelpManager::find_help_file(const std::string& filename) const {
 
     for (const auto& path : dev_paths) {
         if (file_exists(path.string())) {
-            return "file://" + fs::canonical(path).string();
+            return path_to_file_uri(path);
         }
     }
 
@@ -171,7 +276,7 @@ std::string HelpManager::extract_from_gresource(const std::string& filename) con
         // Write resource to temp file using Glib (better error handling)
         Glib::file_set_contents(temp_file.string(), std::string(data, size));
 
-        return "file://" + temp_file.string();
+        return path_to_file_uri(temp_file);
     } catch (const Glib::Error& ex) {
         // Don't use std::cerr - maintain separation of concerns
         // Caller should handle errors through return value
