@@ -16,6 +16,9 @@
 #ifdef _WIN32
 #include <windows.h>
 #include <shellapi.h>
+#ifdef ERROR
+#undef ERROR
+#endif
 #endif
 
 namespace Utils {
