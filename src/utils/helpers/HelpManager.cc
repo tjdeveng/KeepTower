@@ -144,17 +144,19 @@ bool HelpManager::open_help(HelpTopic topic, Gtk::Window& parent) {
 
     try {
 #ifdef _WIN32
+        // On Windows, GLib's URI launcher can rely on optional D-Bus helpers
+        // that may be absent in portable bundles. Prefer native shell launch.
+        if (launch_uri_with_shell_execute(uri)) {
+            return true;
+        }
+
+        // Secondary fallback through GIO launcher.
         GError* launch_error = nullptr;
         const gboolean launched = g_app_info_launch_default_for_uri(uri.c_str(), nullptr, &launch_error);
         if (launch_error != nullptr) {
             g_error_free(launch_error);
         }
         if (launched) {
-            return true;
-        }
-
-        // Fallback for Windows environments where GLib launcher is unreliable.
-        if (launch_uri_with_shell_execute(uri)) {
             return true;
         }
 #else
