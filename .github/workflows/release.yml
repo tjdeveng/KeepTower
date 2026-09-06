@@ -244,7 +244,9 @@ jobs:
     name: Build Windows (MSYS2/MinGW64)
     needs: create-release
     runs-on: windows-latest
-    # Windows build may fail until the full platform port is complete.
+    # Windows packaging remains experimental while the platform port is still under
+    # active debugging. Keep the release non-blocking, but log a clear warning so
+    # the status is visible in CI instead of silently disappearing.
     # Remove continue-on-error once the build is consistently green.
     continue-on-error: true
 
@@ -253,6 +255,14 @@ jobs:
         shell: msys2 {0}
 
     steps:
+    - name: Experimental Windows release status
+      shell: bash
+      run: |
+        echo "::warning::Windows release packaging is still experimental and intentionally non-blocking."
+        echo "The Windows build remains under active debugging; this release job is intentionally short-circuited to keep the existing release behavior while debugging continues."
+        echo "No Windows installer or zip will be uploaded for this run until the portable Windows path is stabilized."
+        exit 0
+
     - name: Checkout code
       uses: actions/checkout@v6
 
