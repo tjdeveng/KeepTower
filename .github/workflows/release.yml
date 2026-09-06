@@ -277,7 +277,6 @@ jobs:
           mingw-w64-x86_64-ninja
           mingw-w64-x86_64-pkgconf
           mingw-w64-x86_64-meson
-          mingw-w64-x86_64-pandoc
           mingw-w64-x86_64-gtkmm-4.0
           mingw-w64-x86_64-protobuf
           mingw-w64-x86_64-openssl
@@ -289,6 +288,15 @@ jobs:
           mingw-w64-x86_64-imagemagick
           zip
           git
+
+    - name: Install Pandoc for help generation
+      shell: pwsh
+      run: |
+        if (-not (Get-Command pandoc -ErrorAction SilentlyContinue)) {
+          choco install pandoc -y --no-progress
+        }
+        "$env:ChocolateyInstall\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        & "$env:ChocolateyInstall\bin\pandoc.exe" --version
 
     - name: Build libcorrect from source
       run: |
