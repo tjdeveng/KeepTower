@@ -13,7 +13,7 @@
 #include <string_view>
 #include <array>
 #include <fstream>
-#include <sstream>
+#include <vector>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -31,20 +31,58 @@ namespace {
     constexpr std::string_view GRESOURCE_PREFIX = "/com/tjdeveng/keeptower/help/";
     constexpr std::string_view TEMP_FILE_PREFIX = "keeptower-help-";
 
-    [[nodiscard]] std::string get_log_file_path() {
-        // Write logs to temp directory for debugging
+    [[nodiscard]] std::vector<std::string> get_log_candidates() {
         namespace fs = std::filesystem;
+        std::vector<std::string> candidates;
+
         try {
-            const fs::path log_path = fs::temp_directory_path() / "keeptower-help-debug.log";
-            return log_path.string();
+            candidates.push_back((fs::temp_directory_path() / "keeptower-help-debug.log").string());
         } catch (...) {
-            return "";
+            // Ignore and continue to fallbacks.
         }
+
+        if (const char* glib_tmp = g_get_tmp_dir(); glib_tmp != nullptr && *glib_tmp != '\0') {
+            try {
+                candidates.push_back((fs::path(glib_tmp) / "keeptower-help-debug.log").string());
+            } catch (...) {
+                // Ignore malformed paths.
+            }
+        }
+
+        try {
+            candidates.push_back((fs::current_path() / "keeptower-help-debug.log").string());
+        } catch (...) {
+            // Ignore and keep relative fallback below.
+        }
+
+        candidates.push_back("keeptower-help-debug.log");
+        return candidates;
+    }
+
+    [[nodiscard]] std::string get_log_file_path() {
+        for (const auto& candidate : get_log_candidates()) {
+            try {
+                std::ofstream log(candidate, std::ios::app);
+                if (log.is_open()) {
+                    return candidate;
+                }
+            } catch (...) {
+                // Try next candidate.
+            }
+        }
+        return "";
     }
 
     void log_diagnostic(const std::string& message) {
+#ifdef _WIN32
+        const std::string debug_line = std::string("[HelpManager] ") + message + "\n";
+        OutputDebugStringA(debug_line.c_str());
+#endif
+
         const std::string log_file = get_log_file_path();
-        if (log_file.empty()) return;
+        if (log_file.empty()) {
+            return;
+        }
 
         try {
             std::ofstream log(log_file, std::ios::app);
@@ -82,7 +120,7 @@ namespace {
             log_diagnostic("GetModuleFileNameW failed, returning current_path");
             return fs::current_path();
         }
-        
+
         fs::path result = fs::path(exe_path.data()).parent_path();
         log_diagnostic("Executable dir: " + result.string());
         return result;
@@ -140,10 +178,10 @@ namespace {
 
         const HINSTANCE result = ShellExecuteW(nullptr, L"open", target_w.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
         const bool success = reinterpret_cast<INT_PTR>(result) > 32;
-        
-        log_diagnostic("ShellExecute result: " + std::to_string(reinterpret_cast<INT_PTR>(result)) + 
+
+        log_diagnostic("ShellExecute result: " + std::to_string(reinterpret_cast<INT_PTR>(result)) +
                       " (success: " + std::string(success ? "true" : "false") + ")");
-        
+
         return success;
     }
 #endif
@@ -169,12 +207,12 @@ HelpManager::HelpManager() = default;
 
 bool HelpManager::open_help(HelpTopic topic, Gtk::Window& parent) {
     log_diagnostic("--- open_help called ---");
-    
+
     const std::string uri = get_help_uri(topic);
 
     if (uri.empty()) {
         log_diagnostic("Help URI is empty - help file not found");
-        
+
         const std::string log_file = get_log_file_path();
         const std::string message = "Help documentation could not be found. "
                                    "Please ensure KeepTower is properly installed.\n\n"
@@ -233,7 +271,7 @@ bool HelpManager::open_help(HelpTopic topic, Gtk::Window& parent) {
 #endif
 
         log_diagnostic("All launch methods failed");
-        
+
         const std::string log_file = get_log_file_path();
         const std::string message = "Could not open help in browser using system URI launcher.\n\n"
                                    "Help file location: " + uri +
@@ -243,7 +281,7 @@ bool HelpManager::open_help(HelpTopic topic, Gtk::Window& parent) {
         return false;
     } catch (const Glib::Error& ex) {
         log_diagnostic("Exception during launch: " + std::string(ex.what()));
-        
+
         const std::string log_file = get_log_file_path();
         const std::string message = std::string("Could not open help in browser: ") + ex.what() +
                                    "\n\nHelp file location: " + uri +
@@ -266,9 +304,27 @@ std::string HelpManager::get_help_uri(HelpTopic topic) const {
 std::string HelpManager::get_help_install_dir() {
 #ifdef _WIN32
     const fs::path exe_dir = get_executable_dir();
-    const std::string result = (exe_dir / "share" / "keeptower" / "help").string();
-    log_diagnostic("Help install dir (Windows): " + result);
-    return result;
+    const std::array candidates = {
+        exe_dir / "share" / "keeptower" / "help",
+        exe_dir / ".." / "share" / "keeptower" / "help",
+        exe_dir / ".." / ".." / "share" / "keeptower" / "help",
+    };
+
+    for (const auto& candidate : candidates) {
+        try {
+            if (fs::exists(candidate) && fs::is_directory(candidate)) {
+                const std::string result = candidate.lexically_normal().string();
+                log_diagnostic("Help install dir (Windows, detected): " + result);
+                return result;
+            }
+        } catch (const fs::filesystem_error&) {
+            // Continue trying fallback locations.
+        }
+    }
+
+    const std::string fallback = (exe_dir / "share" / "keeptower" / "help").lexically_normal().string();
+    log_diagnostic("Help install dir (Windows, fallback): " + fallback);
+    return fallback;
 #else
     const std::string result = std::string(KEEPTOWER_DATADIR) + "/keeptower/help";
     log_diagnostic("Help install dir (Unix): " + result);
@@ -347,7 +403,7 @@ bool HelpManager::gresource_exists(const std::string& resource_path) const noexc
 
 std::string HelpManager::extract_from_gresource(const std::string& filename) const {
     const std::string resource_path = std::string(GRESOURCE_PREFIX) + filename;
-    
+
     log_diagnostic("Checking GResource: " + resource_path);
 
     if (!gresource_exists(resource_path)) {
@@ -375,7 +431,7 @@ std::string HelpManager::extract_from_gresource(const std::string& filename) con
 
         // Write resource to temp file using Glib (better error handling)
         Glib::file_set_contents(temp_file.string(), std::string(data, size));
-        
+
         log_diagnostic("Successfully extracted GResource to: " + temp_file.string());
 
         return path_to_file_uri(temp_file);
@@ -391,7 +447,7 @@ std::string HelpManager::extract_from_gresource(const std::string& filename) con
 void HelpManager::show_error_dialog(Gtk::Window& parent,
                                      const std::string& title,
                                      const std::string& message) const {
-    Gtk::MessageDialog dialog(
+    auto* dialog = Gtk::make_managed<Gtk::MessageDialog>(
         parent,
         title,
         false,
@@ -400,9 +456,12 @@ void HelpManager::show_error_dialog(Gtk::Window& parent,
         true
     );
 
-    dialog.set_secondary_text(message);
-    dialog.set_hide_on_close(true);
-    dialog.show();
+    dialog->set_secondary_text(message);
+    dialog->set_hide_on_close(true);
+    dialog->signal_response().connect([dialog](int) {
+        dialog->hide();
+    });
+    dialog->present();
 }
 
 std::string HelpManager::topic_to_filename(HelpTopic topic) {
