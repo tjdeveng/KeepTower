@@ -277,6 +277,7 @@ jobs:
           mingw-w64-x86_64-ninja
           mingw-w64-x86_64-pkgconf
           mingw-w64-x86_64-meson
+          mingw-w64-x86_64-pandoc
           mingw-w64-x86_64-gtkmm-4.0
           mingw-w64-x86_64-protobuf
           mingw-w64-x86_64-openssl
@@ -303,6 +304,14 @@ jobs:
 
     - name: Configure build
       run: meson setup build --buildtype=release --prefix=/mingw64
+
+    - name: Generate help docs
+      run: |
+        if command -v pandoc >/dev/null 2>&1; then
+          bash scripts/generate-help.sh build/help-generated
+        else
+          echo "Warning: pandoc not found; help files will be absent from the bundle."
+        fi
 
     - name: Build
       run: meson compile -C build

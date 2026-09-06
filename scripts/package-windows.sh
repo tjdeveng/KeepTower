@@ -32,6 +32,19 @@ echo "Build dir  : ${BUILD_DIR}"
 echo "Output dir : ${OUTPUT_DIR}"
 echo "MinGW prefix: ${MINGW_PREFIX}"
 
+# Ensure help documentation exists for a clean checkout or CI runner.
+# The generated HTML files are gitignored, so they may not be present unless
+# the build step has already run the pandoc-based generation.
+if ! ls resources/help/*.html >/dev/null 2>&1; then
+    if command -v pandoc >/dev/null 2>&1; then
+        echo "Generating help documentation for bundle..."
+        mkdir -p "${BUILD_DIR}/help-generated"
+        bash scripts/generate-help.sh "${BUILD_DIR}/help-generated"
+    else
+        echo "WARNING: pandoc not found; help files will not be bundled."
+    fi
+fi
+
 # ----------------------------------------------------------------------------
 # 1. Locate the executable
 # ----------------------------------------------------------------------------
