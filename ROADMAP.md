@@ -2,7 +2,7 @@
 
 This document outlines the planned features and improvements for KeepTower, organized by release milestones.
 
-## Current Version: v0.4.0
+## Current Version: v0.4.1
 
 ✅ Core vault management with AES-256-GCM encryption
 ✅ Reed-Solomon forward error correction (5-50% redundancy)

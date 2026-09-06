@@ -33,6 +33,16 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="0.4.1" date="2026-09-06">
+      <description>
+        <p>Windows support hotfix release.</p>
+        <ul>
+          <li>Improve Windows help-documentation discovery for packaged installer layouts</li>
+          <li>Harden Help diagnostics and error reporting when help launch fails</li>
+          <li>Improve Windows launcher fallback behavior for local help content</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.4.0" date="2026-04-16">
       <description>
         <p>A+ quality milestone: static-analysis hardening, hotspot reduction, and coverage threshold met.</p>
