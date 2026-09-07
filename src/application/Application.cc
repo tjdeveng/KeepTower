@@ -12,7 +12,70 @@
 #include "../config.h"
 #include <giomm/settings.h>
 #include <array>
+#include <cstdlib>
+#include <filesystem>
 #include <memory>
+#include <string>
+
+namespace {
+void configure_appimage_gsettings_environment() {
+    const char* appdir_env = std::getenv("APPDIR");
+    if (!appdir_env || *appdir_env == '\0') {
+        return;
+    }
+
+    const std::filesystem::path appdir(appdir_env);
+    const std::array<std::filesystem::path, 3> candidate_schema_dirs = {
+        appdir / "usr" / "share" / "glib-2.0" / "schemas",
+        appdir / "share" / "glib-2.0" / "schemas",
+        appdir / "usr" / "local" / "share" / "glib-2.0" / "schemas",
+    };
+
+    std::error_code ec;
+    std::filesystem::path schema_dir;
+    std::filesystem::path app_share_dir;
+    for (const auto& candidate : candidate_schema_dirs) {
+        const auto compiled_candidate = candidate / "gschemas.compiled";
+        if (std::filesystem::exists(compiled_candidate, ec)) {
+            schema_dir = candidate;
+            app_share_dir = candidate.parent_path().parent_path();
+            break;
+        }
+    }
+
+    if (schema_dir.empty()) {
+        const auto primary_expected_cache = candidate_schema_dirs[0] / "gschemas.compiled";
+        KeepTower::Log::warning(
+            "AppImage schema cache missing (checked APPDIR='{}', expected '{}') - host schemas may be used",
+            appdir.string(),
+            primary_expected_cache.string()
+        );
+        return;
+    }
+
+    const std::string schema_dir_str = schema_dir.string();
+    if (::setenv("GSETTINGS_SCHEMA_DIR", schema_dir_str.c_str(), 1) == 0) {
+        KeepTower::Log::info("Using bundled GSettings schemas from '{}'", schema_dir_str);
+    } else {
+        KeepTower::Log::warning("Failed to set GSETTINGS_SCHEMA_DIR to '{}'", schema_dir_str);
+    }
+
+    const std::string app_share_str = app_share_dir.string();
+    const char* existing_xdg_data_dirs = std::getenv("XDG_DATA_DIRS");
+    std::string updated_xdg_data_dirs;
+    if (existing_xdg_data_dirs && *existing_xdg_data_dirs != '\0') {
+        updated_xdg_data_dirs = app_share_str;
+        updated_xdg_data_dirs += ':';
+        updated_xdg_data_dirs += existing_xdg_data_dirs;
+    } else {
+        updated_xdg_data_dirs = app_share_str + ":/usr/local/share:/usr/share";
+    }
+
+    if (::setenv("XDG_DATA_DIRS", updated_xdg_data_dirs.c_str(), 1) != 0) {
+        KeepTower::Log::warning("Failed to update XDG_DATA_DIRS for AppImage runtime");
+    }
+}
+} // namespace
 
 Application::Application()
     : Gtk::Application("com.tjdeveng.keeptower", Gio::Application::Flags::DEFAULT_FLAGS) {
@@ -24,6 +87,9 @@ Glib::RefPtr<Application> Application::create() {
 
 void Application::on_startup() {
     Gtk::Application::on_startup();
+
+    // Force bundled schema resolution when running inside AppImage.
+    configure_appimage_gsettings_environment();
 
     // Read FIPS preference from GSettings
     bool enable_fips = false;
