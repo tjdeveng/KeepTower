@@ -45,6 +45,23 @@ if ! ls resources/help/*.html >/dev/null 2>&1; then
     fi
 fi
 
+REQUIRED_HELP_FILES=(
+    "resources/help/00-home.html"
+    "resources/help/01-getting-started.html"
+    "resources/help/03-user-guide.html"
+    "resources/help/05-security.html"
+)
+MISSING_HELP=0
+for help_file in "${REQUIRED_HELP_FILES[@]}"; do
+    if [ ! -f "${help_file}" ]; then
+        echo "WARNING: Missing help file: ${help_file}"
+        MISSING_HELP=1
+    fi
+done
+if [ "${MISSING_HELP}" -eq 0 ]; then
+    echo "Help documentation files found and will be packaged."
+fi
+
 # ----------------------------------------------------------------------------
 # 1. Locate the executable
 # ----------------------------------------------------------------------------

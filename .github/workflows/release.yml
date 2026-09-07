@@ -317,6 +317,8 @@ jobs:
       run: |
         if command -v pandoc >/dev/null 2>&1; then
           bash scripts/generate-help.sh build/help-generated
+        elif [ -f resources/help/00-home.html ] && [ -f resources/help/03-user-guide.html ] && [ -f resources/help/05-security.html ]; then
+          echo "Pandoc not available; using committed help HTML files from resources/help/."
         else
           echo "Warning: pandoc not found; help files will be absent from the bundle."
         fi

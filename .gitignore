@@ -24,6 +24,13 @@ docs/api/*.tag
 # Generated help documentation (built from markdown)
 resources/help/*.html
 !resources/help/template.html
+!resources/help/00-home.html
+!resources/help/01-getting-started.html
+!resources/help/02-installation.html
+!resources/help/03-user-guide.html
+!resources/help/04-faq.html
+!resources/help/05-security.html
+!resources/help/SECURITY_BEST_PRACTICES.html
 
 # Test vault files
 *.vault

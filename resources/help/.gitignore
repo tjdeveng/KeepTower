@@ -1,4 +1,2 @@
-# Auto-generated HTML files - synced from build directory
-# Source: docs/user/*.md → scripts/generate-help.sh → build/src/help-generated/*.html → here
-*.html
-!template.html
+# Keep generated help HTML in git so release packaging works on runners
+# without pandoc (notably experimental Windows release builds).
