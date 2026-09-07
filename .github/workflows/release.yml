@@ -146,9 +146,17 @@ jobs:
         export DISABLE_YUBIKEY_DETECT=1
         xvfb-run -a meson test -C build --print-errorlogs --timeout-multiplier 1.5
 
-        mkdir -p dist/keeptower-${{ needs.create-release.outputs.version }}-${{ matrix.artifact }}-x86_64
-        cp build/src/keeptower dist/keeptower-${{ needs.create-release.outputs.version }}-${{ matrix.artifact }}-x86_64/
-        cp README.md LICENSE CHANGELOG.md dist/keeptower-${{ needs.create-release.outputs.version }}-${{ matrix.artifact }}-x86_64/
+        # Package the installed filesystem tree so runtime data files are included.
+        DISTROOT="$PWD/distroot"
+        PKGDIR="$PWD/dist/keeptower-${{ needs.create-release.outputs.version }}-${{ matrix.artifact }}-x86_64"
+        rm -rf "$DISTROOT" "$PKGDIR"
+        mkdir -p "$DISTROOT" "$PKGDIR"
+
+        DESTDIR="$DISTROOT" meson install -C build
+
+        # Preserve installed layout under usr/ and include top-level docs.
+        cp -a "$DISTROOT/usr" "$PKGDIR/"
+        cp README.md LICENSE CHANGELOG.md "$PKGDIR/"
 
         cd dist
         tar -czf keeptower-${{ needs.create-release.outputs.version }}-${{ matrix.artifact }}-x86_64.tar.gz \
