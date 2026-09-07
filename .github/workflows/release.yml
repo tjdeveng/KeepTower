@@ -171,6 +171,13 @@ jobs:
         meson compile -C build
         DESTDIR=$PWD/AppDir meson install -C build
 
+        # Ensure bundled GSettings schemas are compiled inside AppDir.
+        # Without gschemas.compiled, GLib may fall back to host schemas,
+        # causing key mismatches at runtime.
+        glib-compile-schemas AppDir/usr/share/glib-2.0/schemas
+        test -f AppDir/usr/share/glib-2.0/schemas/gschemas.compiled
+        gsettings --schemadir AppDir/usr/share/glib-2.0/schemas list-keys com.tjdeveng.keeptower | grep -Fx "backup-path"
+
         wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
         chmod +x linuxdeploy-x86_64.AppImage
 
