@@ -179,6 +179,13 @@ void PreferencesDialog::apply_color_scheme(const std::string& scheme) {
         return;
     }
 
+#ifdef _WIN32
+    // System-default theme following is not stable on Windows GTK runtime.
+    // Use explicit light fallback instead of probing GNOME desktop settings.
+    gtk_settings->property_gtk_application_prefer_dark_theme() = false;
+    return;
+#endif
+
     // System Default: follow GNOME desktop preference.
     bool applied = false;
     try {

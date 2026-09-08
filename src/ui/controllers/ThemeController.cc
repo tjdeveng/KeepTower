@@ -145,6 +145,13 @@ void ThemeController::apply_default_follow_system() {
         return;
     }
 
+#ifdef _WIN32
+    // Windows GTK runtime does not provide GNOME desktop color-scheme settings.
+    // Keep behavior deterministic and avoid unsupported schema probing.
+    set_prefer_dark(false);
+    return;
+#endif
+
     bool applied = false;
 
     try {

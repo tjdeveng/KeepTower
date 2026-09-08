@@ -25,7 +25,13 @@ AppearancePreferencesPage::AppearancePreferencesPage()
     m_color_scheme_label.set_halign(Gtk::Align::START);
     m_color_scheme_box.append(m_color_scheme_label);
 
+    // Windows builds do not support following desktop color-scheme reliably.
+    // Offer only explicit choices to avoid crashes when selecting "System Default".
+#ifdef _WIN32
+    auto color_schemes = Gtk::StringList::create({"Light", "Dark"});
+#else
     auto color_schemes = Gtk::StringList::create({"System Default", "Light", "Dark"});
+#endif
     m_color_scheme_dropdown.set_model(color_schemes);
     m_color_scheme_dropdown.set_selected(0);
     m_color_scheme_box.append(m_color_scheme_dropdown);
@@ -37,6 +43,13 @@ AppearancePreferencesPage::AppearancePreferencesPage()
 }
 
 void AppearancePreferencesPage::load_from_model(const PreferencesModel& model) {
+#ifdef _WIN32
+    if (model.color_scheme == "dark") {
+        m_color_scheme_dropdown.set_selected(1);
+    } else {
+        m_color_scheme_dropdown.set_selected(0);
+    }
+#else
     if (model.color_scheme == "light") {
         m_color_scheme_dropdown.set_selected(1);
     } else if (model.color_scheme == "dark") {
@@ -44,10 +57,18 @@ void AppearancePreferencesPage::load_from_model(const PreferencesModel& model) {
     } else {
         m_color_scheme_dropdown.set_selected(0);
     }
+#endif
 }
 
 void AppearancePreferencesPage::store_to_model(PreferencesModel& model) const {
     const guint selected = m_color_scheme_dropdown.get_selected();
+#ifdef _WIN32
+    if (selected == 1) {
+        model.color_scheme = "dark";
+    } else {
+        model.color_scheme = "light";
+    }
+#else
     if (selected == 1) {
         model.color_scheme = "light";
     } else if (selected == 2) {
@@ -55,6 +76,7 @@ void AppearancePreferencesPage::store_to_model(PreferencesModel& model) const {
     } else {
         model.color_scheme = "default";
     }
+#endif
 }
 
 }  // namespace KeepTower::Ui
