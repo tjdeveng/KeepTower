@@ -32,7 +32,7 @@ void configure_appimage_schema_env() {
         std::error_code ec;
         if (std::filesystem::exists(compiled, ec)) {
             const std::string schema_dir = candidate.string();
-            ::setenv("GSETTINGS_SCHEMA_DIR", schema_dir.c_str(), 1);
+            Glib::setenv("GSETTINGS_SCHEMA_DIR", schema_dir.c_str(), true);
 
             const std::filesystem::path share_dir = candidate.parent_path().parent_path();
             const std::string share_str = share_dir.string();
@@ -44,7 +44,7 @@ void configure_appimage_schema_env() {
             } else {
                 xdg += ":/usr/local/share:/usr/share";
             }
-            ::setenv("XDG_DATA_DIRS", xdg.c_str(), 1);
+            Glib::setenv("XDG_DATA_DIRS", xdg.c_str(), true);
             return;
         }
     }

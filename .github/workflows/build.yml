@@ -224,8 +224,13 @@ jobs:
             meson compile -C build
             DESTDIR=\$PWD/AppDir meson install -C build
 
-            # Download linuxdeploy
-            wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+            # Download linuxdeploy. The continuous asset can occasionally be unavailable,
+            # so prefer the known asset URL and fall back to the latest download path.
+            curl -fsSL -o linuxdeploy-x86_64.AppImage \
+              https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage \
+              || curl -fsSL -o linuxdeploy-x86_64.AppImage \
+              https://github.com/linuxdeploy/linuxdeploy/releases/latest/download/linuxdeploy-x86_64.AppImage \
+              || { echo 'ERROR: Failed to download linuxdeploy'; exit 1; }
             chmod +x linuxdeploy-x86_64.AppImage
 
             # Extract linuxdeploy (FUSE may not work in container)
