@@ -125,7 +125,24 @@ namespace {
         log_diagnostic("Executable dir: " + result.string());
         return result;
 #else
-        return fs::current_path();
+        const char* appdir = std::getenv("APPDIR");
+        if (appdir && *appdir != '\0') {
+            const fs::path appdir_path = fs::path(appdir);
+            log_diagnostic("Using APPDIR as executable root: " + appdir_path.string());
+            return appdir_path;
+        }
+
+        std::error_code ec;
+        const fs::path self = fs::read_symlink("/proc/self/exe", ec);
+        if (!ec && !self.empty()) {
+            const fs::path result = self.parent_path();
+            log_diagnostic("Executable dir (proc/self/exe): " + result.string());
+            return result;
+        }
+
+        const fs::path result = fs::current_path();
+        log_diagnostic("Executable dir (fallback current_path): " + result.string());
+        return result;
 #endif
     }
 
@@ -326,6 +343,27 @@ std::string HelpManager::get_help_install_dir() {
     log_diagnostic("Help install dir (Windows, fallback): " + fallback);
     return fallback;
 #else
+    const char* appdir = std::getenv("APPDIR");
+    if (appdir && *appdir != '\0') {
+        const std::array appimage_candidates = {
+            fs::path(appdir) / "usr" / "share" / "keeptower" / "help",
+            fs::path(appdir) / "usr" / "local" / "share" / "keeptower" / "help",
+            fs::path(appdir) / "share" / "keeptower" / "help",
+        };
+
+        for (const auto& candidate : appimage_candidates) {
+            try {
+                if (fs::exists(candidate) && fs::is_directory(candidate)) {
+                    const std::string result = candidate.lexically_normal().string();
+                    log_diagnostic("Help install dir (Unix, AppImage): " + result);
+                    return result;
+                }
+            } catch (const fs::filesystem_error&) {
+                // Continue checking other AppImage candidates.
+            }
+        }
+    }
+
     const std::string result = std::string(KEEPTOWER_DATADIR) + "/keeptower/help";
     log_diagnostic("Help install dir (Unix): " + result);
     return result;
@@ -356,6 +394,7 @@ std::string HelpManager::find_help_file(const std::string& filename) const {
     const fs::path exe_dir = get_executable_dir();
     const std::array dev_paths = {
         exe_dir / "share" / "keeptower" / "help" / filename,
+        exe_dir / "usr" / "share" / "keeptower" / "help" / filename,
         exe_dir / "resources" / "help" / filename,
         exe_dir / ".." / "resources" / "help" / filename,
         exe_dir / ".." / ".." / "resources" / "help" / filename,
