@@ -274,7 +274,47 @@ bool HelpManager::open_help(HelpTopic topic, Gtk::Window& parent) {
             return true;
         }
 #else
-        // Use GTK4 C API for URI launching
+        GError* launch_error = nullptr;
+        if (g_app_info_launch_default_for_uri(uri.c_str(), nullptr, &launch_error)) {
+            log_diagnostic("Successfully launched via GIO default handler");
+            return true;
+        }
+
+        if (launch_error != nullptr) {
+            log_diagnostic("GIO default launch failed: " + std::string(launch_error->message));
+            g_error_free(launch_error);
+            launch_error = nullptr;
+        }
+
+        if (uri.rfind("file://", 0) == 0) {
+            char* filename = nullptr;
+            filename = g_filename_from_uri(uri.c_str(), nullptr, &launch_error);
+            if (filename == nullptr && launch_error != nullptr) {
+                log_diagnostic("g_filename_from_uri failed: " + std::string(launch_error->message));
+                g_error_free(launch_error);
+                launch_error = nullptr;
+            }
+
+            if (filename != nullptr) {
+                const char* quoted = g_shell_quote(filename);
+                std::string command = "xdg-open " + std::string(quoted);
+                g_free((void*)quoted);
+                g_free(filename);
+
+                log_diagnostic("Attempting xdg-open fallback: " + command);
+                if (g_spawn_command_line_async(command.c_str(), &launch_error)) {
+                    log_diagnostic("Successfully launched via xdg-open fallback");
+                    return true;
+                }
+
+                if (launch_error != nullptr) {
+                    log_diagnostic("xdg-open fallback failed: " + std::string(launch_error->message));
+                    g_error_free(launch_error);
+                }
+            }
+        }
+
+        // Final fallback to the GTK URI launcher for local file URIs.
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"

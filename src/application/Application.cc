@@ -54,7 +54,7 @@ void configure_appimage_gsettings_environment() {
     }
 
     const std::string schema_dir_str = schema_dir.string();
-    if (::setenv("GSETTINGS_SCHEMA_DIR", schema_dir_str.c_str(), 1) == 0) {
+    if (Glib::setenv("GSETTINGS_SCHEMA_DIR", schema_dir_str, true)) {
         KeepTower::Log::info("Using bundled GSettings schemas from '{}'", schema_dir_str);
     } else {
         KeepTower::Log::warning("Failed to set GSETTINGS_SCHEMA_DIR to '{}'", schema_dir_str);
@@ -71,7 +71,7 @@ void configure_appimage_gsettings_environment() {
         updated_xdg_data_dirs = app_share_str + ":/usr/local/share:/usr/share";
     }
 
-    if (::setenv("XDG_DATA_DIRS", updated_xdg_data_dirs.c_str(), 1) != 0) {
+    if (!Glib::setenv("XDG_DATA_DIRS", updated_xdg_data_dirs, true)) {
         KeepTower::Log::warning("Failed to update XDG_DATA_DIRS for AppImage runtime");
     }
 }
