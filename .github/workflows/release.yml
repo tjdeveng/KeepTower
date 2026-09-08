@@ -171,6 +171,13 @@ jobs:
         meson compile -C build
         DESTDIR=$PWD/AppDir meson install -C build
 
+        # Ensure runtime data files are actually present in the AppDir.
+        # Help files must be installed under /usr/share/keeptower/help for the
+        # GTK help manager to find them at runtime.
+        test -f AppDir/usr/share/keeptower/help/03-user-guide.html
+        test -f AppDir/usr/share/keeptower/help/05-security.html
+        ls -lh AppDir/usr/share/keeptower/help | head
+
         # Ensure bundled GSettings schemas are compiled inside AppDir.
         # Without gschemas.compiled, GLib may fall back to host schemas,
         # causing key mismatches at runtime.

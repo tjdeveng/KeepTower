@@ -128,6 +128,29 @@ if pandoc.found()
     c_name: 'keeptower_help',
     dependencies: [generate_help],
   )
+
+  help_files = files(
+    help_output_dir / '00-home.html',
+    help_output_dir / '01-getting-started.html',
+    help_output_dir / '02-installation.html',
+    help_output_dir / '03-user-guide.html',
+    help_output_dir / '04-faq.html',
+    help_output_dir / '05-security.html',
+    help_output_dir / '06-vault-security-algorithms.html',
+    help_output_dir / 'README.html',
+    help_output_dir / 'SECURITY_BEST_PRACTICES.html',
+    help_output_dir / 'YUBIKEY_FIPS_SETUP.html',
+  )
+
+  install_data(
+    help_files,
+    install_dir: get_option('datadir') / 'keeptower' / 'help',
+  )
+
+  install_subdir(
+    '../resources/help/css',
+    install_dir: get_option('datadir') / 'keeptower' / 'help',
+  )
 else
   warning('pandoc not found - help documentation will not be embedded')
   help_gresources = []
