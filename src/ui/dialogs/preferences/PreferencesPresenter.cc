@@ -69,10 +69,17 @@ PreferencesModel PreferencesPresenter::load() const {
         model.vault_admin = session && session->role == KeepTower::UserRole::ADMINISTRATOR;
     }
 
-    // Appearance
+    // Appearance. Only keep "default" when the current runtime actually exposes
+    // the GNOME desktop schema. On Windows and other non-GNOME runtimes, a safe
+    // explicit Light/Dark choice is the supported behavior.
     model.color_scheme = m_settings->get_string("color-scheme");
     if (model.color_scheme != "light" && model.color_scheme != "dark") {
-        model.color_scheme = "default";
+        try {
+            auto schema_source = Gio::SettingsSchemaSource::get_default();
+            model.color_scheme = (schema_source && schema_source->lookup("org.gnome.desktop.interface", true)) ? "default" : "light";
+        } catch (...) {
+            model.color_scheme = "light";
+        }
     }
 
     // Storage (FEC)

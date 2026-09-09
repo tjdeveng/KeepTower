@@ -145,12 +145,13 @@ void ThemeController::apply_default_follow_system() {
         return;
     }
 
-#ifdef _WIN32
-    // Windows GTK runtime does not provide GNOME desktop color-scheme settings.
-    // Keep behavior deterministic and avoid unsupported schema probing.
-    set_prefer_dark(false);
-    return;
-#endif
+    // Only follow the desktop theme when the host runtime actually exposes the
+    // GNOME desktop schema. This keeps Fedora/Ubuntu GNOME working while avoiding
+    // unsupported/default system-theme lookups on Windows or other isolated runtimes.
+    if (!schema_exists(kDesktopSchema)) {
+        set_prefer_dark(false);
+        return;
+    }
 
     bool applied = false;
 
