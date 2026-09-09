@@ -145,23 +145,19 @@ void ThemeController::apply_default_follow_system() {
         return;
     }
 
-    // Only follow the desktop theme when the host runtime actually exposes the
-    // GNOME desktop schema. This keeps Fedora/Ubuntu GNOME working while avoiding
-    // unsupported/default system-theme lookups on Windows or other isolated runtimes.
-    if (!schema_exists(kDesktopSchema)) {
-        set_prefer_dark(false);
-        return;
-    }
-
     bool applied = false;
 
     try {
         if (!m_desktop_settings) {
-            if (schema_exists(kDesktopSchema)) {
-                m_desktop_settings = Gio::Settings::create(kDesktopSchema);
-            } else {
+            // Only follow the desktop theme when the host runtime actually exposes the
+            // GNOME desktop schema. This keeps Fedora/Ubuntu GNOME working while avoiding
+            // unsupported/default system-theme lookups on Windows or isolated runtimes.
+            if (!schema_exists(kDesktopSchema)) {
                 KeepTower::Log::debug("ThemeController: Desktop schema '{}' not available", kDesktopSchema);
+                set_prefer_dark(false);
+                return;
             }
+            m_desktop_settings = Gio::Settings::create(kDesktopSchema);
         }
 
         if (m_desktop_settings) {
